@@ -1,0 +1,285 @@
+from django.db import models
+from django.contrib.auth.models import User
+from django.core.validators import MinValueValidator
+from django.core.exceptions import ValidationError
+from decimal import Decimal
+from datetime import date
+from vessels.models import Vessel
+from products.models import Product
+
+class InventoryLot(models.Model):
+    """Tracks individual purchase batches for FIFO inventory management"""
+    vessel = models.ForeignKey(Vessel, on_delete=models.PROTECT, related_name='inventory_lots')
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='inventory_lots')
+    purchase_date = models.DateField()
+    purchase_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=3,
+        validators=[MinValueValidator(Decimal('0.001'))],
+        help_text="Cost price per unit when purchased (JOD)"
+    )
+    original_quantity = models.IntegerField(
+        validators=[MinValueValidator(1)],
+        help_text="Original quantity purchased"
+    )
+    remaining_quantity = models.IntegerField(
+        validators=[MinValueValidator(0)],
+        help_text="Quantity still available"
+    )
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    class Meta:
+        ordering = ['vessel', 'product', 'purchase_date', 'created_at']
+        verbose_name = 'Inventory Lot'
+        verbose_name_plural = 'Inventory Lots'
+    
+    def __str__(self):
+        return f"{self.vessel.name} - {self.product.item_id} - {self.purchase_date} ({self.remaining_quantity}/{self.original_quantity})"
+    
+    @property
+    def is_consumed(self):
+        """Check if this lot is completely consumed"""
+        return self.remaining_quantity == 0
+
+class Transaction(models.Model):
+    """Records all inventory movements with proper transaction types"""
+    
+    TRANSACTION_TYPES = [
+        ('SUPPLY', 'Supply (Stock Received)'),
+        ('SALE', 'Sale (Sold to Customers)'),
+        ('TRANSFER_OUT', 'Transfer Out (Sent to Another Vessel)'),
+        ('TRANSFER_IN', 'Transfer In (Received from Another Vessel)'),
+    ]
+    
+    # Core Information
+    vessel = models.ForeignKey(Vessel, on_delete=models.PROTECT, related_name='transactions')
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='transactions')
+    transaction_type = models.CharField(max_length=15, choices=TRANSACTION_TYPES)
+    transaction_date = models.DateField()
+    
+    # Quantity and Pricing
+    quantity = models.DecimalField(
+        max_digits=10,
+        decimal_places=3,
+        validators=[MinValueValidator(Decimal('0.001'))],
+        help_text="Quantity involved in this transaction"
+    )
+    unit_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=3,
+        validators=[MinValueValidator(Decimal('0.001'))],
+        help_text="Price per unit for this transaction (JOD)"
+    )
+    
+    # Transfer Information (for TRANSFER_OUT and TRANSFER_IN)
+    transfer_to_vessel = models.ForeignKey(
+        Vessel, 
+        on_delete=models.PROTECT, 
+        null=True, 
+        blank=True,
+        related_name='incoming_transfers',
+        help_text="Destination vessel for transfers"
+    )
+    transfer_from_vessel = models.ForeignKey(
+        Vessel,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='outgoing_transfers',
+        help_text="Source vessel for transfers"
+    )
+    related_transfer = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        help_text="Links transfer out with corresponding transfer in"
+    )
+    
+    # Metadata
+    notes = models.TextField(blank=True, help_text="Additional notes about this transaction")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    class Meta:
+        ordering = ['-transaction_date', '-created_at']
+        verbose_name = 'Transaction'
+        verbose_name_plural = 'Transactions'
+    
+    def __str__(self):
+        return f"{self.vessel.name} - {self.get_transaction_type_display()} - {self.product.item_id} - {self.transaction_date}"
+    
+    @property
+    def total_amount(self):
+        """Calculate total transaction amount"""
+        if self.unit_price is not None and self.quantity is not None:
+            return self.quantity * self.unit_price
+        return Decimal('0')
+    
+    def clean(self):
+        """Validate transaction data"""
+        super().clean()
+        
+        # Validate transfer fields
+        if self.transaction_type == 'TRANSFER_OUT':
+            if not self.transfer_to_vessel:
+                raise ValidationError("Transfer destination vessel is required for transfer out transactions")
+            if self.transfer_to_vessel == self.vessel:
+                raise ValidationError("Cannot transfer to the same vessel")
+        
+        if self.transaction_type == 'TRANSFER_IN':
+            if not self.transfer_from_vessel:
+                raise ValidationError("Transfer source vessel is required for transfer in transactions")
+            if self.transfer_from_vessel == self.vessel:
+                raise ValidationError("Cannot receive transfer from the same vessel")
+    
+    def save(self, *args, **kwargs):
+        """Override save to handle FIFO logic and automatic transfers"""
+        self.clean()
+        
+        # Set default unit price from product if not specified
+        if not self.unit_price and self.product:
+            if self.transaction_type in ['SALE']:
+                self.unit_price = self.product.selling_price
+            else:
+                self.unit_price = self.product.purchase_price
+        
+        # Save first to get primary key
+        super().save(*args, **kwargs)
+        
+        # Handle different transaction types AFTER saving
+        if self.transaction_type == 'SUPPLY':
+            self._handle_supply()
+        elif self.transaction_type == 'SALE':
+            self._handle_sale()
+            # Update the instance to reflect notes changes
+            if hasattr(self, '_state') and not self._state.adding:
+                Transaction.objects.filter(pk=self.pk).update(notes=self.notes)
+        elif self.transaction_type == 'TRANSFER_OUT':
+            self._handle_transfer_out()
+            # Update the instance to reflect notes and related_transfer changes
+            if hasattr(self, '_state') and not self._state.adding:
+                Transaction.objects.filter(pk=self.pk).update(
+                    notes=self.notes,
+                    related_transfer=self.related_transfer
+                )
+    
+    def _handle_supply(self):
+        """Create new inventory lot for supply transactions"""
+        if self.pk:  # Only after transaction is saved
+            InventoryLot.objects.create(
+                vessel=self.vessel,
+                product=self.product,
+                purchase_date=self.transaction_date,
+                purchase_price=self.unit_price,
+                original_quantity=int(self.quantity),
+                remaining_quantity=int(self.quantity),
+                created_by=self.created_by
+            )
+
+    def _handle_sale(self):
+        """Consume inventory using FIFO for sales"""
+        if self.pk:  # Only after transaction is saved
+            try:
+                consumption_details = consume_inventory_fifo(
+                    self.vessel, 
+                    self.product, 
+                    int(self.quantity)
+                )
+                # Log consumption details in notes if empty
+                if not self.notes:
+                    cost_breakdown = []
+                    for detail in consumption_details:
+                        cost_breakdown.append(
+                            f"{detail['consumed_quantity']} units @ {detail['unit_cost']} JOD"
+                        )
+                    self.notes = f"FIFO consumption: {'; '.join(cost_breakdown)}"
+            except ValidationError as e:
+                raise ValidationError(f"Sale failed: {str(e)}")
+
+    def _handle_transfer_out(self):
+        """Handle transfer to another vessel with FIFO consumption"""
+        if self.pk and not self.related_transfer:  # Only after saved and no related transfer yet
+            try:
+                # Consume inventory using FIFO
+                consumption_details = consume_inventory_fifo(
+                    self.vessel,
+                    self.product,
+                    int(self.quantity)
+                )
+                
+                # Calculate weighted average cost for transfer
+                total_cost = sum(
+                    detail['consumed_quantity'] * detail['unit_cost'] 
+                    for detail in consumption_details
+                )
+                weighted_avg_cost = total_cost / self.quantity
+                
+                # Create corresponding TRANSFER_IN transaction
+                transfer_in = Transaction.objects.create(
+                    vessel=self.transfer_to_vessel,
+                    product=self.product,
+                    transaction_type='TRANSFER_IN',
+                    transaction_date=self.transaction_date,
+                    quantity=self.quantity,
+                    unit_price=weighted_avg_cost,
+                    transfer_from_vessel=self.vessel,
+                    notes=f"Transfer from {self.vessel.name}. Original costs: {'; '.join([f'{d['consumed_quantity']} @ {d['unit_cost']}' for d in consumption_details])}",
+                    created_by=self.created_by
+                )
+                
+                # Link the transactions
+                self.related_transfer = transfer_in
+                transfer_in.related_transfer = self
+                transfer_in.save()
+                
+                # Update our notes
+                if not self.notes:
+                    self.notes = f"Transferred to {self.transfer_to_vessel.name} at weighted cost {weighted_avg_cost:.3f} JOD/unit"
+                    
+            except ValidationError as e:
+                raise ValidationError(f"Transfer failed: {str(e)}")
+
+# Utility functions for FIFO operations
+def get_available_inventory(vessel, product):
+    """Get current available inventory for a vessel-product combination"""
+    lots = InventoryLot.objects.filter(
+        vessel=vessel,
+        product=product,
+        remaining_quantity__gt=0
+    ).order_by('purchase_date', 'created_at')
+    
+    total_quantity = sum(lot.remaining_quantity for lot in lots)
+    return total_quantity, lots
+
+def consume_inventory_fifo(vessel, product, quantity_to_consume):
+    """Consume inventory using FIFO method and return consumption details"""
+    available_quantity, lots = get_available_inventory(vessel, product)
+    
+    if quantity_to_consume > available_quantity:
+        raise ValidationError(f"Insufficient inventory. Available: {available_quantity}, Requested: {quantity_to_consume}")
+    
+    consumption_details = []
+    remaining_to_consume = quantity_to_consume
+    
+    for lot in lots:
+        if remaining_to_consume <= 0:
+            break
+        
+        consumed_from_lot = min(lot.remaining_quantity, remaining_to_consume)
+        lot.remaining_quantity -= consumed_from_lot
+        lot.save()
+        
+        consumption_details.append({
+            'lot': lot,
+            'consumed_quantity': consumed_from_lot,
+            'unit_cost': lot.purchase_price
+        })
+        
+        remaining_to_consume -= consumed_from_lot
+    
+    return consumption_details
