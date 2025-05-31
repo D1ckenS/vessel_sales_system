@@ -1,0 +1,10 @@
+{% extends "admin/change_form.html" %}
+
+{% block submit_buttons_bottom %}
+    {{ block.super }}
+    <div class="submit-row">
+        <input type="submit" value="🗑️ Delete Transaction" name="_delete_transaction" 
+               style="background-color: #dc3545; border-color: #dc3545;" 
+               onclick="return confirm('Are you sure you want to delete this transaction? This will cleanup related inventory lots.')">
+    </div>
+{% endblock %}

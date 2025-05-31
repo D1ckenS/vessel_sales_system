@@ -71,10 +71,11 @@ class Transaction(models.Model):
         max_digits=10,
         decimal_places=3,
         validators=[MinValueValidator(Decimal('0.001'))],
+        blank=True,  # This is what you added!
         help_text="Price per unit for this transaction (JOD)"
     )
     
-    # Transfer Information (for TRANSFER_OUT and TRANSFER_IN)
+    # Transfer Information
     transfer_to_vessel = models.ForeignKey(
         Vessel, 
         on_delete=models.PROTECT, 
@@ -121,28 +122,38 @@ class Transaction(models.Model):
         return Decimal('0')
     
     def clean(self):
-        """Validate transaction data"""
+        """Validate transaction data and auto-set unit price for transfers"""
         super().clean()
         
-        # Validate transfer fields
+        # Auto-set unit price for transfers BEFORE validation
         if self.transaction_type == 'TRANSFER_OUT':
             if not self.transfer_to_vessel:
                 raise ValidationError("Transfer destination vessel is required for transfer out transactions")
             if self.transfer_to_vessel == self.vessel:
                 raise ValidationError("Cannot transfer to the same vessel")
-        
-        if self.transaction_type == 'TRANSFER_IN':
+            # Set placeholder unit price to pass validation
+            self.unit_price = Decimal('0.001')
+            
+        elif self.transaction_type == 'TRANSFER_IN':
             if not self.transfer_from_vessel:
                 raise ValidationError("Transfer source vessel is required for transfer in transactions")
             if self.transfer_from_vessel == self.vessel:
                 raise ValidationError("Cannot receive transfer from the same vessel")
+            # Set placeholder unit price to pass validation
+            self.unit_price = Decimal('0.001')
     
     def save(self, *args, **kwargs):
         """Override save to handle FIFO logic and automatic transfers"""
         self.clean()
         
-        # Set default unit price from product if not specified
-        if not self.unit_price and self.product:
+        # Auto-populate vessel fields for transfers
+        if self.transaction_type == 'TRANSFER_OUT':
+            self.transfer_from_vessel = self.vessel
+        elif self.transaction_type == 'TRANSFER_IN':
+            self.transfer_to_vessel = self.vessel
+        
+        # Set default unit price from product if not specified (for non-transfers only)
+        if self.transaction_type not in ['TRANSFER_OUT', 'TRANSFER_IN'] and not self.unit_price and self.product:
             if self.transaction_type in ['SALE']:
                 self.unit_price = self.product.selling_price
             else:
@@ -156,12 +167,10 @@ class Transaction(models.Model):
             self._handle_supply()
         elif self.transaction_type == 'SALE':
             self._handle_sale()
-            # Update the instance to reflect notes changes
             if hasattr(self, '_state') and not self._state.adding:
                 Transaction.objects.filter(pk=self.pk).update(notes=self.notes)
         elif self.transaction_type == 'TRANSFER_OUT':
             self._handle_transfer_out()
-            # Update the instance to reflect notes and related_transfer changes
             if hasattr(self, '_state') and not self._state.adding:
                 Transaction.objects.filter(pk=self.pk).update(
                     notes=self.notes,
@@ -202,7 +211,7 @@ class Transaction(models.Model):
                 raise ValidationError(f"Sale failed: {str(e)}")
 
     def _handle_transfer_out(self):
-        """Handle transfer to another vessel with FIFO consumption"""
+        """Handle transfer to another vessel with proper FIFO preservation"""
         if self.pk and not self.related_transfer:  # Only after saved and no related transfer yet
             try:
                 # Consume inventory using FIFO
@@ -212,34 +221,43 @@ class Transaction(models.Model):
                     int(self.quantity)
                 )
                 
-                # Calculate weighted average cost for transfer
-                total_cost = sum(
-                    detail['consumed_quantity'] * detail['unit_cost'] 
-                    for detail in consumption_details
-                )
-                weighted_avg_cost = total_cost / self.quantity
-                
-                # Create corresponding TRANSFER_IN transaction
+                # Create corresponding TRANSFER_IN transaction (placeholder)
                 transfer_in = Transaction.objects.create(
                     vessel=self.transfer_to_vessel,
                     product=self.product,
                     transaction_type='TRANSFER_IN',
                     transaction_date=self.transaction_date,
                     quantity=self.quantity,
-                    unit_price=weighted_avg_cost,
+                    unit_price=Decimal('0.001'),  # Placeholder
                     transfer_from_vessel=self.vessel,
-                    notes=f"Transfer from {self.vessel.name}. Original costs: {'; '.join([f'{d['consumed_quantity']} @ {d['unit_cost']}' for d in consumption_details])}",
+                    notes=f"Transfer from {self.vessel.name}",
                     created_by=self.created_by
                 )
+                
+                # Create individual inventory lots preserving FIFO costs
+                lot_details = []
+                for detail in consumption_details:
+                    # Create inventory lot on receiving vessel with original cost
+                    InventoryLot.objects.create(
+                        vessel=self.transfer_to_vessel,
+                        product=self.product,
+                        purchase_date=detail['lot'].purchase_date,  # Preserve original date
+                        purchase_price=detail['unit_cost'],  # Preserve original cost
+                        original_quantity=detail['consumed_quantity'],
+                        remaining_quantity=detail['consumed_quantity'],
+                        created_by=self.created_by
+                    )
+                    lot_details.append(f"{detail['consumed_quantity']} units @ {detail['unit_cost']} JOD")
                 
                 # Link the transactions
                 self.related_transfer = transfer_in
                 transfer_in.related_transfer = self
                 transfer_in.save()
                 
-                # Update our notes
-                if not self.notes:
-                    self.notes = f"Transferred to {self.transfer_to_vessel.name} at weighted cost {weighted_avg_cost:.3f} JOD/unit"
+                # Update notes with FIFO breakdown
+                self.notes = f"Transferred to {self.transfer_to_vessel.name}. FIFO breakdown: {'; '.join(lot_details)}"
+                transfer_in.notes = f"Received from {self.vessel.name}. Lots created: {'; '.join(lot_details)}"
+                transfer_in.save()
                     
             except ValidationError as e:
                 raise ValidationError(f"Transfer failed: {str(e)}")

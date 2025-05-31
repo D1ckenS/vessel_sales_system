@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.shortcuts import redirect
 from django.utils.html import format_html
 from django.db.models import Sum, Count
 from django.urls import reverse
@@ -64,6 +65,7 @@ class InventoryLotAdmin(admin.ModelAdmin):
 
 @admin.register(Transaction)
 class TransactionAdmin(admin.ModelAdmin):
+    change_form_template = 'admin/transactions/transaction_change_form.html'
     list_display = [
         'transaction_date', 'vessel', 'product_display', 'transaction_type_display', 
         'quantity', 'unit_price', 'total_amount', 'transfer_info'
@@ -77,10 +79,17 @@ class TransactionAdmin(admin.ModelAdmin):
         'transfer_to_vessel__name', 'notes'
     ]
     ordering = ['-transaction_date', '-created_at']
-    readonly_fields = [
-        'total_amount', 'related_transfer', 'created_at', 
-        'updated_at', 'created_by'
-    ]
+    
+    def get_readonly_fields(self, request, obj=None):
+        """Dynamic readonly fields based on transaction type"""
+        readonly = ['total_amount', 'related_transfer', 'created_at', 'updated_at', 'created_by']
+        
+        if obj and obj.transaction_type == 'TRANSFER_OUT':
+            readonly.extend(['transfer_from_vessel', 'unit_price'])
+        elif obj and obj.transaction_type == 'TRANSFER_IN':
+            readonly.extend(['transfer_to_vessel', 'unit_price'])
+            
+        return readonly
     
     def get_fieldsets(self, request, obj=None):
         """Dynamic fieldsets based on transaction type"""
@@ -96,22 +105,22 @@ class TransactionAdmin(admin.ModelAdmin):
         ]
         
         # Add transfer fields for transfer transactions
-        if obj and obj.transaction_type in ['TRANSFER_OUT', 'TRANSFER_IN']:
-            if obj.transaction_type == 'TRANSFER_OUT':
-                transfer_fieldset = ('Transfer Details', {
-                    'fields': ('transfer_to_vessel', 'related_transfer'),
-                    'description': 'Destination vessel and linked transfer transaction.'
-                })
-            else:
-                transfer_fieldset = ('Transfer Details', {
-                    'fields': ('transfer_from_vessel', 'related_transfer'),
-                    'description': 'Source vessel and linked transfer transaction.'
-                })
+        if obj and obj.transaction_type == 'TRANSFER_OUT':
+            transfer_fieldset = ('Transfer Details', {
+                'fields': ('transfer_from_vessel', 'transfer_to_vessel', 'related_transfer'),
+                'description': 'Transfer source (auto-filled) and destination vessel.'
+            })
             basic_fieldsets.append(transfer_fieldset)
-        elif not obj:  # For new transactions, show both transfer fields
+        elif obj and obj.transaction_type == 'TRANSFER_IN':
+            transfer_fieldset = ('Transfer Details', {
+                'fields': ('transfer_from_vessel', 'transfer_to_vessel', 'related_transfer'),
+                'description': 'Transfer source and destination (auto-filled) vessel.'
+            })
+            basic_fieldsets.append(transfer_fieldset)
+        elif not obj:  # For new transactions, show relevant transfer field
             transfer_fieldset = ('Transfer Details (if applicable)', {
-                'fields': ('transfer_to_vessel', 'transfer_from_vessel'),
-                'description': 'Required only for transfer transactions.',
+                'fields': ('transfer_to_vessel',),
+                'description': 'Required only for transfer out transactions.',
                 'classes': ('collapse',)
             })
             basic_fieldsets.append(transfer_fieldset)
@@ -120,7 +129,7 @@ class TransactionAdmin(admin.ModelAdmin):
         basic_fieldsets.extend([
             ('Additional Information', {
                 'fields': ('notes',),
-                'description': 'Optional notes about this transaction.'
+                'description': 'Auto-generated FIFO breakdown and optional notes.'
             }),
             ('Administrative Details', {
                 'fields': ('created_by', ('created_at', 'updated_at')),
@@ -163,37 +172,28 @@ class TransactionAdmin(admin.ModelAdmin):
     def total_amount(self, obj):
         return f"{obj.total_amount:.3f} JOD"
     total_amount.short_description = 'Total Amount'
-    
-    actions = ['duplicate_selected_transactions']
-    
-    def duplicate_selected_transactions(self, request, queryset):
-        """Admin action to duplicate selected transactions"""
-        duplicated_count = 0
-        for transaction in queryset:
-            # Create a copy without executing FIFO logic
-            Transaction.objects.create(
-                vessel=transaction.vessel,
-                product=transaction.product,
-                transaction_type=transaction.transaction_type,
-                transaction_date=transaction.transaction_date,
-                quantity=transaction.quantity,
-                unit_price=transaction.unit_price,
-                transfer_to_vessel=transaction.transfer_to_vessel,
-                transfer_from_vessel=transaction.transfer_from_vessel,
-                notes=f"Duplicate of transaction from {transaction.transaction_date}",
-                created_by=request.user
-            )
-            duplicated_count += 1
-        
-        self.message_user(request, f"Successfully duplicated {duplicated_count} transactions.")
-    duplicate_selected_transactions.short_description = "Duplicate selected transactions"
 
-# Custom admin views for inventory summaries
-class InventorySummaryAdmin(admin.ModelAdmin):
-    """Virtual admin for inventory summaries"""
-    change_list_template = 'admin/transactions/inventory_summary.html'
-    
-    def changelist_view(self, request, extra_context=None):
-        # This would show inventory summaries by vessel and product
-        # Implementation would go here for a summary dashboard
-        return super().changelist_view(request, extra_context)
+    def get_form(self, request, obj=None, **kwargs):
+        """Enhance form for better transfer handling"""
+        form = super().get_form(request, obj, **kwargs)
+        
+        # Add help text for transfer transactions
+        if 'unit_price' in form.base_fields:
+            form.base_fields['unit_price'].help_text = (
+                "For transfers, this is automatically calculated using FIFO costing. "
+                "For sales and supply, enter the actual price."
+            )
+        
+        return form
+
+    def response_change(self, request, obj):
+        """Handle custom button clicks"""
+        if "_delete_transaction" in request.POST:
+            try:
+                obj.delete()
+                self.message_user(request, "Transaction deleted successfully!")
+                return redirect('../')
+            except Exception as e:
+                self.message_user(request, f"Error deleting: {str(e)}", level='ERROR')
+        
+        return super().response_change(request, obj)
