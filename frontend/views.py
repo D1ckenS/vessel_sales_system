@@ -1,3 +1,4 @@
+from django.forms import ValidationError
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -8,41 +9,120 @@ from decimal import Decimal
 import decimal
 from vessels.models import Vessel
 from products.models import Product
-from transactions.models import Transaction, InventoryLot
+from transactions.models import Transaction, InventoryLot, Trip, PurchaseOrder
 
 @login_required
 def supply_entry(request):
-    """Supply entry interface for receiving new stock"""
+    """Step 1: Create new purchase order for supply transactions"""
     
     if request.method == 'GET':
-        # Display the supply entry form
+        # Display the PO creation form
         vessels = Vessel.objects.filter(active=True).order_by('name')
         
-        # Get recent supply transactions
-        recent_supplies = Transaction.objects.filter(
-            transaction_type='SUPPLY'
-        ).select_related(
-            'vessel', 'product', 'created_by'
-        ).order_by('-created_at')[:20]
-        
-        # In your sales_entry and supply_entry views, add:
-        vessel_colors = {
-            'amman': 'bg-primary',
-            'aylah': 'bg-danger', 
-            'sinaa': 'bg-success',
-            'nefertiti': 'bg-secondary',
-            'babel': 'bg-warning',
-            'dahab': 'bg-info'
-        }
+        # Get recent POs for reference
+        recent_pos = PurchaseOrder.objects.select_related('vessel', 'created_by').order_by('-created_at')[:10]
         
         context = {
             'vessels': vessels,
-            'recent_supplies': recent_supplies,
+            'recent_pos': recent_pos,
             'today': date.today(),
-            'vessel_colors': vessel_colors,
         }
         
         return render(request, 'frontend/supply_entry.html', context)
+    
+    elif request.method == 'POST':
+        try:
+            # Get form data
+            vessel_id = request.POST.get('vessel')
+            po_number = request.POST.get('po_number', '').strip()
+            po_date = request.POST.get('po_date')
+            notes = request.POST.get('notes', '').strip()
+            
+            # Validate required fields
+            if not all([vessel_id, po_number, po_date]):
+                messages.error(request, 'Please fill in all required fields.')
+                return redirect('frontend:supply_entry')
+            
+            # Get vessel
+            vessel = Vessel.objects.get(id=vessel_id, active=True)
+            
+            # Validate PO number uniqueness
+            if PurchaseOrder.objects.filter(po_number=po_number).exists():
+                messages.error(request, f'Purchase Order "{po_number}" already exists. Please use a different number.')
+                return redirect('frontend:supply_entry')
+            
+            from datetime import datetime
+            po_date_obj = datetime.strptime(po_date, '%Y-%m-%d').date()
+            
+            # Create purchase order
+            po = PurchaseOrder.objects.create(
+                po_number=po_number,
+                vessel=vessel,
+                po_date=po_date_obj,
+                notes=notes,
+                created_by=request.user
+            )
+            
+            messages.success(request, f'Purchase Order {po_number} created successfully! Now add supply items.')
+            return redirect('frontend:po_supply', po_id=po.id)
+            
+        except Vessel.DoesNotExist:
+            messages.error(request, 'Invalid vessel selected.')
+            return redirect('frontend:supply_entry')
+        except (ValueError, ValidationError) as e:
+            messages.error(request, f'Invalid data: {str(e)}')
+            return redirect('frontend:supply_entry')
+        except Exception as e:
+            messages.error(request, f'Error creating purchase order: {str(e)}')
+            return redirect('frontend:supply_entry')
+
+@login_required
+def po_supply(request, po_id):
+    """Step 2: Multi-item supply entry for a specific purchase order"""
+    
+    try:
+        po = PurchaseOrder.objects.select_related('vessel').get(id=po_id)
+    except PurchaseOrder.DoesNotExist:
+        messages.error(request, 'Purchase Order not found.')
+        return redirect('frontend:supply_entry')
+    
+    # Get existing supplies for this PO
+    po_supplies = Transaction.objects.filter(
+        purchase_order=po,
+        transaction_type='SUPPLY'
+    ).select_related('product').order_by('-created_at')
+    
+    context = {
+        'po': po,
+        'po_supplies': po_supplies,
+        'total_cost': sum(supply.total_amount for supply in po_supplies),
+    }
+    
+    return render(request, 'frontend/po_supply.html', context)
+
+@login_required
+def po_complete(request, po_id):
+    """Complete a purchase order and mark it as finished"""
+    
+    if request.method == 'POST':
+        try:
+            po = PurchaseOrder.objects.get(id=po_id)
+            po.is_completed = True
+            po.save()
+            
+            total_cost = po.total_cost
+            transaction_count = po.transaction_count
+            
+            messages.success(request, 
+                f'Purchase Order {po.po_number} completed! '
+                f'{transaction_count} items received for {total_cost:.3f} JOD total cost.'
+            )
+            
+            return redirect('frontend:supply_entry')
+            
+        except PurchaseOrder.DoesNotExist:
+            messages.error(request, 'Purchase Order not found.')
+            return redirect('frontend:supply_entry')
 
 @login_required
 def supply_search_products(request):
@@ -356,39 +436,125 @@ def dashboard(request):
 
 @login_required
 def sales_entry(request):
-    """Functional sales entry interface with FIFO integration"""
+    """Step 1: Create new trip for sales transactions"""
     
     if request.method == 'GET':
-        # Display the sales entry form
+        # Display the trip creation form
         vessels = Vessel.objects.filter(active=True).order_by('name')
         
-        # Get today's sales for the table
-        today = date.today()
-        today_sales = Transaction.objects.filter(
-            transaction_type='SALE',
-            transaction_date=today
-        ).select_related(
-            'vessel', 'product', 'created_by'
-        ).order_by('-created_at')
-        
-        # In your sales_entry and supply_entry views, add:
-        vessel_colors = {
-            'amman': 'bg-primary',
-            'aylah': 'bg-danger', 
-            'sinaa': 'bg-success',
-            'nefertiti': 'bg-secondary',
-            'babel': 'bg-warning',
-            'dahab': 'bg-info'
-        }
+        # Get recent trips for reference
+        recent_trips = Trip.objects.select_related('vessel', 'created_by').order_by('-created_at')[:10]
         
         context = {
             'vessels': vessels,
-            'today_sales': today_sales,
-            'today': today,
-            'vessel_colors': vessel_colors
+            'recent_trips': recent_trips,
+            'today': date.today(),
         }
         
         return render(request, 'frontend/sales_entry.html', context)
+    
+    elif request.method == 'POST':
+        try:
+            # Get form data
+            vessel_id = request.POST.get('vessel')
+            trip_number = request.POST.get('trip_number', '').strip()
+            passenger_count = request.POST.get('passenger_count')
+            trip_date = request.POST.get('trip_date')
+            notes = request.POST.get('notes', '').strip()
+            
+            # Validate required fields
+            if not all([vessel_id, trip_number, passenger_count, trip_date]):
+                messages.error(request, 'Please fill in all required fields.')
+                return redirect('frontend:sales_entry')
+            
+            # Get vessel
+            vessel = Vessel.objects.get(id=vessel_id, active=True)
+            
+            # Validate trip number uniqueness
+            if Trip.objects.filter(trip_number=trip_number).exists():
+                messages.error(request, f'Trip number "{trip_number}" already exists. Please use a different number.')
+                return redirect('frontend:sales_entry')
+            
+            # Parse and validate data
+            passenger_count_val = int(passenger_count)
+            if passenger_count_val <= 0:
+                messages.error(request, 'Passenger count must be greater than 0.')
+                return redirect('frontend:sales_entry')
+            
+            from datetime import datetime
+            trip_date_obj = datetime.strptime(trip_date, '%Y-%m-%d').date()
+            
+            # Create trip
+            trip = Trip.objects.create(
+                trip_number=trip_number,
+                vessel=vessel,
+                passenger_count=passenger_count_val,
+                trip_date=trip_date_obj,
+                notes=notes,
+                created_by=request.user
+            )
+            
+            messages.success(request, f'Trip {trip_number} created successfully! Now add sales items.')
+            return redirect('frontend:trip_sales', trip_id=trip.id)
+            
+        except Vessel.DoesNotExist:
+            messages.error(request, 'Invalid vessel selected.')
+            return redirect('frontend:sales_entry')
+        except (ValueError, ValidationError) as e:
+            messages.error(request, f'Invalid data: {str(e)}')
+            return redirect('frontend:sales_entry')
+        except Exception as e:
+            messages.error(request, f'Error creating trip: {str(e)}')
+            return redirect('frontend:sales_entry')
+
+@login_required
+def trip_sales(request, trip_id):
+    """Step 2: Multi-item sales entry for a specific trip"""
+    
+    try:
+        trip = Trip.objects.select_related('vessel').get(id=trip_id)
+    except Trip.DoesNotExist:
+        messages.error(request, 'Trip not found.')
+        return redirect('frontend:sales_entry')
+    
+    # Get existing sales for this trip
+    trip_sales = Transaction.objects.filter(
+        trip=trip,
+        transaction_type='SALE'
+    ).select_related('product').order_by('-created_at')
+    
+    context = {
+        'trip': trip,
+        'trip_sales': trip_sales,
+        'total_revenue': sum(sale.total_amount for sale in trip_sales),
+        'revenue_per_passenger': trip.total_revenue / trip.passenger_count if trip.passenger_count > 0 else 0,
+    }
+    
+    return render(request, 'frontend/trip_sales.html', context)
+
+@login_required
+def trip_complete(request, trip_id):
+    """Complete a trip and mark it as finished"""
+    
+    if request.method == 'POST':
+        try:
+            trip = Trip.objects.get(id=trip_id)
+            trip.is_completed = True
+            trip.save()
+            
+            total_revenue = trip.total_revenue
+            transaction_count = trip.transaction_count
+            
+            messages.success(request, 
+                f'Trip {trip.trip_number} completed! '
+                f'{transaction_count} items sold for {total_revenue:.3f} JOD total revenue.'
+            )
+            
+            return redirect('frontend:sales_entry')
+            
+        except Trip.DoesNotExist:
+            messages.error(request, 'Trip not found.')
+            return redirect('frontend:sales_entry')
 
 @login_required
 def sales_search_products(request):
@@ -1238,6 +1404,310 @@ def get_vessel_badge_class(vessel_name):
         'dahab': 'bg-info',
     }
     return colors.get(vessel_name.lower(), 'bg-primary')
+
+# AJAX endpoints for multi-item functionality
+@login_required
+def trip_add_sale(request):
+    """AJAX endpoint to add a sale item to a trip"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST method required'})
+    
+    try:
+        import json
+        data = json.loads(request.body)
+        
+        trip_id = data.get('trip_id')
+        product_id = data.get('product_id')
+        quantity = data.get('quantity')
+        notes = data.get('notes', '')
+        
+        # Get objects
+        trip = Trip.objects.get(id=trip_id)
+        product = Product.objects.get(id=product_id, active=True)
+        
+        # Validate duty-free compatibility
+        if product.is_duty_free and not trip.vessel.has_duty_free:
+            return JsonResponse({
+                'success': False, 
+                'error': f'Cannot sell duty-free product on {trip.vessel.name}'
+            })
+        
+        # Check inventory availability
+        from transactions.models import get_available_inventory
+        available_quantity, lots = get_available_inventory(trip.vessel, product)
+        
+        if quantity > available_quantity:
+            return JsonResponse({
+                'success': False, 
+                'error': f'Insufficient inventory. Available: {available_quantity}, Requested: {quantity}'
+            })
+        
+        # Create sale transaction
+        sale = Transaction.objects.create(
+            vessel=trip.vessel,
+            product=product,
+            transaction_type='SALE',
+            transaction_date=trip.trip_date,
+            quantity=quantity,
+            unit_price=product.selling_price,
+            trip=trip,
+            notes=notes or f'Sale for trip {trip.trip_number}',
+            created_by=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Added {quantity} units of {product.name} to trip',
+            'sale': {
+                'id': sale.id,
+                'product_name': product.name,
+                'product_id': product.item_id,
+                'quantity': float(sale.quantity),
+                'unit_price': float(sale.unit_price),
+                'total_amount': float(sale.total_amount),
+                'created_at': sale.created_at.strftime('%H:%M')
+            }
+        })
+        
+    except (Trip.DoesNotExist, Product.DoesNotExist):
+        return JsonResponse({'success': False, 'error': 'Trip or product not found'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+def po_add_supply(request):
+    """AJAX endpoint to add a supply item to a purchase order"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST method required'})
+    
+    try:
+        import json
+        data = json.loads(request.body)
+        
+        po_id = data.get('po_id')
+        product_id = data.get('product_id')
+        quantity = data.get('quantity')
+        purchase_cost = data.get('purchase_cost')
+        notes = data.get('notes', '')
+        
+        # Get objects
+        po = PurchaseOrder.objects.get(id=po_id)
+        product = Product.objects.get(id=product_id, active=True)
+        
+        # Validate duty-free compatibility
+        if product.is_duty_free and not po.vessel.has_duty_free:
+            return JsonResponse({
+                'success': False, 
+                'error': f'Cannot add duty-free product to {po.vessel.name}'
+            })
+        
+        # Parse values
+        quantity_val = int(quantity)
+        cost_val = Decimal(purchase_cost)
+        
+        if quantity_val <= 0 or cost_val <= 0:
+            return JsonResponse({'success': False, 'error': 'Quantity and cost must be positive'})
+        
+        # Create supply transaction
+        supply = Transaction.objects.create(
+            vessel=po.vessel,
+            product=product,
+            transaction_type='SUPPLY',
+            transaction_date=po.po_date,
+            quantity=quantity_val,
+            unit_price=cost_val,
+            purchase_order=po,
+            notes=notes or f'Supply for PO {po.po_number}',
+            created_by=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Added {quantity_val} units of {product.name} to PO',
+            'supply': {
+                'id': supply.id,
+                'product_name': product.name,
+                'product_id': product.item_id,
+                'quantity': float(supply.quantity),
+                'unit_price': float(supply.unit_price),
+                'total_amount': float(supply.total_amount),
+                'created_at': supply.created_at.strftime('%H:%M')
+            }
+        })
+        
+    except (PurchaseOrder.DoesNotExist, Product.DoesNotExist):
+        return JsonResponse({'success': False, 'error': 'Purchase order or product not found'})
+    except (ValueError, decimal.InvalidOperation):
+        return JsonResponse({'success': False, 'error': 'Invalid quantity or cost value'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+def trip_reports(request):
+    """Trip-based sales reports"""
+    
+    # Get filter parameters
+    vessel_filter = request.GET.get('vessel')
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    status_filter = request.GET.get('status')
+    
+    # Base queryset
+    trips = Trip.objects.select_related('vessel', 'created_by').prefetch_related('sales_transactions')
+    
+    # Apply filters
+    if vessel_filter:
+        trips = trips.filter(vessel_id=vessel_filter)
+    if date_from:
+        from datetime import datetime
+        date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
+        trips = trips.filter(trip_date__gte=date_from_obj)
+    if date_to:
+        from datetime import datetime
+        date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
+        trips = trips.filter(trip_date__lte=date_to_obj)
+    if status_filter == 'completed':
+        trips = trips.filter(is_completed=True)
+    elif status_filter == 'in_progress':
+        trips = trips.filter(is_completed=False)
+    
+    trips = trips.order_by('-trip_date', '-created_at')
+    
+    # Calculate summary statistics
+    total_trips = trips.count()
+    total_revenue = sum(trip.total_revenue for trip in trips)
+    total_passengers = sum(trip.passenger_count for trip in trips)
+    avg_revenue_per_trip = total_revenue / total_trips if total_trips > 0 else 0
+    avg_revenue_per_passenger = total_revenue / total_passengers if total_passengers > 0 else 0
+    
+    # Get vessels for filter
+    vessels = Vessel.objects.filter(active=True).order_by('name')
+    
+    context = {
+        'trips': trips,
+        'vessels': vessels,
+        'filters': {
+            'vessel': vessel_filter,
+            'date_from': date_from,
+            'date_to': date_to,
+            'status': status_filter,
+        },
+        'summary': {
+            'total_trips': total_trips,
+            'total_revenue': total_revenue,
+            'total_passengers': total_passengers,
+            'avg_revenue_per_trip': avg_revenue_per_trip,
+            'avg_revenue_per_passenger': avg_revenue_per_passenger,
+        }
+    }
+    
+    return render(request, 'frontend/trip_reports.html', context)
+
+@login_required
+def po_reports(request):
+    """Purchase Order reports"""
+    
+    # Get filter parameters
+    vessel_filter = request.GET.get('vessel')
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    status_filter = request.GET.get('status')
+    
+    # Base queryset
+    purchase_orders = PurchaseOrder.objects.select_related('vessel', 'created_by').prefetch_related('supply_transactions')
+    
+    # Apply filters
+    if vessel_filter:
+        purchase_orders = purchase_orders.filter(vessel_id=vessel_filter)
+    if date_from:
+        from datetime import datetime
+        date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
+        purchase_orders = purchase_orders.filter(po_date__gte=date_from_obj)
+    if date_to:
+        from datetime import datetime
+        date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
+        purchase_orders = purchase_orders.filter(po_date__lte=date_to_obj)
+    if status_filter == 'completed':
+        purchase_orders = purchase_orders.filter(is_completed=True)
+    elif status_filter == 'in_progress':
+        purchase_orders = purchase_orders.filter(is_completed=False)
+    
+    purchase_orders = purchase_orders.order_by('-po_date', '-created_at')
+    
+    # Calculate summary statistics
+    total_pos = purchase_orders.count()
+    total_cost = sum(po.total_cost for po in purchase_orders)
+    avg_cost_per_po = total_cost / total_pos if total_pos > 0 else 0
+    
+    # Get vessels for filter
+    vessels = Vessel.objects.filter(active=True).order_by('name')
+    
+    context = {
+        'purchase_orders': purchase_orders,
+        'vessels': vessels,
+        'filters': {
+            'vessel': vessel_filter,
+            'date_from': date_from,
+            'date_to': date_to,
+            'status': status_filter,
+        },
+        'summary': {
+            'total_pos': total_pos,
+            'total_cost': total_cost,
+            'avg_cost_per_po': avg_cost_per_po,
+        }
+    }
+    
+    return render(request, 'frontend/po_reports.html', context)
+
+@login_required
+def transactions_list(request):
+    """Frontend transactions list to replace Django admin redirect"""
+    
+    # Get filter parameters
+    transaction_type = request.GET.get('type')
+    vessel_filter = request.GET.get('vessel')
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    
+    # Base queryset
+    transactions = Transaction.objects.select_related(
+        'vessel', 'product', 'created_by', 'trip', 'purchase_order'
+    ).order_by('-transaction_date', '-created_at')
+    
+    # Apply filters
+    if transaction_type:
+        transactions = transactions.filter(transaction_type=transaction_type)
+    if vessel_filter:
+        transactions = transactions.filter(vessel_id=vessel_filter)
+    if date_from:
+        from datetime import datetime
+        date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
+        transactions = transactions.filter(transaction_date__gte=date_from_obj)
+    if date_to:
+        from datetime import datetime
+        date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
+        transactions = transactions.filter(transaction_date__lte=date_to_obj)
+    
+    # Limit to recent transactions for performance
+    transactions = transactions[:200]
+    
+    # Get vessels for filter
+    vessels = Vessel.objects.filter(active=True).order_by('name')
+    
+    context = {
+        'transactions': transactions,
+        'vessels': vessels,
+        'transaction_types': Transaction.TRANSACTION_TYPES,
+        'filters': {
+            'type': transaction_type,
+            'vessel': vessel_filter,
+            'date_from': date_from,
+            'date_to': date_to,
+        }
+    }
+    
+    return render(request, 'frontend/transactions_list.html', context)
 
 @login_required
 def reports_dashboard(request):

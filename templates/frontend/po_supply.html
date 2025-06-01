@@ -1,0 +1,531 @@
+{% extends 'frontend/base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "PO Supply" %} - {{ po.po_number }} - {% trans "Vessel Sales System" %}{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>
+                    <i class="bi bi-box-seam text-primary"></i> 
+                    {% trans "PO Supply" %}: {{ po.po_number }}
+                </h2>
+                <p class="text-muted mb-0">
+                    <i class="bi bi-ship"></i> {{ po.vessel.name }} • 
+                    <i class="bi bi-calendar"></i> {{ po.po_date|date:"d/m/Y" }}
+                </p>
+            </div>
+            <div class="d-flex gap-2">
+                <a href="{% url 'frontend:supply_entry' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> {% trans "Back to POs" %}
+                </a>
+                {% if not po.is_completed %}
+                <form method="POST" action="{% url 'frontend:po_complete' po.id %}" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-success" onclick="return confirm('{% trans "Complete this purchase order? No more items can be added after completion." %}')">
+                        <i class="bi bi-check-circle"></i> {% trans "Complete PO" %}
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- PO Summary Card -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card" style="background: linear-gradient(135deg, #0f4c75, #1e6f8c); color: white;">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <h6 class="mb-1 opacity-75">{% trans "Total Cost" %}</h6>
+                        <h3 class="mb-0" id="poTotalCost">{{ total_cost|floatformat:3 }} JOD</h3>
+                    </div>
+                    <div class="col-md-4">
+                        <h6 class="mb-1 opacity-75">{% trans "Items Received" %}</h6>
+                        <h3 class="mb-0" id="itemCount">{{ po_supplies|length }}</h3>
+                    </div>
+                    <div class="col-md-4">
+                        <h6 class="mb-1 opacity-75">{% trans "Status" %}</h6>
+                        <h3 class="mb-0">
+                            {% if po.is_completed %}
+                                <span class="badge bg-light text-dark">{% trans "Completed" %}</span>
+                            {% else %}
+                                <span class="badge bg-warning text-dark">{% trans "In Progress" %}</span>
+                            {% endif %}
+                        </h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if not po.is_completed %}
+<!-- Add Supply Item Form -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-plus-circle"></i> {% trans "Add Supply Item" %}
+                </h5>
+            </div>
+            <div class="card-body">
+                <form id="addSupplyForm">
+                    {% csrf_token %}
+                    <input type="hidden" id="poId" value="{{ po.id }}">
+                    
+                    <!-- Product Search -->
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-search"></i> {% trans "Search Product" %}
+                            </label>
+                            <div class="input-group">
+                                <input type="text" class="form-control form-control-lg" id="productSearch" 
+                                       placeholder="{% trans 'Type product name, ID, or scan barcode...' %}">
+                                <button class="btn btn-outline-secondary" type="button" onclick="showComingSoon()">
+                                    <i class="bi bi-upc-scan"></i> {% trans "Scan" %}
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-123"></i> {% trans "Quantity" %}
+                            </label>
+                            <input type="number" class="form-control form-control-lg" id="supplyQuantity" 
+                                   placeholder="0" min="1" step="1" disabled>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-currency-dollar"></i> {% trans "Purchase Cost (JOD)" %}
+                            </label>
+                            <input type="number" class="form-control form-control-lg" id="purchaseCost" 
+                                   placeholder="0.000" min="0.001" step="0.001" disabled>
+                            <small class="text-muted">{% trans "Cost per unit" %}</small>
+                        </div>
+                    </div>
+                    
+                    <!-- Product Info (Hidden initially) -->
+                    <div id="productInfo" class="mb-3" style="display: none;">
+                        <div class="alert alert-info">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <strong>{% trans "Product:" %}</strong>
+                                    <div id="productName">-</div>
+                                </div>
+                                <div class="col-md-3">
+                                    <strong>{% trans "Default Cost:" %}</strong>
+                                    <div id="defaultCost">- JOD</div>
+                                </div>
+                                <div class="col-md-3">
+                                    <strong>{% trans "Duty-Free:" %}</strong>
+                                    <div id="dutyFreeStatus">-</div>
+                                </div>
+                                <div class="col-md-3">
+                                    <strong>{% trans "Total Cost:" %}</strong>
+                                    <div id="totalCost">0.000 JOD</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Notes and Add Button -->
+                    <div class="row">
+                        <div class="col-md-8">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-chat-left-text"></i> {% trans "Notes (Optional)" %}
+                            </label>
+                            <input type="text" class="form-control" id="supplyNotes" 
+                                   placeholder="{% trans 'Additional notes for this supply...' %}">
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary btn-lg w-100" id="addSupplyBtn" disabled>
+                                <i class="bi bi-plus"></i> {% trans "Add to PO" %}
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- PO Supply List -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-list"></i> {% trans "Supply Items" %} ({{ po_supplies|length }})
+                </h5>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-success btn-sm" onclick="exportPOSupplies()">
+                        <i class="bi bi-file-earmark-excel"></i> {% trans "Export" %}
+                    </button>
+                    <button class="btn btn-outline-primary btn-sm" onclick="printPOSupplies()">
+                        <i class="bi bi-printer"></i> {% trans "Print" %}
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>{% trans "Time" %}</th>
+                                <th>{% trans "Product" %}</th>
+                                <th class="text-center">{% trans "Quantity" %}</th>
+                                <th class="text-end">{% trans "Unit Cost" %}</th>
+                                <th class="text-end">{% trans "Total Cost" %}</th>
+                                <th>{% trans "Notes" %}</th>
+                                {% if not po.is_completed %}
+                                <th class="text-center">{% trans "Actions" %}</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody id="suppliesList">
+                            {% for supply in po_supplies %}
+                            <tr id="supply-{{ supply.id }}">
+                                <td>
+                                    <small>{{ supply.created_at|time:"H:i" }}</small>
+                                </td>
+                                <td>
+                                    <div>
+                                        <strong>{{ supply.product.name }}</strong>
+                                        <small class="text-muted d-block">{% trans "ID:" %} {{ supply.product.item_id }}</small>
+                                        {% if supply.product.is_duty_free %}
+                                            <span class="badge bg-warning text-dark">{% trans "Duty-Free" %}</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td class="text-center">
+                                    <span class="fw-bold">{{ supply.quantity|floatformat:0 }}</span>
+                                    <small class="text-muted d-block">{% trans "units" %}</small>
+                                </td>
+                                <td class="text-end">
+                                    <span class="fw-bold">{{ supply.unit_price|floatformat:3 }}</span>
+                                    <small class="text-muted d-block">JOD</small>
+                                </td>
+                                <td class="text-end">
+                                    <span class="fw-bold text-primary">{{ supply.total_amount|floatformat:3 }}</span>
+                                    <small class="text-muted d-block">JOD</small>
+                                </td>
+                                <td>
+                                    <small>{{ supply.notes|truncatechars:50|default:"-" }}</small>
+                                </td>
+                                {% if not po.is_completed %}
+                                <td class="text-center">
+                                    <button class="btn btn-outline-danger btn-sm" onclick="removeSupply({{ supply.id }})" title="{% trans 'Remove Item' %}">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                                {% endif %}
+                            </tr>
+                            {% empty %}
+                            <tr id="noSuppliesRow">
+                                <td colspan="{% if not po.is_completed %}7{% else %}6{% endif %}" class="text-center text-muted py-4">
+                                    <i class="bi bi-box-seam" style="font-size: 2rem;"></i>
+                                    <p class="mt-2 mb-0">{% trans "No supply items added yet" %}</p>
+                                    <small>{% trans "Use the form above to add supply items to this purchase order" %}</small>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let selectedProduct = null;
+
+// Product search with debouncing
+let searchTimeout;
+document.getElementById('productSearch').addEventListener('input', function() {
+    const searchTerm = this.value.trim();
+    
+    clearTimeout(searchTimeout);
+    
+    if (searchTerm.length >= 2) {
+        searchTimeout = setTimeout(() => {
+            searchProducts(searchTerm);
+        }, 500);
+    } else {
+        clearProductSelection();
+    }
+});
+
+// Quantity and cost input handlers
+document.getElementById('supplyQuantity').addEventListener('input', function() {
+    updateTotalCost();
+    validateForm();
+});
+
+document.getElementById('purchaseCost').addEventListener('input', function() {
+    updateTotalCost();
+    validateForm();
+});
+
+function searchProducts(searchTerm) {
+    fetch('/supply/search-products/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({
+            search: searchTerm
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.products.length > 0) {
+            if (data.products.length === 1) {
+                selectProduct(data.products[0]);
+            } else {
+                showProductSelection(data.products);
+            }
+        } else {
+            clearProductSelection();
+            showAlert("{% trans 'No products found matching your search.' %}", 'warning');
+        }
+    })
+    .catch(error => {
+        console.error('Error searching products:', error);
+        showAlert("{% trans 'Error searching products. Please try again.' %}", 'danger');
+    });
+}
+
+function selectProduct(product) {
+    selectedProduct = product;
+    
+    // Update UI
+    document.getElementById('productName').textContent = product.name;
+    document.getElementById('defaultCost').textContent = product.purchase_price.toFixed(3) + ' JOD';
+    document.getElementById('dutyFreeStatus').textContent = product.is_duty_free ? '{% trans "Yes" %}' : '{% trans "No" %}';
+    
+    // Enable inputs
+    document.getElementById('supplyQuantity').disabled = false;
+    document.getElementById('purchaseCost').disabled = false;
+    
+    // Pre-fill purchase cost with default
+    document.getElementById('purchaseCost').value = product.purchase_price.toFixed(3);
+    
+    // Focus on quantity
+    document.getElementById('supplyQuantity').focus();
+    
+    // Show product info
+    document.getElementById('productInfo').style.display = 'block';
+    
+    // Check duty-free compatibility
+    checkDutyFreeCompatibility(product);
+    
+    updateTotalCost();
+    validateForm();
+}
+
+function checkDutyFreeCompatibility(product) {
+    if (product.is_duty_free && !{{ po.vessel.has_duty_free|yesno:"true,false" }}) {
+        showAlert(`{% trans "Warning: This duty-free product cannot be added to" %} {{ po.vessel.name }} ({% trans "vessel does not support duty-free items" %})`, 'danger');
+        document.getElementById('addSupplyBtn').disabled = true;
+    }
+}
+
+function updateTotalCost() {
+    if (!selectedProduct) return;
+    
+    const quantity = parseInt(document.getElementById('supplyQuantity').value) || 0;
+    const cost = parseFloat(document.getElementById('purchaseCost').value) || 0;
+    const total = quantity * cost;
+    document.getElementById('totalCost').textContent = total.toFixed(3) + ' JOD';
+}
+
+function validateForm() {
+    const quantity = parseInt(document.getElementById('supplyQuantity').value) || 0;
+    const cost = parseFloat(document.getElementById('purchaseCost').value) || 0;
+    const addBtn = document.getElementById('addSupplyBtn');
+    
+    let isValid = selectedProduct && quantity > 0 && cost > 0;
+    
+    // Check duty-free compatibility
+    if (selectedProduct?.is_duty_free && !{{ po.vessel.has_duty_free|yesno:"true,false" }}) {
+        isValid = false;
+    }
+    
+    addBtn.disabled = !isValid;
+}
+
+function clearProductSelection() {
+    selectedProduct = null;
+    document.getElementById('productInfo').style.display = 'none';
+    document.getElementById('supplyQuantity').disabled = true;
+    document.getElementById('purchaseCost').disabled = true;
+    document.getElementById('supplyQuantity').value = '';
+    document.getElementById('purchaseCost').value = '';
+    document.getElementById('addSupplyBtn').disabled = true;
+}
+
+// Form submission
+document.getElementById('addSupplyForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    if (!selectedProduct) return;
+    
+    const quantity = parseInt(document.getElementById('supplyQuantity').value);
+    const cost = parseFloat(document.getElementById('purchaseCost').value);
+    const notes = document.getElementById('supplyNotes').value.trim();
+    
+    addSupplyToPO({
+        po_id: document.getElementById('poId').value,
+        product_id: selectedProduct.id,
+        quantity: quantity,
+        purchase_cost: cost,
+        notes: notes
+    });
+});
+
+function addSupplyToPO(supplyData) {
+    const addBtn = document.getElementById('addSupplyBtn');
+    const originalText = addBtn.innerHTML;
+    
+    addBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> {% trans "Adding..." %}';
+    addBtn.disabled = true;
+    
+    fetch('/supply/po/add-item/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify(supplyData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            addSupplyToTable(data.supply);
+            updatePOSummary(data.supply);
+            clearForm();
+        } else {
+            showAlert(data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error adding supply:', error);
+        showAlert('{% trans "Error adding supply. Please try again." %}', 'danger');
+    })
+    .finally(() => {
+        addBtn.innerHTML = originalText;
+        addBtn.disabled = false;
+    });
+}
+
+function addSupplyToTable(supply) {
+    const suppliesList = document.getElementById('suppliesList');
+    const noSuppliesRow = document.getElementById('noSuppliesRow');
+    
+    // Remove "no supplies" row if it exists
+    if (noSuppliesRow) {
+        noSuppliesRow.remove();
+    }
+    
+    // Add new row
+    const newRow = document.createElement('tr');
+    newRow.id = `supply-${supply.id}`;
+    newRow.innerHTML = `
+        <td><small>${supply.created_at}</small></td>
+        <td>
+            <div>
+                <strong>${selectedProduct.name}</strong>
+                <small class="text-muted d-block">{% trans "ID:" %} ${selectedProduct.item_id}</small>
+                ${selectedProduct.is_duty_free ? '<span class="badge bg-warning text-dark">{% trans "Duty-Free" %}</span>' : ''}
+            </div>
+        </td>
+        <td class="text-center">
+            <span class="fw-bold">${supply.quantity}</span>
+            <small class="text-muted d-block">{% trans "units" %}</small>
+        </td>
+        <td class="text-end">
+            <span class="fw-bold">${supply.unit_price.toFixed(3)}</span>
+            <small class="text-muted d-block">JOD</small>
+        </td>
+        <td class="text-end">
+            <span class="fw-bold text-primary">${supply.total_amount.toFixed(3)}</span>
+            <small class="text-muted d-block">JOD</small>
+        </td>
+        <td><small>${supply.notes || '-'}</small></td>
+        <td class="text-center">
+            <button class="btn btn-outline-danger btn-sm" onclick="removeSupply(${supply.id})" title="{% trans 'Remove Item' %}">
+                <i class="bi bi-trash"></i>
+            </button>
+        </td>
+    `;
+    
+    suppliesList.insertBefore(newRow, suppliesList.firstChild);
+}
+
+function updatePOSummary(supply) {
+    // Update total cost
+    const currentCost = parseFloat(document.getElementById('poTotalCost').textContent.replace(' JOD', ''));
+    const newCost = currentCost + supply.total_amount;
+    document.getElementById('poTotalCost').textContent = newCost.toFixed(3) + ' JOD';
+    
+    // Update item count
+    const currentCount = parseInt(document.getElementById('itemCount').textContent);
+    document.getElementById('itemCount').textContent = currentCount + 1;
+}
+
+function clearForm() {
+    document.getElementById('addSupplyForm').reset();
+    document.getElementById('productSearch').value = '';
+    document.getElementById('supplyNotes').value = '';
+    clearProductSelection();
+}
+
+function removeSupply(supplyId) {
+    if (confirm('{% trans "Remove this supply item from the purchase order?" %}')) {
+        // Implement remove functionality if needed
+        showAlert('{% trans "Remove functionality coming soon!" %}', 'info');
+    }
+}
+
+function exportPOSupplies() {
+    showAlert('📊 {% trans "Export feature coming soon!" %}', 'info');
+}
+
+function printPOSupplies() {
+    showAlert('🖨️ {% trans "Print feature coming soon!" %}', 'info');
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.querySelector('.container').insertBefore(alertDiv, document.querySelector('.row'));
+    
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+
+function showComingSoon() {
+    alert('🚀 {% trans "Barcode scanning feature coming soon!" %}');
+}
+</script>
+{% endblock %}

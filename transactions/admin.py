@@ -4,7 +4,71 @@ from django.utils.html import format_html
 from django.db.models import Sum, Count
 from django.urls import reverse
 from django.utils.safestring import mark_safe
-from .models import InventoryLot, Transaction, get_available_inventory
+from .models import InventoryLot, Transaction, Trip, PurchaseOrder
+
+@admin.register(Trip)
+class TripAdmin(admin.ModelAdmin):
+    list_display = ('trip_number', 'vessel', 'passenger_count', 'trip_date', 'is_completed', 'total_revenue', 'transaction_count', 'created_by', 'created_at')
+    list_filter = ('vessel', 'trip_date', 'is_completed', 'created_at')
+    search_fields = ('trip_number', 'vessel__name', 'notes')
+    readonly_fields = ('created_at', 'updated_at', 'total_revenue', 'transaction_count')
+    
+    fieldsets = (
+        ('Trip Information', {
+            'fields': ('trip_number', 'vessel', 'passenger_count', 'trip_date')
+        }),
+        ('Status', {
+            'fields': ('is_completed',)
+        }),
+        ('Additional Information', {
+            'fields': ('notes',)
+        }),
+        ('Statistics', {
+            'fields': ('total_revenue', 'transaction_count'),
+            'classes': ('collapse',)
+        }),
+        ('Metadata', {
+            'fields': ('created_by', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def save_model(self, request, obj, form, change):
+        if not change:  # If creating new object
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+
+@admin.register(PurchaseOrder)
+class PurchaseOrderAdmin(admin.ModelAdmin):
+    list_display = ('po_number', 'vessel', 'po_date', 'is_completed', 'total_cost', 'transaction_count', 'created_by', 'created_at')
+    list_filter = ('vessel', 'po_date', 'is_completed', 'created_at')
+    search_fields = ('po_number', 'vessel__name', 'notes')
+    readonly_fields = ('created_at', 'updated_at', 'total_cost', 'transaction_count')
+    
+    fieldsets = (
+        ('Purchase Order Information', {
+            'fields': ('po_number', 'vessel', 'po_date')
+        }),
+        ('Status', {
+            'fields': ('is_completed',)
+        }),
+        ('Additional Information', {
+            'fields': ('notes',)
+        }),
+        ('Statistics', {
+            'fields': ('total_cost', 'transaction_count'),
+            'classes': ('collapse',)
+        }),
+        ('Metadata', {
+            'fields': ('created_by', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def save_model(self, request, obj, form, change):
+        if not change:  # If creating new object
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
 
 @admin.register(InventoryLot)
 class InventoryLotAdmin(admin.ModelAdmin):
@@ -68,15 +132,15 @@ class TransactionAdmin(admin.ModelAdmin):
     change_form_template = 'admin/transactions/transaction_change_form.html'
     list_display = [
         'transaction_date', 'vessel', 'product_display', 'transaction_type_display', 
-        'quantity', 'unit_price', 'total_amount', 'transfer_info'
+        'quantity', 'unit_price', 'total_amount', 'trip_po_display', 'transfer_info'
     ]
     list_filter = [
         'transaction_type', 'vessel', 'product__category', 
-        'transaction_date', 'product__is_duty_free'
+        'transaction_date', 'product__is_duty_free', 'trip', 'purchase_order'
     ]
     search_fields = [
         'product__name', 'product__item_id', 'vessel__name', 
-        'transfer_to_vessel__name', 'notes'
+        'transfer_to_vessel__name', 'notes', 'trip__trip_number', 'purchase_order__po_number'
     ]
     ordering = ['-transaction_date', '-created_at']
     
@@ -103,6 +167,14 @@ class TransactionAdmin(admin.ModelAdmin):
                 'description': 'Transaction quantities and pricing details.'
             }),
         ]
+        
+        # Add Trip/PO association fieldset
+        trip_po_fieldset = ('Trip/Purchase Order Association', {
+            'fields': ('trip', 'purchase_order'),
+            'description': 'Associate this transaction with a trip (for sales) or purchase order (for supplies).',
+            'classes': ('collapse',)
+        })
+        basic_fieldsets.append(trip_po_fieldset)
         
         # Add transfer fields for transfer transactions
         if obj and obj.transaction_type == 'TRANSFER_OUT':
@@ -161,6 +233,24 @@ class TransactionAdmin(admin.ModelAdmin):
     transaction_type_display.short_description = 'Type'
     transaction_type_display.admin_order_field = 'transaction_type'
     
+    def trip_po_display(self, obj):
+        """Display trip or purchase order information"""
+        if obj.trip:
+            return format_html(
+                '<span style="color: blue; font-weight: bold;">🚢 {}</span><br><small>{} passengers</small>',
+                obj.trip.trip_number,
+                obj.trip.passenger_count
+            )
+        elif obj.purchase_order:
+            return format_html(
+                '<span style="color: green; font-weight: bold;">📋 {}</span><br><small>{}</small>',
+                obj.purchase_order.po_number,
+                obj.purchase_order.po_date.strftime('%d/%m/%Y')
+            )
+        return format_html('<span style="color: gray;">-</span>')
+    trip_po_display.short_description = 'Trip/PO'
+    trip_po_display.allow_tags = True
+    
     def transfer_info(self, obj):
         if obj.transaction_type == 'TRANSFER_OUT' and obj.transfer_to_vessel:
             return format_html('→ {}', obj.transfer_to_vessel.name)
@@ -184,6 +274,17 @@ class TransactionAdmin(admin.ModelAdmin):
                 "For sales and supply, enter the actual price."
             )
         
+        # Add help text for trip/PO fields
+        if 'trip' in form.base_fields:
+            form.base_fields['trip'].help_text = (
+                "Associate with a trip for SALE transactions. Shows trip number and passenger count."
+            )
+        
+        if 'purchase_order' in form.base_fields:
+            form.base_fields['purchase_order'].help_text = (
+                "Associate with a purchase order for SUPPLY transactions. Shows PO number and date."
+            )
+        
         return form
 
     def response_change(self, request, obj):
@@ -197,3 +298,10 @@ class TransactionAdmin(admin.ModelAdmin):
                 self.message_user(request, f"Error deleting: {str(e)}", level='ERROR')
         
         return super().response_change(request, obj)
+
+    def get_queryset(self, request):
+        """Optimize queries by selecting related objects"""
+        return super().get_queryset(request).select_related(
+            'vessel', 'product', 'product__category', 'created_by',
+            'trip', 'purchase_order', 'transfer_to_vessel', 'transfer_from_vessel'
+        )

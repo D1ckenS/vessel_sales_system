@@ -1,0 +1,243 @@
+{% extends 'frontend/base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Trip Reports" %} - {% trans "Vessel Sales System" %}{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>
+                    <i class="bi bi-ship text-primary"></i> 
+                    {% trans "Trip Reports" %}
+                </h2>
+                <p class="text-muted mb-0">{% trans "Analyze trip performance and passenger revenue" %}</p>
+            </div>
+            <a href="{% url 'frontend:reports_dashboard' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> {% trans "Back to Reports" %}
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="stats-card">
+            <div class="stats-number text-primary">{{ summary.total_trips }}</div>
+            <div class="stats-label">{% trans "Total Trips" %}</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="stats-card">
+            <div class="stats-number text-success">{{ summary.total_revenue|floatformat:0 }}</div>
+            <div class="stats-label">{% trans "Total Revenue (JOD)" %}</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="stats-card">
+            <div class="stats-number text-info">{{ summary.total_passengers }}</div>
+            <div class="stats-label">{% trans "Total Passengers" %}</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="stats-card">
+            <div class="stats-number text-warning">{{ summary.avg_revenue_per_passenger|floatformat:2 }}</div>
+            <div class="stats-label">{% trans "Avg Revenue/Passenger" %}</div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-funnel"></i> {% trans "Filter Trips" %}
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="GET">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">{% trans "Vessel" %}</label>
+                            <select class="form-select" name="vessel">
+                                <option value="">{% trans "All Vessels" %}</option>
+                                {% for vessel in vessels %}
+                                <option value="{{ vessel.id }}" {% if filters.vessel == vessel.id|stringformat:"s" %}selected{% endif %}>{{ vessel.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label fw-bold">{% trans "From Date" %}</label>
+                            <input type="date" class="form-control" name="date_from" value="{{ filters.date_from }}">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label fw-bold">{% trans "To Date" %}</label>
+                            <input type="date" class="form-control" name="date_to" value="{{ filters.date_to }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">{% trans "Status" %}</label>
+                            <select class="form-select" name="status">
+                                <option value="">{% trans "All Status" %}</option>
+                                <option value="completed" {% if filters.status == 'completed' %}selected{% endif %}>{% trans "Completed" %}</option>
+                                <option value="in_progress" {% if filters.status == 'in_progress' %}selected{% endif %}>{% trans "In Progress" %}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="bi bi-funnel"></i> {% trans "Filter" %}
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Trips Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-table"></i> {% trans "Trip Details" %} ({{ trips|length }})
+                </h5>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-success btn-sm" onclick="exportTrips()">
+                        <i class="bi bi-file-earmark-excel"></i> {% trans "Export" %}
+                    </button>
+                    <button class="btn btn-outline-primary btn-sm" onclick="printTrips()">
+                        <i class="bi bi-printer"></i> {% trans "Print" %}
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>{% trans "Trip #" %}</th>
+                                <th>{% trans "Date" %}</th>
+                                <th>{% trans "Vessel" %}</th>
+                                <th class="text-center">{% trans "Passengers" %}</th>
+                                <th class="text-center">{% trans "Items Sold" %}</th>
+                                <th class="text-end">{% trans "Revenue" %}</th>
+                                <th class="text-end">{% trans "Revenue/Passenger" %}</th>
+                                <th class="text-center">{% trans "Status" %}</th>
+                                <th class="text-center">{% trans "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for trip in trips %}
+                            <tr>
+                                <td>
+                                    <strong>{{ trip.trip_number }}</strong>
+                                    {% if trip.notes %}
+                                        <i class="bi bi-chat-left-text text-muted ms-1" title="{{ trip.notes }}"></i>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div>{{ trip.trip_date|date:"d/m/Y" }}</div>
+                                    <small class="text-muted">{{ trip.created_at|date:"H:i" }}</small>
+                                </td>
+                                <td>
+                                    <span class="badge {% if trip.vessel.name|lower == 'amman' %}bg-primary{% elif trip.vessel.name|lower == 'aylah' %}bg-danger{% elif trip.vessel.name|lower == 'sinaa' %}bg-success{% elif trip.vessel.name|lower == 'nefertiti' %}bg-secondary{% elif trip.vessel.name|lower == 'babel' %}bg-warning{% elif trip.vessel.name|lower == 'dahab' %}bg-info{% else %}bg-primary{% endif %}">{{ trip.vessel.name }}</span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="fw-bold">{{ trip.passenger_count }}</span>
+                                    <small class="text-muted d-block">{% trans "people" %}</small>
+                                </td>
+                                <td class="text-center">
+                                    <span class="fw-bold">{{ trip.transaction_count }}</span>
+                                    <small class="text-muted d-block">{% trans "items" %}</small>
+                                </td>
+                                <td class="text-end">
+                                    <span class="fw-bold text-success">{{ trip.total_revenue|floatformat:3 }}</span>
+                                    <small class="text-muted d-block">JOD</small>
+                                </td>
+                                <td class="text-end">
+                                    {% if trip.passenger_count > 0 %}
+                                        <span class="fw-bold">{{ revenue_per_passenger }}</span>
+                                        <small class="text-muted d-block">JOD</small>
+                                    {% else %}
+                                        <span class="text-muted">--</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    {% if trip.is_completed %}
+                                        <span class="badge bg-success">{% trans "Completed" %}</span>
+                                    {% else %}
+                                        <span class="badge bg-warning">{% trans "In Progress" %}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{% url 'frontend:trip_sales' trip.id %}" class="btn btn-outline-primary" title="{% trans 'View Details' %}">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        <button class="btn btn-outline-info" onclick="viewTripAnalytics({{ trip.id }})" title="{% trans 'Analytics' %}">
+                                            <i class="bi bi-graph-up"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="9" class="text-center text-muted py-4">
+                                    <i class="bi bi-ship" style="font-size: 2rem;"></i>
+                                    <p class="mt-2 mb-0">{% trans "No trips found" %}</p>
+                                    <small>{% trans "Try adjusting your filter criteria or create new trips" %}</small>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Footer -->
+                <div class="card-footer bg-light">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <small class="text-muted">
+                                {% trans "Showing" %} {{ trips|length }} {% trans "trips" %}
+                                {% if filters.vessel or filters.date_from or filters.date_to or filters.status %}
+                                ({% trans "filtered" %})
+                                {% endif %}
+                            </small>
+                        </div>
+                        {% if filters.vessel or filters.date_from or filters.date_to or filters.status %}
+                        <div>
+                            <a href="{% url 'frontend:trip_reports' %}" class="btn btn-outline-secondary btn-sm">
+                                <i class="bi bi-x-circle"></i> {% trans "Clear Filters" %}
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function exportTrips() {
+    alert('📊 {% trans "Export feature coming soon!" %}\n\n{% trans "This will generate an Excel file with trip data." %}');
+}
+
+function printTrips() {
+    alert('🖨️ {% trans "Print feature coming soon!" %}\n\n{% trans "This will generate a printable trip report." %}');
+}
+
+function viewTripAnalytics(tripId) {
+    alert('📈 {% trans "Trip analytics coming soon!" %}\n\n{% trans "This will show detailed analytics for trip ID:" %} ' + tripId);
+}
+</script>
+{% endblock %}

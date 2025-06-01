@@ -6,6 +6,7 @@ from decimal import Decimal
 from datetime import date
 from vessels.models import Vessel
 from products.models import Product
+from django.db.models import Sum, F
 
 class InventoryLot(models.Model):
     """Tracks individual purchase batches for FIFO inventory management"""
@@ -43,6 +44,113 @@ class InventoryLot(models.Model):
     def is_consumed(self):
         """Check if this lot is completely consumed"""
         return self.remaining_quantity == 0
+
+class Trip(models.Model):
+    """Tracks vessel trips with passenger counts for sales grouping"""
+    trip_number = models.CharField(
+        max_length=50, 
+        unique=True,
+        help_text="Unique trip identifier (e.g., TR001, TRIP-2025-001)"
+    )
+    vessel = models.ForeignKey(
+        Vessel, 
+        on_delete=models.PROTECT, 
+        related_name='trips'
+    )
+    passenger_count = models.IntegerField(
+        validators=[MinValueValidator(1)],
+        help_text="Number of passengers on this trip"
+    )
+    trip_date = models.DateField(
+        help_text="Date of the trip"
+    )
+    notes = models.TextField(
+        blank=True,
+        help_text="Additional notes about this trip"
+    )
+    
+    # Trip status tracking
+    is_completed = models.BooleanField(
+        default=False,
+        help_text="Whether all sales for this trip have been recorded"
+    )
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True) 
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    class Meta:
+        ordering = ['-trip_date', '-created_at']
+        verbose_name = 'Trip'
+        verbose_name_plural = 'Trips'
+    
+    def __str__(self):
+        return f"{self.trip_number} - {self.vessel.name} ({self.passenger_count} passengers)"
+    
+    @property
+    def total_revenue(self):
+        """Calculate total revenue for this trip"""
+        return self.sales_transactions.aggregate(
+            total=Sum(F('unit_price') * F('quantity'))
+        )['total'] or 0
+    
+    @property
+    def transaction_count(self):
+        """Count of sales transactions for this trip"""
+        return self.sales_transactions.count()
+
+
+class PurchaseOrder(models.Model):
+    """Tracks purchase orders for supply grouping"""
+    po_number = models.CharField(
+        max_length=50,
+        unique=True, 
+        help_text="Unique purchase order number (e.g., PO001, PO-2025-001)"
+    )
+    vessel = models.ForeignKey(
+        Vessel,
+        on_delete=models.PROTECT,
+        related_name='purchase_orders'
+    )
+    po_date = models.DateField(
+        help_text="Date of the purchase order"
+    )
+    notes = models.TextField(
+        blank=True,
+        help_text="Additional notes about this purchase order"
+    )
+    
+    # PO status tracking
+    is_completed = models.BooleanField(
+        default=False,
+        help_text="Whether all items for this PO have been received"
+    )
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    class Meta:
+        ordering = ['-po_date', '-created_at']
+        verbose_name = 'Purchase Order'
+        verbose_name_plural = 'Purchase Orders'
+    
+    def __str__(self):
+        return f"{self.po_number} - {self.vessel.name}"
+    
+    @property
+    def total_cost(self):
+        """Calculate total cost for this purchase order"""
+        return self.supply_transactions.aggregate(
+            total=Sum(F('unit_price') * F('quantity'))
+        )['total'] or 0
+    
+    @property
+    def transaction_count(self):
+        """Count of supply transactions for this PO"""
+        return self.supply_transactions.count()
 
 class Transaction(models.Model):
     """Records all inventory movements with proper transaction types"""
@@ -98,6 +206,22 @@ class Transaction(models.Model):
         null=True,
         blank=True,
         help_text="Links transfer out with corresponding transfer in"
+    )
+    trip = models.ForeignKey(
+        Trip, 
+        on_delete=models.PROTECT, 
+        null=True, 
+        blank=True,
+        related_name='sales_transactions',
+        help_text="Trip associated with this sales transaction"
+    )
+    purchase_order = models.ForeignKey(
+        PurchaseOrder,
+        on_delete=models.PROTECT, 
+        null=True, 
+        blank=True,
+        related_name='supply_transactions',
+        help_text="Purchase order associated with this supply transaction"
     )
     
     # Metadata

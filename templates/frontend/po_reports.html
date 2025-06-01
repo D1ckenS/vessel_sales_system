@@ -1,0 +1,228 @@
+{% extends 'frontend/base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Purchase Order Reports" %} - {% trans "Vessel Sales System" %}{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>
+                    <i class="bi bi-receipt text-primary"></i> 
+                    {% trans "Purchase Order Reports" %}
+                </h2>
+                <p class="text-muted mb-0">{% trans "Analyze supply chain and inventory procurement" %}</p>
+            </div>
+            <a href="{% url 'frontend:reports_dashboard' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> {% trans "Back to Reports" %}
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-4 col-sm-6 mb-3">
+        <div class="stats-card">
+            <div class="stats-number text-primary">{{ summary.total_pos }}</div>
+            <div class="stats-label">{% trans "Total Purchase Orders" %}</div>
+        </div>
+    </div>
+    <div class="col-md-4 col-sm-6 mb-3">
+        <div class="stats-card">
+            <div class="stats-number text-success">{{ summary.total_cost|floatformat:0 }}</div>
+            <div class="stats-label">{% trans "Total Cost (JOD)" %}</div>
+        </div>
+    </div>
+    <div class="col-md-4 col-sm-6 mb-3">
+        <div class="stats-card">
+            <div class="stats-number text-info">{{ summary.avg_cost_per_po|floatformat:0 }}</div>
+            <div class="stats-label">{% trans "Avg Cost per PO (JOD)" %}</div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-funnel"></i> {% trans "Filter Purchase Orders" %}
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="GET">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">{% trans "Vessel" %}</label>
+                            <select class="form-select" name="vessel">
+                                <option value="">{% trans "All Vessels" %}</option>
+                                {% for vessel in vessels %}
+                                <option value="{{ vessel.id }}" {% if filters.vessel == vessel.id|stringformat:"s" %}selected{% endif %}>{{ vessel.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label fw-bold">{% trans "From Date" %}</label>
+                            <input type="date" class="form-control" name="date_from" value="{{ filters.date_from }}">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label fw-bold">{% trans "To Date" %}</label>
+                            <input type="date" class="form-control" name="date_to" value="{{ filters.date_to }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">{% trans "Status" %}</label>
+                            <select class="form-select" name="status">
+                                <option value="">{% trans "All Status" %}</option>
+                                <option value="completed" {% if filters.status == 'completed' %}selected{% endif %}>{% trans "Completed" %}</option>
+                                <option value="in_progress" {% if filters.status == 'in_progress' %}selected{% endif %}>{% trans "In Progress" %}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="bi bi-funnel"></i> {% trans "Filter" %}
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Purchase Orders Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-table"></i> {% trans "Purchase Order Details" %} ({{ purchase_orders|length }})
+                </h5>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-success btn-sm" onclick="exportPOs()">
+                        <i class="bi bi-file-earmark-excel"></i> {% trans "Export" %}
+                    </button>
+                    <button class="btn btn-outline-primary btn-sm" onclick="printPOs()">
+                        <i class="bi bi-printer"></i> {% trans "Print" %}
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>{% trans "PO #" %}</th>
+                                <th>{% trans "Date" %}</th>
+                                <th>{% trans "Vessel" %}</th>
+                                <th class="text-center">{% trans "Items" %}</th>
+                                <th class="text-end">{% trans "Total Cost" %}</th>
+                                <th class="text-center">{% trans "Status" %}</th>
+                                <th>{% trans "Created By" %}</th>
+                                <th class="text-center">{% trans "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for po in purchase_orders %}
+                            <tr>
+                                <td>
+                                    <strong>{{ po.po_number }}</strong>
+                                    {% if po.notes %}
+                                        <i class="bi bi-chat-left-text text-muted ms-1" title="{{ po.notes }}"></i>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div>{{ po.po_date|date:"d/m/Y" }}</div>
+                                    <small class="text-muted">{{ po.created_at|date:"H:i" }}</small>
+                                </td>
+                                <td>
+                                    <span class="badge {% if po.vessel.name|lower == 'amman' %}bg-primary{% elif po.vessel.name|lower == 'aylah' %}bg-danger{% elif po.vessel.name|lower == 'sinaa' %}bg-success{% elif po.vessel.name|lower == 'nefertiti' %}bg-secondary{% elif po.vessel.name|lower == 'babel' %}bg-warning{% elif po.vessel.name|lower == 'dahab' %}bg-info{% else %}bg-primary{% endif %}">{{ po.vessel.name }}</span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="fw-bold">{{ po.transaction_count }}</span>
+                                    <small class="text-muted d-block">{% trans "items" %}</small>
+                                </td>
+                                <td class="text-end">
+                                    <span class="fw-bold text-primary">{{ po.total_cost|floatformat:3 }}</span>
+                                    <small class="text-muted d-block">JOD</small>
+                                </td>
+                                <td class="text-center">
+                                    {% if po.is_completed %}
+                                        <span class="badge bg-success">{% trans "Completed" %}</span>
+                                    {% else %}
+                                        <span class="badge bg-warning">{% trans "In Progress" %}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small>{{ po.created_by.username|default:"System" }}</small>
+                                    <small class="text-muted d-block">{{ po.created_at|timesince }} {% trans "ago" %}</small>
+                                </td>
+                                <td class="text-center">
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{% url 'frontend:po_supply' po.id %}" class="btn btn-outline-primary" title="{% trans 'View Details' %}">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        <button class="btn btn-outline-info" onclick="viewPOAnalytics({{ po.id }})" title="{% trans 'Analytics' %}">
+                                            <i class="bi bi-graph-up"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="8" class="text-center text-muted py-4">
+                                    <i class="bi bi-receipt" style="font-size: 2rem;"></i>
+                                    <p class="mt-2 mb-0">{% trans "No purchase orders found" %}</p>
+                                    <small>{% trans "Try adjusting your filter criteria or create new purchase orders" %}</small>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Footer -->
+                <div class="card-footer bg-light">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <small class="text-muted">
+                                {% trans "Showing" %} {{ purchase_orders|length }} {% trans "purchase orders" %}
+                                {% if filters.vessel or filters.date_from or filters.date_to or filters.status %}
+                                ({% trans "filtered" %})
+                                {% endif %}
+                            </small>
+                        </div>
+                        {% if filters.vessel or filters.date_from or filters.date_to or filters.status %}
+                        <div>
+                            <a href="{% url 'frontend:po_reports' %}" class="btn btn-outline-secondary btn-sm">
+                                <i class="bi bi-x-circle"></i> {% trans "Clear Filters" %}
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function exportPOs() {
+    alert('📊 {% trans "Export feature coming soon!" %}\n\n{% trans "This will generate an Excel file with purchase order data." %}');
+}
+
+function printPOs() {
+    alert('🖨️ {% trans "Print feature coming soon!" %}\n\n{% trans "This will generate a printable purchase order report." %}');
+}
+
+function viewPOAnalytics(poId) {
+    alert('📈 {% trans "PO analytics coming soon!" %}\n\n{% trans "This will show detailed analytics for PO ID:" %} ' + poId);
+}
+</script>
+{% endblock %}

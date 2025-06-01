@@ -1,0 +1,510 @@
+{% extends 'frontend/base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Trip Sales" %} - {{ trip.trip_number }} - {% trans "Vessel Sales System" %}{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>
+                    <i class="bi bi-cart-plus text-success"></i> 
+                    {% trans "Trip Sales" %}: {{ trip.trip_number }}
+                </h2>
+                <p class="text-muted mb-0">
+                    <i class="bi bi-ship"></i> {{ trip.vessel.name }} • 
+                    <i class="bi bi-people"></i> {{ trip.passenger_count }} {% trans "passengers" %} • 
+                    <i class="bi bi-calendar"></i> {{ trip.trip_date|date:"d/m/Y" }}
+                </p>
+            </div>
+            <div class="d-flex gap-2">
+                <a href="{% url 'frontend:sales_entry' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> {% trans "Back to Trips" %}
+                </a>
+                {% if not trip.is_completed %}
+                <form method="POST" action="{% url 'frontend:trip_complete' trip.id %}" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-success" onclick="return confirm('{% trans "Complete this trip? No more sales can be added after completion." %}')">
+                        <i class="bi bi-check-circle"></i> {% trans "Complete Trip" %}
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Trip Summary Card -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card" style="background: linear-gradient(135deg, #28a745, #20c997); color: white;">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <h6 class="mb-1 opacity-75">{% trans "Trip Revenue" %}</h6>
+                        <h3 class="mb-0" id="tripRevenue">{{ total_revenue|floatformat:3 }} JOD</h3>
+                    </div>
+                    <div class="col-md-3">
+                        <h6 class="mb-1 opacity-75">{% trans "Items Sold" %}</h6>
+                        <h3 class="mb-0" id="itemCount">{{ trip_sales|length }}</h3>
+                    </div>
+                    <div class="col-md-3">
+                        <h6 class="mb-1 opacity-75">{% trans "Revenue per Passenger" %}</h6>
+                        <h3 class="mb-0" id="revenuePerPassenger">
+                            {% if trip.passenger_count > 0 %}
+                                {{ revenue_per_passenger }}
+                            {% else %}
+                                0.000
+                            {% endif %} JOD
+                        </h3>
+                    </div>
+                    <div class="col-md-3">
+                        <h6 class="mb-1 opacity-75">{% trans "Status" %}</h6>
+                        <h3 class="mb-0">
+                            {% if trip.is_completed %}
+                                <span class="badge bg-light text-dark">{% trans "Completed" %}</span>
+                            {% else %}
+                                <span class="badge bg-warning text-dark">{% trans "In Progress" %}</span>
+                            {% endif %}
+                        </h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if not trip.is_completed %}
+<!-- Add Sales Item Form -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-plus-circle"></i> {% trans "Add Sales Item" %}
+                </h5>
+            </div>
+            <div class="card-body">
+                <form id="addSaleForm">
+                    {% csrf_token %}
+                    <input type="hidden" id="tripId" value="{{ trip.id }}">
+                    
+                    <!-- Product Search -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-search"></i> {% trans "Search Product" %}
+                            </label>
+                            <div class="input-group">
+                                <input type="text" class="form-control form-control-lg" id="productSearch" 
+                                       placeholder="{% trans 'Type product name, ID, or scan barcode...' %}">
+                                <button class="btn btn-outline-secondary" type="button" onclick="showComingSoon()">
+                                    <i class="bi bi-upc-scan"></i> {% trans "Scan" %}
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-123"></i> {% trans "Quantity" %}
+                            </label>
+                            <input type="number" class="form-control form-control-lg" id="saleQuantity" 
+                                   placeholder="0" min="1" step="1" disabled>
+                            <small class="text-muted" id="availableStock">{% trans "Select product first" %}</small>
+                        </div>
+                    </div>
+                    
+                    <!-- Product Info (Hidden initially) -->
+                    <div id="productInfo" class="mb-3" style="display: none;">
+                        <div class="alert alert-info">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <strong>{% trans "Product:" %}</strong>
+                                    <div id="productName">-</div>
+                                </div>
+                                <div class="col-md-3">
+                                    <strong>{% trans "Unit Price:" %}</strong>
+                                    <div id="unitPrice">- JOD</div>
+                                </div>
+                                <div class="col-md-3">
+                                    <strong>{% trans "Available:" %}</strong>
+                                    <div id="availableQty">- {% trans "units" %}</div>
+                                </div>
+                                <div class="col-md-3">
+                                    <strong>{% trans "Total:" %}</strong>
+                                    <div id="totalAmount">0.000 JOD</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Notes and Add Button -->
+                    <div class="row">
+                        <div class="col-md-8">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-chat-left-text"></i> {% trans "Notes (Optional)" %}
+                            </label>
+                            <input type="text" class="form-control" id="saleNotes" 
+                                   placeholder="{% trans 'Additional notes for this sale...' %}">
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary btn-lg w-100" id="addSaleBtn" disabled>
+                                <i class="bi bi-plus"></i> {% trans "Add to Trip" %}
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Trip Sales List -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-list"></i> {% trans "Sales Items" %} ({{ trip_sales|length }})
+                </h5>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-success btn-sm" onclick="exportTripSales()">
+                        <i class="bi bi-file-earmark-excel"></i> {% trans "Export" %}
+                    </button>
+                    <button class="btn btn-outline-primary btn-sm" onclick="printTripSales()">
+                        <i class="bi bi-printer"></i> {% trans "Print" %}
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>{% trans "Time" %}</th>
+                                <th>{% trans "Product" %}</th>
+                                <th class="text-center">{% trans "Quantity" %}</th>
+                                <th class="text-end">{% trans "Unit Price" %}</th>
+                                <th class="text-end">{% trans "Total" %}</th>
+                                <th>{% trans "Notes" %}</th>
+                                {% if not trip.is_completed %}
+                                <th class="text-center">{% trans "Actions" %}</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody id="salesList">
+                            {% for sale in trip_sales %}
+                            <tr id="sale-{{ sale.id }}">
+                                <td>
+                                    <small>{{ sale.created_at|time:"H:i" }}</small>
+                                </td>
+                                <td>
+                                    <div>
+                                        <strong>{{ sale.product.name }}</strong>
+                                        <small class="text-muted d-block">{% trans "ID:" %} {{ sale.product.item_id }}</small>
+                                    </div>
+                                </td>
+                                <td class="text-center">
+                                    <span class="fw-bold">{{ sale.quantity|floatformat:0 }}</span>
+                                    <small class="text-muted d-block">{% trans "units" %}</small>
+                                </td>
+                                <td class="text-end">
+                                    <span class="fw-bold">{{ sale.unit_price|floatformat:3 }}</span>
+                                    <small class="text-muted d-block">JOD</small>
+                                </td>
+                                <td class="text-end">
+                                    <span class="fw-bold text-success">{{ sale.total_amount|floatformat:3 }}</span>
+                                    <small class="text-muted d-block">JOD</small>
+                                </td>
+                                <td>
+                                    <small>{{ sale.notes|truncatechars:50|default:"-" }}</small>
+                                </td>
+                                {% if not trip.is_completed %}
+                                <td class="text-center">
+                                    <button class="btn btn-outline-danger btn-sm" onclick="removeSale({{ sale.id }})" title="{% trans 'Remove Item' %}">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                                {% endif %}
+                            </tr>
+                            {% empty %}
+                            <tr id="noSalesRow">
+                                <td colspan="{% if not trip.is_completed %}7{% else %}6{% endif %}" class="text-center text-muted py-4">
+                                    <i class="bi bi-cart-x" style="font-size: 2rem;"></i>
+                                    <p class="mt-2 mb-0">{% trans "No sales items added yet" %}</p>
+                                    <small>{% trans "Use the form above to add sales items to this trip" %}</small>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let selectedProduct = null;
+
+// Product search with debouncing
+let searchTimeout;
+document.getElementById('productSearch').addEventListener('input', function() {
+    const searchTerm = this.value.trim();
+    
+    clearTimeout(searchTimeout);
+    
+    if (searchTerm.length >= 2) {
+        searchTimeout = setTimeout(() => {
+            searchProducts(searchTerm);
+        }, 500);
+    } else {
+        clearProductSelection();
+    }
+});
+
+// Quantity input handler
+document.getElementById('saleQuantity').addEventListener('input', function() {
+    updateTotalAmount();
+    validateForm();
+});
+
+function searchProducts(searchTerm) {
+    const tripId = document.getElementById('tripId').value;
+    
+    fetch('/sales/search-products/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({
+            search: searchTerm,
+            vessel_id: {{ trip.vessel.id }}
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.products.length > 0) {
+            if (data.products.length === 1) {
+                selectProduct(data.products[0]);
+            } else {
+                showProductSelection(data.products);
+            }
+        } else {
+            clearProductSelection();
+            showAlert("{% trans 'No products found with available inventory on this vessel.' %}", 'warning');
+        }
+    })
+    .catch(error => {
+        console.error('Error searching products:', error);
+        showAlert("{% trans 'Error searching products. Please try again.' %}", 'danger');
+    });
+}
+
+function selectProduct(product) {
+    selectedProduct = product;
+    
+    // Update UI
+    document.getElementById('productName').textContent = product.name;
+    document.getElementById('unitPrice').textContent = product.selling_price.toFixed(3) + ' JOD';
+    document.getElementById('availableQty').textContent = product.total_quantity + ' {% trans "units" %}';
+    document.getElementById('availableStock').textContent = `{% trans "Available:" %} ${product.total_quantity} {% trans "units" %}`;
+    
+    // Enable quantity input
+    const quantityInput = document.getElementById('saleQuantity');
+    quantityInput.disabled = false;
+    quantityInput.max = product.total_quantity;
+    quantityInput.focus();
+    
+    // Show product info
+    document.getElementById('productInfo').style.display = 'block';
+    
+    updateTotalAmount();
+    validateForm();
+}
+
+function updateTotalAmount() {
+    if (!selectedProduct) return;
+    
+    const quantity = parseInt(document.getElementById('saleQuantity').value) || 0;
+    const total = quantity * selectedProduct.selling_price;
+    document.getElementById('totalAmount').textContent = total.toFixed(3) + ' JOD';
+}
+
+function validateForm() {
+    const quantity = parseInt(document.getElementById('saleQuantity').value) || 0;
+    const addBtn = document.getElementById('addSaleBtn');
+    
+    const isValid = selectedProduct && quantity > 0 && quantity <= selectedProduct.total_quantity;
+    addBtn.disabled = !isValid;
+}
+
+function clearProductSelection() {
+    selectedProduct = null;
+    document.getElementById('productInfo').style.display = 'none';
+    document.getElementById('saleQuantity').disabled = true;
+    document.getElementById('saleQuantity').value = '';
+    document.getElementById('availableStock').textContent = '{% trans "Select product first" %}';
+    document.getElementById('addSaleBtn').disabled = true;
+}
+
+// Form submission
+document.getElementById('addSaleForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    if (!selectedProduct) return;
+    
+    const quantity = parseInt(document.getElementById('saleQuantity').value);
+    const notes = document.getElementById('saleNotes').value.trim();
+    
+    addSaleToTrip({
+        trip_id: document.getElementById('tripId').value,
+        product_id: selectedProduct.id,
+        quantity: quantity,
+        notes: notes
+    });
+});
+
+function addSaleToTrip(saleData) {
+    const addBtn = document.getElementById('addSaleBtn');
+    const originalText = addBtn.innerHTML;
+    
+    addBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> {% trans "Adding..." %}';
+    addBtn.disabled = true;
+    
+    fetch('/sales/trip/add-item/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify(saleData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            addSaleToTable(data.sale);
+            updateTripSummary(data.sale);
+            clearForm();
+        } else {
+            showAlert(data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error adding sale:', error);
+        showAlert('{% trans "Error adding sale. Please try again." %}', 'danger');
+    })
+    .finally(() => {
+        addBtn.innerHTML = originalText;
+        addBtn.disabled = false;
+    });
+}
+
+function addSaleToTable(sale) {
+    const salesList = document.getElementById('salesList');
+    const noSalesRow = document.getElementById('noSalesRow');
+    
+    // Remove "no sales" row if it exists
+    if (noSalesRow) {
+        noSalesRow.remove();
+    }
+    
+    // Add new row
+    const newRow = document.createElement('tr');
+    newRow.id = `sale-${sale.id}`;
+    newRow.innerHTML = `
+        <td><small>${sale.created_at}</small></td>
+        <td>
+            <div>
+                <strong>${selectedProduct.name}</strong>
+                <small class="text-muted d-block">{% trans "ID:" %} ${selectedProduct.item_id}</small>
+            </div>
+        </td>
+        <td class="text-center">
+            <span class="fw-bold">${sale.quantity}</span>
+            <small class="text-muted d-block">{% trans "units" %}</small>
+        </td>
+        <td class="text-end">
+            <span class="fw-bold">${sale.unit_price.toFixed(3)}</span>
+            <small class="text-muted d-block">JOD</small>
+        </td>
+        <td class="text-end">
+            <span class="fw-bold text-success">${sale.total_amount.toFixed(3)}</span>
+            <small class="text-muted d-block">JOD</small>
+        </td>
+        <td><small>${sale.notes || '-'}</small></td>
+        <td class="text-center">
+            <button class="btn btn-outline-danger btn-sm" onclick="removeSale(${sale.id})" title="{% trans 'Remove Item' %}">
+                <i class="bi bi-trash"></i>
+            </button>
+        </td>
+    `;
+    
+    salesList.insertBefore(newRow, salesList.firstChild);
+}
+
+function updateTripSummary(sale) {
+    // Update trip revenue
+    const currentRevenue = parseFloat(document.getElementById('tripRevenue').textContent.replace(' JOD', ''));
+    const newRevenue = currentRevenue + sale.total_amount;
+    document.getElementById('tripRevenue').textContent = newRevenue.toFixed(3) + ' JOD';
+    
+    // Update item count
+    const currentCount = parseInt(document.getElementById('itemCount').textContent);
+    document.getElementById('itemCount').textContent = currentCount + 1;
+    
+    // Update revenue per passenger
+    const passengerCount = {{ trip.passenger_count }};
+    const revenuePerPassenger = newRevenue / passengerCount;
+    document.getElementById('revenuePerPassenger').textContent = revenuePerPassenger.toFixed(3) + ' JOD';
+}
+
+function clearForm() {
+    document.getElementById('addSaleForm').reset();
+    document.getElementById('productSearch').value = '';
+    document.getElementById('saleNotes').value = '';
+    clearProductSelection();
+}
+
+function removeSale(saleId) {
+    if (confirm('{% trans "Remove this sale item from the trip?" %}')) {
+        // Implement remove functionality if needed
+        showAlert('{% trans "Remove functionality coming soon!" %}', 'info');
+    }
+}
+
+function exportTripSales() {
+    showAlert('📊 {% trans "Export feature coming soon!" %}', 'info');
+}
+
+function printTripSales() {
+    showAlert('🖨️ {% trans "Print feature coming soon!" %}', 'info');
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.querySelector('.container').insertBefore(alertDiv, document.querySelector('.row'));
+    
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+
+function showComingSoon() {
+    alert('🚀 {% trans "Barcode scanning feature coming soon!" %}');
+}
+</script>
+{% endblock %}
