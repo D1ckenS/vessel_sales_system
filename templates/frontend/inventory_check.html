@@ -1,0 +1,752 @@
+{% extends 'frontend/base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Inventory Check" %} - {% trans "Vessel Sales System" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Fix vessel navbar visibility */
+.vessel-tab {
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    color: #fff !important;
+    margin: 0 2px;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.vessel-tab:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.4);
+    color: #fff !important;
+    text-decoration: none;
+}
+
+.vessel-tab.active {
+    background: #fff;
+    border-color: #fff;
+    color: var(--primary-blue, #0f4c75) !important;
+    font-weight: 600;
+}
+
+.vessel-tab.active:hover {
+    background: #f8f9fa;
+    color: var(--primary-blue, #0f4c75) !important;
+}
+
+/* Loading states */
+.loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+}
+
+.inventory-section {
+    position: relative;
+    min-height: 300px;
+}
+
+.show-inventory-btn {
+    background: linear-gradient(135deg, #28a745, #20c997);
+    border: none;
+    padding: 15px 30px;
+    font-size: 1.1rem;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+}
+
+.show-inventory-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(40, 167, 69, 0.4);
+}
+
+.vessel-info-banner {
+    background: linear-gradient(135deg, var(--primary-blue, #0f4c75), #1e6f8c);
+    color: white;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>
+                    <i class="bi bi-boxes text-primary"></i> 
+                    {% trans "Inventory Management" %}
+                </h2>
+                <p class="text-muted mb-0">{% trans "Monitor stock levels by vessel" %}</p>
+            </div>
+            <div class="d-flex gap-2">
+                <a href="{% url 'frontend:add_product' %}" class="btn btn-success">
+                    <i class="bi bi-plus-circle"></i> {% trans "Add New Product" %}
+                </a>
+                <a href="{% url 'frontend:dashboard' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> {% trans "Back to Dashboard" %}
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Vessel Navigation Tabs -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header" style="background: linear-gradient(135deg, var(--primary-blue, #0f4c75), #1e6f8c); color: white;">
+                <h5 class="mb-0">
+                    <i class="bi bi-ship"></i> {% trans "Select Vessel" %}
+                </h5>
+            </div>
+            <div class="card-body p-3" style="background: linear-gradient(135deg, var(--primary-blue, #0f4c75), #1e6f8c);">
+                {% if vessels %}
+                    <nav class="nav nav-pills nav-fill">
+                        {% for vessel in vessels %}
+                        <button class="nav-link vessel-tab {% if forloop.first %}active{% endif %}" 
+                                data-vessel-id="{{ vessel.id }}"
+                                data-vessel-name="{{ vessel.name }}"
+                                data-duty-free="{{ vessel.has_duty_free|yesno:'true,false' }}"
+                                onclick="switchVessel({{ vessel.id }}, '{{ vessel.name }}', {{ vessel.has_duty_free|yesno:'true,false' }})">
+                            <i class="bi bi-ship me-2"></i>
+                            <strong>{{ vessel.name }}</strong>
+                            {% if vessel.has_duty_free %}
+                            <span class="badge bg-warning text-dark ms-2">{% trans "Duty-Free" %}</span>
+                            {% endif %}
+                        </button>
+                        {% endfor %}
+                    </nav>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="bi bi-ship text-white" style="font-size: 3rem;"></i>
+                        <p class="text-white mt-2">{% trans "No active vessels found" %}</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Selected Vessel Banner -->
+<div id="vesselBanner" class="row mb-4" style="display: none;">
+    <div class="col-12">
+        <div class="vessel-info-banner">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h4 class="mb-1">
+                        <i class="bi bi-ship"></i> 
+                        <span id="selectedVesselName">{% if selected_vessel %}{{ selected_vessel.name }}{% endif %}</span>
+                        <span id="dutyFreeBadge" class="badge bg-warning text-dark ms-2" style="display: none;">{% trans "Duty-Free Vessel" %}</span>
+                    </h4>
+                    <p class="mb-0 opacity-75">{% trans "Click 'Show Inventory' to load current stock levels" %}</p>
+                </div>
+                <button id="showInventoryBtn" class="btn btn-success show-inventory-btn" onclick="loadInventoryData()">
+                    <i class="bi bi-box-seam me-2"></i>
+                    {% trans "Show Inventory" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Inventory Section -->
+<div id="inventorySection" class="inventory-section" style="display: none;">
+
+    <!-- Vessel-Specific Stats -->
+    <div id="statsSection" class="row mb-4">
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stats-card">
+                <div class="stats-number text-danger" id="outOfStockCount">0</div>
+                <div class="stats-label">{% trans "Out of Stock" %}</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stats-card">
+                <div class="stats-number text-warning" id="lowStockCount">0</div>
+                <div class="stats-label">{% trans "Low Stock Items" %}</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stats-card">
+                <div class="stats-number text-success" id="totalProductsCount">0</div>
+                <div class="stats-label">{% trans "Total Products" %}</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stats-card">
+                <div class="stats-number text-info" id="inventoryValue">0</div>
+                <div class="stats-label">{% trans "Inventory Value (JOD)" %}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search and Filter Controls -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-funnel"></i> {% trans "Search & Filter" %} - <span id="filterVesselName"></span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <!-- Product Search -->
+                        <div class="col-lg-6 col-md-8 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-search"></i> {% trans "Search Products" %}
+                            </label>
+                            <input type="text" class="form-control" id="productSearch" 
+                                   placeholder="{% trans 'Product name, ID, or barcode...' %}" 
+                                   oninput="handleSearchInput()">
+                        </div>
+                        
+                        <!-- Stock Level Filter -->
+                        <div class="col-lg-4 col-md-4 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-speedometer2"></i> {% trans "Stock Level" %}
+                            </label>
+                            <select class="form-select" id="stockFilter" onchange="handleFilterChange()">
+                                <option value="">{% trans "All Stock Levels" %}</option>
+                                <option value="out">{% trans "Out of Stock" %}</option>
+                                <option value="low">{% trans "Low Stock Only" %}</option>
+                                <option value="good">{% trans "Good Stock" %}</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Clear Button -->
+                        <div class="col-lg-2 mb-3 d-flex align-items-end">
+                            <button type="button" class="btn btn-outline-secondary w-100" onclick="clearFilters()">
+                                <i class="bi bi-x-circle"></i> {% trans "Clear" %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Inventory Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-table"></i> <span id="tableVesselName"></span> {% trans "Inventory" %}
+                        <span id="tableDutyFreeBadge" class="badge bg-warning text-dark ms-2" style="display: none;">{% trans "Duty-Free Vessel" %}</span>
+                    </h5>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-outline-success btn-sm" onclick="exportToExcel()">
+                            <i class="bi bi-file-earmark-excel"></i> {% trans "Export" %}
+                        </button>
+                        <button class="btn btn-outline-primary btn-sm" onclick="showComingSoon()">
+                            <i class="bi bi-printer"></i> {% trans "Print" %}
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="border-0">
+                                        <i class="bi bi-box"></i> {% trans "Product" %}
+                                    </th>
+                                    <th class="border-0 text-center">
+                                        <i class="bi bi-123"></i> {% trans "Stock" %}
+                                    </th>
+                                    <th class="border-0 text-center">
+                                        <i class="bi bi-speedometer2"></i> {% trans "Status" %}
+                                    </th>
+                                    <th class="border-0 text-end">
+                                        <i class="bi bi-currency-dollar"></i> {% trans "Current Cost" %}
+                                    </th>
+                                    <th class="border-0 text-end">
+                                        <i class="bi bi-calculator"></i> {% trans "Total Value" %}
+                                    </th>
+                                    <th class="border-0 text-center">
+                                        <i class="bi bi-gear"></i> {% trans "Actions" %}
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody id="inventoryTableBody">
+                                <!-- Data will be loaded dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Table Footer -->
+                    <div class="card-footer bg-light" id="tableFooter">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <small class="text-muted" id="tableStats">
+                                    {% trans "No data loaded" %}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Loading Overlay -->
+                <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">{% trans "Loading..." %}</span>
+                        </div>
+                        <p class="mt-2 mb-0">{% trans "Loading inventory data..." %}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Product Details Modal -->
+<div class="modal fade" id="productModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-box-seam"></i> {% trans "Product Details" %}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="modalContent">
+                <!-- Content will be loaded dynamically -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Close" %}</button>
+                <button type="button" class="btn btn-primary" onclick="showComingSoon()">
+                    <i class="bi bi-pencil"></i> {% trans "Edit Product" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Global state
+let currentVessel = null;
+let currentInventoryData = [];
+let filteredData = [];
+let searchTimeout = null;
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-select first vessel
+    const firstVesselTab = document.querySelector('.vessel-tab');
+    if (firstVesselTab) {
+        const vesselId = firstVesselTab.dataset.vesselId;
+        const vesselName = firstVesselTab.dataset.vesselName;
+        const hasDutyFree = firstVesselTab.dataset.dutyFree === 'true';
+        
+        switchVessel(vesselId, vesselName, hasDutyFree);
+    }
+});
+
+function switchVessel(vesselId, vesselName, hasDutyFree) {
+    console.log(`Switching to vessel: ${vesselName} (ID: ${vesselId})`);
+    
+    // Update active tab
+    document.querySelectorAll('.vessel-tab').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    document.querySelector(`[data-vessel-id="${vesselId}"]`).classList.add('active');
+    
+    // Reset filters (Option B: Reset state per vessel)
+    clearFilters();
+    
+    // Update vessel info
+    currentVessel = {
+        id: vesselId,
+        name: vesselName,
+        has_duty_free: hasDutyFree
+    };
+    
+    // Update UI elements
+    document.getElementById('selectedVesselName').textContent = vesselName;
+    document.getElementById('filterVesselName').textContent = vesselName;
+    document.getElementById('tableVesselName').textContent = vesselName;
+    
+    // Show/hide duty-free badges
+    const dutyBadges = ['dutyFreeBadge', 'tableDutyFreeBadge'];
+    dutyBadges.forEach(badgeId => {
+        const badge = document.getElementById(badgeId);
+        if (hasDutyFree) {
+            badge.style.display = 'inline';
+        } else {
+            badge.style.display = 'none';
+        }
+    });
+    
+    // Show vessel banner and hide inventory section
+    document.getElementById('vesselBanner').style.display = 'block';
+    document.getElementById('inventorySection').style.display = 'none';
+    
+    // Reset show inventory button
+    const showBtn = document.getElementById('showInventoryBtn');
+    showBtn.innerHTML = '<i class="bi bi-box-seam me-2"></i>{% trans "Show Inventory" %}';
+    showBtn.disabled = false;
+}
+
+function loadInventoryData() {
+    if (!currentVessel) {
+        alert('{% trans "Please select a vessel first" %}');
+        return;
+    }
+    
+    // Show loading state
+    const showBtn = document.getElementById('showInventoryBtn');
+    showBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>{% trans "Loading..." %}';
+    showBtn.disabled = true;
+    
+    // Show inventory section and loading overlay
+    document.getElementById('inventorySection').style.display = 'block';
+    document.getElementById('loadingOverlay').style.display = 'flex';
+    
+    // Get current filter values
+    const searchTerm = document.getElementById('productSearch').value.trim();
+    const stockFilter = document.getElementById('stockFilter').value;
+    
+    // Make AJAX request
+    fetch('{% url "frontend:inventory_data_ajax" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+        },
+        body: JSON.stringify({
+            vessel_id: currentVessel.id,
+            search: searchTerm,
+            stock_filter: stockFilter
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            currentInventoryData = data.inventory_data;
+            filteredData = [...currentInventoryData];
+            updateInventoryDisplay(data);
+        } else {
+            alert(`{% trans "Error loading inventory:" %} ${data.error}`);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('{% trans "Error loading inventory data. Please try again." %}');
+    })
+    .finally(() => {
+        // Hide loading overlay
+        document.getElementById('loadingOverlay').style.display = 'none';
+        
+        // Reset button
+        showBtn.innerHTML = '<i class="bi bi-arrow-clockwise me-2"></i>{% trans "Refresh Inventory" %}';
+        showBtn.disabled = false;
+    });
+}
+
+function updateInventoryDisplay(data) {
+    // Update stats
+    const stats = data.vessel_stats;
+    document.getElementById('outOfStockCount').textContent = stats.out_of_stock_count;
+    document.getElementById('lowStockCount').textContent = stats.low_stock_count;
+    document.getElementById('totalProductsCount').textContent = stats.total_products;
+    document.getElementById('inventoryValue').textContent = stats.total_inventory_value.toFixed(0);
+    
+    // Update table
+    updateInventoryTable();
+}
+
+function updateInventoryTable() {
+    const tbody = document.getElementById('inventoryTableBody');
+    const tableStats = document.getElementById('tableStats');
+    
+    if (filteredData.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="text-center text-muted py-4">
+                    <i class="bi bi-search" style="font-size: 2rem;"></i>
+                    <p class="mt-2 mb-0">{% trans "No inventory found" %}</p>
+                    <small>{% trans "Try adjusting your search or filter criteria" %}</small>
+                </td>
+            </tr>
+        `;
+        tableStats.textContent = '{% trans "No results found" %}';
+        return;
+    }
+    
+    tbody.innerHTML = filteredData.map(item => `
+        <tr ${item.stock_status === 'low' ? 'class="table-warning"' : item.stock_status === 'out' ? 'class="table-danger"' : ''}>
+            <td>
+                <div>
+                    <h6 class="mb-1">${item.product_name}</h6>
+                    <small class="text-muted">
+                        {% trans "ID:" %} ${item.product_item_id}
+                        ${item.product_barcode ? ` • ${item.product_barcode}` : ''}
+                        ${item.is_duty_free ? '<span class="badge bg-warning text-dark ms-1">{% trans "Duty-Free" %}</span>' : ''}
+                    </small>
+                </div>
+            </td>
+            <td class="text-center">
+                <span class="fw-bold ${item.stock_status === 'low' ? 'text-warning' : item.stock_status === 'out' ? 'text-danger' : ''}">
+                    ${item.total_quantity}
+                </span>
+                <small class="text-muted d-block">{% trans "units" %}</small>
+            </td>
+            <td class="text-center">
+                <span class="badge bg-${item.status_class}">${item.status_text}</span>
+            </td>
+            <td class="text-end">
+                ${item.total_quantity > 0 ? 
+                    `<span class="fw-bold">${item.current_cost.toFixed(3)}</span>
+                     <small class="text-muted d-block">JOD ({% trans "FIFO" %})</small>` : 
+                    '<span class="text-muted">--</span>'
+                }
+            </td>
+            <td class="text-end">
+                <span class="fw-bold">${item.total_value.toFixed(3)}</span>
+                <small class="text-muted d-block">JOD</small>
+            </td>
+            <td class="text-center">
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-info" onclick="viewDetails('${item.product_id}', '${item.vessel_id}')" title="{% trans 'View Details' %}">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                    ${item.stock_status !== 'out' ? 
+                        `<button class="btn btn-outline-warning" onclick="quickTransfer('${item.product_id}', '${item.vessel_name.toLowerCase()}')" title="{% trans 'Quick Transfer' %}">
+                            <i class="bi bi-arrow-right"></i>
+                         </button>` :
+                        `<button class="btn btn-danger" onclick="urgentRestock('${item.product_id}', '${item.vessel_name.toLowerCase()}')" title="{% trans 'Urgent Restock' %}">
+                            <i class="bi bi-exclamation-triangle"></i>
+                         </button>`
+                    }
+                </div>
+            </td>
+        </tr>
+    `).join('');
+    
+    // Update table stats
+    const searchTerm = document.getElementById('productSearch').value.trim();
+    const stockFilter = document.getElementById('stockFilter').value;
+    const hasFilters = searchTerm || stockFilter;
+    
+    tableStats.innerHTML = `
+        {% trans "Showing" %} ${filteredData.length} {% trans "of" %} ${currentInventoryData.length} {% trans "products" %}
+        ${hasFilters ? '({% trans "filtered" %})' : ''}
+        {% trans "on" %} ${currentVessel.name}
+        ${hasFilters ? `<button class="btn btn-outline-secondary btn-sm ms-2" onclick="clearFilters()">
+            <i class="bi bi-x-circle"></i> {% trans "Clear Filters" %}
+        </button>` : ''}
+    `;
+}
+
+function handleSearchInput() {
+    // Debounce search input
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        applyFilters();
+    }, 300);
+}
+
+function handleFilterChange() {
+    applyFilters();
+}
+
+function applyFilters() {
+    const searchTerm = document.getElementById('productSearch').value.trim().toLowerCase();
+    const stockFilter = document.getElementById('stockFilter').value;
+    
+    filteredData = currentInventoryData.filter(item => {
+        // Apply search filter
+        let matchesSearch = true;
+        if (searchTerm) {
+            matchesSearch = 
+                item.product_name.toLowerCase().includes(searchTerm) ||
+                item.product_item_id.toLowerCase().includes(searchTerm) ||
+                item.product_barcode.toLowerCase().includes(searchTerm);
+        }
+        
+        // Apply stock filter
+        let matchesStock = true;
+        if (stockFilter) {
+            matchesStock = item.stock_status === stockFilter;
+        }
+        
+        return matchesSearch && matchesStock;
+    });
+    
+    updateInventoryTable();
+}
+
+function clearFilters() {
+    document.getElementById('productSearch').value = '';
+    document.getElementById('stockFilter').value = '';
+    
+    if (currentInventoryData.length > 0) {
+        filteredData = [...currentInventoryData];
+        updateInventoryTable();
+    }
+}
+
+// Existing functions
+function viewDetails(productId, vesselId) {
+    const modalContent = document.getElementById('modalContent');
+    modalContent.innerHTML = '<div class="text-center py-4"><div class="loading"></div><p class="mt-2">{% trans "Loading details..." %}</p></div>';
+    
+    new bootstrap.Modal(document.getElementById('productModal')).show();
+    
+    fetch(`/inventory/details/${productId}/${vesselId}/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                modalContent.innerHTML = `
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6><i class="bi bi-box-seam"></i> {% trans "Product Information" %}</h6>
+                            <table class="table table-sm">
+                                <tr><td><strong>{% trans "Product Name:" %}</strong></td><td>${data.product.name}</td></tr>
+                                <tr><td><strong>{% trans "Item ID:" %}</strong></td><td>${data.product.item_id}</td></tr>
+                                <tr><td><strong>{% trans "Barcode:" %}</strong></td><td>${data.product.barcode}</td></tr>
+                                <tr><td><strong>{% trans "Category:" %}</strong></td><td>${data.product.category}</td></tr>
+                                <tr><td><strong>{% trans "Purchase Price:" %}</strong></td><td>${data.product.purchase_price.toFixed(3)} JOD</td></tr>
+                                <tr><td><strong>{% trans "Selling Price:" %}</strong></td><td>${data.product.selling_price.toFixed(3)} JOD</td></tr>
+                                <tr><td><strong>{% trans "Duty-Free:" %}</strong></td><td>${data.product.is_duty_free ? '{% trans "Yes" %}' : '{% trans "No" %}'}</td></tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h6><i class="bi bi-ship"></i> {% trans "Vessel Information" %}</h6>
+                            <table class="table table-sm">
+                                <tr><td><strong>{% trans "Vessel Name:" %}</strong></td><td>${data.vessel.name}</td></tr>
+                                <tr><td><strong>{% trans "Supports Duty-Free:" %}</strong></td><td>${data.vessel.has_duty_free ? '{% trans "Yes" %}' : '{% trans "No" %}'}</td></tr>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <h6><i class="bi bi-layers"></i> {% trans "FIFO Inventory Lots" %}</h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>{% trans "Purchase Date" %}</th>
+                                            <th>{% trans "Remaining" %}</th>
+                                            <th>{% trans "Unit Cost" %}</th>
+                                            <th>{% trans "Total Value" %}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${data.lots.map(lot => `
+                                            <tr>
+                                                <td>${lot.purchase_date}</td>
+                                                <td>${lot.remaining_quantity}/${lot.original_quantity}</td>
+                                                <td>${lot.purchase_price.toFixed(3)}</td>
+                                                <td>${lot.total_value.toFixed(3)}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6><i class="bi bi-clock-history"></i> {% trans "Recent Transactions" %}</h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>{% trans "Date" %}</th>
+                                            <th>{% trans "Type" %}</th>
+                                            <th>{% trans "Quantity" %}</th>
+                                            <th>{% trans "Amount" %}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${data.recent_transactions.map(txn => `
+                                            <tr>
+                                                <td>${txn.date}</td>
+                                                <td>
+                                                    <span class="badge ${
+                                                        txn.type_code === 'SALE' ? 'bg-success' :
+                                                        txn.type_code === 'SUPPLY' ? 'bg-primary' :
+                                                        txn.type_code === 'TRANSFER_OUT' ? 'bg-warning' :
+                                                        'bg-info'
+                                                    }">${txn.type}</span>
+                                                </td>
+                                                <td>${txn.quantity}</td>
+                                                <td>${txn.total_amount.toFixed(3)}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                modalContent.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i> 
+                        {% trans "Error loading product details:" %} ${data.error}
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            modalContent.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle"></i> 
+                    {% trans "Error loading product details. Please try again." %}
+                </div>
+            `;
+            console.error('Error:', error);
+        });
+}
+
+function quickTransfer(productId, fromVessel) {
+    const transferUrl = "{% url 'frontend:transfer_center' %}";
+    window.location.href = `${transferUrl}?product=${productId}&from=${fromVessel}`;
+}
+
+function urgentRestock(productId, vessel) {
+    if (confirm(`{% trans "Urgent restock needed for product ID" %} ${productId} {% trans "on" %} ${vessel}?\n\n{% trans "This will redirect to supply entry." %}`)) {
+        const supplyUrl = "{% url 'frontend:supply_entry' %}";
+        window.location.href = supplyUrl;
+    }
+}
+
+function exportToExcel() {
+    const btn = event.target;
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = '<span class="loading"></span> {% trans "Exporting..." %}';
+    btn.disabled = true;
+    
+    setTimeout(() => {
+        btn.innerHTML = originalHtml;
+        btn.disabled = false;
+        alert('📊 {% trans "Export feature coming soon!" %}\n\n{% trans "This will generate an Excel file with current inventory data." %}');
+    }, 1500);
+}
+
+function showComingSoon() {
+    alert('🚀 {% trans "This feature is coming soon! Stay tuned for updates." %}');
+}
+</script>
+
+<!-- Add CSRF token for AJAX requests -->
+{% csrf_token %}
+{% endblock %}

@@ -1,0 +1,574 @@
+{% extends 'frontend/base.html' %}
+
+{% block title %}Receive Stock - Vessel Sales System{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>
+                    <i class="bi bi-box-seam text-primary"></i> 
+                    Receive Stock
+                </h2>
+                <p class="text-muted mb-0">Record new inventory shipments and create FIFO lots</p>
+            </div>
+            <a href="{% url 'frontend:dashboard' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Supply Entry Form -->
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-plus-circle"></i> New Supply Transaction
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" id="supplyForm">
+                    {% csrf_token %}
+                    
+                    <!-- Vessel and Date Selection -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-ship"></i> Receiving Vessel *
+                            </label>
+                            <select class="form-select form-select-lg" name="vessel" required>
+                                <option value="">Choose vessel...</option>
+                                {% for vessel in vessels %}
+                                <option value="{{ vessel.id }}" data-name="{{ vessel.name }}" data-duty-free="{{ vessel.has_duty_free }}">
+                                    {{ vessel.name }}
+                                    {% if vessel.has_duty_free %}<span class="text-success">(Duty-Free)</span>{% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-calendar"></i> Supply Date *
+                            </label>
+                            <input type="date" class="form-control form-control-lg" name="supply_date" value="{{ today|date:'Y-m-d' }}" required>
+                        </div>
+                    </div>
+
+                    <!-- Supplier Information -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-truck"></i> Supplier/Source
+                            </label>
+                            <input type="text" class="form-control form-control-lg" name="supplier" placeholder="e.g., Main Warehouse, Local Supplier...">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-receipt"></i> Invoice/Reference
+                            </label>
+                            <input type="text" class="form-control form-control-lg" name="reference" placeholder="Invoice number or reference...">
+                        </div>
+                    </div>
+
+                    <!-- Product Search -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-search"></i> Search Product
+                        </label>
+                        <div class="input-group input-group-lg">
+                            <input type="text" class="form-control" placeholder="Type product name, ID, or scan barcode..." id="productSearch">
+                            <button class="btn btn-outline-secondary" type="button" onclick="showComingSoon()">
+                                <i class="bi bi-upc-scan"></i> Scan
+                            </button>
+                        </div>
+                        <small class="text-muted">Start typing to search for existing products...</small>
+                    </div>
+
+                    <!-- Product Results -->
+                    <div id="productResults" class="mb-4" style="display: none;">
+                        <div class="card border-primary">
+                            <div class="card-header bg-light">
+                                <h6 class="mb-0">
+                                    <i class="bi bi-box-seam"></i> Selected Product
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div id="selectedProductInfo"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Supply Details -->
+                    <div id="supplyDetails" class="mb-4" style="display: none;">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-123"></i> Quantity Received *
+                                </label>
+                                <input type="number" class="form-control form-control-lg" name="quantity" placeholder="0" min="1" step="1">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-currency-dollar"></i> Purchase Cost (JOD) *
+                                </label>
+                                <input type="number" class="form-control form-control-lg" name="purchase_cost" placeholder="0.000" min="0.001" step="0.001">
+                                <small class="text-muted">Cost per unit</small>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-calculator"></i> Total Cost
+                                </label>
+                                <input type="text" class="form-control form-control-lg bg-light" id="totalCost" readonly placeholder="0.000 JOD">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Notes -->
+                    <div class="mb-4" id="notesSection" style="display: none;">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-chat-left-text"></i> Notes (Optional)
+                        </label>
+                        <textarea class="form-control" name="notes" rows="3" placeholder="Additional notes about this shipment..."></textarea>
+                    </div>
+
+                    <!-- Current Product Info -->
+                    <div id="currentStockInfo" class="alert alert-info mb-4" style="display: none;">
+                        <h6 class="alert-heading">
+                            <i class="bi bi-info-circle"></i> Current Stock on Vessel
+                        </h6>
+                        <div id="currentStockContent"></div>
+                    </div>
+
+                    <!-- Duty-Free Warning -->
+                    <div id="dutyFreeWarning" class="alert alert-warning" style="display: none;">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <strong>Warning:</strong> This is a duty-free product. Make sure the selected vessel supports duty-free items.
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <button type="button" class="btn btn-outline-secondary btn-lg me-md-2" onclick="clearForm()">
+                            <i class="bi bi-x-circle"></i> Clear Form
+                        </button>
+                        <button type="submit" class="btn btn-primary btn-lg" id="supplyButton" disabled>
+                            <i class="bi bi-check-circle"></i> Record Supply
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Supplies -->
+<div class="row mt-5">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-clock-history"></i> Recent Supplies
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th><i class="bi bi-calendar"></i> Date</th>
+                                <th><i class="bi bi-ship"></i> Vessel</th>
+                                <th><i class="bi bi-box"></i> Product</th>
+                                <th><i class="bi bi-123"></i> Quantity</th>
+                                <th><i class="bi bi-currency-dollar"></i> Total Cost</th>
+                                <th><i class="bi bi-person"></i> By</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for supply in recent_supplies %}
+                            <tr>
+                                <td>{{ supply.transaction_date|date:"d/m/Y" }}</td>
+                                <td>
+                                    <span class="badge bg-primary">{{ supply.vessel.name }}</span>
+                                </td>
+                                <td>
+                                    <div>
+                                        <strong>{{ supply.product.name }}</strong>
+                                        <small class="text-muted d-block">ID: {{ supply.product.item_id }}</small>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="fw-bold">{{ supply.quantity|floatformat:0 }}</span>
+                                    <small class="text-muted">units</small>
+                                </td>
+                                <td>
+                                    <span class="fw-bold">{{ supply.total_amount|floatformat:3 }}</span>
+                                    <small class="text-muted">JOD</small>
+                                </td>
+                                <td>
+                                    <small>{{ supply.created_by.username|default:"System" }}</small>
+                                    <small class="text-muted d-block">{{ supply.created_at|timesince }} ago</small>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-4">
+                                    <i class="bi bi-box-seam" style="font-size: 2rem;"></i>
+                                    <p class="mt-2 mb-0">No supplies recorded yet</p>
+                                    <small>Use the form above to record your first supply transaction</small>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let selectedProduct = null;
+
+// Product search with debouncing
+let searchTimeout;
+document.getElementById('productSearch').addEventListener('input', function() {
+    const searchTerm = this.value.trim();
+    
+    clearTimeout(searchTimeout);
+    
+    if (searchTerm.length >= 2) {
+        searchTimeout = setTimeout(() => {
+            searchProducts(searchTerm);
+        }, 500);
+    } else {
+        clearProductSelection();
+    }
+});
+
+// Calculate total cost automatically
+function setupCostCalculation() {
+    const quantityInput = document.querySelector('[name="quantity"]');
+    const costInput = document.querySelector('[name="purchase_cost"]');
+    const totalCostInput = document.getElementById('totalCost');
+    
+    function updateTotalCost() {
+        const quantity = parseFloat(quantityInput.value) || 0;
+        const cost = parseFloat(costInput.value) || 0;
+        const total = quantity * cost;
+        totalCostInput.value = total.toFixed(3) + ' JOD';
+        validateForm();
+    }
+    
+    quantityInput.addEventListener('input', updateTotalCost);
+    costInput.addEventListener('input', updateTotalCost);
+}
+
+function searchProducts(searchTerm) {
+    fetch('/supply/search-products/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({
+            search: searchTerm
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.products.length > 0) {
+            displayProductResults(data.products);
+        } else {
+            clearProductSelection();
+            showAlert('No products found matching your search.', 'warning');
+        }
+    })
+    .catch(error => {
+        console.error('Error searching products:', error);
+        showAlert('Error searching products. Please try again.', 'danger');
+    });
+}
+
+function displayProductResults(products) {
+    const resultsDiv = document.getElementById('productResults');
+    const productInfo = document.getElementById('selectedProductInfo');
+    
+    if (products.length === 1) {
+        // Auto-select if only one result
+        selectProduct(products[0]);
+    } else {
+        // Show selection list
+        productInfo.innerHTML = `
+            <h6>Multiple products found:</h6>
+            <div class="list-group">
+                ${products.map(product => `
+                    <button type="button" class="list-group-item list-group-item-action" onclick="selectProduct(${JSON.stringify(product).replace(/"/g, '&quot;')})">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1">${product.name}</h6>
+                                <small class="text-muted">ID: ${product.item_id} • Purchase: ${product.purchase_price} JOD • Selling: ${product.selling_price} JOD</small>
+                            </div>
+                            <div class="text-end">
+                                ${product.is_duty_free ? '<span class="badge bg-warning">Duty-Free</span>' : ''}
+                            </div>
+                        </div>
+                    </button>
+                `).join('')}
+            </div>
+        `;
+        resultsDiv.style.display = 'block';
+    }
+}
+
+function selectProduct(product) {
+    selectedProduct = product;
+    
+    // Display selected product
+    const productInfo = document.getElementById('selectedProductInfo');
+    productInfo.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h6 class="mb-1">${product.name}</h6>
+                <small class="text-muted">ID: ${product.item_id} • Purchase: ${product.purchase_price} JOD • Selling: ${product.selling_price} JOD</small>
+            </div>
+            <div class="text-end">
+                <div class="badge bg-success">Selected</div>
+                ${product.is_duty_free ? '<div class="badge bg-warning mt-1">Duty-Free</div>' : ''}
+            </div>
+        </div>
+        <input type="hidden" name="product_id" value="${product.id}">
+    `;
+    
+    document.getElementById('productResults').style.display = 'block';
+    
+    // Show supply details section
+    document.getElementById('supplyDetails').style.display = 'block';
+    document.getElementById('notesSection').style.display = 'block';
+    
+    // Pre-fill purchase cost with product's default
+    document.querySelector('[name="purchase_cost"]').value = product.purchase_price;
+    
+    // Setup cost calculation
+    setupCostCalculation();
+    
+    // Check duty-free compatibility
+    checkDutyFreeCompatibility(product);
+    
+    // Load current stock info
+    loadCurrentStock(product);
+    
+    validateForm();
+}
+
+function checkDutyFreeCompatibility(product) {
+    const vesselSelect = document.querySelector('[name="vessel"]');
+    const warning = document.getElementById('dutyFreeWarning');
+    
+    if (product.is_duty_free) {
+        warning.style.display = 'block';
+        
+        // Check if selected vessel supports duty-free
+        if (vesselSelect.value) {
+            const selectedOption = vesselSelect.selectedOptions[0];
+            const supportsDutyFree = selectedOption.dataset.dutyFree === 'True';
+            
+            if (!supportsDutyFree) {
+                warning.innerHTML = `
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>Error:</strong> This duty-free product cannot be added to ${selectedOption.dataset.name} 
+                    (vessel does not support duty-free items).
+                `;
+                warning.className = 'alert alert-danger';
+            } else {
+                warning.className = 'alert alert-warning';
+            }
+        }
+    } else {
+        warning.style.display = 'none';
+    }
+}
+
+function loadCurrentStock(product) {
+    const vesselSelect = document.querySelector('[name="vessel"]');
+    const stockInfo = document.getElementById('currentStockInfo');
+    const stockContent = document.getElementById('currentStockContent');
+    
+    if (vesselSelect.value) {
+        fetch(`/inventory/details/${product.id}/${vesselSelect.value}/`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.lots.length > 0) {
+                    const totalStock = data.lots.reduce((sum, lot) => sum + lot.remaining_quantity, 0);
+                    stockContent.innerHTML = `
+                        <div class="row">
+                            <div class="col-md-6">
+                                <strong>Current Stock:</strong> ${totalStock} units
+                            </div>
+                            <div class="col-md-6">
+                                <strong>FIFO Lots:</strong> ${data.lots.length} lots available
+                            </div>
+                        </div>
+                    `;
+                    stockInfo.style.display = 'block';
+                } else {
+                    stockContent.innerHTML = `
+                        <div class="text-muted">
+                            <strong>Current Stock:</strong> 0 units (no inventory on this vessel)
+                        </div>
+                    `;
+                    stockInfo.style.display = 'block';
+                }
+            })
+            .catch(() => {
+                stockInfo.style.display = 'none';
+            });
+    }
+}
+
+// Vessel change handler
+document.querySelector('[name="vessel"]').addEventListener('change', function() {
+    if (selectedProduct) {
+        checkDutyFreeCompatibility(selectedProduct);
+        loadCurrentStock(selectedProduct);
+    }
+    validateForm();
+});
+
+function validateForm() {
+    const vessel = document.querySelector('[name="vessel"]').value;
+    const quantity = document.querySelector('[name="quantity"]').value;
+    const cost = document.querySelector('[name="purchase_cost"]').value;
+    const supplyButton = document.getElementById('supplyButton');
+    
+    let isValid = true;
+    
+    // Basic validation
+    if (!vessel || !selectedProduct || !quantity || !cost) {
+        isValid = false;
+    }
+    
+    // Quantity validation
+    if (parseInt(quantity) <= 0) {
+        isValid = false;
+    }
+    
+    // Cost validation
+    if (parseFloat(cost) <= 0) {
+        isValid = false;
+    }
+    
+    // Duty-free validation
+    if (selectedProduct?.is_duty_free && vessel) {
+        const selectedOption = document.querySelector('[name="vessel"]').selectedOptions[0];
+        const supportsDutyFree = selectedOption?.dataset.dutyFree === 'True';
+        if (!supportsDutyFree) {
+            isValid = false;
+        }
+    }
+    
+    supplyButton.disabled = !isValid;
+}
+
+function clearProductSelection() {
+    selectedProduct = null;
+    document.getElementById('productResults').style.display = 'none';
+    document.getElementById('supplyDetails').style.display = 'none';
+    document.getElementById('notesSection').style.display = 'none';
+    document.getElementById('currentStockInfo').style.display = 'none';
+    document.getElementById('dutyFreeWarning').style.display = 'none';
+    document.getElementById('supplyButton').disabled = true;
+}
+
+function clearForm() {
+    document.getElementById('supplyForm').reset();
+    clearProductSelection();
+    document.getElementById('productSearch').value = '';
+}
+
+// Form submission
+document.getElementById('supplyForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    if (!validateSupplyForm()) return;
+    
+    const formData = new FormData(this);
+    
+    // Show confirmation
+    const vessel = document.querySelector('[name="vessel"]').selectedOptions[0].dataset.name;
+    const quantity = formData.get('quantity');
+    const cost = formData.get('purchase_cost');
+    const total = (parseFloat(quantity) * parseFloat(cost)).toFixed(3);
+    
+    if (confirm(`Confirm Supply Transaction:\n\nVessel: ${vessel}\nProduct: ${selectedProduct.name}\nQuantity: ${quantity} units\nCost: ${cost} JOD per unit\nTotal: ${total} JOD\n\nThis will create a new FIFO inventory lot. Continue?`)) {
+        executeSupply(formData);
+    }
+});
+
+function validateSupplyForm() {
+    return document.querySelector('[name="vessel"]').value && 
+           selectedProduct && 
+           parseInt(document.querySelector('[name="quantity"]').value) > 0 &&
+           parseFloat(document.querySelector('[name="purchase_cost"]').value) > 0;
+}
+
+function executeSupply(formData) {
+    const submitButton = document.getElementById('supplyButton');
+    const originalText = submitButton.innerHTML;
+    
+    submitButton.innerHTML = '<span class="loading"></span> Recording Supply...';
+    submitButton.disabled = true;
+    
+    fetch('/supply/execute/', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(`Supply recorded successfully! ${data.message}`, 'success');
+            clearForm();
+            // Auto-refresh to show updated inventory
+            setTimeout(() => window.location.reload(), 1500);
+        } else {
+            showAlert(`Supply failed: ${data.error}`, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Supply error:', error);
+        showAlert('Supply failed due to system error. Please try again.', 'danger');
+    })
+    .finally(() => {
+        submitButton.innerHTML = originalText;
+        submitButton.disabled = false;
+    });
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.querySelector('.container').insertBefore(alertDiv, document.querySelector('.row'));
+    
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+
+function showComingSoon() {
+    alert('🚀 Barcode scanning feature coming soon!');
+}
+</script>
+{% endblock %}

@@ -54,6 +54,9 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+USE_I18N = True
+USE_L10N = True
+
 ROOT_URLCONF = 'vessel_sales.urls'
 
 TEMPLATES = [

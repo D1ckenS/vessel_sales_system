@@ -276,6 +276,12 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link {% if request.resolver_match.url_name == 'supply_entry' %}active{% endif %}" 
+                        href="{% url 'frontend:supply_entry' %}">
+                            <i class="bi bi-box-seam"></i> Receive Stock
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link {% if request.resolver_match.url_name == 'inventory_check' %}active{% endif %}" 
                            href="{% url 'frontend:inventory_check' %}">
                             <i class="bi bi-boxes"></i> Inventory

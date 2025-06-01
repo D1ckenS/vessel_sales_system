@@ -1,6 +1,7 @@
 {% extends 'frontend/base.html' %}
+{% load i18n %}
 
-{% block title %}Sales Entry - Vessel Sales System{% endblock %}
+{% block title %}{% trans "Sales Entry" %} - {% trans "Vessel Sales System" %}{% endblock %}
 
 {% block content %}
 <!-- Page Header -->
@@ -10,12 +11,12 @@
             <div>
                 <h2>
                     <i class="bi bi-cart-plus text-success"></i> 
-                    Sales Entry
+                    {% trans "Sales Entry" %}
                 </h2>
-                <p class="text-muted mb-0">Record daily sales transactions quickly and easily</p>
+                <p class="text-muted mb-0">{% trans "Record daily sales transactions quickly and easily" %}</p>
             </div>
             <a href="{% url 'frontend:dashboard' %}" class="btn btn-outline-secondary">
-                <i class="bi bi-arrow-left"></i> Back to Dashboard
+                <i class="bi bi-arrow-left"></i> {% trans "Back to Dashboard" %}
             </a>
         </div>
     </div>
@@ -27,103 +28,144 @@
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0">
-                    <i class="bi bi-plus-circle"></i> New Sales Transaction
+                    <i class="bi bi-plus-circle"></i> {% trans "New Sales Transaction" %}
                 </h5>
             </div>
             <div class="card-body">
                 <form id="salesForm">
+                    {% csrf_token %}
+                    
                     <!-- Vessel Selection -->
                     <div class="row mb-4">
                         <div class="col-md-6">
                             <label class="form-label fw-bold">
-                                <i class="bi bi-ship"></i> Select Vessel
+                                <i class="bi bi-ship"></i> {% trans "Select Vessel" %}
                             </label>
-                            <select class="form-select form-select-lg" required>
-                                <option value="">Choose vessel...</option>
-                                <option value="amman">Amman</option>
-                                <option value="aylah">Aylah</option>
-                                <option value="sinaa">Sinaa</option>
-                                <option value="nefertiti">Nefertiti</option>
-                                <option value="babel">Babel</option>
-                                <option value="dahab">Dahab</option>
+                            <select class="form-select form-select-lg" id="vesselSelect" required>
+                                <option value="">{% trans "Choose vessel..." %}</option>
+                                {% for vessel in vessels %}
+                                <option value="{{ vessel.id }}" data-name="{{ vessel.name }}" data-duty-free="{{ vessel.has_duty_free }}">
+                                    {{ vessel.name }}
+                                    {% if vessel.has_duty_free %}<span class="text-success">({% trans "Duty-Free" %})</span>{% endif %}
+                                </option>
+                                {% endfor %}
                             </select>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-bold">
-                                <i class="bi bi-calendar"></i> Transaction Date
+                                <i class="bi bi-calendar"></i> {% trans "Transaction Date" %}
                             </label>
-                            <input type="date" class="form-control form-control-lg" value="{{ today|date:'Y-m-d' }}" required>
+                            <input type="date" class="form-control form-control-lg" id="saleDate" value="{{ today|date:'Y-m-d' }}" required>
                         </div>
                     </div>
 
                     <!-- Product Search -->
                     <div class="mb-4">
                         <label class="form-label fw-bold">
-                            <i class="bi bi-search"></i> Search Product
+                            <i class="bi bi-search"></i> {% trans "Search Product" %}
                         </label>
                         <div class="input-group input-group-lg">
-                            <input type="text" class="form-control" placeholder="Type product name or scan barcode..." id="productSearch">
-                            <button class="btn btn-outline-secondary" type="button" onclick="showComingSoon()">
-                                <i class="bi bi-upc-scan"></i> Scan
+                            <input type="text" class="form-control" placeholder="{% trans 'Type product name or scan barcode...' %}" id="productSearch" disabled>
+                            <button class="btn btn-outline-secondary" type="button" onclick="showComingSoon()" disabled>
+                                <i class="bi bi-upc-scan"></i> {% trans "Scan" %}
                             </button>
                         </div>
-                        <small class="text-muted">Start typing to search for products...</small>
+                        <small class="text-muted">{% trans "Select vessel first, then search for products..." %}</small>
                     </div>
 
                     <!-- Product Results (will be populated dynamically) -->
                     <div id="productResults" class="mb-4" style="display: none;">
                         <div class="card border-primary">
+                            <div class="card-header bg-light">
+                                <h6 class="mb-0">
+                                    <i class="bi bi-box-seam"></i> {% trans "Selected Product" %}
+                                </h6>
+                            </div>
                             <div class="card-body">
-                                <h6 class="card-title">Selected Product</h6>
                                 <div id="selectedProduct"></div>
                             </div>
                         </div>
                     </div>
 
                     <!-- Quantity and Price -->
-                    <div class="row mb-4">
+                    <div id="saleDetails" class="row mb-4" style="display: none;">
                         <div class="col-md-4">
                             <label class="form-label fw-bold">
-                                <i class="bi bi-123"></i> Quantity Sold
+                                <i class="bi bi-123"></i> {% trans "Quantity Sold" %}
                             </label>
-                            <input type="number" class="form-control form-control-lg" placeholder="0" min="0" step="1">
+                            <input type="number" class="form-control form-control-lg" id="quantitySold" placeholder="0" min="1" step="1">
+                            <small class="text-muted">{% trans "Maximum:" %} <span id="maxQuantity">0</span> {% trans "units" %}</small>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label fw-bold">
-                                <i class="bi bi-currency-dollar"></i> Unit Price (JOD)
+                                <i class="bi bi-currency-dollar"></i> {% trans "Unit Price (JOD)" %}
                             </label>
-                            <input type="number" class="form-control form-control-lg" placeholder="0.000" min="0" step="0.001">
+                            <input type="number" class="form-control form-control-lg bg-light" id="unitPrice" readonly placeholder="0.000">
+                            <small class="text-muted">{% trans "Product selling price" %}</small>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label fw-bold">
-                                <i class="bi bi-calculator"></i> Total Revenue
+                                <i class="bi bi-calculator"></i> {% trans "Total Revenue" %}
                             </label>
-                            <input type="text" class="form-control form-control-lg bg-light" readonly placeholder="0.000 JOD">
+                            <input type="text" class="form-control form-control-lg bg-light" id="totalRevenue" readonly placeholder="0.000 JOD">
+                        </div>
+                    </div>
+
+                    <!-- FIFO Preview -->
+                    <div id="fifoPreview" class="mb-4" style="display: none;">
+                        <div class="alert alert-info">
+                            <h6 class="alert-heading">
+                                <i class="bi bi-eye"></i> {% trans "FIFO Consumption Preview" %}
+                            </h6>
+                            <div id="fifoContent"></div>
+                            <hr>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <small><strong>{% trans "FIFO Cost:" %}</strong></small>
+                                    <div id="fifoCost" class="text-primary small"></div>
+                                </div>
+                                <div class="col-md-4">
+                                    <small><strong>{% trans "Revenue:" %}</strong></small>
+                                    <div id="fifoRevenue" class="text-success small"></div>
+                                </div>
+                                <div class="col-md-4">
+                                    <small><strong>{% trans "Profit:" %}</strong></small>
+                                    <div id="fifoProfit" class="text-warning small"></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     <!-- Current Stock Info -->
-                    <div class="alert alert-info mb-4">
+                    <div id="stockInfo" class="alert alert-secondary mb-4" style="display: none;">
                         <h6 class="alert-heading">
-                            <i class="bi bi-info-circle"></i> Current Stock Information
+                            <i class="bi bi-info-circle"></i> {% trans "Current Stock Information" %}
                         </h6>
                         <div class="row">
                             <div class="col-md-6">
-                                <small><strong>Available Stock:</strong> <span class="text-primary">--</span></small>
+                                <small><strong>{% trans "Available Stock:" %}</strong> <span id="availableStock" class="text-primary">--</span></small>
                             </div>
                             <div class="col-md-6">
-                                <small><strong>After Sale:</strong> <span class="text-success">--</span></small>
+                                <small><strong>{% trans "After Sale:" %}</strong> <span id="afterSaleStock" class="text-success">--</span></small>
                             </div>
                         </div>
                     </div>
 
+                    <!-- Notes -->
+                    <div id="notesSection" class="mb-4" style="display: none;">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-chat-left-text"></i> {% trans "Notes (Optional)" %}
+                        </label>
+                        <input type="text" class="form-control form-control-lg" id="saleNotes" placeholder="{% trans 'Additional notes about this sale...' %}">
+                    </div>
+
                     <!-- Action Buttons -->
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                        <button type="button" class="btn btn-outline-secondary btn-lg me-md-2">
-                            <i class="bi bi-x-circle"></i> Clear Form
+                        <button type="button" class="btn btn-outline-secondary btn-lg me-md-2" onclick="clearForm()">
+                            <i class="bi bi-x-circle"></i> {% trans "Clear Form" %}
                         </button>
-                        <button type="submit" class="btn btn-success btn-lg">
-                            <i class="bi bi-check-circle"></i> Record Sale
+                        <button type="submit" class="btn btn-success btn-lg" id="recordSaleBtn" disabled>
+                            <i class="bi bi-check-circle"></i> {% trans "Record Sale" %}
                         </button>
                     </div>
                 </form>
@@ -132,13 +174,13 @@
     </div>
 </div>
 
-<!-- Recent Sales -->
+<!-- Today's Sales -->
 <div class="row mt-5">
     <div class="col-12">
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0">
-                    <i class="bi bi-clock-history"></i> Today's Sales
+                    <i class="bi bi-clock-history"></i> {% trans "Today's Sales" %}
                 </h5>
             </div>
             <div class="card-body">
@@ -146,21 +188,50 @@
                     <table class="table table-hover">
                         <thead>
                             <tr>
-                                <th><i class="bi bi-ship"></i> Vessel</th>
-                                <th><i class="bi bi-box"></i> Product</th>
-                                <th><i class="bi bi-123"></i> Quantity</th>
-                                <th><i class="bi bi-currency-dollar"></i> Revenue</th>
-                                <th><i class="bi bi-clock"></i> Time</th>
+                                <th><i class="bi bi-ship"></i> {% trans "Vessel" %}</th>
+                                <th><i class="bi bi-box"></i> {% trans "Product" %}</th>
+                                <th><i class="bi bi-123"></i> {% trans "Quantity" %}</th>
+                                <th><i class="bi bi-currency-dollar"></i> {% trans "Revenue" %}</th>
+                                <th><i class="bi bi-clock"></i> {% trans "Time" %}</th>
+                                <th><i class="bi bi-person"></i> {% trans "By" %}</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="todaySalesBody">
+                            {% for sale in today_sales %}
                             <tr>
-                                <td colspan="5" class="text-center text-muted py-4">
-                                    <i class="bi bi-cart-x" style="font-size: 2rem;"></i>
-                                    <p class="mt-2 mb-0">No sales recorded today</p>
-                                    <small>Use the form above to record your first sale</small>
+                                <td>
+                                    <span class="badge bg-primary">{{ sale.vessel.name }}</span>
+                                </td>
+                                <td>
+                                    <div>
+                                        <strong>{{ sale.product.name }}</strong>
+                                        <small class="text-muted d-block">{% trans "ID:" %} {{ sale.product.item_id }}</small>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="fw-bold">{{ sale.quantity|floatformat:0 }}</span>
+                                    <small class="text-muted">{% trans "units" %}</small>
+                                </td>
+                                <td>
+                                    <span class="fw-bold">{{ sale.total_amount|floatformat:3 }}</span>
+                                    <small class="text-muted">JOD</small>
+                                </td>
+                                <td>
+                                    <small>{{ sale.created_at|time:"H:i" }}</small>
+                                </td>
+                                <td>
+                                    <small>{{ sale.created_by.username|default:"System" }}</small>
                                 </td>
                             </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-4">
+                                    <i class="bi bi-cart-x" style="font-size: 2rem;"></i>
+                                    <p class="mt-2 mb-0">{% trans "No sales recorded today" %}</p>
+                                    <small>{% trans "Use the form above to record your first sale" %}</small>
+                                </td>
+                            </tr>
+                            {% endfor %}
                         </tbody>
                     </table>
                 </div>
@@ -173,52 +244,326 @@
 
 {% block extra_js %}
 <script>
-// Simple product search simulation
+let selectedProduct = null;
+let selectedVessel = null;
+
+// Vessel selection handler
+document.getElementById('vesselSelect').addEventListener('change', function() {
+    selectedVessel = this.value ? {
+        id: this.value,
+        name: this.selectedOptions[0].dataset.name,
+        has_duty_free: this.selectedOptions[0].dataset.dutyFree === 'True'
+    } : null;
+    
+    const productSearch = document.getElementById('productSearch');
+    const scanButton = productSearch.nextElementSibling;
+    
+    if (selectedVessel) {
+        productSearch.disabled = false;
+        scanButton.disabled = false;
+        productSearch.placeholder = "{% trans 'Type product name, ID, or scan barcode...' %}";
+        productSearch.nextElementSibling.querySelector('small').textContent = "{% trans 'Start typing to search for products...' %}";
+    } else {
+        productSearch.disabled = true;
+        scanButton.disabled = true;
+        productSearch.placeholder = "{% trans 'Select vessel first...' %}";
+        clearProductSelection();
+    }
+    
+    validateForm();
+});
+
+// Product search with debouncing
+let searchTimeout;
 document.getElementById('productSearch').addEventListener('input', function() {
-    const searchTerm = this.value.toLowerCase();
+    const searchTerm = this.value.trim();
+    
+    clearTimeout(searchTimeout);
+    
+    if (searchTerm.length >= 2 && selectedVessel) {
+        searchTimeout = setTimeout(() => {
+            searchProducts(searchTerm);
+        }, 500);
+    } else {
+        clearProductSelection();
+    }
+});
+
+// Quantity input handler
+document.getElementById('quantitySold').addEventListener('input', function() {
+    const quantity = parseInt(this.value) || 0;
+    updateSaleCalculations(quantity);
+    validateInventory(quantity);
+    validateForm();
+});
+
+function searchProducts(searchTerm) {
+    fetch('/sales/search-products/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({
+            search: searchTerm,
+            vessel_id: selectedVessel.id
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.products.length > 0) {
+            displayProductResults(data.products);
+        } else {
+            clearProductSelection();
+            showAlert("{% trans 'No products found with available inventory on this vessel.' %}", 'warning');
+        }
+    })
+    .catch(error => {
+        console.error('Error searching products:', error);
+        showAlert("{% trans 'Error searching products. Please try again.' %}", 'danger');
+    });
+}
+
+function displayProductResults(products) {
     const resultsDiv = document.getElementById('productResults');
     const selectedDiv = document.getElementById('selectedProduct');
     
-    if (searchTerm.length > 2) {
-        // Simulate product search results
-        resultsDiv.style.display = 'block';
+    if (products.length === 1) {
+        // Auto-select if only one result
+        selectProduct(products[0]);
+    } else {
+        // Show selection list
         selectedDiv.innerHTML = `
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h6 class="mb-1">بيبسي 250 ملل (Sample Product)</h6>
-                    <small class="text-muted">Item ID: 105 • Current Stock: 150 units</small>
-                </div>
-                <div class="text-end">
-                    <div class="badge bg-success">In Stock</div>
-                    <small class="d-block text-muted">0.500 JOD</small>
-                </div>
+            <h6>{% trans "Multiple products found:" %}</h6>
+            <div class="list-group">
+                ${products.map(product => `
+                    <button type="button" class="list-group-item list-group-item-action" onclick="selectProduct(${JSON.stringify(product).replace(/"/g, '&quot;')})">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1">${product.name}</h6>
+                                <small class="text-muted">{% trans "ID:" %} ${product.item_id} • {% trans "Available:" %} ${product.total_quantity} {% trans "units" %}</small>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge bg-success">${product.total_quantity}</span>
+                                ${product.is_duty_free ? '<div class="badge bg-warning mt-1">{% trans "Duty-Free" %}</div>' : ''}
+                            </div>
+                        </div>
+                    </button>
+                `).join('')}
             </div>
         `;
-    } else {
-        resultsDiv.style.display = 'none';
+        resultsDiv.style.display = 'block';
     }
-});
+}
+
+function selectProduct(product) {
+    selectedProduct = product;
+    
+    // Display selected product
+    const selectedDiv = document.getElementById('selectedProduct');
+    selectedDiv.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h6 class="mb-1">${product.name}</h6>
+                <small class="text-muted">{% trans "ID:" %} ${product.item_id} • {% trans "Available:" %} ${product.total_quantity} {% trans "units" %} • {% trans "Price:" %} ${product.selling_price.toFixed(3)} JOD</small>
+            </div>
+            <div class="text-end">
+                <div class="badge bg-success">{% trans "Selected" %}</div>
+                ${product.is_duty_free ? '<div class="badge bg-warning mt-1">{% trans "Duty-Free" %}</div>' : ''}
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('productResults').style.display = 'block';
+    
+    // Show sale details
+    document.getElementById('saleDetails').style.display = 'block';
+    document.getElementById('notesSection').style.display = 'block';
+    
+    // Set values
+    document.getElementById('maxQuantity').textContent = product.total_quantity;
+    document.getElementById('unitPrice').value = product.selling_price.toFixed(3);
+    document.getElementById('quantitySold').max = product.total_quantity;
+    
+    validateForm();
+}
+
+function updateSaleCalculations(quantity) {
+    if (!selectedProduct || quantity <= 0) {
+        document.getElementById('totalRevenue').value = '';
+        return;
+    }
+    
+    const revenue = quantity * selectedProduct.selling_price;
+    document.getElementById('totalRevenue').value = revenue.toFixed(3) + ' JOD';
+}
+
+function validateInventory(quantity) {
+    if (!selectedProduct || !selectedVessel || quantity <= 0) {
+        document.getElementById('fifoPreview').style.display = 'none';
+        document.getElementById('stockInfo').style.display = 'none';
+        return;
+    }
+    
+    // Check inventory and get FIFO preview
+    fetch('/sales/validate-inventory/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({
+            vessel_id: selectedVessel.id,
+            product_id: selectedProduct.id,
+            quantity: quantity
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Show stock info
+            document.getElementById('availableStock').textContent = data.available_quantity + ' {% trans "units" %}';
+            document.getElementById('afterSaleStock').textContent = data.after_sale_quantity + ' {% trans "units" %}';
+            document.getElementById('stockInfo').style.display = 'block';
+            
+            // Show FIFO preview
+            const fifoContent = document.getElementById('fifoContent');
+            fifoContent.innerHTML = `
+                <strong>{% trans "Will consume:" %}</strong><br>
+                ${data.consumption_preview.map(item => 
+                    `${item.consumed_quantity} {% trans "units" %} @ ${item.unit_cost.toFixed(3)} JOD ({% trans "from" %} ${item.lot_date})`
+                ).join('<br>')}
+            `;
+            
+            document.getElementById('fifoCost').textContent = data.total_fifo_cost.toFixed(3) + ' JOD';
+            document.getElementById('fifoRevenue').textContent = data.total_revenue.toFixed(3) + ' JOD';
+            document.getElementById('fifoProfit').textContent = data.total_profit.toFixed(3) + ' JOD';
+            
+            document.getElementById('fifoPreview').style.display = 'block';
+        } else {
+            showAlert(data.error, 'danger');
+            document.getElementById('fifoPreview').style.display = 'none';
+            document.getElementById('stockInfo').style.display = 'none';
+        }
+    })
+    .catch(error => {
+        console.error('Error validating inventory:', error);
+    });
+}
+
+function validateForm() {
+    const vessel = selectedVessel;
+    const product = selectedProduct;
+    const quantity = parseInt(document.getElementById('quantitySold').value) || 0;
+    const recordBtn = document.getElementById('recordSaleBtn');
+    
+    const isValid = vessel && product && quantity > 0 && quantity <= product.total_quantity;
+    recordBtn.disabled = !isValid;
+}
+
+function clearProductSelection() {
+    selectedProduct = null;
+    document.getElementById('productResults').style.display = 'none';
+    document.getElementById('saleDetails').style.display = 'none';
+    document.getElementById('notesSection').style.display = 'none';
+    document.getElementById('fifoPreview').style.display = 'none';
+    document.getElementById('stockInfo').style.display = 'none';
+    validateForm();
+}
+
+function clearForm() {
+    selectedProduct = null;
+    selectedVessel = null;
+    document.getElementById('salesForm').reset();
+    document.getElementById('productSearch').disabled = true;
+    clearProductSelection();
+}
 
 // Form submission
 document.getElementById('salesForm').addEventListener('submit', function(e) {
     e.preventDefault();
     
-    // Show success message
-    const alertHtml = `
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            <i class="bi bi-check-circle"></i> 
-            <strong>Success!</strong> Sale recorded successfully. This will integrate with your backend soon.
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    `;
+    if (!validateSaleForm()) return;
     
-    this.insertAdjacentHTML('beforebegin', alertHtml);
-    this.reset();
-    document.getElementById('productResults').style.display = 'none';
+    const quantity = parseInt(document.getElementById('quantitySold').value);
+    const saleDate = document.getElementById('saleDate').value;
+    const notes = document.getElementById('saleNotes').value.trim();
+    
+    // Show confirmation
+    const revenue = (quantity * selectedProduct.selling_price).toFixed(3);
+    
+    if (confirm(`{% trans "Confirm Sale:" %}\n\n{% trans "Vessel:" %} ${selectedVessel.name}\n{% trans "Product:" %} ${selectedProduct.name}\n{% trans "Quantity:" %} ${quantity} {% trans "units" %}\n{% trans "Revenue:" %} ${revenue} JOD\n\n{% trans "This will consume inventory using FIFO. Continue?" %}`)) {
+        executeSale({
+            vessel_id: selectedVessel.id,
+            product_id: selectedProduct.id,
+            quantity: quantity,
+            sale_date: saleDate,
+            notes: notes
+        });
+    }
 });
 
+function validateSaleForm() {
+    return selectedVessel && 
+           selectedProduct && 
+           parseInt(document.getElementById('quantitySold').value) > 0;
+}
+
+function executeSale(saleData) {
+    const submitButton = document.getElementById('recordSaleBtn');
+    const originalText = submitButton.innerHTML;
+    
+    submitButton.innerHTML = '<span class="loading"></span> {% trans "Recording Sale..." %}';
+    submitButton.disabled = true;
+    
+    fetch('/sales/execute/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify(saleData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(`{% trans "Sale completed successfully!" %} ${data.message}`, 'success');
+            clearForm();
+            // Redirect to inventory to see updated stock
+            setTimeout(() => {
+                window.location.href = "{% url 'frontend:inventory_check' %}";
+            }, 2000);
+        } else {
+            showAlert(`{% trans "Sale failed:" %} ${data.error}`, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Sale error:', error);
+        showAlert('{% trans "Sale failed due to system error. Please try again." %}', 'danger');
+    })
+    .finally(() => {
+        submitButton.innerHTML = originalText;
+        submitButton.disabled = false;
+    });
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.querySelector('.container').insertBefore(alertDiv, document.querySelector('.row'));
+    
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+
 function showComingSoon() {
-    alert('🚀 Barcode scanning feature coming soon!');
+    alert('🚀 {% trans "Barcode scanning feature coming soon!" %}');
 }
 </script>
 {% endblock %}
