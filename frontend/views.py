@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.db.models import Sum, Count, Q
+from django.db.models import Sum, Count, Q, F
 from django.http import JsonResponse
 from datetime import date, timedelta
 from decimal import Decimal
@@ -25,10 +25,21 @@ def supply_entry(request):
             'vessel', 'product', 'created_by'
         ).order_by('-created_at')[:20]
         
+        # In your sales_entry and supply_entry views, add:
+        vessel_colors = {
+            'amman': 'bg-primary',
+            'aylah': 'bg-danger', 
+            'sinaa': 'bg-success',
+            'nefertiti': 'bg-secondary',
+            'babel': 'bg-warning',
+            'dahab': 'bg-info'
+        }
+        
         context = {
             'vessels': vessels,
             'recent_supplies': recent_supplies,
             'today': date.today(),
+            'vessel_colors': vessel_colors,
         }
         
         return render(request, 'frontend/supply_entry.html', context)
@@ -325,7 +336,7 @@ def dashboard(request):
         transaction_type='SALE',
         transaction_date=today
     ).aggregate(
-        total_revenue=Sum('unit_price'),
+        total_revenue=Sum(F('unit_price') * F('quantity')),
         transaction_count=Count('id')
     )
     
@@ -360,10 +371,21 @@ def sales_entry(request):
             'vessel', 'product', 'created_by'
         ).order_by('-created_at')
         
+        # In your sales_entry and supply_entry views, add:
+        vessel_colors = {
+            'amman': 'bg-primary',
+            'aylah': 'bg-danger', 
+            'sinaa': 'bg-success',
+            'nefertiti': 'bg-secondary',
+            'babel': 'bg-warning',
+            'dahab': 'bg-info'
+        }
+        
         context = {
             'vessels': vessels,
             'today_sales': today_sales,
             'today': today,
+            'vessel_colors': vessel_colors
         }
         
         return render(request, 'frontend/sales_entry.html', context)
@@ -1205,6 +1227,17 @@ def transfer_execute(request):
         return JsonResponse({'success': False, 'error': 'Vessel or product not found'})
     except Exception as e:
         return JsonResponse({'success': False, 'error': f'Transfer failed: {str(e)}'})
+def get_vessel_badge_class(vessel_name):
+    """Helper function to get vessel badge class"""
+    colors = {
+        'amman': 'bg-primary',
+        'aylah': 'bg-danger',
+        'sinaa': 'bg-success', 
+        'nefertiti': 'bg-secondary',
+        'babel': 'bg-warning',
+        'dahab': 'bg-info',
+    }
+    return colors.get(vessel_name.lower(), 'bg-primary')
 
 @login_required
 def reports_dashboard(request):

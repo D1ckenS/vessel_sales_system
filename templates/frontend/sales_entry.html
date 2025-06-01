@@ -200,7 +200,7 @@
                             {% for sale in today_sales %}
                             <tr>
                                 <td>
-                                    <span class="badge bg-primary">{{ sale.vessel.name }}</span>
+                                    <span class="badge {% if sale.vessel.name|lower == 'amman' %}bg-primary{% elif sale.vessel.name|lower == 'aylah' %}bg-danger{% elif sale.vessel.name|lower == 'sinaa' %}bg-success{% elif sale.vessel.name|lower == 'nefertiti' %}bg-secondary{% elif sale.vessel.name|lower == 'babel' %}bg-warning{% elif sale.vessel.name|lower == 'dahab' %}bg-info{% else %}bg-primary{% endif %}">{{ sale.vessel.name }}</span>
                                 </td>
                                 <td>
                                     <div>

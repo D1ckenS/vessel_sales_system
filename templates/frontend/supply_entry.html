@@ -191,7 +191,7 @@
                             <tr>
                                 <td>{{ supply.transaction_date|date:"d/m/Y" }}</td>
                                 <td>
-                                    <span class="badge bg-primary">{{ supply.vessel.name }}</span>
+                                    <span class="badge {% if supply.vessel.name|lower == 'amman' %}bg-primary{% elif supply.vessel.name|lower == 'aylah' %}bg-danger{% elif supply.vessel.name|lower == 'sinaa' %}bg-success{% elif supply.vessel.name|lower == 'nefertiti' %}bg-secondary{% elif supply.vessel.name|lower == 'babel' %}bg-warning{% elif supply.vessel.name|lower == 'dahab' %}bg-info{% else %}bg-primary{% endif %}">{{ supply.vessel.name }}</span>
                                 </td>
                                 <td>
                                     <div>
