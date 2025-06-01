@@ -23,13 +23,10 @@
                 <a href="{% url 'frontend:sales_entry' %}" class="btn btn-outline-secondary">
                     <i class="bi bi-arrow-left"></i> {% trans "Back to Trips" %}
                 </a>
-                {% if not trip.is_completed %}
-                <form method="POST" action="{% url 'frontend:trip_complete' trip.id %}" style="display: inline;">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-success" onclick="return confirm('{% trans "Complete this trip? No more sales can be added after completion." %}')">
-                        <i class="bi bi-check-circle"></i> {% trans "Complete Trip" %}
-                    </button>
-                </form>
+                {% if can_edit %}
+                <button type="button" class="btn btn-success" id="completeTripBtn" onclick="completeTripSales()">
+                    <i class="bi bi-check-circle"></i> {% trans "Complete Trip" %} (<span id="itemCountBadge">0</span>)
+                </button>
                 {% endif %}
             </div>
         </div>
@@ -44,21 +41,15 @@
                 <div class="row">
                     <div class="col-md-3">
                         <h6 class="mb-1 opacity-75">{% trans "Trip Revenue" %}</h6>
-                        <h3 class="mb-0" id="tripRevenue">{{ total_revenue|floatformat:3 }} JOD</h3>
+                        <h3 class="mb-0" id="tripRevenue">0.000 JOD</h3>
                     </div>
                     <div class="col-md-3">
-                        <h6 class="mb-1 opacity-75">{% trans "Items Sold" %}</h6>
-                        <h3 class="mb-0" id="itemCount">{{ trip_sales|length }}</h3>
+                        <h6 class="mb-1 opacity-75">{% trans "Items in Cart" %}</h6>
+                        <h3 class="mb-0" id="itemCount">0</h3>
                     </div>
                     <div class="col-md-3">
                         <h6 class="mb-1 opacity-75">{% trans "Revenue per Passenger" %}</h6>
-                        <h3 class="mb-0" id="revenuePerPassenger">
-                            {% if trip.passenger_count > 0 %}
-                                {{ revenue_per_passenger }}
-                            {% else %}
-                                0.000
-                            {% endif %} JOD
-                        </h3>
+                        <h3 class="mb-0" id="revenuePerPassenger">0.000 JOD</h3>
                     </div>
                     <div class="col-md-3">
                         <h6 class="mb-1 opacity-75">{% trans "Status" %}</h6>
@@ -76,13 +67,13 @@
     </div>
 </div>
 
-{% if not trip.is_completed %}
+{% if can_edit %}
 <!-- Add Sales Item Form -->
 <div class="row mb-4">
     <div class="col-12">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">
+                <h5 class="mb-0" id="formTitle">
                     <i class="bi bi-plus-circle"></i> {% trans "Add Sales Item" %}
                 </h5>
             </div>
@@ -90,6 +81,7 @@
                 <form id="addSaleForm">
                     {% csrf_token %}
                     <input type="hidden" id="tripId" value="{{ trip.id }}">
+                    <input type="hidden" id="editIndex" value="-1">
                     
                     <!-- Product Search -->
                     <div class="row mb-3">
@@ -139,18 +131,21 @@
                         </div>
                     </div>
                     
-                    <!-- Notes and Add Button -->
+                    <!-- Notes and Buttons -->
                     <div class="row">
-                        <div class="col-md-8">
+                        <div class="col-md-6">
                             <label class="form-label fw-bold">
                                 <i class="bi bi-chat-left-text"></i> {% trans "Notes (Optional)" %}
                             </label>
                             <input type="text" class="form-control" id="saleNotes" 
                                    placeholder="{% trans 'Additional notes for this sale...' %}">
                         </div>
-                        <div class="col-md-4 d-flex align-items-end">
-                            <button type="submit" class="btn btn-primary btn-lg w-100" id="addSaleBtn" disabled>
-                                <i class="bi bi-plus"></i> {% trans "Add to Trip" %}
+                        <div class="col-md-6 d-flex align-items-end gap-2">
+                            <button type="button" class="btn btn-outline-secondary" onclick="cancelEdit()">
+                                <i class="bi bi-x-circle"></i> {% trans "Cancel" %}
+                            </button>
+                            <button type="submit" class="btn btn-primary flex-grow-1" id="addSaleBtn" disabled>
+                                <i class="bi bi-plus"></i> <span id="addBtnText">{% trans "Add to Trip" %}</span>
                             </button>
                         </div>
                     </div>
@@ -167,7 +162,9 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
-                    <i class="bi bi-list"></i> {% trans "Sales Items" %} ({{ trip_sales|length }})
+                    <i class="bi bi-list"></i> 
+                    {% if can_edit %}{% trans "Sales Cart" %}{% else %}{% trans "Sales Items" %}{% endif %} 
+                    (<span id="salesListCount">0</span>)
                 </h5>
                 <div class="d-flex gap-2">
                     <button class="btn btn-outline-success btn-sm" onclick="exportTripSales()">
@@ -183,63 +180,28 @@
                     <table class="table table-hover mb-0">
                         <thead class="table-light">
                             <tr>
-                                <th>{% trans "Time" %}</th>
+                                {% if not can_edit %}<th>{% trans "Time" %}</th>{% endif %}
                                 <th>{% trans "Product" %}</th>
                                 <th class="text-center">{% trans "Quantity" %}</th>
                                 <th class="text-end">{% trans "Unit Price" %}</th>
                                 <th class="text-end">{% trans "Total" %}</th>
                                 <th>{% trans "Notes" %}</th>
-                                {% if not trip.is_completed %}
+                                {% if can_edit %}
                                 <th class="text-center">{% trans "Actions" %}</th>
                                 {% endif %}
                             </tr>
                         </thead>
                         <tbody id="salesList">
-                            {% for sale in trip_sales %}
-                            <tr id="sale-{{ sale.id }}">
-                                <td>
-                                    <small>{{ sale.created_at|time:"H:i" }}</small>
-                                </td>
-                                <td>
-                                    <div>
-                                        <strong>{{ sale.product.name }}</strong>
-                                        <small class="text-muted d-block">{% trans "ID:" %} {{ sale.product.item_id }}</small>
-                                    </div>
-                                </td>
-                                <td class="text-center">
-                                    <span class="fw-bold">{{ sale.quantity|floatformat:0 }}</span>
-                                    <small class="text-muted d-block">{% trans "units" %}</small>
-                                </td>
-                                <td class="text-end">
-                                    <span class="fw-bold">{{ sale.unit_price|floatformat:3 }}</span>
-                                    <small class="text-muted d-block">JOD</small>
-                                </td>
-                                <td class="text-end">
-                                    <span class="fw-bold text-success">{{ sale.total_amount|floatformat:3 }}</span>
-                                    <small class="text-muted d-block">JOD</small>
-                                </td>
-                                <td>
-                                    <small>{{ sale.notes|truncatechars:50|default:"-" }}</small>
-                                </td>
-                                {% if not trip.is_completed %}
-                                <td class="text-center">
-                                    <button class="btn btn-outline-danger btn-sm" onclick="removeSale({{ sale.id }})" title="{% trans 'Remove Item' %}">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </td>
-                                {% endif %}
-                            </tr>
-                            {% empty %}
-                            <tr id="noSalesRow">
-                                <td colspan="{% if not trip.is_completed %}7{% else %}6{% endif %}" class="text-center text-muted py-4">
-                                    <i class="bi bi-cart-x" style="font-size: 2rem;"></i>
-                                    <p class="mt-2 mb-0">{% trans "No sales items added yet" %}</p>
-                                    <small>{% trans "Use the form above to add sales items to this trip" %}</small>
-                                </td>
-                            </tr>
-                            {% endfor %}
+                            <!-- Will be populated by JavaScript -->
                         </tbody>
                     </table>
+                </div>
+                
+                <!-- Empty State -->
+                <div id="emptySalesState" class="text-center py-5" style="display: none;">
+                    <i class="bi bi-cart-x text-muted" style="font-size: 3rem;"></i>
+                    <h5 class="text-muted mt-3">{% trans "No items in cart" %}</h5>
+                    <p class="text-muted">{% trans "Use the form above to add sales items to this trip" %}</p>
                 </div>
             </div>
         </div>
@@ -250,9 +212,99 @@
 
 {% block extra_js %}
 <script>
+// Global shopping cart state
+let tripSalesCart = [];
 let selectedProduct = null;
+let editingIndex = -1;
 
-// Product search with debouncing
+// Initialize cart from existing data or localStorage
+document.addEventListener('DOMContentLoaded', function() {
+    // Check if we're on the right page
+    const tripIdElement = document.getElementById('tripId');
+    if (!tripIdElement) {
+        console.log('Not on trip sales page, skipping initialization');
+        return;
+    }
+    
+    try {
+        initializeTripCart();
+        updateCartDisplay();
+    } catch (error) {
+        console.error('Error initializing trip cart:', error);
+        showAlert('{% trans "Error loading cart data. Starting fresh." %}', 'warning');
+        tripSalesCart = [];
+        updateCartDisplay();
+    }
+});
+
+function initializeTripCart() {
+    const tripId = document.getElementById('tripId').value;
+    const storageKey = `trip_sales_${tripId}`;
+    
+    // Try to load from localStorage first
+    const savedCart = localStorage.getItem(storageKey);
+    if (savedCart) {
+        try {
+            tripSalesCart = JSON.parse(savedCart);
+            console.log('Loaded cart from localStorage:', tripSalesCart);
+        } catch (e) {
+            console.log('Error parsing saved cart, starting fresh');
+            tripSalesCart = [];
+        }
+    }
+    
+    // If no saved cart, load from existing sales (backend data)
+    if (tripSalesCart.length === 0) {
+        {% if existing_sales_json %}
+        try {
+            const existingSales = JSON.parse('{{ existing_sales_json|escapejs }}');
+            if (existingSales && existingSales.length > 0) {
+                tripSalesCart = existingSales;
+                console.log('Loaded cart from existing sales:', tripSalesCart);
+                saveCartToStorage();
+            }
+        } catch (e) {
+            console.log('Error parsing existing sales:', e);
+        }
+        {% endif %}
+    }
+    
+    // For completed trips, show read-only data
+    {% if not can_edit and completed_sales_json %}
+    try {
+        const completedSales = JSON.parse('{{ completed_sales_json|escapejs }}');
+        if (completedSales && completedSales.length > 0) {
+            displayCompletedSales(completedSales);
+        }
+    } catch (e) {
+        console.log('Error parsing completed sales:', e);
+    }
+    {% endif %}
+}
+
+function saveCartToStorage() {
+    try {
+        const tripId = document.getElementById('tripId').value;
+        const storageKey = `trip_sales_${tripId}`;
+        localStorage.setItem(storageKey, JSON.stringify(tripSalesCart));
+        console.log('Cart saved to localStorage:', storageKey, tripSalesCart);
+    } catch (error) {
+        console.error('Error saving cart to localStorage:', error);
+    }
+}
+
+function clearCartStorage() {
+    try {
+        const tripId = document.getElementById('tripId').value;
+        const storageKey = `trip_sales_${tripId}`;
+        localStorage.removeItem(storageKey);
+        console.log('Cart cleared from localStorage:', storageKey);
+    } catch (error) {
+        console.error('Error clearing cart from localStorage:', error);
+    }
+}
+
+// Product search functionality
 let searchTimeout;
 document.getElementById('productSearch').addEventListener('input', function() {
     const searchTerm = this.value.trim();
@@ -268,15 +320,12 @@ document.getElementById('productSearch').addEventListener('input', function() {
     }
 });
 
-// Quantity input handler
 document.getElementById('saleQuantity').addEventListener('input', function() {
     updateTotalAmount();
     validateForm();
 });
 
 function searchProducts(searchTerm) {
-    const tripId = document.getElementById('tripId').value;
-    
     fetch('/sales/search-products/', {
         method: 'POST',
         headers: {
@@ -294,6 +343,7 @@ function searchProducts(searchTerm) {
             if (data.products.length === 1) {
                 selectProduct(data.products[0]);
             } else {
+                // Show multiple products for selection
                 showProductSelection(data.products);
             }
         } else {
@@ -305,6 +355,17 @@ function searchProducts(searchTerm) {
         console.error('Error searching products:', error);
         showAlert("{% trans 'Error searching products. Please try again.' %}", 'danger');
     });
+}
+
+function showProductSelection(products) {
+    // For now, just auto-select the first product
+    // TODO: In the future, we can show a dropdown or modal for selection
+    if (products.length > 0) {
+        selectProduct(products[0]);
+        if (products.length > 1) {
+            showAlert(`{% trans "Multiple products found. Selected:" %} ${products[0].name}. {% trans "Refine your search for other options." %}`, 'info');
+        }
+    }
 }
 
 function selectProduct(product) {
@@ -345,126 +406,363 @@ function validateForm() {
     addBtn.disabled = !isValid;
 }
 
-function clearProductSelection() {
-    selectedProduct = null;
-    document.getElementById('productInfo').style.display = 'none';
-    document.getElementById('saleQuantity').disabled = true;
-    document.getElementById('saleQuantity').value = '';
-    document.getElementById('availableStock').textContent = '{% trans "Select product first" %}';
-    document.getElementById('addSaleBtn').disabled = true;
-}
-
-// Form submission
-document.getElementById('addSaleForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    
+// Shopping cart operations
+function addToCart() {
     if (!selectedProduct) return;
     
     const quantity = parseInt(document.getElementById('saleQuantity').value);
     const notes = document.getElementById('saleNotes').value.trim();
     
-    addSaleToTrip({
-        trip_id: document.getElementById('tripId').value,
+    const cartItem = {
         product_id: selectedProduct.id,
+        product_name: selectedProduct.name,
+        product_item_id: selectedProduct.item_id,
+        product_barcode: selectedProduct.barcode || '',
+        is_duty_free: selectedProduct.is_duty_free,
         quantity: quantity,
+        unit_price: selectedProduct.selling_price,
+        total_amount: quantity * selectedProduct.selling_price,
         notes: notes
-    });
-});
+    };
+    
+    if (editingIndex >= 0) {
+        // Update existing item
+        tripSalesCart[editingIndex] = cartItem;
+        editingIndex = -1;
+        exitEditMode();
+    } else {
+        // Add new item
+        tripSalesCart.push(cartItem);
+    }
+    
+    saveCartToStorage();
+    updateCartDisplay();
+    clearForm();
+    showAlert('{% trans "Item added to cart successfully!" %}', 'success');
+}
 
-function addSaleToTrip(saleData) {
-    const addBtn = document.getElementById('addSaleBtn');
-    const originalText = addBtn.innerHTML;
+function removeFromCart(index) {
+    if (confirm('{% trans "Remove this item from the cart?" %}')) {
+        tripSalesCart.splice(index, 1);
+        saveCartToStorage();
+        updateCartDisplay();
+        showAlert('{% trans "Item removed from cart." %}', 'info');
+    }
+}
+
+function editCartItem(index) {
+    if (index < 0 || index >= tripSalesCart.length) {
+        showAlert('{% trans "Invalid item selected for editing." %}', 'error');
+        return;
+    }
     
-    addBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> {% trans "Adding..." %}';
-    addBtn.disabled = true;
+    const item = tripSalesCart[index];
     
-    fetch('/sales/trip/add-item/', {
+    // Set edit mode
+    editingIndex = index;
+    
+    // Update UI to edit mode
+    document.getElementById('formTitle').innerHTML = '<i class="bi bi-pencil"></i> {% trans "Edit Sales Item" %}';
+    document.getElementById('addBtnText').textContent = '{% trans "Update Item" %}';
+    
+    // Simulate product selection by setting selectedProduct
+    selectedProduct = {
+        id: item.product_id,
+        name: item.product_name,
+        item_id: item.product_item_id,
+        barcode: item.product_barcode,
+        is_duty_free: item.is_duty_free,
+        selling_price: item.unit_price,
+        total_quantity: 999 // We'll assume sufficient stock for editing
+    };
+    
+    // Populate form fields
+    document.getElementById('productSearch').value = item.product_name;
+    document.getElementById('saleQuantity').value = item.quantity;
+    document.getElementById('saleQuantity').disabled = false;
+    document.getElementById('saleNotes').value = item.notes || '';
+    
+    // Update product info display
+    document.getElementById('productName').textContent = item.product_name;
+    document.getElementById('unitPrice').textContent = item.unit_price.toFixed(3) + ' JOD';
+    document.getElementById('availableQty').textContent = '999 {% trans "units" %}'; // Placeholder
+    document.getElementById('availableStock').textContent = '{% trans "Available:" %} 999 {% trans "units" %}';
+    document.getElementById('totalAmount').textContent = item.total_amount.toFixed(3) + ' JOD';
+    
+    // Show product info
+    document.getElementById('productInfo').style.display = 'block';
+    
+    // Enable add button
+    document.getElementById('addSaleBtn').disabled = false;
+    
+    // Scroll to form
+    document.getElementById('addSaleForm').scrollIntoView({ behavior: 'smooth' });
+}
+
+function searchAndSelectProduct(productId, callback) {
+    // Search for product by ID to populate selectedProduct
+    fetch('/sales/search-products/', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
         },
-        body: JSON.stringify(saleData)
+        body: JSON.stringify({
+            search: '', // We'll find by ID in results
+            vessel_id: {{ trip.vessel.id }}
+        })
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            showAlert(data.message, 'success');
-            addSaleToTable(data.sale);
-            updateTripSummary(data.sale);
-            clearForm();
-        } else {
-            showAlert(data.error, 'danger');
+            const product = data.products.find(p => p.id == productId);
+            if (product) {
+                selectProduct(product);
+                if (callback) callback();
+            }
         }
     })
     .catch(error => {
-        console.error('Error adding sale:', error);
-        showAlert('{% trans "Error adding sale. Please try again." %}', 'danger');
-    })
-    .finally(() => {
-        addBtn.innerHTML = originalText;
-        addBtn.disabled = false;
+        console.error('Error finding product:', error);
     });
 }
 
-function addSaleToTable(sale) {
-    const salesList = document.getElementById('salesList');
-    const noSalesRow = document.getElementById('noSalesRow');
-    
-    // Remove "no sales" row if it exists
-    if (noSalesRow) {
-        noSalesRow.remove();
+function cancelEdit() {
+    if (editingIndex >= 0) {
+        exitEditMode();
+    } else {
+        // Smart cancel - check if trip has items or can be deleted
+        const confirmMsg = tripSalesCart.length > 0 ? 
+            '{% trans "Cancel trip? This will clear your cart and may delete the trip if no items were previously saved." %}' :
+            '{% trans "Cancel trip? This will delete the trip if no items were previously saved." %}';
+        
+        if (!confirm(confirmMsg)) return;
+        
+        // Show loading state
+        const originalMessage = '{% trans "Cancelling..." %}';
+        
+        fetch('/sales/trip/cancel/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify({
+                trip_id: document.getElementById('tripId').value
+            })
+        })
+        .then(response => {
+            console.log('Cancel response status:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            console.log('Cancel response data:', data);
+            if (data.success) {
+                clearCartStorage();
+                showAlert(data.message, 'success');
+                setTimeout(() => {
+                    window.location.href = "{% url 'frontend:sales_entry' %}";
+                }, 2000);
+            } else {
+                showAlert(data.error || 'Error cancelling trip', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error cancelling trip:', error);
+            showAlert('{% trans "Error cancelling trip. Please try again." %}', 'danger');
+        });
     }
-    
-    // Add new row
-    const newRow = document.createElement('tr');
-    newRow.id = `sale-${sale.id}`;
-    newRow.innerHTML = `
-        <td><small>${sale.created_at}</small></td>
-        <td>
-            <div>
-                <strong>${selectedProduct.name}</strong>
-                <small class="text-muted d-block">{% trans "ID:" %} ${selectedProduct.item_id}</small>
-            </div>
-        </td>
-        <td class="text-center">
-            <span class="fw-bold">${sale.quantity}</span>
-            <small class="text-muted d-block">{% trans "units" %}</small>
-        </td>
-        <td class="text-end">
-            <span class="fw-bold">${sale.unit_price.toFixed(3)}</span>
-            <small class="text-muted d-block">JOD</small>
-        </td>
-        <td class="text-end">
-            <span class="fw-bold text-success">${sale.total_amount.toFixed(3)}</span>
-            <small class="text-muted d-block">JOD</small>
-        </td>
-        <td><small>${sale.notes || '-'}</small></td>
-        <td class="text-center">
-            <button class="btn btn-outline-danger btn-sm" onclick="removeSale(${sale.id})" title="{% trans 'Remove Item' %}">
-                <i class="bi bi-trash"></i>
-            </button>
-        </td>
-    `;
-    
-    salesList.insertBefore(newRow, salesList.firstChild);
 }
 
-function updateTripSummary(sale) {
-    // Update trip revenue
-    const currentRevenue = parseFloat(document.getElementById('tripRevenue').textContent.replace(' JOD', ''));
-    const newRevenue = currentRevenue + sale.total_amount;
-    document.getElementById('tripRevenue').textContent = newRevenue.toFixed(3) + ' JOD';
-    
-    // Update item count
-    const currentCount = parseInt(document.getElementById('itemCount').textContent);
-    document.getElementById('itemCount').textContent = currentCount + 1;
-    
-    // Update revenue per passenger
-    const passengerCount = {{ trip.passenger_count }};
-    const revenuePerPassenger = newRevenue / passengerCount;
-    document.getElementById('revenuePerPassenger').textContent = revenuePerPassenger.toFixed(3) + ' JOD';
+function exitEditMode() {
+    editingIndex = -1;
+    document.getElementById('formTitle').innerHTML = '<i class="bi bi-plus-circle"></i> {% trans "Add Sales Item" %}';
+    document.getElementById('addBtnText').textContent = '{% trans "Add to Trip" %}';
+    clearForm();
 }
+
+function updateCartDisplay() {
+    const salesList = document.getElementById('salesList');
+    const emptyState = document.getElementById('emptySalesState');
+    const salesListCount = document.getElementById('salesListCount');
+    const itemCount = document.getElementById('itemCount');
+    const itemCountBadge = document.getElementById('itemCountBadge');
+    
+    // Update counts
+    const count = tripSalesCart.length;
+    salesListCount.textContent = count;
+    itemCount.textContent = count;
+    if (itemCountBadge) itemCountBadge.textContent = count;
+    
+    // Calculate totals
+    let totalRevenue = 0;
+    tripSalesCart.forEach(item => {
+        totalRevenue += item.total_amount;
+    });
+    
+    document.getElementById('tripRevenue').textContent = totalRevenue.toFixed(3) + ' JOD';
+    
+    const passengerCount = {{ trip.passenger_count }};
+    const revenuePerPassenger = passengerCount > 0 ? totalRevenue / passengerCount : 0;
+    document.getElementById('revenuePerPassenger').textContent = revenuePerPassenger.toFixed(3) + ' JOD';
+    
+    // Update table
+    if (count === 0) {
+        salesList.innerHTML = '';
+        emptyState.style.display = 'block';
+    } else {
+        emptyState.style.display = 'none';
+        salesList.innerHTML = tripSalesCart.map((item, index) => `
+            <tr>
+                <td>
+                    <div>
+                        <strong>${item.product_name}</strong>
+                        <small class="text-muted d-block">{% trans "ID:" %} ${item.product_item_id}</small>
+                        ${item.is_duty_free ? '<span class="badge bg-warning text-dark">{% trans "Duty-Free" %}</span>' : ''}
+                    </div>
+                </td>
+                <td class="text-center">
+                    <span class="fw-bold">${item.quantity}</span>
+                    <small class="text-muted d-block">{% trans "units" %}</small>
+                </td>
+                <td class="text-end">
+                    <span class="fw-bold">${item.unit_price.toFixed(3)}</span>
+                    <small class="text-muted d-block">JOD</small>
+                </td>
+                <td class="text-end">
+                    <span class="fw-bold text-success">${item.total_amount.toFixed(3)}</span>
+                    <small class="text-muted d-block">JOD</small>
+                </td>
+                <td>
+                    <small>${item.notes || '-'}</small>
+                </td>
+                {% if can_edit %}
+                <td class="text-center">
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-primary" onclick="editCartItem(${index})" title="{% trans 'Edit Item' %}">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-outline-danger" onclick="removeFromCart(${index})" title="{% trans 'Remove Item' %}">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </td>
+                {% endif %}
+            </tr>
+        `).join('');
+    }
+}
+
+function displayCompletedSales(completedSales) {
+    const salesList = document.getElementById('salesList');
+    const salesListCount = document.getElementById('salesListCount');
+    
+    salesListCount.textContent = completedSales.length;
+    
+    if (completedSales.length === 0) {
+        document.getElementById('emptySalesState').style.display = 'block';
+    } else {
+        salesList.innerHTML = completedSales.map(item => `
+            <tr>
+                <td><small>${item.created_at}</small></td>
+                <td>
+                    <div>
+                        <strong>${item.product_name}</strong>
+                        <small class="text-muted d-block">{% trans "ID:" %} ${item.product_item_id}</small>
+                    </div>
+                </td>
+                <td class="text-center">
+                    <span class="fw-bold">${item.quantity}</span>
+                    <small class="text-muted d-block">{% trans "units" %}</small>
+                </td>
+                <td class="text-end">
+                    <span class="fw-bold">${item.unit_price.toFixed(3)}</span>
+                    <small class="text-muted d-block">JOD</small>
+                </td>
+                <td class="text-end">
+                    <span class="fw-bold text-success">${item.total_amount.toFixed(3)}</span>
+                    <small class="text-muted d-block">JOD</small>
+                </td>
+                <td><small>${item.notes || '-'}</small></td>
+            </tr>
+        `).join('');
+    }
+}
+
+function completeTripSales() {
+    if (tripSalesCart.length === 0) {
+        showAlert('{% trans "Please add at least one item to complete the trip." %}', 'warning');
+        return;
+    }
+    
+    const totalRevenue = tripSalesCart.reduce((sum, item) => sum + item.total_amount, 0);
+    
+    const confirmMsg = `{% trans "Complete trip with" %} ${tripSalesCart.length} {% trans "items?" %}\n\n` +
+                      `{% trans "Total Revenue:" %} ${totalRevenue.toFixed(3)} JOD\n\n` +
+                      `{% trans "This action cannot be undone." %}`;
+    
+    if (!confirm(confirmMsg)) return;
+    
+    const completeTripBtn = document.getElementById('completeTripBtn');
+    const originalText = completeTripBtn.innerHTML;
+    
+    completeTripBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> {% trans "Completing..." %}';
+    completeTripBtn.disabled = true;
+    
+    // Prepare data - make sure all fields are present
+    const itemsToSend = tripSalesCart.map(item => ({
+        product_id: item.product_id,
+        quantity: item.quantity,
+        notes: item.notes || ''
+    }));
+    
+    console.log('Sending trip completion data:', {
+        trip_id: document.getElementById('tripId').value,
+        items: itemsToSend
+    });
+    
+    fetch('/sales/trip/bulk-complete/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({
+            trip_id: document.getElementById('tripId').value,
+            items: itemsToSend
+        })
+    })
+    .then(response => {
+        console.log('Response status:', response.status);
+        return response.json();
+    })
+    .then(data => {
+        console.log('Response data:', data);
+        if (data.success) {
+            clearCartStorage();
+            showAlert(data.message, 'success');
+            setTimeout(() => {
+                window.location.href = "{% url 'frontend:sales_entry' %}";
+            }, 2000);
+        } else {
+            showAlert(data.error || 'Unknown error occurred', 'danger');
+            completeTripBtn.innerHTML = originalText;
+            completeTripBtn.disabled = false;
+        }
+    })
+    .catch(error => {
+        console.error('Error completing trip:', error);
+        showAlert('{% trans "Error completing trip. Please try again." %}', 'danger');
+        completeTripBtn.innerHTML = originalText;
+        completeTripBtn.disabled = false;
+    });
+}
+
+// Form submission
+document.getElementById('addSaleForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    addToCart();
+});
 
 function clearForm() {
     document.getElementById('addSaleForm').reset();
@@ -473,11 +771,13 @@ function clearForm() {
     clearProductSelection();
 }
 
-function removeSale(saleId) {
-    if (confirm('{% trans "Remove this sale item from the trip?" %}')) {
-        // Implement remove functionality if needed
-        showAlert('{% trans "Remove functionality coming soon!" %}', 'info');
-    }
+function clearProductSelection() {
+    selectedProduct = null;
+    document.getElementById('productInfo').style.display = 'none';
+    document.getElementById('saleQuantity').disabled = true;
+    document.getElementById('saleQuantity').value = '';
+    document.getElementById('availableStock').textContent = '{% trans "Select product first" %}';
+    document.getElementById('addSaleBtn').disabled = true;
 }
 
 function exportTripSales() {
@@ -489,6 +789,10 @@ function printTripSales() {
 }
 
 function showAlert(message, type) {
+    // Find a container to insert the alert
+    const container = document.querySelector('.container') || document.querySelector('body');
+    const firstRow = container.querySelector('.row');
+    
     const alertDiv = document.createElement('div');
     alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
     alertDiv.innerHTML = `
@@ -496,10 +800,18 @@ function showAlert(message, type) {
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     `;
     
-    document.querySelector('.container').insertBefore(alertDiv, document.querySelector('.row'));
+    // Insert at the beginning of the container
+    if (firstRow) {
+        container.insertBefore(alertDiv, firstRow);
+    } else {
+        container.appendChild(alertDiv);
+    }
     
+    // Auto-remove after 5 seconds
     setTimeout(() => {
-        alertDiv.remove();
+        if (alertDiv && alertDiv.parentNode) {
+            alertDiv.remove();
+        }
     }, 5000);
 }
 

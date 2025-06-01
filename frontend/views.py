@@ -509,7 +509,7 @@ def sales_entry(request):
 
 @login_required
 def trip_sales(request, trip_id):
-    """Step 2: Multi-item sales entry for a specific trip"""
+    """Step 2: Multi-item sales entry for a specific trip (Shopping Cart Approach)"""
     
     try:
         trip = Trip.objects.select_related('vessel').get(id=trip_id)
@@ -517,44 +517,127 @@ def trip_sales(request, trip_id):
         messages.error(request, 'Trip not found.')
         return redirect('frontend:sales_entry')
     
-    # Get existing sales for this trip
-    trip_sales = Transaction.objects.filter(
-        trip=trip,
-        transaction_type='SALE'
-    ).select_related('product').order_by('-created_at')
+    # Get existing sales for this trip (to populate shopping cart if trip was previously started)
+    existing_sales = []
+    if not trip.is_completed:
+        # Only load for incomplete trips - completed trips should be read-only
+        trip_transactions = Transaction.objects.filter(
+            trip=trip,
+            transaction_type='SALE'
+        ).select_related('product').order_by('created_at')
+        
+        # Convert to format expected by frontend shopping cart
+        for sale in trip_transactions:
+            existing_sales.append({
+                'id': sale.id,  # Include for edit/delete functionality
+                'product_id': sale.product.id,
+                'product_name': sale.product.name,
+                'product_item_id': sale.product.item_id,
+                'product_barcode': sale.product.barcode or '',
+                'is_duty_free': sale.product.is_duty_free,
+                'quantity': int(sale.quantity),
+                'unit_price': float(sale.unit_price),
+                'total_amount': float(sale.total_amount),
+                'notes': sale.notes or '',
+                'created_at': sale.created_at.strftime('%H:%M')
+            })
+    
+    # If trip is completed, get read-only sales data for display
+    completed_sales = []
+    if trip.is_completed:
+        trip_transactions = Transaction.objects.filter(
+            trip=trip,
+            transaction_type='SALE'
+        ).select_related('product').order_by('created_at')
+        
+        for sale in trip_transactions:
+            completed_sales.append({
+                'product_name': sale.product.name,
+                'product_item_id': sale.product.item_id,
+                'quantity': int(sale.quantity),
+                'unit_price': float(sale.unit_price),
+                'total_amount': float(sale.total_amount),
+                'notes': sale.notes or '',
+                'created_at': sale.created_at.strftime('%H:%M')
+            })
+    
+    # Convert to JSON strings for safe template rendering
+    import json
+    existing_sales_json = json.dumps(existing_sales)
+    completed_sales_json = json.dumps(completed_sales)
     
     context = {
         'trip': trip,
-        'trip_sales': trip_sales,
-        'total_revenue': sum(sale.total_amount for sale in trip_sales),
-        'revenue_per_passenger': trip.total_revenue / trip.passenger_count if trip.passenger_count > 0 else 0,
+        'existing_sales_json': existing_sales_json,  # JSON string
+        'completed_sales_json': completed_sales_json,  # JSON string
+        'can_edit': not trip.is_completed,  # Frontend can use this to show/hide edit features
     }
     
     return render(request, 'frontend/trip_sales.html', context)
 
+# Also update po_supply view similarly:
 @login_required
-def trip_complete(request, trip_id):
-    """Complete a trip and mark it as finished"""
+def po_supply(request, po_id):
+    """Step 2: Multi-item supply entry for a specific purchase order (Shopping Cart Approach)"""
     
-    if request.method == 'POST':
-        try:
-            trip = Trip.objects.get(id=trip_id)
-            trip.is_completed = True
-            trip.save()
-            
-            total_revenue = trip.total_revenue
-            transaction_count = trip.transaction_count
-            
-            messages.success(request, 
-                f'Trip {trip.trip_number} completed! '
-                f'{transaction_count} items sold for {total_revenue:.3f} JOD total revenue.'
-            )
-            
-            return redirect('frontend:sales_entry')
-            
-        except Trip.DoesNotExist:
-            messages.error(request, 'Trip not found.')
-            return redirect('frontend:sales_entry')
+    try:
+        po = PurchaseOrder.objects.select_related('vessel').get(id=po_id)
+    except PurchaseOrder.DoesNotExist:
+        messages.error(request, 'Purchase Order not found.')
+        return redirect('frontend:supply_entry')
+    
+    # Get existing supplies for this PO (to populate shopping cart if PO was previously started)
+    existing_supplies = []
+    if not po.is_completed:
+        # Only load for incomplete POs - completed POs should be read-only
+        po_transactions = Transaction.objects.filter(
+            purchase_order=po,
+            transaction_type='SUPPLY'
+        ).select_related('product').order_by('created_at')
+        
+        # Convert to format expected by frontend shopping cart
+        for supply in po_transactions:
+            existing_supplies.append({
+                'id': supply.id,  # Include for edit/delete functionality
+                'product_id': supply.product.id,
+                'product_name': supply.product.name,
+                'product_item_id': supply.product.item_id,
+                'product_barcode': supply.product.barcode or '',
+                'is_duty_free': supply.product.is_duty_free,
+                'quantity': int(supply.quantity),
+                'unit_price': float(supply.unit_price),
+                'total_amount': float(supply.total_amount),
+                'notes': supply.notes or '',
+                'created_at': supply.created_at.strftime('%H:%M')
+            })
+    
+    # If PO is completed, get read-only supply data for display
+    completed_supplies = []
+    if po.is_completed:
+        po_transactions = Transaction.objects.filter(
+            purchase_order=po,
+            transaction_type='SUPPLY'
+        ).select_related('product').order_by('created_at')
+        
+        for supply in po_transactions:
+            completed_supplies.append({
+                'product_name': supply.product.name,
+                'product_item_id': supply.product.item_id,
+                'quantity': int(supply.quantity),
+                'unit_price': float(supply.unit_price),
+                'total_amount': float(supply.total_amount),
+                'notes': supply.notes or '',
+                'created_at': supply.created_at.strftime('%H:%M')
+            })
+    
+    context = {
+        'po': po,
+        'existing_supplies': existing_supplies,  # For shopping cart initialization
+        'completed_supplies': completed_supplies,  # For read-only display
+        'can_edit': not po.is_completed,  # Frontend can use this to show/hide edit features
+    }
+    
+    return render(request, 'frontend/po_supply.html', context)
 
 @login_required
 def sales_search_products(request):
@@ -1407,8 +1490,8 @@ def get_vessel_badge_class(vessel_name):
 
 # AJAX endpoints for multi-item functionality
 @login_required
-def trip_add_sale(request):
-    """AJAX endpoint to add a sale item to a trip"""
+def trip_bulk_complete(request):
+    """Complete trip with bulk transaction creation"""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
@@ -1417,66 +1500,103 @@ def trip_add_sale(request):
         data = json.loads(request.body)
         
         trip_id = data.get('trip_id')
-        product_id = data.get('product_id')
-        quantity = data.get('quantity')
-        notes = data.get('notes', '')
+        items = data.get('items', [])  # Array of items from frontend
         
-        # Get objects
+        if not trip_id or not items:
+            return JsonResponse({'success': False, 'error': 'Trip ID and items required'})
+        
+        # Get trip
         trip = Trip.objects.get(id=trip_id)
-        product = Product.objects.get(id=product_id, active=True)
         
-        # Validate duty-free compatibility
-        if product.is_duty_free and not trip.vessel.has_duty_free:
-            return JsonResponse({
-                'success': False, 
-                'error': f'Cannot sell duty-free product on {trip.vessel.name}'
+        if trip.is_completed:
+            return JsonResponse({'success': False, 'error': 'Trip is already completed'})
+        
+        # Validate all items first (before saving anything)
+        validated_items = []
+        total_revenue = 0
+        
+        for item in items:
+            product_id = item.get('product_id')
+            quantity = item.get('quantity')
+            notes = item.get('notes', '')
+            
+            if not product_id or not quantity:
+                return JsonResponse({'success': False, 'error': 'Invalid item data'})
+            
+            # Get product and validate
+            try:
+                product = Product.objects.get(id=product_id, active=True)
+            except Product.DoesNotExist:
+                return JsonResponse({'success': False, 'error': f'Product not found: {product_id}'})
+            
+            # Validate duty-free compatibility
+            if product.is_duty_free and not trip.vessel.has_duty_free:
+                return JsonResponse({
+                    'success': False, 
+                    'error': f'Cannot sell duty-free product {product.name} on {trip.vessel.name}'
+                })
+            
+            # Check inventory availability
+            from transactions.models import get_available_inventory
+            available_quantity, lots = get_available_inventory(trip.vessel, product)
+            
+            if quantity > available_quantity:
+                return JsonResponse({
+                    'success': False, 
+                    'error': f'Insufficient inventory for {product.name}. Available: {available_quantity}, Requested: {quantity}'
+                })
+            
+            # Add to validated items
+            validated_items.append({
+                'product': product,
+                'quantity': quantity,
+                'notes': notes,
+                'revenue': quantity * product.selling_price
             })
+            total_revenue += quantity * product.selling_price
         
-        # Check inventory availability
-        from transactions.models import get_available_inventory
-        available_quantity, lots = get_available_inventory(trip.vessel, product)
-        
-        if quantity > available_quantity:
-            return JsonResponse({
-                'success': False, 
-                'error': f'Insufficient inventory. Available: {available_quantity}, Requested: {quantity}'
-            })
-        
-        # Create sale transaction
-        sale = Transaction.objects.create(
-            vessel=trip.vessel,
-            product=product,
-            transaction_type='SALE',
-            transaction_date=trip.trip_date,
-            quantity=quantity,
-            unit_price=product.selling_price,
-            trip=trip,
-            notes=notes or f'Sale for trip {trip.trip_number}',
-            created_by=request.user
-        )
+        # All items validated - now create transactions atomically
+        from django.db import transaction
+        with transaction.atomic():
+            created_transactions = []
+            
+            for item in validated_items:
+                sale_transaction = Transaction.objects.create(
+                    vessel=trip.vessel,
+                    product=item['product'],
+                    transaction_type='SALE',
+                    transaction_date=trip.trip_date,
+                    quantity=item['quantity'],
+                    unit_price=item['product'].selling_price,
+                    trip=trip,
+                    notes=item['notes'] or f'Sale for trip {trip.trip_number}',
+                    created_by=request.user
+                )
+                created_transactions.append(sale_transaction)
+            
+            # Mark trip as completed
+            trip.is_completed = True
+            trip.save()
         
         return JsonResponse({
             'success': True,
-            'message': f'Added {quantity} units of {product.name} to trip',
-            'sale': {
-                'id': sale.id,
-                'product_name': product.name,
-                'product_id': product.item_id,
-                'quantity': float(sale.quantity),
-                'unit_price': float(sale.unit_price),
-                'total_amount': float(sale.total_amount),
-                'created_at': sale.created_at.strftime('%H:%M')
+            'message': f'Trip {trip.trip_number} completed successfully!',
+            'trip_data': {
+                'trip_number': trip.trip_number,
+                'items_count': len(created_transactions),
+                'total_revenue': float(total_revenue),
+                'vessel': trip.vessel.name
             }
         })
         
-    except (Trip.DoesNotExist, Product.DoesNotExist):
-        return JsonResponse({'success': False, 'error': 'Trip or product not found'})
+    except Trip.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Trip not found'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return JsonResponse({'success': False, 'error': f'Error completing trip: {str(e)}'})
 
 @login_required
-def po_add_supply(request):
-    """AJAX endpoint to add a supply item to a purchase order"""
+def po_bulk_complete(request):
+    """Complete purchase order with bulk transaction creation"""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
@@ -1485,62 +1605,195 @@ def po_add_supply(request):
         data = json.loads(request.body)
         
         po_id = data.get('po_id')
-        product_id = data.get('product_id')
-        quantity = data.get('quantity')
-        purchase_cost = data.get('purchase_cost')
-        notes = data.get('notes', '')
+        items = data.get('items', [])  # Array of items from frontend
         
-        # Get objects
+        if not po_id or not items:
+            return JsonResponse({'success': False, 'error': 'PO ID and items required'})
+        
+        # Get purchase order
         po = PurchaseOrder.objects.get(id=po_id)
-        product = Product.objects.get(id=product_id, active=True)
         
-        # Validate duty-free compatibility
-        if product.is_duty_free and not po.vessel.has_duty_free:
-            return JsonResponse({
-                'success': False, 
-                'error': f'Cannot add duty-free product to {po.vessel.name}'
+        if po.is_completed:
+            return JsonResponse({'success': False, 'error': 'Purchase order is already completed'})
+        
+        # Validate all items first (before saving anything)
+        validated_items = []
+        total_cost = 0
+        
+        for item in items:
+            product_id = item.get('product_id')
+            quantity = item.get('quantity')
+            purchase_cost = item.get('purchase_cost')
+            notes = item.get('notes', '')
+            
+            if not product_id or not quantity or not purchase_cost:
+                return JsonResponse({'success': False, 'error': 'Invalid item data'})
+            
+            # Get product and validate
+            try:
+                product = Product.objects.get(id=product_id, active=True)
+            except Product.DoesNotExist:
+                return JsonResponse({'success': False, 'error': f'Product not found: {product_id}'})
+            
+            # Validate duty-free compatibility
+            if product.is_duty_free and not po.vessel.has_duty_free:
+                return JsonResponse({
+                    'success': False, 
+                    'error': f'Cannot add duty-free product {product.name} to {po.vessel.name}'
+                })
+            
+            # Validate values
+            try:
+                quantity_val = int(quantity)
+                cost_val = Decimal(str(purchase_cost))
+                
+                if quantity_val <= 0 or cost_val <= 0:
+                    return JsonResponse({'success': False, 'error': 'Quantity and cost must be positive'})
+                
+            except (ValueError, decimal.InvalidOperation):
+                return JsonResponse({'success': False, 'error': 'Invalid quantity or cost values'})
+            
+            # Add to validated items
+            validated_items.append({
+                'product': product,
+                'quantity': quantity_val,
+                'cost': cost_val,
+                'notes': notes,
+                'total_cost': quantity_val * cost_val
             })
+            total_cost += quantity_val * cost_val
         
-        # Parse values
-        quantity_val = int(quantity)
-        cost_val = Decimal(purchase_cost)
-        
-        if quantity_val <= 0 or cost_val <= 0:
-            return JsonResponse({'success': False, 'error': 'Quantity and cost must be positive'})
-        
-        # Create supply transaction
-        supply = Transaction.objects.create(
-            vessel=po.vessel,
-            product=product,
-            transaction_type='SUPPLY',
-            transaction_date=po.po_date,
-            quantity=quantity_val,
-            unit_price=cost_val,
-            purchase_order=po,
-            notes=notes or f'Supply for PO {po.po_number}',
-            created_by=request.user
-        )
+        # All items validated - now create transactions atomically
+        from django.db import transaction
+        with transaction.atomic():
+            created_transactions = []
+            
+            for item in validated_items:
+                supply_transaction = Transaction.objects.create(
+                    vessel=po.vessel,
+                    product=item['product'],
+                    transaction_type='SUPPLY',
+                    transaction_date=po.po_date,
+                    quantity=item['quantity'],
+                    unit_price=item['cost'],
+                    purchase_order=po,
+                    notes=item['notes'] or f'Supply for PO {po.po_number}',
+                    created_by=request.user
+                )
+                created_transactions.append(supply_transaction)
+            
+            # Mark PO as completed
+            po.is_completed = True
+            po.save()
         
         return JsonResponse({
             'success': True,
-            'message': f'Added {quantity_val} units of {product.name} to PO',
-            'supply': {
-                'id': supply.id,
-                'product_name': product.name,
-                'product_id': product.item_id,
-                'quantity': float(supply.quantity),
-                'unit_price': float(supply.unit_price),
-                'total_amount': float(supply.total_amount),
-                'created_at': supply.created_at.strftime('%H:%M')
+            'message': f'Purchase Order {po.po_number} completed successfully!',
+            'po_data': {
+                'po_number': po.po_number,
+                'items_count': len(created_transactions),
+                'total_cost': float(total_cost),
+                'vessel': po.vessel.name
             }
         })
         
-    except (PurchaseOrder.DoesNotExist, Product.DoesNotExist):
-        return JsonResponse({'success': False, 'error': 'Purchase order or product not found'})
-    except (ValueError, decimal.InvalidOperation):
-        return JsonResponse({'success': False, 'error': 'Invalid quantity or cost value'})
+    except PurchaseOrder.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Purchase order not found'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return JsonResponse({'success': False, 'error': f'Error completing purchase order: {str(e)}'})
+
+# Add this new view to handle trip cancellation
+
+@login_required
+def trip_cancel(request):
+    """Cancel trip and delete it from database (if no items committed)"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST method required'})
+    
+    try:
+        import json
+        data = json.loads(request.body)
+        trip_id = data.get('trip_id')
+        
+        if not trip_id:
+            return JsonResponse({'success': False, 'error': 'Trip ID required'})
+        
+        # Get trip
+        trip = Trip.objects.get(id=trip_id)
+        
+        if trip.is_completed:
+            return JsonResponse({'success': False, 'error': 'Cannot cancel completed trip'})
+        
+        # Check if trip has any committed transactions
+        existing_transactions = Transaction.objects.filter(trip=trip).count()
+        
+        if existing_transactions > 0:
+            # Trip has committed transactions - just clear cart but keep trip
+            return JsonResponse({
+                'success': True,
+                'action': 'clear_cart',
+                'message': f'Cart cleared. Trip {trip.trip_number} kept (has committed transactions).'
+            })
+        else:
+            # No committed transactions - safe to delete trip
+            trip_number = trip.trip_number
+            trip.delete()
+            return JsonResponse({
+                'success': True,
+                'action': 'delete_trip',
+                'message': f'Trip {trip_number} cancelled and removed.'
+            })
+        
+    except Trip.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Trip not found'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': f'Error cancelling trip: {str(e)}'})
+
+# Add the same for PO
+@login_required
+def po_cancel(request):
+    """Cancel PO and delete it from database (if no items committed)"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST method required'})
+    
+    try:
+        import json
+        data = json.loads(request.body)
+        po_id = data.get('po_id')
+        
+        if not po_id:
+            return JsonResponse({'success': False, 'error': 'PO ID required'})
+        
+        # Get PO
+        po = PurchaseOrder.objects.get(id=po_id)
+        
+        if po.is_completed:
+            return JsonResponse({'success': False, 'error': 'Cannot cancel completed purchase order'})
+        
+        # Check if PO has any committed transactions
+        existing_transactions = Transaction.objects.filter(purchase_order=po).count()
+        
+        if existing_transactions > 0:
+            # PO has committed transactions - just clear cart but keep PO
+            return JsonResponse({
+                'success': True,
+                'action': 'clear_cart',
+                'message': f'Cart cleared. PO {po.po_number} kept (has committed transactions).'
+            })
+        else:
+            # No committed transactions - safe to delete PO
+            po_number = po.po_number
+            po.delete()
+            return JsonResponse({
+                'success': True,
+                'action': 'delete_po',
+                'message': f'Purchase Order {po_number} cancelled and removed.'
+            })
+        
+    except PurchaseOrder.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Purchase order not found'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': f'Error cancelling purchase order: {str(e)}'})
 
 @login_required
 def trip_reports(request):
