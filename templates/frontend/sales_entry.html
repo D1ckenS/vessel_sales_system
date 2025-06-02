@@ -213,17 +213,6 @@ document.getElementById('tripForm').addEventListener('submit', function(e) {
         return;
     }
     
-    // Show confirmation
-    const vessel = document.querySelector('[name="vessel"] option:checked').text;
-    const confirmMsg = `{% trans "Create new trip?" %}\n\n` +
-                      `{% trans "Trip:" %} ${tripNumber}\n` +
-                      `{% trans "Vessel:" %} ${vessel}\n` +
-                      `{% trans "Passengers:" %} ${passengerCount}\n\n` +
-                      `{% trans "You'll be redirected to add sales items after creation." %}`;
-    
-    if (!confirm(confirmMsg)) {
-        e.preventDefault();
-    }
 });
 </script>
 {% endblock %}

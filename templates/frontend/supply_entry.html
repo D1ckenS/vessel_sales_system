@@ -118,9 +118,12 @@
                         </thead>
                         <tbody>
                             {% for po in recent_pos %}
-                            <tr>
+                            <tr {% if not po.is_completed %}class="table-info cursor-pointer" onclick="resumePO({{ po.id }})" title="{% trans 'Click to resume this PO' %}"{% endif %}>
                                 <td>
                                     <strong>{{ po.po_number }}</strong>
+                                    {% if not po.is_completed %}
+                                        <small class="text-muted d-block">{% trans "Click to resume" %}</small>
+                                    {% endif %}
                                 </td>
                                 <td>
                                     <span class="badge {% if po.vessel.name|lower == 'amman' %}bg-primary{% elif po.vessel.name|lower == 'aylah' %}bg-danger{% elif po.vessel.name|lower == 'sinaa' %}bg-success{% elif po.vessel.name|lower == 'nefertiti' %}bg-secondary{% elif po.vessel.name|lower == 'babel' %}bg-warning{% elif po.vessel.name|lower == 'dahab' %}bg-info{% else %}bg-primary{% endif %}">{{ po.vessel.name }}</span>
@@ -181,6 +184,11 @@ function clearForm() {
     document.getElementById('poForm').reset();
 }
 
+function resumePO(poId) {
+    // Navigate to PO supply page to resume work
+    window.location.href = `/supply/po/${poId}/`;
+}
+
 function viewPODetails(poId) {
     // Redirect to PO supply page to view details
     window.location.href = `/supply/po/${poId}/`;
@@ -196,16 +204,20 @@ document.getElementById('poForm').addEventListener('submit', function(e) {
         return;
     }
     
-    // Show confirmation
-    const vessel = document.querySelector('[name="vessel"] option:checked').text;
-    const confirmMsg = `{% trans "Create new purchase order?" %}\n\n` +
-                      `{% trans "PO:" %} ${poNumber}\n` +
-                      `{% trans "Vessel:" %} ${vessel}\n\n` +
-                      `{% trans "You'll be redirected to add supply items after creation." %}`;
-    
-    if (!confirm(confirmMsg)) {
-        e.preventDefault();
-    }
+});
+
+// Add cursor pointer style for clickable rows
+document.addEventListener('DOMContentLoaded', function() {
+    const style = document.createElement('style');
+    style.textContent = `
+        .cursor-pointer {
+            cursor: pointer;
+        }
+        .cursor-pointer:hover {
+            background-color: var(--bs-info) !important;
+        }
+    `;
+    document.head.appendChild(style);
 });
 </script>
 {% endblock %}
