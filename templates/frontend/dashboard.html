@@ -56,68 +56,171 @@
 
 <!-- Quick Actions -->
 <div class="row mb-4">
-    <div class="col-12">
+    <div class="col-12 text-center">
         <h3 class="mb-3">
-            <i class="bi bi-lightning"></i> Quick Actions
+            <i class="bi bi-lightning "></i> Quick Actions
         </h3>
     </div>
     
-    <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-        <a href="{% url 'frontend:sales_entry' %}" class="quick-action">
-            <i class="bi bi-cart-plus text-success"></i>
-            <h5>Record Sales</h5>
-            <p class="text-muted small mb-0">Add new sales transactions</p>
-        </a>
-    </div>
+    <!-- Use flexbox container for equal-width items -->
+    <div class="col-12">
+        <div class="d-flex flex-wrap justify-content-center gap-2">
+            
+            <div class="quick-action-wrapper">
+                <a href="{% url 'frontend:sales_entry' %}" class="quick-action">
+                    <i class="bi bi-cart-plus text-success"></i>
+                    <h6>Record Sales</h6>
+                    <p class="text-muted small mb-0">Add new sales transactions</p>
+                </a>
+            </div>
 
-    <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-        <a href="{% url 'frontend:supply_entry' %}" class="quick-action">
-            <i class="bi bi-box-seam text-primary"></i>
-            <h5>Receive Stock</h5>
-            <p class="text-muted small mb-0">Record new inventory shipments</p>
-        </a>
-    </div>
-    
-    <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-        <a href="{% url 'frontend:inventory_check' %}" class="quick-action">
-            <i class="bi bi-boxes text-primary"></i>
-            <h5>Check Stock</h5>
-            <p class="text-muted small mb-0">View inventory levels</p>
-        </a>
-    </div>
-    
-    <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-        <a href="{% url 'frontend:transfer_center' %}" class="quick-action">
-            <i class="bi bi-arrow-left-right text-warning"></i>
-            <h5>Transfer Items</h5>
-            <p class="text-muted small mb-0">Move stock between vessels</p>
-        </a>
-    </div>
-    
-    <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-        <a href="{% url 'frontend:reports_dashboard' %}" class="quick-action">
-            <i class="bi bi-graph-up text-info"></i>
-            <h5>View Reports</h5>
-            <p class="text-muted small mb-0">Sales & inventory reports</p>
-        </a>
-    </div>
-    
-    <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-        <a href="/admin/" class="quick-action">
-            <i class="bi bi-gear text-secondary"></i>
-            <h5>System Setup</h5>
-            <p class="text-muted small mb-0">Manage products & vessels</p>
-        </a>
-    </div>
-    
-    <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-        <a href="#" class="quick-action" onclick="showComingSoon()">
-            <i class="bi bi-bell text-danger"></i>
-            <h5>Alerts</h5>
-            <p class="text-muted small mb-0">Low stock notifications</p>
-        </a>
+            <div class="quick-action-wrapper">
+                <a href="{% url 'frontend:supply_entry' %}" class="quick-action">
+                    <i class="bi bi-box-seam text-primary"></i>
+                    <h6>Receive Stock</h6>
+                    <p class="text-muted small mb-0">Record new inventory shipments</p>
+                </a>
+            </div>
+            
+            <div class="quick-action-wrapper">
+                <a href="{% url 'frontend:inventory_check' %}" class="quick-action">
+                    <i class="bi bi-boxes text-primary"></i>
+                    <h6>Check Stock</h6>
+                    <p class="text-muted small mb-0">View inventory levels</p>
+                </a>
+            </div>
+            
+            <div class="quick-action-wrapper">
+                <a href="{% url 'frontend:transfer_center' %}" class="quick-action">
+                    <i class="bi bi-arrow-left-right text-warning"></i>
+                    <h6>Transfer Items</h6>
+                    <p class="text-muted small mb-0">Move stock between vessels</p>
+                </a>
+            </div>
+            
+            <div class="quick-action-wrapper">
+                <a href="{% url 'frontend:reports_dashboard' %}" class="quick-action">
+                    <i class="bi bi-graph-up text-info"></i>
+                    <h6>View Reports</h6>
+                    <p class="text-muted small mb-0">Sales & inventory reports</p>
+                </a>
+            </div>
+            
+            <div class="quick-action-wrapper">
+                <a href="/admin/" class="quick-action">
+                    <i class="bi bi-gear text-secondary"></i>
+                    <h6>System Setup</h6>
+                    <p class="text-muted small mb-0">Manage products & vessels</p>
+                </a>
+            </div>
+            
+            <div class="quick-action-wrapper">
+                <a href="#" class="quick-action" onclick="showComingSoon()">
+                    <i class="bi bi-bell text-danger"></i>
+                    <h6>Alerts</h6>
+                    <p class="text-muted small mb-0">Low stock notifications</p>
+                </a>
+            </div>
+        </div>
     </div>
 </div>
+
+<style>
+.quick-action-wrapper {
+    flex: 1 1 auto;
+    min-width: 140px;
+    max-width: 160px;
+    margin-bottom: 1rem;
+}
+
+.quick-action {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    background: white;
+    border: 1px solid #e3e6f0;
+    text-align: center;
+    transition: all 0.3s ease;
+    height: 100%;
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+}
+
+.quick-action:hover {
+    color: inherit;
+    text-decoration: none;
+    transform: translateY(-2px);
+    box-shadow: 0 0.25rem 2rem 0 rgba(58, 59, 69, 0.2);
+    border-color: #5a5c69;
+}
+
+.quick-action i {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    display: block;
+}
+
+.quick-action h6 {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #5a5c69;
+}
+
+.quick-action p {
+    font-size: 0.75rem;
+    line-height: 1.2;
+    margin-bottom: 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+    .quick-action-wrapper {
+        min-width: 120px;
+        max-width: 140px;
+    }
+    
+    .quick-action i {
+        font-size: 1.75rem;
+    }
+    
+    .quick-action h6 {
+        font-size: 0.85rem;
+    }
+    
+    .quick-action p {
+        font-size: 0.7rem;
+    }
+}
+
+@media (max-width: 992px) {
+    .d-flex.flex-wrap {
+        justify-content: space-around !important;
+    }
+    
+    .quick-action-wrapper {
+        min-width: 110px;
+        max-width: 130px;
+        margin-bottom: 0.75rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .quick-action-wrapper {
+        flex: 1 1 calc(50% - 0.5rem);
+        min-width: 140px;
+        max-width: none;
+    }
+}
+
+@media (max-width: 576px) {
+    .quick-action-wrapper {
+        flex: 1 1 100%;
+        max-width: none;
+    }
+}
+</style>
 
 <!-- Vessel Status & Recent Activity -->
 <div class="row">

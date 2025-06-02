@@ -468,7 +468,7 @@ def dashboard(request):
     # Recent transactions
     recent_transactions = Transaction.objects.select_related(
         'vessel', 'product'
-    ).order_by('-created_at')[:10]
+    ).order_by('-created_at')[:6]
     
     context = {
         'vessels': vessels,
@@ -619,70 +619,6 @@ def trip_sales(request, trip_id):
     }
     
     return render(request, 'frontend/trip_sales.html', context)
-
-# Also update po_supply view similarly:
-@login_required
-def po_supply(request, po_id):
-    """Step 2: Multi-item supply entry for a specific purchase order (Shopping Cart Approach)"""
-    
-    try:
-        po = PurchaseOrder.objects.select_related('vessel').get(id=po_id)
-    except PurchaseOrder.DoesNotExist:
-        messages.error(request, 'Purchase Order not found.')
-        return redirect('frontend:supply_entry')
-    
-    # Get existing supplies for this PO (to populate shopping cart if PO was previously started)
-    existing_supplies = []
-    if not po.is_completed:
-        # Only load for incomplete POs - completed POs should be read-only
-        po_transactions = Transaction.objects.filter(
-            purchase_order=po,
-            transaction_type='SUPPLY'
-        ).select_related('product').order_by('created_at')
-        
-        # Convert to format expected by frontend shopping cart
-        for supply in po_transactions:
-            existing_supplies.append({
-                'id': supply.id,  # Include for edit/delete functionality
-                'product_id': supply.product.id,
-                'product_name': supply.product.name,
-                'product_item_id': supply.product.item_id,
-                'product_barcode': supply.product.barcode or '',
-                'is_duty_free': supply.product.is_duty_free,
-                'quantity': int(supply.quantity),
-                'unit_price': float(supply.unit_price),
-                'total_amount': float(supply.total_amount),
-                'notes': supply.notes or '',
-                'created_at': supply.created_at.strftime('%H:%M')
-            })
-    
-    # If PO is completed, get read-only supply data for display
-    completed_supplies = []
-    if po.is_completed:
-        po_transactions = Transaction.objects.filter(
-            purchase_order=po,
-            transaction_type='SUPPLY'
-        ).select_related('product').order_by('created_at')
-        
-        for supply in po_transactions:
-            completed_supplies.append({
-                'product_name': supply.product.name,
-                'product_item_id': supply.product.item_id,
-                'quantity': int(supply.quantity),
-                'unit_price': float(supply.unit_price),
-                'total_amount': float(supply.total_amount),
-                'notes': supply.notes or '',
-                'created_at': supply.created_at.strftime('%H:%M')
-            })
-    
-    context = {
-        'po': po,
-        'existing_supplies': existing_supplies,  # For shopping cart initialization
-        'completed_supplies': completed_supplies,  # For read-only display
-        'can_edit': not po.is_completed,  # Frontend can use this to show/hide edit features
-    }
-    
-    return render(request, 'frontend/po_supply.html', context)
 
 @login_required
 def sales_search_products(request):

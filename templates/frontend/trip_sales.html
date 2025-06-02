@@ -229,6 +229,87 @@
 {% endblock %}
 
 {% block extra_js %}
+
+<!-- Translation Data -->
+<script>
+// Load translation strings for JavaScript
+document.addEventListener('DOMContentLoaded', function() {
+    const translations = {
+        en: {
+            // Confirmation messages
+            'cancel_trip_with_cart': 'Cancel trip? This will clear your cart and may delete the trip if no items were previously saved.',
+            'cancel_trip_empty': 'Cancel trip? This will delete the trip if no items were previously saved.',
+            'remove_cart_item': 'Remove this item from the cart?',
+            'complete_trip_confirm': 'Complete trip with {count} items?\n\nTotal Revenue: {revenue} JOD\n\nThis action cannot be undone.',
+            'add_one_item_first': 'Please add at least one item to complete the trip.',
+            
+            // Alert messages  
+            'item_added_success': 'Item added to cart successfully!',
+            'item_removed': 'Item removed from cart.',
+            'invalid_item_edit': 'Invalid item selected for editing.',
+            'error_completing_trip': 'Error completing trip. Please try again.',
+            'error_cancelling_trip': 'Error cancelling trip. Please try again.',
+            'error_loading_cart': 'Error loading cart data. Starting fresh.',
+            
+            // Search and validation
+            'no_products_found': 'No products found with available inventory on this vessel.',
+            'error_searching': 'Error searching products. Please try again.',
+            'select_product_first': 'Select product first',
+            'available_stock': 'Available: {count} units',
+            
+            // Coming soon messages
+            'barcode_coming_soon': '🚀 Barcode scanning feature coming soon!',
+            'export_coming_soon': '📊 Export feature coming soon!',
+            'print_coming_soon': '🖨️ Print feature coming soon!',
+            
+            // Form labels and buttons
+            'add_to_trip': 'Add to Trip',
+            'update_item': 'Update Item',
+            'already_in_cart': 'Already in Cart',
+            'completing': 'Completing...',
+            
+            // Units and currency
+            'units': 'units',
+            'jod': 'JOD'
+        },
+        ar: {
+            // Arabic translations will be added here
+            'cancel_trip_with_cart': 'إلغاء الرحلة؟ سيؤدي هذا إلى مسح سلة التسوق وقد يحذف الرحلة إذا لم يتم حفظ أي عناصر مسبقاً.',
+            'cancel_trip_empty': 'إلغاء الرحلة؟ سيؤدي هذا إلى حذف الرحلة إذا لم يتم حفظ أي عناصر مسبقاً.',
+            'remove_cart_item': 'إزالة هذا العنصر من السلة؟',
+            'complete_trip_confirm': 'إكمال الرحلة مع {count} عنصر؟\n\nإجمالي الإيرادات: {revenue} دينار\n\nلا يمكن التراجع عن هذا الإجراء.',
+            'add_one_item_first': 'يرجى إضافة عنصر واحد على الأقل لإكمال الرحلة.',
+            
+            'item_added_success': 'تم إضافة العنصر إلى السلة بنجاح!',
+            'item_removed': 'تم إزالة العنصر من السلة.',
+            'invalid_item_edit': 'عنصر غير صالح تم اختياره للتعديل.',
+            'error_completing_trip': 'خطأ في إكمال الرحلة. يرجى المحاولة مرة أخرى.',
+            'error_cancelling_trip': 'خطأ في إلغاء الرحلة. يرجى المحاولة مرة أخرى.',
+            'error_loading_cart': 'خطأ في تحميل بيانات السلة. بدء جديد.',
+            
+            'no_products_found': 'لم يتم العثور على منتجات متوفرة في المخزون على هذه السفينة.',
+            'error_searching': 'خطأ في البحث عن المنتجات. يرجى المحاولة مرة أخرى.',
+            'select_product_first': 'اختر المنتج أولاً',
+            'available_stock': 'المتوفر: {count} وحدة',
+            
+            'barcode_coming_soon': '🚀 ميزة مسح الباركود قريباً!',
+            'export_coming_soon': '📊 ميزة التصدير قريباً!',
+            'print_coming_soon': '🖨️ ميزة الطباعة قريباً!',
+            
+            'add_to_trip': 'إضافة للرحلة',
+            'update_item': 'تحديث العنصر',
+            'already_in_cart': 'موجود في السلة',
+            'completing': 'جاري الإكمال...',
+            
+            'units': 'وحدة',
+            'jod': 'دينار'
+        }
+    };
+    
+    // Set translations in the bridge
+    window.translator.setTranslations(translations);
+});
+</script>
 <script>
 // Global shopping cart state
 let tripSalesCart = [];
@@ -273,7 +354,7 @@ document.addEventListener('DOMContentLoaded', function() {
         setupEventListeners();
     } catch (error) {
         console.error('Error initializing trip cart:', error);
-        showAlert('{% trans "Error loading cart data. Starting fresh." %}', 'warning');
+        showAlert(_('error_loading_cart'), 'warning');
         tripSalesCart = [];
         updateCartDisplay();
     }
@@ -381,12 +462,12 @@ function searchProducts(searchTerm) {
             showProductSelection(data.products);
         } else {
             clearProductSelection();
-            showAlert("{% trans 'No products found with available inventory on this vessel.' %}", 'warning');
+            showAlert(_('no_products_found'), 'warning');
         }
     })
     .catch(error => {
         console.error('Error searching products:', error);
-        showAlert("{% trans 'Error searching products. Please try again.' %}", 'danger');
+        showAlert(_('error_searching'), 'danger');
     });
 }
 
@@ -500,7 +581,7 @@ function validateForm() {
     const addBtnText = document.getElementById('addBtnText');
     
     let isValid = selectedProduct && quantity > 0 && quantity <= (selectedProduct?.total_quantity || 0);
-    let buttonText = editingIndex >= 0 ? '{% trans "Update Item" %}' : '{% trans "Add to Trip" %}';
+    let buttonText = editingIndex >= 0 ? _('update_item') : _('add_to_trip');
     let buttonClass = 'btn btn-primary flex-grow-1';
     
     // Check for duplicate product (only when not editing)
@@ -508,7 +589,7 @@ function validateForm() {
         const existingIndex = tripSalesCart.findIndex(item => item.product_id === selectedProduct.id);
         if (existingIndex !== -1) {
             isValid = false;
-            buttonText = '{% trans "Already in Cart" %}';
+            buttonText = _('already_in_cart');
             buttonClass = 'btn btn-warning flex-grow-1';
             
             // Highlight existing item in cart
@@ -549,11 +630,11 @@ function clearProductSelection() {
     document.getElementById('productInfo').style.display = 'none';
     document.getElementById('saleQuantity').disabled = true;
     document.getElementById('saleQuantity').value = '';
-    document.getElementById('availableStock').textContent = '{% trans "Select product first" %}';
+    document.getElementById('availableStock').textContent = _('select_product_first');
     const addBtn = document.getElementById('addSaleBtn');
     addBtn.disabled = true;
     addBtn.className = 'btn btn-primary flex-grow-1';
-    document.getElementById('addBtnText').textContent = '{% trans "Add to Trip" %}';
+    document.getElementById('addBtnText').textContent = _('add_to_trip');
 }
 
 // Shopping cart operations
@@ -588,24 +669,24 @@ function addToCart() {
     saveCartToStorage();
     updateCartDisplay();
     clearForm();
-    showAlert('{% trans "Item added to cart successfully!" %}', 'success');
+    showAlert(_('item_added_success'), 'success');
     
     // Focus back to search field for next item
     document.getElementById('productSearch').focus();
 }
 
 function removeFromCart(index) {
-    if (confirm('{% trans "Remove this item from the cart?" %}')) {
+    if (confirmTranslated('remove_cart_item')) {
         tripSalesCart.splice(index, 1);
         saveCartToStorage();
         updateCartDisplay();
-        showAlert('{% trans "Item removed from cart." %}', 'info');
+        showAlert(_('item_removed'), 'info');
     }
 }
 
 function editCartItem(index) {
     if (index < 0 || index >= tripSalesCart.length) {
-        showAlert('{% trans "Invalid item selected for editing." %}', 'error');
+        showAlert(_('invalid_item_edit'), 'error');
         return;
     }
     
@@ -658,11 +739,9 @@ function cancelEdit() {
         exitEditMode();
     } else {
         // Smart cancel - check if trip has items or can be deleted
-        const confirmMsg = tripSalesCart.length > 0 ? 
-            '{% trans "Cancel trip? This will clear your cart and may delete the trip if no items were previously saved." %}' :
-            '{% trans "Cancel trip? This will delete the trip if no items were previously saved." %}';
+        const messageKey = tripSalesCart.length > 0 ? 'cancel_trip_with_cart' : 'cancel_trip_empty';
         
-        if (!confirm(confirmMsg)) return;
+        if (!confirmTranslated(messageKey)) return;
         
         fetch('/sales/trip/cancel/', {
             method: 'POST',
@@ -683,12 +762,12 @@ function cancelEdit() {
                     window.location.href = "{% url 'frontend:sales_entry' %}";
                 }, 2000);
             } else {
-                showAlert(data.error || 'Error cancelling trip', 'danger');
+                showAlert(data.error || _('error_cancelling_trip'), 'danger');
             }
         })
         .catch(error => {
             console.error('Error cancelling trip:', error);
-            showAlert('{% trans "Error cancelling trip. Please try again." %}', 'danger');
+            showAlert(_('error_cancelling_trip'), 'danger');
         });
     }
 }
@@ -826,22 +905,23 @@ function displayCompletedSales(completedSales) {
 
 function completeTripSales() {
     if (tripSalesCart.length === 0) {
-        showAlert('{% trans "Please add at least one item to complete the trip." %}', 'warning');
+        showAlert(_('add_one_item_first'), 'warning');
         return;
     }
     
     const totalRevenue = tripSalesCart.reduce((sum, item) => sum + item.total_amount, 0);
     
-    const confirmMsg = `{% trans "Complete trip with" %} ${tripSalesCart.length} {% trans "items?" %}\n\n` +
-                      `{% trans "Total Revenue:" %} ${totalRevenue.toFixed(3)} JOD\n\n` +
-                      `{% trans "This action cannot be undone." %}`;
+    const confirmMsg = _('complete_trip_confirm', {
+        count: tripSalesCart.length,
+        revenue: totalRevenue.toFixed(3)
+    });
     
     if (!confirm(confirmMsg)) return;
     
     const completeTripBtn = document.getElementById('completeTripBtn');
     const originalText = completeTripBtn.innerHTML;
     
-    completeTripBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> {% trans "Completing..." %}';
+    completeTripBtn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> ${_('completing')}`;
     completeTripBtn.disabled = true;
     
     // Prepare data - make sure all fields are present
@@ -867,12 +947,8 @@ function completeTripSales() {
             items: itemsToSend
         })
     })
-    .then(response => {
-        console.log('Response status:', response.status);
-        return response.json();
-    })
+    .then(response => response.json())
     .then(data => {
-        console.log('Response data:', data);
         if (data.success) {
             clearCartStorage();
             showAlert(data.message, 'success');
@@ -880,14 +956,14 @@ function completeTripSales() {
                 window.location.href = "{% url 'frontend:sales_entry' %}";
             }, 2000);
         } else {
-            showAlert(data.error || 'Unknown error occurred', 'danger');
+            showAlert(data.error || _('error_completing_trip'), 'danger');
             completeTripBtn.innerHTML = originalText;
             completeTripBtn.disabled = false;
         }
     })
     .catch(error => {
         console.error('Error completing trip:', error);
-        showAlert('{% trans "Error completing trip. Please try again." %}', 'danger');
+        showAlert(_('error_completing_trip'), 'danger');
         completeTripBtn.innerHTML = originalText;
         completeTripBtn.disabled = false;
     });
@@ -901,11 +977,11 @@ function clearForm() {
 }
 
 function exportTripSales() {
-    showAlert('📊 {% trans "Export feature coming soon!" %}', 'info');
+    alertTranslated('export_coming_soon');
 }
 
 function printTripSales() {
-    showAlert('🖨️ {% trans "Print feature coming soon!" %}', 'info');
+    alertTranslated('print_coming_soon');
 }
 
 function showAlert(message, type) {
@@ -936,7 +1012,7 @@ function showAlert(message, type) {
 }
 
 function showComingSoon() {
-    alert('🚀 {% trans "Barcode scanning feature coming soon!" %}');
+    alertTranslated('print_coming_soon');
 }
 </script>
 {% endblock %}

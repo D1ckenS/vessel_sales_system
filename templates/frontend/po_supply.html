@@ -235,6 +235,85 @@
 {% endblock %}
 
 {% block extra_js %}
+<!-- Translation Data for PO Supply -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const translations = {
+        en: {
+            // PO Confirmation messages
+            'cancel_po_with_cart': 'Cancel PO? This will clear your cart and may delete the PO if no items were previously saved.',
+            'cancel_po_empty': 'Cancel PO? This will delete the PO if no items were previously saved.',
+            'remove_cart_item': 'Remove this item from the cart?',
+            'complete_po_confirm': 'Complete PO with {count} items?\n\nTotal Cost: {cost} JOD\n\nThis action cannot be undone.',
+            'add_one_item_first': 'Please add at least one item to complete the PO.',
+            
+            // Alert messages  
+            'item_added_success': 'Item added to cart successfully!',
+            'item_removed': 'Item removed from cart.',
+            'invalid_item_edit': 'Invalid item selected for editing.',
+            'error_completing_po': 'Error completing PO. Please try again.',
+            'error_cancelling_po': 'Error cancelling PO. Please try again.',
+            'error_loading_cart': 'Error loading cart data. Starting fresh.',
+            
+            // Search and validation
+            'no_products_found': 'No products found matching your search.',
+            'error_searching': 'Error searching products. Please try again.',
+            'select_product_first': 'Select product first',
+            
+            // Coming soon messages
+            'barcode_coming_soon': '🚀 Barcode scanning feature coming soon!',
+            'export_coming_soon': '📊 Export feature coming soon!',
+            'print_coming_soon': '🖨️ Print feature coming soon!',
+            
+            // Form labels and buttons
+            'add_to_po': 'Add to PO',
+            'update_item': 'Update Item',
+            'already_in_cart': 'Already in Cart',
+            'duty_free_not_supported': 'Duty-Free Not Supported',
+            'completing': 'Completing...',
+            
+            // Units and currency
+            'units': 'units',
+            'jod': 'JOD'
+        },
+        ar: {
+            // Arabic translations for PO
+            'cancel_po_with_cart': 'إلغاء أمر الشراء؟ سيؤدي هذا إلى مسح سلة التسوق وقد يحذف الأمر إذا لم يتم حفظ أي عناصر مسبقاً.',
+            'cancel_po_empty': 'إلغاء أمر الشراء؟ سيؤدي هذا إلى حذف الأمر إذا لم يتم حفظ أي عناصر مسبقاً.',
+            'remove_cart_item': 'إزالة هذا العنصر من السلة؟',
+            'complete_po_confirm': 'إكمال أمر الشراء مع {count} عنصر؟\n\nإجمالي التكلفة: {cost} دينار\n\nلا يمكن التراجع عن هذا الإجراء.',
+            'add_one_item_first': 'يرجى إضافة عنصر واحد على الأقل لإكمال أمر الشراء.',
+            
+            'item_added_success': 'تم إضافة العنصر إلى السلة بنجاح!',
+            'item_removed': 'تم إزالة العنصر من السلة.',
+            'invalid_item_edit': 'عنصر غير صالح تم اختياره للتعديل.',
+            'error_completing_po': 'خطأ في إكمال أمر الشراء. يرجى المحاولة مرة أخرى.',
+            'error_cancelling_po': 'خطأ في إلغاء أمر الشراء. يرجى المحاولة مرة أخرى.',
+            'error_loading_cart': 'خطأ في تحميل بيانات السلة. بدء جديد.',
+            
+            'no_products_found': 'لم يتم العثور على منتجات تطابق بحثك.',
+            'error_searching': 'خطأ في البحث عن المنتجات. يرجى المحاولة مرة أخرى.',
+            'select_product_first': 'اختر المنتج أولاً',
+            
+            'barcode_coming_soon': '🚀 ميزة مسح الباركود قريباً!',
+            'export_coming_soon': '📊 ميزة التصدير قريباً!',
+            'print_coming_soon': '🖨️ ميزة الطباعة قريباً!',
+            
+            'add_to_po': 'إضافة لأمر الشراء',
+            'update_item': 'تحديث العنصر',
+            'already_in_cart': 'موجود في السلة',
+            'duty_free_not_supported': 'المعفى من الرسوم غير مدعوم',
+            'completing': 'جاري الإكمال...',
+            
+            'units': 'وحدة',
+            'jod': 'دينار'
+        }
+    };
+    
+    // Set translations in the bridge
+    window.translator.setTranslations(translations);
+});
+</script>
 <script>
 // Global shopping cart state
 let poSuppliesCart = [];
@@ -279,7 +358,7 @@ document.addEventListener('DOMContentLoaded', function() {
         setupEventListeners();
     } catch (error) {
         console.error('Error initializing PO cart:', error);
-        showAlert('{% trans "Error loading cart data. Starting fresh." %}', 'warning');
+        showAlert(_('error_loading_cart'), 'warning');
         poSuppliesCart = [];
         updateCartDisplay();
     }
@@ -391,12 +470,12 @@ function searchProducts(searchTerm) {
             showProductSelection(data.products);
         } else {
             clearProductSelection();
-            showAlert("{% trans 'No products found matching your search.' %}", 'warning');
+            showAlert(_('no_products_found'), 'warning');
         }
     })
     .catch(error => {
         console.error('Error searching products:', error);
-        showAlert("{% trans 'Error searching products. Please try again.' %}", 'danger');
+        showAlert(_('error_searching'), 'danger');
     });
 }
 
@@ -515,7 +594,7 @@ function validateForm() {
     const addBtnText = document.getElementById('addBtnText');
     
     let isValid = selectedProduct && quantity > 0 && cost > 0;
-    let buttonText = editingIndex >= 0 ? '{% trans "Update Item" %}' : '{% trans "Add to PO" %}';
+    let buttonText = editingIndex >= 0 ? _('update_item') : _('add_to_po');
     let buttonClass = 'btn btn-primary flex-grow-1';
     
     // Check for duplicate product (only when not editing)
@@ -523,7 +602,7 @@ function validateForm() {
         const existingIndex = poSuppliesCart.findIndex(item => item.product_id === selectedProduct.id);
         if (existingIndex !== -1) {
             isValid = false;
-            buttonText = '{% trans "Already in Cart" %}';
+            buttonText = _('already_in_cart');
             buttonClass = 'btn btn-warning flex-grow-1';
             
             // Highlight existing item in cart
@@ -537,7 +616,7 @@ function validateForm() {
     // Check duty-free compatibility
     if (selectedProduct?.is_duty_free && !{{ po.vessel.has_duty_free|yesno:"true,false" }}) {
         isValid = false;
-        buttonText = '{% trans "Duty-Free Not Supported" %}';
+        buttonText = _('duty_free_not_supported');
         buttonClass = 'btn btn-danger flex-grow-1';
     }
     
@@ -576,7 +655,7 @@ function clearProductSelection() {
     const addBtn = document.getElementById('addSupplyBtn');
     addBtn.disabled = true;
     addBtn.className = 'btn btn-primary flex-grow-1';
-    document.getElementById('addBtnText').textContent = '{% trans "Add to PO" %}';
+    document.getElementById('addBtnText').textContent = _('add_to_po');
 }
 
 // Shopping cart operations
@@ -612,24 +691,24 @@ function addToCart() {
     saveCartToStorage();
     updateCartDisplay();
     clearForm();
-    showAlert('{% trans "Item added to cart successfully!" %}', 'success');
+    showAlert(_('item_added_success'), 'success');
     
     // Focus back to search field for next item
     document.getElementById('productSearch').focus();
 }
 
 function removeFromCart(index) {
-    if (confirm('{% trans "Remove this item from the cart?" %}')) {
+    if (confirmTranslated('remove_cart_item')) {
         poSuppliesCart.splice(index, 1);
         saveCartToStorage();
         updateCartDisplay();
-        showAlert('{% trans "Item removed from cart." %}', 'info');
+        showAlert(_('item_removed'), 'info');
     }
 }
 
 function editCartItem(index) {
     if (index < 0 || index >= poSuppliesCart.length) {
-        showAlert('{% trans "Invalid item selected for editing." %}', 'error');
+        showAlert(_('invalid_item_edit'), 'error');
         return;
     }
     
@@ -682,11 +761,9 @@ function cancelEdit() {
         exitEditMode();
     } else {
         // Smart cancel - check if PO has items or can be deleted
-        const confirmMsg = poSuppliesCart.length > 0 ? 
-            '{% trans "Cancel PO? This will clear your cart and may delete the PO if no items were previously saved." %}' :
-            '{% trans "Cancel PO? This will delete the PO if no items were previously saved." %}';
+        const messageKey = poSuppliesCart.length > 0 ? 'cancel_po_with_cart' : 'cancel_po_empty';
         
-        if (!confirm(confirmMsg)) return;
+        if (!confirmTranslated(messageKey)) return;
         
         fetch('/supply/po/cancel/', {
             method: 'POST',
@@ -707,12 +784,12 @@ function cancelEdit() {
                     window.location.href = "{% url 'frontend:supply_entry' %}";
                 }, 2000);
             } else {
-                showAlert(data.error || 'Error cancelling PO', 'danger');
+                showAlert(data.error || _('error_cancelling_po'), 'danger');
             }
         })
         .catch(error => {
             console.error('Error cancelling PO:', error);
-            showAlert('{% trans "Error cancelling PO. Please try again." %}', 'danger');
+            showAlert(_('error_cancelling_po'), 'danger');
         });
     }
 }
@@ -849,22 +926,23 @@ function displayCompletedSupplies(completedSupplies) {
 
 function completePOSupplies() {
     if (poSuppliesCart.length === 0) {
-        showAlert('{% trans "Please add at least one item to complete the PO." %}', 'warning');
+        showAlert(_('add_one_item_first'), 'warning');
         return;
     }
     
     const totalCost = poSuppliesCart.reduce((sum, item) => sum + item.total_amount, 0);
     
-    const confirmMsg = `{% trans "Complete PO with" %} ${poSuppliesCart.length} {% trans "items?" %}\n\n` +
-                      `{% trans "Total Cost:" %} ${totalCost.toFixed(3)} JOD\n\n` +
-                      `{% trans "This action cannot be undone." %}`;
+    const confirmMsg = _('complete_po_confirm', {
+        count: poSuppliesCart.length,
+        cost: totalCost.toFixed(3)
+    });
     
     if (!confirm(confirmMsg)) return;
     
     const completePOBtn = document.getElementById('completePOBtn');
     const originalText = completePOBtn.innerHTML;
     
-    completePOBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> {% trans "Completing..." %}';
+    completePOBtn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> ${_('completing')}`;
     completePOBtn.disabled = true;
     
     // Prepare data - make sure all fields are present
@@ -904,14 +982,14 @@ function completePOSupplies() {
                 window.location.href = "{% url 'frontend:supply_entry' %}";
             }, 2000);
         } else {
-            showAlert(data.error || 'Unknown error occurred', 'danger');
+            showAlert(data.error || _('error_completing_po'), 'danger');
             completePOBtn.innerHTML = originalText;
             completePOBtn.disabled = false;
         }
     })
     .catch(error => {
         console.error('Error completing PO:', error);
-        showAlert('{% trans "Error completing PO. Please try again." %}', 'danger');
+        showAlert(_('error_completing_po'), 'danger');
         completePOBtn.innerHTML = originalText;
         completePOBtn.disabled = false;
     });
@@ -925,11 +1003,11 @@ function clearForm() {
 }
 
 function exportPOSupplies() {
-    showAlert('📊 {% trans "Export feature coming soon!" %}', 'info');
+    alertTranslated('export_coming_soon');
 }
 
 function printPOSupplies() {
-    showAlert('🖨️ {% trans "Print feature coming soon!" %}', 'info');
+    alertTranslated('print_coming_soon');
 }
 
 function showAlert(message, type) {
@@ -960,7 +1038,7 @@ function showAlert(message, type) {
 }
 
 function showComingSoon() {
-    alert('🚀 {% trans "Barcode scanning feature coming soon!" %}');
+    alertTranslated('barcode_coming_soon');
 }
 </script>
 {% endblock %}

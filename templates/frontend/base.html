@@ -345,6 +345,98 @@
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
+    <!-- Translation Bridge System -->
+    <script>
+    class TranslationBridge {
+        constructor() {
+            this.currentLanguage = 'en';
+            this.translations = {};
+            // Initialize without calling non-existent methods
+            this.detectLanguage();
+            console.log('✅ TranslationBridge initialized successfully!');
+        }
+
+        detectLanguage() {
+            // Get language from HTML lang attribute or localStorage
+            const htmlLang = document.documentElement.lang || 'en';
+            const savedLang = localStorage.getItem('preferred_language') || htmlLang;
+            this.currentLanguage = savedLang;
+        }
+
+        // Set translations from page-specific scripts
+        setTranslations(translations) {
+            this.translations = translations;
+            console.log('📚 Translations loaded for languages:', Object.keys(translations));
+        }
+
+        // Get translated string with optional parameters
+        _(key, params = {}) {
+            const translation = this.translations[this.currentLanguage]?.[key] || key;
+            return this.interpolate(translation, params);
+        }
+
+        // Replace {param} placeholders in strings
+        interpolate(str, params) {
+            return str.replace(/\{(\w+)\}/g, (match, key) => {
+                return params[key] !== undefined ? params[key] : match;
+            });
+        }
+
+        // Switch language
+        setLanguage(lang) {
+            this.currentLanguage = lang;
+            localStorage.setItem('preferred_language', lang);
+            this.updateDynamicContent();
+            console.log('🌐 Language switched to:', lang);
+        }
+
+        // Update dynamic content after language change
+        updateDynamicContent() {
+            document.querySelectorAll('[data-translate]').forEach(element => {
+                const key = element.getAttribute('data-translate');
+                const params = element.getAttribute('data-translate-params');
+                const parsedParams = params ? JSON.parse(params) : {};
+                element.textContent = this._(key, parsedParams);
+            });
+        }
+
+        // Confirmation dialogs with translation support
+        confirm(messageKey, params = {}) {
+            const message = this._(messageKey, params);
+            return confirm(message);
+        }
+
+        alert(messageKey, params = {}) {
+            const message = this._(messageKey, params);
+            alert(message);
+        }
+    }
+
+    // Create global translation instance
+    window.translator = new TranslationBridge();
+
+    // Create global shorthand functions
+    window._ = function(key, params) {
+        return window.translator._(key, params);
+    };
+
+    window.confirmTranslated = function(key, params) {
+        return window.translator.confirm(key, params);
+    };
+
+    window.alertTranslated = function(key, params) {
+        return window.translator.alert(key, params);
+    };
+
+    // Test that everything works properly
+    console.log('🎯 Translation functions ready:', {
+        translator: typeof window.translator,
+        _: typeof window._,
+        confirmTranslated: typeof window.confirmTranslated,
+        alertTranslated: typeof window.alertTranslated
+    });
+    </script>
+    
     {% block extra_js %}{% endblock %}
 </body>
 </html>
