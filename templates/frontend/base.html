@@ -365,7 +365,7 @@
                     <li class="nav-item">
                         <button class="btn btn-outline-light btn-sm me-3" id="languageToggle" onclick="toggleLanguage()">
                             <i class="bi bi-globe"></i> 
-                            <span id="currentLangText">EN</span>
+                            <span id="currentLangText">AR</span>
                         </button>
                     </li>
                     <li class="nav-item dropdown">
@@ -478,7 +478,6 @@
             this.translations = {};
             // Initialize without calling non-existent methods
             this.detectLanguage();
-            console.log('✅ TranslationBridge initialized successfully!');
         }
 
         detectLanguage() {
@@ -491,7 +490,6 @@
         // Set translations from page-specific scripts
         setTranslations(translations) {
             this.translations = translations;
-            console.log('📚 Translations loaded for languages:', Object.keys(translations));
         }
 
         // Get translated string with optional parameters
@@ -512,7 +510,6 @@
             this.currentLanguage = lang;
             localStorage.setItem('preferred_language', lang);
             this.updateDynamicContent();
-            console.log('🌐 Language switched to:', lang);
         }
 
         // Update dynamic content after language change
@@ -616,13 +613,6 @@
     window.showStyledConfirm = window.confirmTranslated;
     window.showStyledAlert = window.alertTranslated;
 
-    // Test that everything works properly
-    console.log('🎯 Translation functions ready:', {
-        translator: typeof window.translator,
-        _: typeof window._,
-        confirmTranslated: typeof window.confirmTranslated,
-        alertTranslated: typeof window.alertTranslated
-    });
     // Language Toggle Functionality
     window.toggleLanguage = function() {
         const currentLang = window.translator.currentLanguage;
@@ -634,7 +624,8 @@
         // Update button text
         const langButton = document.getElementById('currentLangText');
         if (langButton) {
-            langButton.textContent = newLang.toUpperCase();
+            const targetLang = newLang === 'en' ? 'AR' : 'EN';
+            langButton.textContent = targetLang;
         }
         
         // Update HTML lang attribute
@@ -650,12 +641,31 @@
         }
         
         // Update all translatable elements on the page
-        updatePageTranslations();
+        setTimeout(() => {
+            console.log('🔄 About to call updatePageTranslations from toggleLanguage');
+            
+            // Update vessel names explicitly
+            document.querySelectorAll('.vessel-name').forEach((element, index) => {
+                const currentLang = window.translator.currentLanguage;
+                const enName = element.getAttribute('data-en');
+                const arName = element.getAttribute('data-ar');
+                
+                console.log(`Updating vessel ${index}: ${enName} -> ${currentLang === 'ar' ? arName : enName}`);
+                
+                if (currentLang === 'ar' && arName) {
+                    element.textContent = arName;
+                } else {
+                    element.textContent = enName;
+                }
+            });
+            
+            // Update other translations
+            updatePageTranslations();
+        }, 100);
         
         console.log('🌐 Language switched to:', newLang);
     };
 
-    // Update all translatable elements on the page
     window.updatePageTranslations = function() {
         // Update elements with data-translate attribute
         document.querySelectorAll('[data-translate]').forEach(element => {
@@ -663,6 +673,19 @@
             const params = element.getAttribute('data-translate-params');
             const parsedParams = params ? JSON.parse(params) : {};
             element.textContent = window.translator._(key, parsedParams);
+        });
+        
+        // Update vessel names based on current language
+        document.querySelectorAll('.vessel-name').forEach(element => {
+            const currentLang = window.translator.currentLanguage;
+            const enName = element.getAttribute('data-en');
+            const arName = element.getAttribute('data-ar');
+            
+            if (currentLang === 'ar' && arName) {
+                element.textContent = arName;
+            } else {
+                element.textContent = enName;
+            }
         });
         
         // Update modal button text
@@ -680,17 +703,24 @@
         const savedLang = localStorage.getItem('preferred_language') || 'en';
         const langButton = document.getElementById('currentLangText');
         
+        // Fix Issue 2: Show target language (opposite of current)
         if (langButton) {
-            langButton.textContent = savedLang.toUpperCase();
+            const targetLang = savedLang === 'en' ? 'AR' : 'EN';
+            langButton.textContent = targetLang;
         }
         
+        // Apply RTL for Arabic
         if (savedLang === 'ar') {
             document.body.classList.add('rtl-layout');
             document.documentElement.dir = 'rtl';
             document.documentElement.lang = 'ar';
+        } else {
+            document.body.classList.remove('rtl-layout');
+            document.documentElement.dir = 'ltr';
+            document.documentElement.lang = 'en';
         }
         
-        // Set up global translations for interface
+        // Set up global translations
         const globalTranslations = {
             en: {
                 'cancel': 'Cancel',
@@ -752,13 +782,14 @@
             }
         };
         
-        // Merge with existing translations
-        if (window.translator.translations.en) {
-            Object.assign(window.translator.translations.en, globalTranslations.en);
-            Object.assign(window.translator.translations.ar, globalTranslations.ar);
-        } else {
-            window.translator.setTranslations(globalTranslations);
-        }
+        // Set translations and current language
+        window.translator.setTranslations(globalTranslations);
+        window.translator.currentLanguage = savedLang;
+        
+        // Fix Issue 1: Apply translations after page load
+        setTimeout(() => {
+            updatePageTranslations();
+        }, 100);
     });
     </script>
     

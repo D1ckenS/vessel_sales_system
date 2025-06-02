@@ -13,7 +13,7 @@
     </td>
     <td class="vessel-column">
         <span class="badge {% if item.vessel_name == 'Amman' %}bg-primary{% elif item.vessel_name == 'Aylah' %}bg-secondary{% elif item.vessel_name == 'Sinaa' %}bg-info{% elif item.vessel_name == 'Nefertiti' %}bg-success{% elif item.vessel_name == 'Babel' %}bg-warning{% elif item.vessel_name == 'Dahab' %}bg-danger{% else %}bg-dark{% endif %}">
-            {{ item.vessel_name }}
+            <span class="vessel-name" data-en="{{ item.vessel_name }}" data-ar="{{ item.vessel_name_ar }}">{{ item.vessel_name }}</span>
         </span>
     </td>
     <td class="text-center">

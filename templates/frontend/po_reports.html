@@ -61,7 +61,9 @@
                             <select class="form-select" name="vessel">
                                 <option value="">{% trans "All Vessels" %}</option>
                                 {% for vessel in vessels %}
-                                <option value="{{ vessel.id }}" {% if filters.vessel == vessel.id|stringformat:"s" %}selected{% endif %}>{{ vessel.name }}</option>
+                                <option value="{{ vessel.id }}" {% if filters.vessel == vessel.id|stringformat:"s" %}selected{% endif %}>
+                                    <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
+                                </option>
                                 {% endfor %}
                             </select>
                         </div>

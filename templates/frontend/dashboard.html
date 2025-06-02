@@ -238,7 +238,9 @@
                         {% for vessel in vessels %}
                         <div class="list-group-item d-flex justify-content-between align-items-center border-0">
                             <div>
-                                <h6 class="mb-1">{{ vessel.name }}</h6>
+                                <h6 class="mb-1">
+                                    <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
+                                </h6>
                                 <small class="text-muted">
                                     {% if vessel.has_duty_free %}
                                         <i class="bi bi-check-circle text-success"></i> Duty-Free Available
@@ -289,7 +291,7 @@
                                         {{ transaction.get_transaction_type_display }}
                                     </h6>
                                     <p class="mb-1 small">
-                                        <strong>{{ transaction.vessel.name }}</strong> - {{ transaction.product.name }}
+                                        <strong><span class="vessel-name" data-en="{{ transaction.vessel.name }}" data-ar="{{ transaction.vessel.name_ar }}">{{ transaction.vessel.name }}</span></strong> - {{ transaction.product.name }}
                                     </p>
                                     <small class="text-muted">
                                         {{ transaction.quantity|floatformat:0 }} units • {{ transaction.total_amount|floatformat:2 }} JOD

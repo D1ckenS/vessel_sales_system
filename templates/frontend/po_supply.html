@@ -14,7 +14,7 @@
                     {% trans "PO Supply" %}: {{ po.po_number }}
                 </h2>
                 <p class="text-muted mb-0">
-                    <i class="bi bi-ship"></i> {{ po.vessel.name }} • 
+                    <i class="bi bi-ship"></i> <span class="vessel-name" data-en="{{ po.vessel.name }}" data-ar="{{ po.vessel.name_ar }}">{{ po.vessel.name }}</span> •
                     <i class="bi bi-calendar"></i> {{ po.po_date|date:"d/m/Y" }}
                 </p>
             </div>
@@ -310,21 +310,14 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
     
-    // Set translations in the bridge
-    window.translator.setTranslations(translations);
-});
-</script>
-<script>
-// Global shopping cart state
-let poSuppliesCart = [];
-let selectedProduct = null;
-let editingIndex = -1;
-let currentProductPage = 0;
-let allMatchedProducts = [];
-const PRODUCTS_PER_PAGE = 5;
+    // MERGE with existing translations instead of overwriting
+    if (window.translator.translations.en) {
+        Object.assign(window.translator.translations.en, translations.en);
+        Object.assign(window.translator.translations.ar, translations.ar);
+    } else {
+        window.translator.setTranslations(translations);
+    }
 
-// Initialize cart from existing data or localStorage
-document.addEventListener('DOMContentLoaded', function() {
     // Check if required elements exist and if PO is editable
     const poIdElement = document.getElementById('poId');
     const productSearchElement = document.getElementById('productSearch');
@@ -363,6 +356,15 @@ document.addEventListener('DOMContentLoaded', function() {
         updateCartDisplay();
     }
 });
+</script>
+<script>
+// Global shopping cart state
+let poSuppliesCart = [];
+let selectedProduct = null;
+let editingIndex = -1;
+let currentProductPage = 0;
+let allMatchedProducts = [];
+const PRODUCTS_PER_PAGE = 5;
 
 function setupEventListeners() {
     // Product search functionality

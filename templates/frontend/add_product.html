@@ -199,7 +199,9 @@
                                     </td>
                                     <td>
                                         <div>
-                                            <strong>{{ vessel.name }}</strong>
+                                            <strong>
+                                                <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
+                                            </strong>
                                             {% if vessel.has_duty_free %}
                                             <span class="badge bg-warning ms-2">Duty-Free</span>
                                             {% endif %}

@@ -44,7 +44,7 @@
                                 <option value="">Choose source vessel...</option>
                                 {% for vessel in vessels %}
                                 <option value="{{ vessel.id }}" data-name="{{ vessel.name }}" data-duty-free="{{ vessel.has_duty_free }}">
-                                    {{ vessel.name }}
+                                    <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
                                     {% if vessel.has_duty_free %}<span class="text-success">(Duty-Free)</span>{% endif %}
                                 </option>
                                 {% endfor %}
@@ -198,9 +198,13 @@
                             <tr>
                                 <td>{{ transfer.transaction_date|date:"d/m/Y" }}</td>
                                 <td>
-                                    <span class="badge bg-danger me-1">{{ transfer.vessel.name }}</span>
+                                    <span class="badge bg-danger me-1">
+                                        <span class="vessel-name" data-en="{{ transfer.vessel.name }}" data-ar="{{ transfer.vessel.name_ar }}">{{ transfer.vessel.name }}</span>
+                                    </span>
                                     <i class="bi bi-arrow-right"></i>
-                                    <span class="badge bg-success ms-1">{{ transfer.transfer_to_vessel.name }}</span>
+                                    <span class="badge bg-success ms-1">
+                                        <span class="vessel-name" data-en="{{ transfer.transfer_to_vessel.name }}" data-ar="{{ transfer.transfer_to_vessel.name_ar }}">{{ transfer.transfer_to_vessel.name }}</span>
+                                    </span>
                                 </td>
                                 <td>
                                     <div>

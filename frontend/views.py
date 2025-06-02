@@ -1196,6 +1196,7 @@ def inventory_data_ajax(request):
             inventory_data.append({
                 'vessel_id': vessel.id,
                 'vessel_name': vessel.name,
+                'vessel_name_ar': vessel.name_ar,
                 'product_id': product_id,
                 'product_name': item['product__name'],
                 'product_item_id': item['product__item_id'],

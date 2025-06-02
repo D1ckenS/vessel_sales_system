@@ -48,7 +48,9 @@
                             <select class="form-select" name="vessel">
                                 <option value="">{% trans "All Vessels" %}</option>
                                 {% for vessel in vessels %}
-                                <option value="{{ vessel.id }}" {% if filters.vessel == vessel.id|stringformat:"s" %}selected{% endif %}>{{ vessel.name }}</option>
+                                <option value="{{ vessel.id }}" {% if filters.vessel == vessel.id|stringformat:"s" %}selected{% endif %}>
+                                    <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
+                                </option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -117,7 +119,9 @@
                                     </span>
                                 </td>
                                 <td>
-                                    <span class="badge {% if transaction.vessel.name|lower == 'amman' %}bg-primary{% elif transaction.vessel.name|lower == 'aylah' %}bg-danger{% elif transaction.vessel.name|lower == 'sinaa' %}bg-success{% elif transaction.vessel.name|lower == 'nefertiti' %}bg-secondary{% elif transaction.vessel.name|lower == 'babel' %}bg-warning{% elif transaction.vessel.name|lower == 'dahab' %}bg-info{% else %}bg-primary{% endif %}">{{ transaction.vessel.name }}</span>
+                                    <span class="badge {% if transaction.vessel.name|lower == 'amman' %}bg-primary{% elif transaction.vessel.name|lower == 'aylah' %}bg-danger{% elif transaction.vessel.name|lower == 'sinaa' %}bg-success{% elif transaction.vessel.name|lower == 'nefertiti' %}bg-secondary{% elif transaction.vessel.name|lower == 'babel' %}bg-warning{% elif transaction.vessel.name|lower == 'dahab' %}bg-info{% else %}bg-primary{% endif %}">
+                                        <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ transaction.vessel.name }}</span>
+                                    </span>
                                 </td>
                                 <td>
                                     <div>

@@ -45,7 +45,7 @@
                                 <option value="">{% trans "Choose vessel..." %}</option>
                                 {% for vessel in vessels %}
                                 <option value="{{ vessel.id }}" data-name="{{ vessel.name }}" data-duty-free="{{ vessel.has_duty_free }}">
-                                    {{ vessel.name }}
+                                    <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
                                     {% if vessel.has_duty_free %}<span class="text-success">({% trans "Duty-Free" %})</span>{% endif %}
                                 </option>
                                 {% endfor %}
@@ -133,7 +133,9 @@
                                     <strong>{{ trip.trip_number }}</strong>
                                 </td>
                                 <td>
-                                    <span class="badge {% if trip.vessel.name|lower == 'amman' %}bg-primary{% elif trip.vessel.name|lower == 'aylah' %}bg-danger{% elif trip.vessel.name|lower == 'sinaa' %}bg-success{% elif trip.vessel.name|lower == 'nefertiti' %}bg-secondary{% elif trip.vessel.name|lower == 'babel' %}bg-warning{% elif trip.vessel.name|lower == 'dahab' %}bg-info{% else %}bg-primary{% endif %}">{{ trip.vessel.name }}</span>
+                                    <span class="badge {% if trip.vessel.name|lower == 'amman' %}bg-primary{% elif trip.vessel.name|lower == 'aylah' %}bg-danger{% elif trip.vessel.name|lower == 'sinaa' %}bg-success{% elif trip.vessel.name|lower == 'nefertiti' %}bg-secondary{% elif trip.vessel.name|lower == 'babel' %}bg-warning{% elif trip.vessel.name|lower == 'dahab' %}bg-info{% else %}bg-primary{% endif %}">
+                                        <span class="vessel-name" data-en="{{ trip.vessel.name }}" data-ar="{{ trip.vessel.name_ar }}">{{ trip.vessel.name }}</span>
+                                    </span>
                                 </td>
                                 <td>
                                     <span class="fw-bold">{{ trip.passenger_count }}</span>

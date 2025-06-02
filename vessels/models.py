@@ -3,6 +3,7 @@ from django.contrib.auth.models import User
 
 class Vessel(models.Model):
     name = models.CharField(max_length=50, unique=True)
+    name_ar = models.CharField(max_length=100, blank=True, help_text="Arabic name of the vessel")
     has_duty_free = models.BooleanField(default=False)
     active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)

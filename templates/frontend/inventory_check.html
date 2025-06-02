@@ -117,11 +117,12 @@
                         {% for vessel in vessels %}
                         <button class="nav-link vessel-tab {% if forloop.first %}active{% endif %}" 
                                 data-vessel-id="{{ vessel.id }}"
-                                data-vessel-name="{{ vessel.name }}"
                                 data-duty-free="{{ vessel.has_duty_free|yesno:'true,false' }}"
                                 onclick="switchVessel({{ vessel.id }}, '{{ vessel.name }}', {{ vessel.has_duty_free|yesno:'true,false' }})">
                             <i class="bi bi-ship me-2"></i>
-                            <strong>{{ vessel.name }}</strong>
+                            <strong>
+                                <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
+                            </strong>
                             {% if vessel.has_duty_free %}
                             <span class="badge bg-warning text-dark ms-2">{% trans "Duty-Free" %}</span>
                             {% endif %}
@@ -147,7 +148,11 @@
                 <div>
                     <h4 class="mb-1">
                         <i class="bi bi-ship"></i> 
-                        <span id="selectedVesselName">{% if selected_vessel %}{{ selected_vessel.name }}{% endif %}</span>
+                        <span id="selectedVesselName">
+                            {% if selected_vessel %}
+                                <span class="vessel-name" data-en="{{ selected_vessel.name }}" data-ar="{{ selected_vessel.name_ar }}">{{ selected_vessel.name }}</span>
+                            {% endif %}
+                        </span>
                         <span id="dutyFreeBadge" class="badge bg-warning text-dark ms-2" style="display: none;">{% trans "Duty-Free Vessel" %}</span>
                     </h4>
                     <p class="mb-0 opacity-75">{% trans "Click 'Show Inventory' to load current stock levels" %}</p>
@@ -360,9 +365,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-function switchVessel(vesselId, vesselName, hasDutyFree) {
-    console.log(`Switching to vessel: ${vesselName} (ID: ${vesselId})`);
-    
+function switchVessel(vesselId, vesselName, hasDutyFree) {    
     // Update active tab
     document.querySelectorAll('.vessel-tab').forEach(tab => {
         tab.classList.remove('active');
@@ -372,17 +375,22 @@ function switchVessel(vesselId, vesselName, hasDutyFree) {
     // Reset filters (Option B: Reset state per vessel)
     clearFilters();
     
-    // Update vessel info
+    // Get Arabic name from the clicked vessel button
+    const vesselButton = document.querySelector(`[data-vessel-id="${vesselId}"]`);
+    const vesselNameAr = vesselButton ? vesselButton.querySelector('.vessel-name').getAttribute('data-ar') : '';
+    
+    // Update vessel info with current language
     currentVessel = {
         id: vesselId,
         name: vesselName,
+        name_ar: vesselNameAr,
         has_duty_free: hasDutyFree
     };
     
-    // Update UI elements
-    document.getElementById('selectedVesselName').textContent = vesselName;
-    document.getElementById('filterVesselName').textContent = vesselName;
-    document.getElementById('tableVesselName').textContent = vesselName;
+    // Update UI elements - PRESERVE vessel-name spans!
+    updateVesselNameDisplay('selectedVesselName', vesselName, vesselNameAr);
+    updateVesselNameDisplay('filterVesselName', vesselName, vesselNameAr);
+    updateVesselNameDisplay('tableVesselName', vesselName, vesselNameAr);
     
     // Show/hide duty-free badges
     const dutyBadges = ['dutyFreeBadge', 'tableDutyFreeBadge'];
@@ -403,6 +411,39 @@ function switchVessel(vesselId, vesselName, hasDutyFree) {
     const showBtn = document.getElementById('showInventoryBtn');
     showBtn.innerHTML = '<i class="bi bi-box-seam me-2"></i>{% trans "Show Inventory" %}';
     showBtn.disabled = false;
+}
+
+// Helper function to update vessel name displays
+function updateVesselNameDisplay(elementId, enName, arName) {
+    const element = document.getElementById(elementId);
+    if (!element) return;
+    
+    // Check if it already has a vessel-name span
+    let vesselSpan = element.querySelector('.vessel-name');
+    
+    if (!vesselSpan) {
+        // Create vessel-name span if it doesn't exist
+        vesselSpan = document.createElement('span');
+        vesselSpan.className = 'vessel-name';
+        vesselSpan.setAttribute('data-en', enName);
+        vesselSpan.setAttribute('data-ar', arName || enName);
+        
+        // Replace element content with the span
+        element.innerHTML = '';
+        element.appendChild(vesselSpan);
+    } else {
+        // Update existing span attributes
+        vesselSpan.setAttribute('data-en', enName);
+        vesselSpan.setAttribute('data-ar', arName || enName);
+    }
+    
+    // Set content based on current language
+    const currentLang = window.translator ? window.translator.currentLanguage : 'en';
+    if (currentLang === 'ar' && arName) {
+        vesselSpan.textContent = arName;
+    } else {
+        vesselSpan.textContent = enName;
+    }
 }
 
 function loadInventoryData() {
@@ -549,7 +590,7 @@ function updateInventoryTable() {
     tableStats.innerHTML = `
         {% trans "Showing" %} ${filteredData.length} {% trans "of" %} ${currentInventoryData.length} {% trans "products" %}
         ${hasFilters ? '({% trans "filtered" %})' : ''}
-        {% trans "on" %} ${currentVessel.name}
+        {% trans "on" %} ${getVesselName(currentVessel)}
         ${hasFilters ? `<button class="btn btn-outline-secondary btn-sm ms-2" onclick="clearFilters()">
             <i class="bi bi-x-circle"></i> {% trans "Clear Filters" %}
         </button>` : ''}
@@ -632,7 +673,7 @@ function viewDetails(productId, vesselId) {
                         <div class="col-md-6">
                             <h6><i class="bi bi-ship"></i> {% trans "Vessel Information" %}</h6>
                             <table class="table table-sm">
-                                <tr><td><strong>{% trans "Vessel Name:" %}</strong></td><td>${data.vessel.name}</td></tr>
+                                <tr><td><strong>{% trans "Vessel Name:" %}</strong></td><td>${getVesselName(data.vessel)}</td></tr>
                                 <tr><td><strong>{% trans "Supports Duty-Free:" %}</strong></td><td>${data.vessel.has_duty_free ? '{% trans "Yes" %}' : '{% trans "No" %}'}</td></tr>
                             </table>
                         </div>

@@ -45,7 +45,7 @@
                                 <option value="">{% trans "Choose vessel..." %}</option>
                                 {% for vessel in vessels %}
                                 <option value="{{ vessel.id }}" data-name="{{ vessel.name }}" data-duty-free="{{ vessel.has_duty_free }}">
-                                    {{ vessel.name }}
+                                    <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
                                     {% if vessel.has_duty_free %}<span class="text-success">({% trans "Duty-Free" %})</span>{% endif %}
                                 </option>
                                 {% endfor %}
@@ -126,7 +126,9 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <span class="badge {% if po.vessel.name|lower == 'amman' %}bg-primary{% elif po.vessel.name|lower == 'aylah' %}bg-danger{% elif po.vessel.name|lower == 'sinaa' %}bg-success{% elif po.vessel.name|lower == 'nefertiti' %}bg-secondary{% elif po.vessel.name|lower == 'babel' %}bg-warning{% elif po.vessel.name|lower == 'dahab' %}bg-info{% else %}bg-primary{% endif %}">{{ po.vessel.name }}</span>
+                                    <span class="badge {% if po.vessel.name|lower == 'amman' %}bg-primary{% elif po.vessel.name|lower == 'aylah' %}bg-danger{% elif po.vessel.name|lower == 'sinaa' %}bg-success{% elif po.vessel.name|lower == 'nefertiti' %}bg-secondary{% elif po.vessel.name|lower == 'babel' %}bg-warning{% elif po.vessel.name|lower == 'dahab' %}bg-info{% else %}bg-primary{% endif %}">
+                                        <span class="vessel-name" data-en="{{ po.vessel.name }}" data-ar="{{ po.vessel.name_ar }}">{{ po.vessel.name }}</span>
+                                    </span>
                                 </td>
                                 <td>
                                     {{ po.po_date|date:"d/m/Y" }}
