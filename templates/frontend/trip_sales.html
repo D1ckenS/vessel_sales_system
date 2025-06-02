@@ -11,7 +11,7 @@
             <div>
                 <h2>
                     <i class="bi bi-cart-plus text-success"></i> 
-                    {% trans "Trip Sales" %}: {{ trip.trip_number }}
+                    <span data-translate="trip_sales">Trip Sales</span>: {{ trip.trip_number }}
                 </h2>
                 <p class="text-muted mb-0">
                     <i class="bi bi-ship"></i> <span class="vessel-name" data-en="{{ trip.vessel.name }}" data-ar="{{ trip.vessel.name_ar }}">{{ trip.vessel.name }}</span> • 
@@ -21,11 +21,11 @@
             </div>
             <div class="d-flex gap-2">
                 <a href="{% url 'frontend:sales_entry' %}" class="btn btn-outline-secondary">
-                    <i class="bi bi-arrow-left"></i> {% trans "Back to Trips" %}
+                    <i class="bi bi-arrow-left"></i> <span data-translate="back_to_trips">Back to Trips</span>
                 </a>
                 {% if can_edit %}
                 <button type="button" class="btn btn-success" id="completeTripBtn" onclick="completeTripSales()">
-                    <i class="bi bi-check-circle"></i> {% trans "Complete Trip" %} (<span id="itemCountBadge">0</span>)
+                    <i class="bi bi-check-circle"></i> <span data-translate="complete_trip">Complete Trip</span> (<span id="itemCountBadge">0</span>)
                 </button>
                 {% endif %}
             </div>
@@ -40,7 +40,7 @@
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-3">
-                        <h6 class="mb-1 opacity-75">{% trans "Trip Revenue" %}</h6>
+                        <h6 class="mb-1 opacity-75"><span data-translate="trip_revenue">Trip Revenue</span></h6>
                         <h3 class="mb-0" id="tripRevenue">
                             {% if trip.is_completed %}
                                 {{ trip.total_revenue|floatformat:3 }} JOD
@@ -50,7 +50,7 @@
                         </h3>
                     </div>
                     <div class="col-md-3">
-                        <h6 class="mb-1 opacity-75">{% trans "Items in Cart" %}</h6>
+                        <h6 class="mb-1 opacity-75"><span data-translate="items_in_cart">Items In Cart</span></h6>
                         <h3 class="mb-0" id="itemCount">
                             {% if trip.is_completed %}
                                 {{ trip.transaction_count }}
@@ -60,7 +60,7 @@
                         </h3>
                     </div>
                     <div class="col-md-3">
-                        <h6 class="mb-1 opacity-75">{% trans "Revenue per Passenger" %}</h6>
+                        <h6 class="mb-1 opacity-75"><span data-translate="revenue_per_passenger">Revenue per Passenger</span></h6>
                         <h3 class="mb-0" id="revenuePerPassenger">
                             {% if trip.is_completed and trip.passenger_count > 0 %}
                                 {% widthratio trip.total_revenue trip.passenger_count 1 %} JOD
@@ -70,10 +70,10 @@
                         </h3>
                     </div>
                     <div class="col-md-3">
-                        <h6 class="mb-1 opacity-75">{% trans "Status" %}</h6>
+                        <h6 class="mb-1 opacity-75"><span data-translate="status">Status</span></h6>
                         <h3 class="mb-0">
                             {% if trip.is_completed %}
-                                <span class="badge bg-light text-dark">{% trans "Completed" %}</span>
+                                <span class="badge bg-light text-dark"><span data-translate="completed">Completed</span></span>
                             {% else %}
                                 <span class="badge bg-warning text-dark">{% trans "In Progress" %}</span>
                             {% endif %}
@@ -92,7 +92,7 @@
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0" id="formTitle">
-                    <i class="bi bi-plus-circle"></i> {% trans "Add Sales Item" %}
+                    <i class="bi bi-plus-circle"></i> <span data-translate="add_sales_item">Add Sales Item</span>
                 </h5>
             </div>
             <div class="card-body">
@@ -105,23 +105,23 @@
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label class="form-label fw-bold">
-                                <i class="bi bi-search"></i> {% trans "Search Product" %}
+                                <i class="bi bi-search"></i> <span data-translate="search_product">Search Product</span>
                             </label>
                             <div class="input-group">
                                 <input type="text" class="form-control form-control-lg" id="productSearch" 
                                        placeholder="{% trans 'Type product name, ID, or scan barcode...' %}">
                                 <button class="btn btn-outline-secondary" type="button" onclick="showComingSoon()">
-                                    <i class="bi bi-upc-scan"></i> {% trans "Scan" %}
+                                    <i class="bi bi-upc-scan"></i> <span data-translate="scan">Scan</span>
                                 </button>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-bold">
-                                <i class="bi bi-123"></i> {% trans "Quantity" %}
+                                <i class="bi bi-123"></i> <span data-translate="quantity">Quantity</span>
                             </label>
                             <input type="number" class="form-control form-control-lg" id="saleQuantity" 
                                    placeholder="0" min="1" step="1" disabled>
-                            <small class="text-muted" id="availableStock">{% trans "Select product first" %}</small>
+                            <small class="text-muted" id="availableStock"><span>Select product first</span></small>
                         </div>
                     </div>
                     
@@ -130,19 +130,19 @@
                         <div class="alert alert-info">
                             <div class="row">
                                 <div class="col-md-3">
-                                    <strong>{% trans "Product:" %}</strong>
+                                    <strong><span data-translate="product">Product: </span></strong>
                                     <div id="productName">-</div>
                                 </div>
                                 <div class="col-md-3">
-                                    <strong>{% trans "Unit Price:" %}</strong>
+                                    <strong><span data-translate="unit_price">Unit Price:</span></strong>
                                     <div id="unitPrice">- JOD</div>
                                 </div>
                                 <div class="col-md-3">
-                                    <strong>{% trans "Available:" %}</strong>
-                                    <div id="availableQty">- {% trans "units" %}</div>
+                                    <strong><span data-translate="available">Available:</span></strong>
+                                    <div id="availableQty">- <span data-translate="units">units</span></div>
                                 </div>
                                 <div class="col-md-3">
-                                    <strong>{% trans "Total:" %}</strong>
+                                    <strong><span data-translate="total">Total:</span></strong>
                                     <div id="totalAmount">0.000 JOD</div>
                                 </div>
                             </div>

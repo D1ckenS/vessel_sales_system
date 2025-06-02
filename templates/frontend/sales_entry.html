@@ -11,7 +11,7 @@
             <div>
                 <h2>
                     <i class="bi bi-cart-plus text-success"></i> 
-                    {% trans "Sales Entry" %}
+                    <span data-translate="sales_entry">Sales Entry</span>
                 </h2>
                 <p class="text-muted mb-0">{% trans "Create new trip and record sales transactions" %}</p>
             </div>
@@ -28,7 +28,7 @@
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0">
-                    <i class="bi bi-plus-circle"></i> {% trans "Create New Trip" %}
+                    <i class="bi bi-plus-circle"></i> <span data-translate="create_new_trip">Create New Trip</span>
                 </h5>
             </div>
             <div class="card-body">
@@ -39,21 +39,21 @@
                     <div class="row mb-4">
                         <div class="col-md-6">
                             <label class="form-label fw-bold">
-                                <i class="bi bi-ship"></i> {% trans "Select Vessel" %} *
+                                <i class="bi bi-ship"></i> <span data-translate="select_vessel">Select Vessel</span> *
                             </label>
                             <select class="form-select form-select-lg" name="vessel" required>
-                                <option value="">{% trans "Choose vessel..." %}</option>
+                                <option value="" data-translate="choose_vessel">Choose vessel...</option>
                                 {% for vessel in vessels %}
                                 <option value="{{ vessel.id }}" data-name="{{ vessel.name }}" data-duty-free="{{ vessel.has_duty_free }}">
                                     <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
-                                    {% if vessel.has_duty_free %}<span class="text-success">({% trans "Duty-Free" %})</span>{% endif %}
+                                    {% if vessel.has_duty_free %}<span class="text-success" data-translate="duty_free">Duty-Free</span>{% endif %}
                                 </option>
                                 {% endfor %}
                             </select>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-bold">
-                                <i class="bi bi-calendar"></i> {% trans "Trip Date" %} *
+                                <i class="bi bi-calendar"></i> <span data-translate="trip_date">Trip Date</span> *
                             </label>
                             <input type="date" class="form-control form-control-lg" name="trip_date" value="{{ today|date:'Y-m-d' }}" required>
                         </div>
@@ -63,15 +63,18 @@
                     <div class="row mb-4">
                         <div class="col-md-6">
                             <label class="form-label fw-bold">
-                                <i class="bi bi-hash"></i> {% trans "Trip Number" %} *
+                                <i class="bi bi-hash"></i> <span data-translate="trip_number">Trip Number</span> *
                             </label>
                             <input type="text" class="form-control form-control-lg" name="trip_number" 
-                                   placeholder="{% trans 'e.g., TR001, TRIP-2025-001' %}" required>
-                            <small class="text-muted">{% trans "Must be unique across all trips" %}</small>
+                                   placeholder="e.g., TR001, TRIP-2025-001"
+                                   data-placeholder-en="e.g., TR001, TRIP-2025-001"
+                                   data-placeholder-ar="مثال: TR001, TRIP-2025-001"
+                                   required>
+                            <small class="text-muted"><span data-translate="trip_number_help">Must be unique across all trips</span></small>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-bold">
-                                <i class="bi bi-people"></i> {% trans "Number of Passengers" %} *
+                                <i class="bi bi-people"></i> <span data-translate="passengers">Number of Passengers</span> *
                             </label>
                             <input type="number" class="form-control form-control-lg" name="passenger_count" 
                                    placeholder="0" min="1" step="1" required>
@@ -82,19 +85,23 @@
                     <!-- Trip Notes -->
                     <div class="mb-4">
                         <label class="form-label fw-bold">
-                            <i class="bi bi-chat-left-text"></i> {% trans "Trip Notes (Optional)" %}
+                            <i class="bi bi-chat-left-text"></i> <span data-translate="trip_notes">Trip Notes (Optional)</span>
                         </label>
                         <textarea class="form-control" name="notes" rows="3" 
-                                  placeholder="{% trans 'Additional notes about this trip...' %}"></textarea>
+                                  placeholder='Additional notes about this trip...'
+                                  data-placeholder-en='Additional notes about this trip...'
+                                  data-placeholder-ar='ملاحظات إضافية عن هذه الرحلة...'
+                                  >
+                                </textarea>
                     </div>
 
                     <!-- Action Buttons -->
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                         <button type="button" class="btn btn-outline-secondary btn-lg me-md-2" onclick="clearForm()">
-                            <i class="bi bi-x-circle"></i> {% trans "Clear Form" %}
+                            <i class="bi bi-x-circle"></i> <span data-translate="clear_form">Clear Form</span>
                         </button>
                         <button type="submit" class="btn btn-success btn-lg">
-                            <i class="bi bi-arrow-right"></i> {% trans "Create Trip & Add Sales" %}
+                            <i class="bi bi-arrow-right"></i> <span data-translate="create_new_trip">Create Trip & Add Sales</span>
                         </button>
                     </div>
                 </form>
@@ -109,7 +116,7 @@
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0">
-                    <i class="bi bi-clock-history"></i> {% trans "Recent Trips" %}
+                    <i class="bi bi-clock-history"></i> <span data-translate="recent_trips">Recent Trips</span>
                 </h5>
             </div>
             <div class="card-body">
@@ -117,13 +124,13 @@
                     <table class="table table-hover">
                         <thead>
                             <tr>
-                                <th><i class="bi bi-hash"></i> {% trans "Trip #" %}</th>
-                                <th><i class="bi bi-ship"></i> {% trans "Vessel" %}</th>
-                                <th><i class="bi bi-people"></i> {% trans "Passengers" %}</th>
-                                <th><i class="bi bi-calendar"></i> {% trans "Date" %}</th>
-                                <th><i class="bi bi-currency-dollar"></i> {% trans "Revenue" %}</th>
-                                <th><i class="bi bi-check-circle"></i> {% trans "Status" %}</th>
-                                <th><i class="bi bi-gear"></i> {% trans "Actions" %}</th>
+                                <th><i class="bi bi-hash"></i> <span data-translate="trip_hash">Trip #</span></th>
+                                <th><i class="bi bi-ship"></i> <span data-translate="vessel">Vessel</span></th>
+                                <th><i class="bi bi-people"></i> <span data-translate="passengers_short">Passengers</span></th>
+                                <th><i class="bi bi-calendar"></i> <span data-translate="trip_date">Date</span></th>
+                                <th><i class="bi bi-currency-dollar"></i> <span data-translate="revenue">Revenue</span></th>
+                                <th><i class="bi bi-check-circle"></i> <span data-translate="status">Status</span></th>
+                                <th><i class="bi bi-gear"></i> <span data-translate="actions">Actions</span></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -139,7 +146,7 @@
                                 </td>
                                 <td>
                                     <span class="fw-bold">{{ trip.passenger_count }}</span>
-                                    <small class="text-muted">{% trans "passengers" %}</small>
+                                    <small class="text-muted"><span data-translate="passengers_short">passengers</span></small>
                                 </td>
                                 <td>
                                     {{ trip.trip_date|date:"d/m/Y" }}
@@ -151,19 +158,19 @@
                                 </td>
                                 <td>
                                     {% if trip.is_completed %}
-                                        <span class="badge bg-success">{% trans "Completed" %}</span>
+                                        <span class="badge bg-success"><span data-translate="completed">Completed</span></span>
                                     {% else %}
-                                        <span class="badge bg-warning">{% trans "In Progress" %}</span>
+                                        <span class="badge bg-warning"><span data-translate="in_progress">In Progress</span></span>
                                     {% endif %}
                                 </td>
                                 <td>
                                     {% if not trip.is_completed %}
                                         <a href="{% url 'frontend:trip_sales' trip.id %}" class="btn btn-primary btn-sm">
-                                            <i class="bi bi-plus"></i> {% trans "Add Sales" %}
+                                            <i class="bi bi-plus"></i> <span data-translate="add_sales">Add Sales</span>
                                         </a>
                                     {% else %}
                                         <button class="btn btn-outline-secondary btn-sm" onclick="viewTripDetails({{ trip.id }})">
-                                            <i class="bi bi-eye"></i> {% trans "View" %}
+                                            <i class="bi bi-eye"></i> <span data-translate="view">View</span>
                                         </button>
                                     {% endif %}
                                 </td>
@@ -172,7 +179,7 @@
                             <tr>
                                 <td colspan="7" class="text-center text-muted py-4">
                                     <i class="bi bi-ship" style="font-size: 2rem;"></i>
-                                    <p class="mt-2 mb-0">{% trans "No trips recorded yet" %}</p>
+                                    <p class="mt-2 mb-0"><span data-translate="no_trips_yet">No Trips Recorded Yet</span></p>
                                     <small>{% trans "Create your first trip using the form above" %}</small>
                                 </td>
                             </tr>

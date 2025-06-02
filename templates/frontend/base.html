@@ -687,6 +687,19 @@
                 element.textContent = enName;
             }
         });
+
+        // Update placeholders based on current language
+        document.querySelectorAll('[data-placeholder-en]').forEach(element => {
+            const currentLang = window.translator.currentLanguage;
+            const enPlaceholder = element.getAttribute('data-placeholder-en');
+            const arPlaceholder = element.getAttribute('data-placeholder-ar');
+            
+            if (currentLang === 'ar' && arPlaceholder) {
+                element.placeholder = arPlaceholder;
+            } else {
+                element.placeholder = enPlaceholder;
+            }
+        });
         
         // Update modal button text
         const cancelSpan = document.querySelector('#confirmationCancel span');
@@ -734,6 +747,11 @@
                 'reports': 'Reports',
                 'admin_panel': 'Admin Panel',
                 'logout': 'Logout',
+                'search_products': 'Search Product',
+                'scan': 'Scan',
+                'quantity': 'Quantity',
+                'product': 'Product',
+                'total': 'Total:',
                 // Dashboard translations
                 'quick_actions': 'Quick Actions',
                 'record_sales': 'Record Sales',
@@ -749,7 +767,54 @@
                 'system_setup': 'System Setup',
                 'manage_products_desc': 'Manage products & vessels',
                 'alerts': 'Alerts',
-                'low_stock_desc': 'Low stock notifications'
+                'low_stock_desc': 'Low stock notifications',
+                // Sales Entry Form Translations
+                'create_new_trip': 'Create New Trip',
+                'select_vessel': 'Select Vessel',
+                'choose_vessel': 'Choose vessel...',
+                'duty_free': 'Duty-Free',
+                'trip_date': 'Trip Date',
+                'trip_number': 'Trip Number',
+                'trip_number_placeholder': 'e.g., TR001, TRIP-2025-001',
+                'trip_number_help': 'Must be unique across all trips',
+                'passengers': 'Number of Passengers',
+                'passengers_placeholder': '0',
+                'passengers_help': 'Total passengers on this trip',
+                'trip_notes': 'Trip Notes (Optional)',
+                'trip_notes_placeholder': 'Additional notes about this trip...',
+                'clear_form': 'Clear Form',
+                'create_trip_add_sales': 'Create Trip & Add Sales',
+                'recent_trips': 'Recent Trips',
+                'trip_hash': 'Trip #',
+                'vessel': 'Vessel',
+                'passengers_short': 'Passengers',
+                'date': 'Date',
+                'revenue': 'Revenue',
+                'status': 'Status',
+                'actions': 'Actions',
+                'completed': 'Completed',
+                'in_progress': 'In Progress',
+                'add_sales': 'Add Sales',
+                'view': 'View',
+                'passengers_text': 'passengers',
+                'items': 'items',
+                'no_trips_yet': 'No trips recorded yet',
+                'create_first_trip': 'Create your first trip using the form above',
+                // Trip Sales Translations
+                'back_to_trips': 'Back to Trips',
+                'trip_sales': 'Trip Sales',
+                'complete_trip': 'Complete Trip',
+                'trip_revenue': 'Trip Revenue',
+                'trip_items': 'Trip Items',
+                'items_in_cart': 'Items in Cart',
+                'revenue_per_passenger': 'Revenue per Passenger',
+                'sales_list': 'Sales List',
+                'item_count': 'Item Count',
+                'add_sales_item': 'Add Sales Item',
+                'select_product_first': 'Select product first',
+                'units': 'units',
+                'unit_selling_price': 'Unit Price',
+                'available': 'Available:',
             },
             ar: {
                 'cancel': 'إلغاء',
@@ -763,6 +828,10 @@
                 'reports': 'التقارير',
                 'admin_panel': 'لوحة الإدارة',
                 'logout': 'تسجيل الخروج',
+                'search_products': 'ابحث عن المنتجات',
+                'quantity': 'الكمية',
+                'product': 'المنتج',
+                'available': 'المتوفر :',
                 // Dashboard translations
                 'quick_actions': 'الإجراءات السريعة',
                 'record_sales': 'تسجيل المبيعات',
@@ -778,7 +847,55 @@
                 'system_setup': 'إعداد النظام',
                 'manage_products_desc': 'إدارة المنتجات والسفن',
                 'alerts': 'التنبيهات',
-                'low_stock_desc': 'تنبيهات انخفاض المخزون'
+                'low_stock_desc': 'تنبيهات انخفاض المخزون',
+                // Sales Entry Form Translations
+                'create_new_trip': 'إنشاء رحلة جديدة',
+                'select_vessel': 'اختر السفينة',
+                'choose_vessel': 'اختر السفينة...',
+                'duty_free': '(مواد جمركية)',
+                'trip_date': 'تاريخ الرحلة',
+                'trip_number': 'رقم الرحلة',
+                'trip_number_placeholder': 'مثال: TR001, TRIP-2025-001',
+                'trip_number_help': 'يجب أن يكون فريداً عبر جميع الرحلات',
+                'passengers': 'عدد الركاب',
+                'passengers_placeholder': '0',
+                'passengers_help': 'إجمالي الركاب في هذه الرحلة',
+                'trip_notes': 'ملاحظات الرحلة (اختياري)',
+                'trip_notes_placeholder': 'ملاحظات إضافية حول هذه الرحلة...',
+                'clear_form': 'مسح النموذج',
+                'create_trip_add_sales': 'إنشاء الرحلة وإضافة المبيعات',
+                'recent_trips': 'الرحلات الأخيرة',
+                'trip_hash': 'رقم الرحلة',
+                'vessel': 'السفينة',
+                'passengers_short': 'الركاب',
+                'date': 'التاريخ',
+                'revenue': 'الإيرادات',
+                'status': 'الحالة',
+                'actions': 'الإجراءات',
+                'completed': 'مكتملة',
+                'in_progress': 'قيد التنفيذ',
+                'add_sales': 'إضافة مبيعات',
+                'view': 'عرض',
+                'passengers_text': 'راكب',
+                'items': 'عنصر',
+                'no_trips_yet': 'لم يتم تسجيل رحلات بعد',
+                'create_first_trip': 'أنشئ رحلتك الأولى باستخدام النموذج أعلاه',
+                // Trip Sales Translations
+                'back_to_trips': 'الرجوع للرحلات',
+                'trip_sales': 'مبيعات الرحلة',
+                'complete_trip': 'انتهاء الرحلة',
+                'trip_revenue': 'ايرادات الرحلة',
+                'trip_items': 'عناصر الرحلة',
+                'items_in_cart': 'عناصر السلة',
+                'revenue_per_passenger': 'الإيراد لكل راكب',
+                'sales_list': 'قائمة المبيعات',
+                'item_count': 'عدد العناصر',
+                'add_sales_item': 'اضف العنصر للمبيعات',
+                'scan': 'مسح',
+                'select_product_first': 'اختر المنتج اولا',
+                'units': 'وحدات',
+                'unit_selling_price': 'سعر بيع الوحدة',
+                'total': 'المجموع :',
             }
         };
         
