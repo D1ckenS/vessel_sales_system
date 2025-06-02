@@ -58,7 +58,7 @@
 <div class="row mb-4">
     <div class="col-12 text-center">
         <h3 class="mb-3">
-            <i class="bi bi-lightning "></i> Quick Actions
+            <i class="bi bi-lightning"></i> <span data-translate="quick_actions">Quick Actions</span>
         </h3>
     </div>
     
@@ -69,56 +69,56 @@
             <div class="quick-action-wrapper">
                 <a href="{% url 'frontend:sales_entry' %}" class="quick-action">
                     <i class="bi bi-cart-plus text-success"></i>
-                    <h6>Record Sales</h6>
-                    <p class="text-muted small mb-0">Add new sales transactions</p>
+                    <h6 data-translate="record_sales">Record Sales</h6>
+                    <p class="text-muted small mb-0" data-translate="add_sales_desc">Add new sales transactions</p>
                 </a>
             </div>
 
             <div class="quick-action-wrapper">
                 <a href="{% url 'frontend:supply_entry' %}" class="quick-action">
                     <i class="bi bi-box-seam text-primary"></i>
-                    <h6>Receive Stock</h6>
-                    <p class="text-muted small mb-0">Record new inventory shipments</p>
+                    <h6 data-translate="receive_stock">Receive Stock</h6>
+                    <p class="text-muted small mb-0" data-translate="receive_stock_action">Record new inventory shipments</p>
                 </a>
             </div>
             
             <div class="quick-action-wrapper">
                 <a href="{% url 'frontend:inventory_check' %}" class="quick-action">
                     <i class="bi bi-boxes text-primary"></i>
-                    <h6>Check Stock</h6>
-                    <p class="text-muted small mb-0">View inventory levels</p>
+                    <h6 data-translate="check_stock">Check Stock</h6>
+                    <p class="text-muted small mb-0" data-translate="view_inventory_desc">View inventory levels</p>
                 </a>
             </div>
             
             <div class="quick-action-wrapper">
                 <a href="{% url 'frontend:transfer_center' %}" class="quick-action">
                     <i class="bi bi-arrow-left-right text-warning"></i>
-                    <h6>Transfer Items</h6>
-                    <p class="text-muted small mb-0">Move stock between vessels</p>
+                    <h6 data-translate="transfer_items">Transfer Items</h6>
+                    <p class="text-muted small mb-0" data-translate="transfer_items">Move stock between vessels</p>
                 </a>
             </div>
             
             <div class="quick-action-wrapper">
                 <a href="{% url 'frontend:reports_dashboard' %}" class="quick-action">
                     <i class="bi bi-graph-up text-info"></i>
-                    <h6>View Reports</h6>
-                    <p class="text-muted small mb-0">Sales & inventory reports</p>
+                    <h6 data-translate="view_reports">View Reports</h6>
+                    <p class="text-muted small mb-0" data-translate="view_reports">Sales & inventory reports</p>
                 </a>
             </div>
             
             <div class="quick-action-wrapper">
                 <a href="/admin/" class="quick-action">
                     <i class="bi bi-gear text-secondary"></i>
-                    <h6>System Setup</h6>
-                    <p class="text-muted small mb-0">Manage products & vessels</p>
+                    <h6 data-translate="system_setup">System Setup</h6>
+                    <p class="text-muted small mb-0" data-translate="system_setup">Manage products & vessels</p>
                 </a>
             </div>
             
             <div class="quick-action-wrapper">
                 <a href="#" class="quick-action" onclick="showComingSoon()">
                     <i class="bi bi-bell text-danger"></i>
-                    <h6>Alerts</h6>
-                    <p class="text-muted small mb-0">Low stock notifications</p>
+                    <h6 data-translate="alerts">Alerts</h6>
+                    <p class="text-muted small mb-0" data-translate="alerts">Low stock notifications</p>
                 </a>
             </div>
         </div>
