@@ -245,6 +245,65 @@
             background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
             color: #856404;
         }
+        /* RTL Layout for Arabic */
+        .rtl-layout {
+            direction: rtl;
+            text-align: right;
+        }
+
+        .rtl-layout .navbar-nav {
+            flex-direction: row-reverse;
+        }
+
+        .rtl-layout .navbar-brand {
+            margin-left: auto;
+            margin-right: 0;
+        }
+
+        .rtl-layout .btn-group {
+            flex-direction: row-reverse;
+        }
+
+        .rtl-layout .d-flex {
+            flex-direction: row-reverse;
+        }
+
+        .rtl-layout .ms-2,
+        .rtl-layout .me-2 {
+            margin-left: 0.5rem !important;
+            margin-right: 0.5rem !important;
+        }
+
+        .rtl-layout .text-end {
+            text-align: right !important;
+        }
+
+        .rtl-layout .text-start {
+            text-align: left !important;
+        }
+
+        .rtl-layout .dropdown-menu {
+            right: 0;
+            left: auto;
+        }
+
+        /* Language Toggle Button Styling */
+        #languageToggle {
+            border-radius: 20px;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        #languageToggle:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: translateY(-1px);
+        }
+
+        #currentLangText {
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
     </style>
 
     {% block extra_css %}{% endblock %}
@@ -266,42 +325,49 @@
                     <li class="nav-item">
                         <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" 
                            href="{% url 'frontend:dashboard' %}">
-                            <i class="bi bi-house-door"></i> Dashboard
+                            <i class="bi bi-house-door"></i> <span data-translate="dashboard">Dashboard</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.resolver_match.url_name == 'sales_entry' %}active{% endif %}" 
                            href="{% url 'frontend:sales_entry' %}">
-                            <i class="bi bi-cart-plus"></i> Sales Entry
+                            <i class="bi bi-cart-plus"></i> <span data-translate="sales_entry">Sales Entry</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.resolver_match.url_name == 'supply_entry' %}active{% endif %}" 
                         href="{% url 'frontend:supply_entry' %}">
-                            <i class="bi bi-box-seam"></i> Receive Stock
+                            <i class="bi bi-box-seam"></i> <span data-translate="receive_stock">Receive Stock</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.resolver_match.url_name == 'inventory_check' %}active{% endif %}" 
                            href="{% url 'frontend:inventory_check' %}">
-                            <i class="bi bi-boxes"></i> Inventory
+                            <i class="bi bi-boxes"></i> <span data-translate="inventory">Inventory</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.resolver_match.url_name == 'transfer_center' %}active{% endif %}" 
                            href="{% url 'frontend:transfer_center' %}">
-                            <i class="bi bi-arrow-left-right"></i> Transfers
+                            <i class="bi bi-arrow-left-right"></i> <span data-translate="transfers">Transfers</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if 'reports' in request.resolver_match.url_name %}active{% endif %}" 
                            href="{% url 'frontend:reports_dashboard' %}">
-                            <i class="bi bi-graph-up"></i> Reports
+                            <i class="bi bi-graph-up"></i> <span data-translate="reports">Reports</span>
                         </a>
                     </li>
                 </ul>
                 
                 <ul class="navbar-nav">
+                    <!-- Language Toggle Button -->
+                    <li class="nav-item">
+                        <button class="btn btn-outline-light btn-sm me-3" id="languageToggle" onclick="toggleLanguage()">
+                            <i class="bi bi-globe"></i> 
+                            <span id="currentLangText">EN</span>
+                        </button>
+                    </li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
                             <i class="bi bi-person-circle"></i> {{ user.username }}
@@ -332,6 +398,65 @@
 
             <!-- Page Content -->
             {% block content %}{% endblock %}
+        </div>
+    </div>
+
+    <!-- Custom Confirmation Modal -->
+    <div class="modal fade" id="confirmationModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header border-0" style="background: linear-gradient(135deg, var(--secondary-blue) 0%, var(--primary-blue) 100%);">
+                    <h5 class="modal-title text-white" id="confirmationModalTitle">
+                        <i class="bi bi-question-circle me-2"></i>Confirm Action
+                    </h5>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="text-center">
+                        <div class="confirmation-icon mb-3">
+                            <i class="bi bi-exclamation-triangle text-warning" style="font-size: 3rem;"></i>
+                        </div>
+                        <p class="confirmation-message mb-0" id="confirmationMessage">
+                            Are you sure you want to proceed?
+                        </p>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 justify-content-center">
+                    <button type="button" class="btn btn-outline-secondary px-4" id="confirmationCancel">
+                        <i class="bi bi-x-circle me-2"></i><span data-translate="cancel">Cancel</span>
+                    </button>
+                    <button type="button" class="btn btn-primary px-4" id="confirmationConfirm">
+                        <i class="bi bi-check-circle me-2"></i><span data-translate="confirm">Confirm</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Alert Modal -->
+    <div class="modal fade" id="alertModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header border-0" style="background: linear-gradient(135deg, var(--secondary-blue) 0%, var(--primary-blue) 100%);">
+                    <h5 class="modal-title text-white" id="alertModalTitle">
+                        <i class="bi bi-info-circle me-2"></i>Information
+                    </h5>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="text-center">
+                        <div class="alert-icon mb-3">
+                            <i class="bi bi-info-circle text-info" style="font-size: 3rem;"></i>
+                        </div>
+                        <p class="alert-message mb-0" id="alertMessage">
+                            This is an alert message.
+                        </p>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 justify-content-center">
+                    <button type="button" class="btn btn-primary px-4" id="alertOk">
+                        <i class="bi bi-check-circle me-2"></i><span data-translate="ok">OK</span>
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -420,13 +545,76 @@
         return window.translator._(key, params);
     };
 
+    // Custom styled confirmation dialog
     window.confirmTranslated = function(key, params) {
-        return window.translator.confirm(key, params);
+        return new Promise((resolve) => {
+            const message = window.translator._(key, params);
+            const modal = new bootstrap.Modal(document.getElementById('confirmationModal'));
+            
+            // Set message
+            document.getElementById('confirmationMessage').textContent = message;
+            
+            // Handle buttons
+            const confirmBtn = document.getElementById('confirmationConfirm');
+            const cancelBtn = document.getElementById('confirmationCancel');
+            
+            // Remove old event listeners
+            const newConfirmBtn = confirmBtn.cloneNode(true);
+            const newCancelBtn = cancelBtn.cloneNode(true);
+            confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+            cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+            
+            // Add new event listeners
+            newConfirmBtn.addEventListener('click', () => {
+                modal.hide();
+                resolve(true);
+            });
+            
+            newCancelBtn.addEventListener('click', () => {
+                modal.hide();
+                resolve(false);
+            });
+            
+            // Handle backdrop click and escape key
+            document.getElementById('confirmationModal').addEventListener('hidden.bs.modal', () => {
+                resolve(false);
+            }, { once: true });
+            
+            modal.show();
+        });
     };
 
+    // Custom styled alert dialog
     window.alertTranslated = function(key, params) {
-        return window.translator.alert(key, params);
+        return new Promise((resolve) => {
+            const message = window.translator._(key, params);
+            const modal = new bootstrap.Modal(document.getElementById('alertModal'));
+            
+            // Set message
+            document.getElementById('alertMessage').textContent = message;
+            
+            // Handle OK button
+            const okBtn = document.getElementById('alertOk');
+            const newOkBtn = okBtn.cloneNode(true);
+            okBtn.parentNode.replaceChild(newOkBtn, okBtn);
+            
+            newOkBtn.addEventListener('click', () => {
+                modal.hide();
+                resolve();
+            });
+            
+            // Handle backdrop click and escape key
+            document.getElementById('alertModal').addEventListener('hidden.bs.modal', () => {
+                resolve();
+            }, { once: true });
+            
+            modal.show();
+        });
     };
+
+    // Backward compatibility - update existing confirm/alert calls
+    window.showStyledConfirm = window.confirmTranslated;
+    window.showStyledAlert = window.alertTranslated;
 
     // Test that everything works properly
     console.log('🎯 Translation functions ready:', {
@@ -434,6 +622,111 @@
         _: typeof window._,
         confirmTranslated: typeof window.confirmTranslated,
         alertTranslated: typeof window.alertTranslated
+    });
+    // Language Toggle Functionality
+    window.toggleLanguage = function() {
+        const currentLang = window.translator.currentLanguage;
+        const newLang = currentLang === 'en' ? 'ar' : 'en';
+        
+        // Switch language in translator
+        window.translator.setLanguage(newLang);
+        
+        // Update button text
+        const langButton = document.getElementById('currentLangText');
+        if (langButton) {
+            langButton.textContent = newLang.toUpperCase();
+        }
+        
+        // Update HTML lang attribute
+        document.documentElement.lang = newLang;
+        
+        // Add/remove RTL class for Arabic
+        if (newLang === 'ar') {
+            document.body.classList.add('rtl-layout');
+            document.documentElement.dir = 'rtl';
+        } else {
+            document.body.classList.remove('rtl-layout');
+            document.documentElement.dir = 'ltr';
+        }
+        
+        // Update all translatable elements on the page
+        updatePageTranslations();
+        
+        console.log('🌐 Language switched to:', newLang);
+    };
+
+    // Update all translatable elements on the page
+    window.updatePageTranslations = function() {
+        // Update elements with data-translate attribute
+        document.querySelectorAll('[data-translate]').forEach(element => {
+            const key = element.getAttribute('data-translate');
+            const params = element.getAttribute('data-translate-params');
+            const parsedParams = params ? JSON.parse(params) : {};
+            element.textContent = window.translator._(key, parsedParams);
+        });
+        
+        // Update modal button text
+        const cancelSpan = document.querySelector('#confirmationCancel span');
+        const confirmSpan = document.querySelector('#confirmationConfirm span');
+        const okSpan = document.querySelector('#alertOk span');
+        
+        if (cancelSpan) cancelSpan.textContent = _('cancel');
+        if (confirmSpan) confirmSpan.textContent = _('confirm');
+        if (okSpan) okSpan.textContent = _('ok');
+    };
+
+    // Initialize language on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        const savedLang = localStorage.getItem('preferred_language') || 'en';
+        const langButton = document.getElementById('currentLangText');
+        
+        if (langButton) {
+            langButton.textContent = savedLang.toUpperCase();
+        }
+        
+        if (savedLang === 'ar') {
+            document.body.classList.add('rtl-layout');
+            document.documentElement.dir = 'rtl';
+            document.documentElement.lang = 'ar';
+        }
+        
+        // Set up global translations for interface
+        const globalTranslations = {
+            en: {
+                'cancel': 'Cancel',
+                'confirm': 'Confirm', 
+                'ok': 'OK',
+                'dashboard': 'Dashboard',
+                'sales_entry': 'Sales Entry',
+                'receive_stock': 'Receive Stock',
+                'inventory': 'Inventory',
+                'transfers': 'Transfers',
+                'reports': 'Reports',
+                'admin_panel': 'Admin Panel',
+                'logout': 'Logout'
+            },
+            ar: {
+                'cancel': 'إلغاء',
+                'confirm': 'تأكيد',
+                'ok': 'موافق',
+                'dashboard': 'لوحة التحكم',
+                'sales_entry': 'إدخال المبيعات',
+                'receive_stock': 'استلام البضائع',
+                'inventory': 'المخزون',
+                'transfers': 'التحويلات',
+                'reports': 'التقارير',
+                'admin_panel': 'لوحة الإدارة',
+                'logout': 'تسجيل الخروج'
+            }
+        };
+        
+        // Merge with existing translations
+        if (window.translator.translations.en) {
+            Object.assign(window.translator.translations.en, globalTranslations.en);
+            Object.assign(window.translator.translations.ar, globalTranslations.ar);
+        } else {
+            window.translator.setTranslations(globalTranslations);
+        }
     });
     </script>
     

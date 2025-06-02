@@ -1,5 +1,6 @@
 # Replace your frontend/urls.py with this updated version
 
+from django.http import HttpResponse
 from django.urls import path
 from . import views
 
@@ -53,4 +54,7 @@ urlpatterns = [
     
     # Transactions
     path('transactions/', views.transactions_list, name='transactions_list'),  # NEW
+    
+    # Suppress Chrome DevTools requests
+    path('.well-known/appspecific/com.chrome.devtools.json', lambda r: HttpResponse('{}', content_type='application/json')),
 ]

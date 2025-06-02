@@ -756,14 +756,15 @@ function editCartItem(index) {
     document.getElementById('addSupplyForm').scrollIntoView({ behavior: 'smooth' });
 }
 
-function cancelEdit() {
+async function cancelEdit() {
     if (editingIndex >= 0) {
         exitEditMode();
     } else {
         // Smart cancel - check if PO has items or can be deleted
         const messageKey = poSuppliesCart.length > 0 ? 'cancel_po_with_cart' : 'cancel_po_empty';
         
-        if (!confirmTranslated(messageKey)) return;
+        const confirmed = await confirmTranslated(messageKey);
+        if (!confirmed) return;
         
         fetch('/supply/po/cancel/', {
             method: 'POST',
@@ -924,7 +925,7 @@ function displayCompletedSupplies(completedSupplies) {
     }
 }
 
-function completePOSupplies() {
+async function completePOSupplies() {
     if (poSuppliesCart.length === 0) {
         showAlert(_('add_one_item_first'), 'warning');
         return;
@@ -937,7 +938,11 @@ function completePOSupplies() {
         cost: totalCost.toFixed(3)
     });
     
-    if (!confirm(confirmMsg)) return;
+    const confirmed = await confirmTranslated('complete_po_confirm', {
+        count: poSuppliesCart.length,
+        cost: totalCost.toFixed(3)
+    });
+    if (!confirmed) return;
     
     const completePOBtn = document.getElementById('completePOBtn');
     const originalText = completePOBtn.innerHTML;
