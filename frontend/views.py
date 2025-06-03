@@ -4,7 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Sum, Count, Q, F
 from django.http import JsonResponse
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from decimal import Decimal
 import decimal
 from vessels.models import Vessel
@@ -454,6 +454,7 @@ def dashboard(request):
     
     # Get basic stats
     today = date.today()
+    now = datetime.now()
     vessels = Vessel.objects.filter(active=True)
     
     # Today's sales summary
@@ -475,6 +476,7 @@ def dashboard(request):
         'today_sales': today_sales,
         'recent_transactions': recent_transactions,
         'today': today,
+        'now': now,
     }
     
     return render(request, 'frontend/dashboard.html', context)

@@ -15,7 +15,7 @@
                 </h2>
                 <p class="text-muted mb-0">
                     <i class="bi bi-ship"></i> <span class="vessel-name" data-en="{{ trip.vessel.name }}" data-ar="{{ trip.vessel.name_ar }}">{{ trip.vessel.name }}</span> • 
-                    <i class="bi bi-people"></i> {{ trip.passenger_count }} {% trans "passengers" %} • 
+                    <i class="bi bi-people"></i> {{ trip.passenger_count }} <span data-translate="passengers">passengers</span> • 
                     <i class="bi bi-calendar"></i> {{ trip.trip_date|date:"d/m/Y" }}
                 </p>
             </div>
@@ -75,7 +75,7 @@
                             {% if trip.is_completed %}
                                 <span class="badge bg-light text-dark"><span data-translate="completed">Completed</span></span>
                             {% else %}
-                                <span class="badge bg-warning text-dark">{% trans "In Progress" %}</span>
+                                <span class="badge bg-warning text-dark"><span data-translate="in_progress">In Progress</span></span>
                             {% endif %}
                         </h3>
                     </div>
@@ -109,7 +109,9 @@
                             </label>
                             <div class="input-group">
                                 <input type="text" class="form-control form-control-lg" id="productSearch" 
-                                       placeholder="{% trans 'Type product name, ID, or scan barcode...' %}">
+                                       placeholder='Type product name, ID, or scan barcode...'
+                                       data-placeholder-en="Type product name, ID, or scan barcode..."
+                                       data-placeholder-ar="اكتب اسم المنتج، الكود، او امسح الباركود...">
                                 <button class="btn btn-outline-secondary" type="button" onclick="showComingSoon()">
                                     <i class="bi bi-upc-scan"></i> <span data-translate="scan">Scan</span>
                                 </button>
@@ -121,7 +123,7 @@
                             </label>
                             <input type="number" class="form-control form-control-lg" id="saleQuantity" 
                                    placeholder="0" min="1" step="1" disabled>
-                            <small class="text-muted" id="availableStock"><span>Select product first</span></small>
+                            <small class="text-muted" id="availableStock"><span data-translate="select_product_first">Select product first</span></small>
                         </div>
                     </div>
                     
@@ -134,7 +136,7 @@
                                     <div id="productName">-</div>
                                 </div>
                                 <div class="col-md-3">
-                                    <strong><span data-translate="unit_price">Unit Price:</span></strong>
+                                    <strong><span data-translate="unit_selling_price">Unit Price:</span></strong>
                                     <div id="unitPrice">- JOD</div>
                                 </div>
                                 <div class="col-md-3">
@@ -153,17 +155,19 @@
                     <div class="row">
                         <div class="col-md-6">
                             <label class="form-label fw-bold">
-                                <i class="bi bi-chat-left-text"></i> {% trans "Notes (Optional)" %}
+                                <i class="bi bi-chat-left-text"></i> <span data-translate="notes">Notes (Optional)</span>
                             </label>
                             <input type="text" class="form-control" id="saleNotes" 
-                                   placeholder="{% trans 'Additional notes for this sale...' %}">
+                                   placeholder='Additional notes for this sale...'
+                                   data-placeholder-en='Additional notes for this sale...'
+                                   data-placeholder-ar='ملاحظات إضافية لهذا البيع...'>
                         </div>
                         <div class="col-md-6 d-flex align-items-end gap-2">
                             <button type="button" class="btn btn-outline-secondary" onclick="cancelEdit()">
-                                <i class="bi bi-x-circle"></i> {% trans "Cancel" %}
+                                <i class="bi bi-x-circle"></i> <span data-translate="cancel">Cancel</span>
                             </button>
                             <button type="submit" class="btn btn-primary flex-grow-1" id="addSaleBtn" disabled>
-                                <i class="bi bi-plus"></i> <span id="addBtnText">{% trans "Add to Trip" %}</span>
+                                <i class="bi bi-plus"></i> <span id="addBtnText"><span data-translate="add_to_trip">Add to Trip</span></span>
                             </button>
                         </div>
                     </div>
@@ -181,15 +185,15 @@
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
                     <i class="bi bi-list"></i> 
-                    {% if can_edit %}{% trans "Sales Cart" %}{% else %}{% trans "Sales Items" %}{% endif %} 
+                    {% if can_edit %}<span data-translate="sales_cart">Sales Cart</span> {% else %} <span data-translate="sales_items">Sales Items</span>{% endif %} 
                     (<span id="salesListCount">0</span>)
                 </h5>
                 <div class="d-flex gap-2">
                     <button class="btn btn-outline-success btn-sm" onclick="exportTripSales()">
-                        <i class="bi bi-file-earmark-excel"></i> {% trans "Export" %}
+                        <i class="bi bi-file-earmark-excel"></i> <span data-translate="export">Export</span>
                     </button>
                     <button class="btn btn-outline-primary btn-sm" onclick="printTripSales()">
-                        <i class="bi bi-printer"></i> {% trans "Print" %}
+                        <i class="bi bi-printer"></i> <span data-translate="print">Print</span>
                     </button>
                 </div>
             </div>
@@ -198,14 +202,14 @@
                     <table class="table table-hover mb-0">
                         <thead class="table-light">
                             <tr>
-                                {% if not can_edit %}<th>{% trans "Time" %}</th>{% endif %}
-                                <th>{% trans "Product" %}</th>
-                                <th class="text-center">{% trans "Quantity" %}</th>
-                                <th class="text-end">{% trans "Unit Price" %}</th>
-                                <th class="text-end">{% trans "Total" %}</th>
-                                <th>{% trans "Notes" %}</th>
+                                {% if not can_edit %}<th><span data-translate="time">Time</span></th>{% endif %}
+                                <th><span data-translate="product">Product</span></th>
+                                <th class="text-center"><span data-translate="quantity">Quantity</span></th>
+                                <th class="text-end"><span data-translate="unit_selling_price">Unit Price</span></th>
+                                <th class="text-end"><span data-translate="total">Total</span></th>
+                                <th><span data-translate="notes">Notes</span></th>
                                 {% if can_edit %}
-                                <th class="text-center">{% trans "Actions" %}</th>
+                                <th class="text-center"><span data-translate="actions">Actions</span></th>
                                 {% endif %}
                             </tr>
                         </thead>
@@ -218,8 +222,8 @@
                 <!-- Empty State -->
                 <div id="emptySalesState" class="text-center py-5" style="display: none;">
                     <i class="bi bi-cart-x text-muted" style="font-size: 3rem;"></i>
-                    <h5 class="text-muted mt-3">{% trans "No items in cart" %}</h5>
-                    <p class="text-muted">{% trans "Use the form above to add sales items to this trip" %}</p>
+                    <h5 class="text-muted mt-3"><span data-translate="no_items_in_cart">No items in cart</span></h5>
+                    <p class="text-muted"><span data-translate="use_form">Use the form above to add sales items to this trip</span></p>
                 </div>
             </div>
         </div>
@@ -267,6 +271,11 @@ document.addEventListener('DOMContentLoaded', function() {
             'update_item': 'Update Item',
             'already_in_cart': 'Already in Cart',
             'completing': 'Completing...',
+            'edit_sales_item': 'Edit Sales Item',
+            'edit_item': 'Edit Item',
+            'remove_item': 'Remove Item',
+            'add_sales_item': 'Add Sales Item',
+            'duty_free': 'Duty Free',
             
             // Units and currency
             'units': 'units',
@@ -296,10 +305,14 @@ document.addEventListener('DOMContentLoaded', function() {
             'export_coming_soon': '📊 ميزة التصدير قريباً!',
             'print_coming_soon': '🖨️ ميزة الطباعة قريباً!',
             
-            'add_to_trip': 'إضافة للرحلة',
+            'add_to_trip': 'أضف للرحلة',
             'update_item': 'تحديث العنصر',
             'already_in_cart': 'موجود في السلة',
             'completing': 'جاري الإكمال...',
+            'edit_sales_item': 'تحرير عنصر البيع',
+            'edit_item': 'تحرير العنصر',
+            'remove_item': 'حذف العنصر',
+            'add_sales_item': 'أضف عنصر بيع',
             
             'units': 'وحدة',
             'jod': 'دينار'
@@ -553,8 +566,9 @@ function selectProduct(product) {
     // Update UI
     document.getElementById('productName').textContent = product.name;
     document.getElementById('unitPrice').textContent = product.selling_price.toFixed(3) + ' JOD';
-    document.getElementById('availableQty').textContent = product.total_quantity + ' {% trans "units" %}';
-    document.getElementById('availableStock').textContent = `{% trans "Available:" %} ${product.total_quantity} {% trans "units" %}`;
+    // NEW (updates on language change):
+    document.getElementById('availableQty').textContent = product.total_quantity + ' ' + _('units');
+    document.getElementById('availableStock').textContent = _('available_stock', {count: product.total_quantity});
     
     // Enable quantity input
     const quantityInput = document.getElementById('saleQuantity');
@@ -698,8 +712,8 @@ function editCartItem(index) {
     editingIndex = index;
     
     // Update UI to edit mode
-    document.getElementById('formTitle').innerHTML = '<i class="bi bi-pencil"></i> {% trans "Edit Sales Item" %}';
-    document.getElementById('addBtnText').textContent = '{% trans "Update Item" %}';
+    document.getElementById('formTitle').innerHTML = '<i class="bi bi-pencil"></i> ' + _('edit_sales_item');
+    document.getElementById('addBtnText').textContent = _('update_item');
     
     // Simulate product selection by setting selectedProduct
     selectedProduct = {
@@ -736,14 +750,14 @@ function editCartItem(index) {
     document.getElementById('addSaleForm').scrollIntoView({ behavior: 'smooth' });
 }
 
-function cancelEdit() {
+async function cancelEdit() {  // ← Add 'async'
     if (editingIndex >= 0) {
         exitEditMode();
     } else {
-        // Smart cancel - check if trip has items or can be deleted
         const messageKey = tripSalesCart.length > 0 ? 'cancel_trip_with_cart' : 'cancel_trip_empty';
         
-        if (!confirmTranslated(messageKey)) return;
+        const confirmed = await confirmTranslated(messageKey);  // ← Add 'await'
+        if (!confirmed) return;
         
         fetch('/sales/trip/cancel/', {
             method: 'POST',
@@ -776,8 +790,8 @@ function cancelEdit() {
 
 function exitEditMode() {
     editingIndex = -1;
-    document.getElementById('formTitle').innerHTML = '<i class="bi bi-plus-circle"></i> {% trans "Add Sales Item" %}';
-    document.getElementById('addBtnText').textContent = '{% trans "Add to Trip" %}';
+    document.getElementById('formTitle').innerHTML = '<i class="bi bi-plus-circle"></i>' + _('add_sales_item');
+    document.getElementById('addBtnText').textContent = _('add_to_trip');
     clearForm();
 }
 
@@ -856,10 +870,10 @@ function updateCartDisplay() {
                 </td>
                 <td class="text-center">
                     <div class="btn-group btn-group-sm">
-                        <button class="btn btn-outline-primary" onclick="editCartItem(${index})" title="{% trans 'Edit Item' %}">
+                        <button class="btn btn-outline-primary" onclick="editCartItem(${index})" title= "${_('edit_item')}">
                             <i class="bi bi-pencil"></i>
                         </button>
-                        <button class="btn btn-outline-danger" onclick="removeFromCart(${index})" title="{% trans 'Remove Item' %}">
+                        <button class="btn btn-outline-danger" onclick="removeFromCart(${index})" title="${_('remove_item')}">
                             <i class="bi bi-trash"></i>
                         </button>
                     </div>

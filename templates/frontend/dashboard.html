@@ -10,7 +10,7 @@
             <div class="card-body text-center py-4">
                 <h2 class="mb-3">
                     <i class="bi bi-sun text-warning"></i> 
-                    Welcome back, {{ user.first_name|default:user.username }}!
+                    <span data-translate="welcome_back">Welcome back,</span> {{ user.first_name|default:user.username }}!
                 </h2>
                 <p class="lead text-muted mb-0">{{ today|date:"l, F d, Y" }}</p>
             </div>
@@ -25,7 +25,7 @@
             <div class="stats-number text-success">
                 {{ today_sales.total_revenue|default:0|floatformat:2 }}
             </div>
-            <div class="stats-label">Today's Revenue (JOD)</div>
+            <div class="stats-label"><span data-translate="today_revenue">Today's Revenue (JOD)</span></div>
         </div>
     </div>
     <div class="col-md-3 col-sm-6 mb-3">
@@ -33,7 +33,7 @@
             <div class="stats-number text-primary">
                 {{ today_sales.transaction_count|default:0 }}
             </div>
-            <div class="stats-label">Today's Transactions</div>
+            <div class="stats-label"><span data-translate="today_transactions">Today's Transactions</span></div>
         </div>
     </div>
     <div class="col-md-3 col-sm-6 mb-3">
@@ -41,15 +41,15 @@
             <div class="stats-number text-info">
                 {{ vessels.count }}
             </div>
-            <div class="stats-label">Active Vessels</div>
+            <div class="stats-label"><span data-translate="active_vessels">Active Vessels</span></div>
         </div>
     </div>
     <div class="col-md-3 col-sm-6 mb-3">
         <div class="stats-card">
             <div class="stats-number text-warning">
-                <i class="bi bi-clock"></i>
+                <i class="bi bi-clock"></i> <span id="liveClock">{{ now|date:"H:i" }}</span>
             </div>
-            <div class="stats-label">{{ today|time:"H:i" }}</div>
+            <div class="stats-label" data-translate="current_time">Current Time</div>
         </div>
     </div>
 </div>
@@ -229,7 +229,7 @@
         <div class="card h-100">
             <div class="card-header">
                 <h5 class="mb-0">
-                    <i class="bi bi-ship"></i> Vessel Status
+                    <i class="bi bi-ship"></i> <span data-translate="vessel_status">Vessel Status</span>
                 </h5>
             </div>
             <div class="card-body">
@@ -243,13 +243,13 @@
                                 </h6>
                                 <small class="text-muted">
                                     {% if vessel.has_duty_free %}
-                                        <i class="bi bi-check-circle text-success"></i> Duty-Free Available
+                                        <i class="bi bi-check-circle text-success"></i> <span data-translate="duty_free_available">Duty-Free Available</span>
                                     {% else %}
                                         <i class="bi bi-x-circle text-muted"></i> General Products Only
                                     {% endif %}
                                 </small>
                             </div>
-                            <span class="badge bg-success rounded-pill">Active</span>
+                            <span class="badge bg-success rounded-pill"><span data-translate="active">Active</span></span>
                         </div>
                         {% endfor %}
                     </div>
@@ -355,6 +355,20 @@
 
 {% block extra_js %}
 <script>
+function updateClock() {
+    const now = new Date();
+    const timeString = now.toLocaleTimeString('en-GB', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: false 
+    });
+    document.getElementById('liveClock').textContent = timeString;
+}
+
+// Update clock every second
+setInterval(updateClock, 1000);
+updateClock(); // Initial call
+
 function showComingSoon() {
     alert('🚀 This feature is coming soon! Stay tuned for updates.');
 }
