@@ -10,16 +10,14 @@ import decimal
 from vessels.models import Vessel
 from products.models import Product
 from transactions.models import Transaction, InventoryLot, Trip, PurchaseOrder
+from .utils import BilingualMessages
 
 @login_required
 def supply_entry(request):
     """Step 1: Create new purchase order for supply transactions"""
     
     if request.method == 'GET':
-        # Display the PO creation form
         vessels = Vessel.objects.filter(active=True).order_by('name')
-        
-        # Get recent POs for reference
         recent_pos = PurchaseOrder.objects.select_related('vessel', 'created_by').order_by('-created_at')[:10]
         
         context = {
@@ -40,7 +38,7 @@ def supply_entry(request):
             
             # Validate required fields
             if not all([vessel_id, po_number, po_date]):
-                messages.error(request, 'Please fill in all required fields.')
+                BilingualMessages.error(request, 'required_fields_missing')
                 return redirect('frontend:supply_entry')
             
             # Get vessel
@@ -48,7 +46,7 @@ def supply_entry(request):
             
             # Validate PO number uniqueness
             if PurchaseOrder.objects.filter(po_number=po_number).exists():
-                messages.error(request, f'Purchase Order "{po_number}" already exists. Please use a different number.')
+                BilingualMessages.error(request, 'po_number_exists', po_number=po_number)
                 return redirect('frontend:supply_entry')
             
             from datetime import datetime
@@ -63,17 +61,17 @@ def supply_entry(request):
                 created_by=request.user
             )
             
-            messages.success(request, f'Purchase Order {po_number} created successfully! Now add supply items.')
+            BilingualMessages.success(request, 'po_created_success', po_number=po_number)
             return redirect('frontend:po_supply', po_id=po.id)
             
         except Vessel.DoesNotExist:
-            messages.error(request, 'Invalid vessel selected.')
+            BilingualMessages.error(request, 'invalid_vessel')
             return redirect('frontend:supply_entry')
         except (ValueError, ValidationError) as e:
-            messages.error(request, f'Invalid data: {str(e)}')
+            BilingualMessages.error(request, 'invalid_data', error=str(e))
             return redirect('frontend:supply_entry')
         except Exception as e:
-            messages.error(request, f'Error creating purchase order: {str(e)}')
+            BilingualMessages.error(request, 'error_creating_po', error=str(e))
             return redirect('frontend:supply_entry')
 
 @login_required
@@ -328,17 +326,14 @@ def add_product(request):
             # Get action from either field
             action = request.POST.get('action') or request.POST.get('form_action')
             
-            print(f"DEBUG: Form action received: '{action}' (from POST keys: {list(request.POST.keys())})")
-            print(f"DEBUG: Product data - name: '{name}', item_id: '{item_id}'")
-            
             # Basic validation
             if not all([name, item_id, category_id, purchase_price, selling_price]):
-                messages.error(request, 'Please fill in all required fields.')
+                BilingualMessages.error(request, 'required_fields_missing')
                 return redirect('frontend:add_product')
             
             # Validate unique item_id
             if Product.objects.filter(item_id=item_id).exists():
-                messages.error(request, f'Item ID "{item_id}" already exists. Please use a different ID.')
+                BilingualMessages.error(request, 'product_already_exists', item_id=item_id)
                 return redirect('frontend:add_product')
             
             # Get category
@@ -346,7 +341,7 @@ def add_product(request):
             try:
                 category = Category.objects.get(id=category_id, active=True)
             except Category.DoesNotExist:
-                messages.error(request, 'Invalid category selected.')
+                BilingualMessages.error(request, 'invalid_category')
                 return redirect('frontend:add_product')
             
             # Create the product
@@ -363,22 +358,18 @@ def add_product(request):
                 created_by=request.user
             )
             
-            print(f"DEBUG: Product created successfully with ID: {product.id}")
-            
-            # Handle initial stock - USE SAME LOGIC AS SUPPLY ENTRY
+            # Handle initial stock
             if action == 'with_stock':
-                print(f"DEBUG: Processing initial stock (action: {action})")
-                
                 purchase_date_str = request.POST.get('purchase_date')
                 if not purchase_date_str:
-                    messages.error(request, 'Purchase date is required for initial stock.')
+                    BilingualMessages.error(request, 'purchase_date_required')
                     product.delete()
                     return redirect('frontend:add_product')
                 
                 from datetime import datetime
                 purchase_date = datetime.strptime(purchase_date_str, '%Y-%m-%d').date()
                 
-                # Process each vessel - SIMPLIFIED LOGIC
+                # Process each vessel
                 vessels_processed = []
                 vessels = Vessel.objects.filter(active=True)
                 
@@ -397,11 +388,12 @@ def add_product(request):
                                 if quantity > 0 and cost > 0:
                                     # Duty-free validation
                                     if product.is_duty_free and not vessel.has_duty_free:
-                                        messages.error(request, f'Cannot add duty-free product to {vessel.name}')
+                                        BilingualMessages.error(request, 'cannot_add_duty_free', 
+                                                              vessel_name=get_vessel_display_name(vessel, BilingualMessages.get_user_language(request)))
                                         product.delete()
                                         return redirect('frontend:add_product')
                                     
-                                    # Create SUPPLY transaction - SAME AS SUPPLY ENTRY
+                                    # Create SUPPLY transaction
                                     supply_transaction = Transaction.objects.create(
                                         vessel=vessel,
                                         product=product,
@@ -413,39 +405,44 @@ def add_product(request):
                                         created_by=request.user
                                     )
                                     
-                                    print(f"DEBUG: Created SUPPLY transaction ID {supply_transaction.id} for {vessel.name}")
-                                    vessels_processed.append(f'{vessel.name}: {quantity} units @ {cost} JOD')
+                                    vessels_processed.append({
+                                        'vessel': vessel,
+                                        'quantity': quantity,
+                                        'cost': cost
+                                    })
                                     
                             except (ValueError, decimal.InvalidOperation) as e:
-                                print(f"DEBUG: Error processing {vessel.name}: {e}")
-                                messages.error(request, f'Invalid data for {vessel.name}')
+                                BilingualMessages.error(request, 'invalid_vessel_data', 
+                                                      vessel_name=get_vessel_display_name(vessel, BilingualMessages.get_user_language(request)))
                                 product.delete()
                                 return redirect('frontend:add_product')
                 
                 if vessels_processed:
-                    messages.success(request, f'Product "{product.name}" created with stock: {"; ".join(vessels_processed)}')
+                    # Format vessel list for message
+                    language = BilingualMessages.get_user_language(request)
+                    vessel_list = '; '.join([
+                        f'{get_vessel_display_name(v["vessel"], language)}: {v["quantity"]} units @ {v["cost"]} JOD'
+                        for v in vessels_processed
+                    ])
+                    BilingualMessages.success(request, 'product_created_with_stock', 
+                                            name=product.name, vessels=vessel_list)
                 else:
-                    messages.error(request, 'No valid stock data provided')
+                    BilingualMessages.error(request, 'no_valid_stock_data')
                     product.delete()
                     return redirect('frontend:add_product')
                     
             else:
-                print(f"DEBUG: Product only mode (action: {action})")
-                messages.success(request, f'Product "{product.name}" (ID: {product.item_id}) created successfully.')
-            
-            return redirect('frontend:inventory_check')
+                BilingualMessages.success(request, 'product_created_success', 
+                                        name=product.name, item_id=product.item_id)
             
             return redirect('frontend:inventory_check')
             
         except Exception as e:
-            print(f"DEBUG: Exception occurred: {e}")
-            import traceback
-            print(f"DEBUG: Traceback: {traceback.format_exc()}")
-            messages.error(request, f'Error creating product: {str(e)}')
+            BilingualMessages.error(request, 'error_creating_product', error=str(e))
             return redirect('frontend:add_product')
     
     else:
-        messages.error(request, 'Invalid request method.')
+        BilingualMessages.error(request, 'invalid_request_method')
         return redirect('frontend:inventory_check')
 
 @login_required
@@ -486,10 +483,7 @@ def sales_entry(request):
     """Step 1: Create new trip for sales transactions"""
     
     if request.method == 'GET':
-        # Display the trip creation form
         vessels = Vessel.objects.filter(active=True).order_by('name')
-        
-        # Get recent trips for reference
         recent_trips = Trip.objects.select_related('vessel', 'created_by').order_by('-created_at')[:10]
         
         context = {
@@ -511,7 +505,7 @@ def sales_entry(request):
             
             # Validate required fields
             if not all([vessel_id, trip_number, passenger_count, trip_date]):
-                messages.error(request, 'Please fill in all required fields.')
+                BilingualMessages.error(request, 'required_fields_missing')
                 return redirect('frontend:sales_entry')
             
             # Get vessel
@@ -519,13 +513,13 @@ def sales_entry(request):
             
             # Validate trip number uniqueness
             if Trip.objects.filter(trip_number=trip_number).exists():
-                messages.error(request, f'Trip number "{trip_number}" already exists. Please use a different number.')
+                BilingualMessages.error(request, 'trip_number_exists', trip_number=trip_number)
                 return redirect('frontend:sales_entry')
             
             # Parse and validate data
             passenger_count_val = int(passenger_count)
             if passenger_count_val <= 0:
-                messages.error(request, 'Passenger count must be greater than 0.')
+                BilingualMessages.error(request, 'passenger_count_positive')
                 return redirect('frontend:sales_entry')
             
             from datetime import datetime
@@ -541,17 +535,17 @@ def sales_entry(request):
                 created_by=request.user
             )
             
-            messages.success(request, f'Trip {trip_number} created successfully! Now add sales items.')
+            BilingualMessages.success(request, 'trip_created_success', trip_number=trip_number)
             return redirect('frontend:trip_sales', trip_id=trip.id)
             
         except Vessel.DoesNotExist:
-            messages.error(request, 'Invalid vessel selected.')
+            BilingualMessages.error(request, 'invalid_vessel')
             return redirect('frontend:sales_entry')
         except (ValueError, ValidationError) as e:
-            messages.error(request, f'Invalid data: {str(e)}')
+            BilingualMessages.error(request, 'invalid_data', error=str(e))
             return redirect('frontend:sales_entry')
         except Exception as e:
-            messages.error(request, f'Error creating trip: {str(e)}')
+            BilingualMessages.error(request, 'error_creating_trip', error=str(e))
             return redirect('frontend:sales_entry')
 
 @login_required
@@ -1947,6 +1941,33 @@ def transactions_list(request):
     return render(request, 'frontend/transactions_list.html', context)
 
 @login_required
+def set_language(request):
+    """AJAX endpoint to set user's language preference"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST method required'})
+    
+    try:
+        import json
+        data = json.loads(request.body)
+        language = data.get('language', 'en')
+        
+        # Validate language
+        if language not in ['en', 'ar']:
+            return JsonResponse({'success': False, 'error': 'Invalid language'})
+        
+        # Save to session
+        request.session['preferred_language'] = language
+        
+        return JsonResponse({
+            'success': True,
+            'language': language,
+            'message': f'Language set to {language}'
+        })
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
 def reports_dashboard(request):
     """Reports hub with different report options"""
     return render(request, 'frontend/reports_dashboard.html')
@@ -1965,3 +1986,5 @@ def monthly_report(request):
 def analytics_report(request):
     """User-friendly analytics dashboard"""
     return render(request, 'frontend/analytics_report.html')
+
+from .utils import get_vessel_display_name, format_vessel_list

@@ -581,6 +581,31 @@
         });
     };
 
+    // Number formatting for different languages
+    window.translateNumber = function(number) {
+        const currentLang = window.translator ? window.translator.currentLanguage : 'en';
+        
+        if (currentLang === 'ar') {
+            // Arabic-Indic numerals
+            const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+            return number.toString().replace(/[0-9]/g, (w) => arabicNumerals[+w]);
+        }
+        
+        return number.toString(); // English numerals
+    };
+
+    // Format currency for different languages
+    window.translateCurrency = function(amount) {
+        const currentLang = window.translator ? window.translator.currentLanguage : 'en';
+        const translatedNumber = translateNumber(amount);
+        
+        if (currentLang === 'ar') {
+            return translatedNumber + ' دينار'; // Arabic currency
+        }
+        
+        return translatedNumber + ' JOD'; // English currency
+    };
+
     // Custom styled alert dialog
     window.alertTranslated = function(key, params) {
         return new Promise((resolve) => {
@@ -661,6 +686,7 @@
             
             // Update other translations
             updatePageTranslations();
+            updateClock();
         }, 100);
         
         console.log('🌐 Language switched to:', newLang);
@@ -704,6 +730,24 @@
                 element.placeholder = arPlaceholder;
             } else {
                 element.placeholder = enPlaceholder;
+            }
+        });
+
+        // Update numbers and currency displays
+        document.querySelectorAll('.stats-number, .fw-bold, [data-number]').forEach(element => {
+            const originalText = element.getAttribute('data-original') || element.textContent;
+            
+            // Store original if not stored
+            if (!element.getAttribute('data-original')) {
+                element.setAttribute('data-original', originalText);
+            }
+            
+            // Extract numbers and translate them
+            const numberMatch = originalText.match(/[\d,]+\.?\d*/);
+            if (numberMatch) {
+                const number = numberMatch[0].replace(/,/g, '');
+                const translatedNumber = translateNumber(number);
+                element.textContent = originalText.replace(numberMatch[0], translatedNumber);
             }
         });
         

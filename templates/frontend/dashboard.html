@@ -47,7 +47,7 @@
     <div class="col-md-3 col-sm-6 mb-3">
         <div class="stats-card">
             <div class="stats-number text-warning">
-                <i class="bi bi-clock"></i> <span id="liveClock">{{ now|date:"H:i" }}</span>
+                <i class="bi bi-clock"></i> <span id="liveClock" data-time="{{ now|date:'H:i' }}"></span>
             </div>
             <div class="stats-label" data-translate="current_time">Current Time</div>
         </div>
@@ -62,11 +62,10 @@
         </h3>
     </div>
     
-    <!-- Use flexbox container for equal-width items -->
     <div class="col-12">
-        <div class="d-flex flex-wrap justify-content-center gap-2">
+        <div class="row justify-content-center">
             
-            <div class="quick-action-wrapper">
+            <div class="col-lg-2 col-md-3 col-sm-4 col-6 mb-3">
                 <a href="{% url 'frontend:sales_entry' %}" class="quick-action">
                     <i class="bi bi-cart-plus text-success"></i>
                     <h6 data-translate="record_sales">Record Sales</h6>
@@ -74,15 +73,15 @@
                 </a>
             </div>
 
-            <div class="quick-action-wrapper">
+            <div class="col-lg-2 col-md-3 col-sm-4 col-6 mb-3">
                 <a href="{% url 'frontend:supply_entry' %}" class="quick-action">
                     <i class="bi bi-box-seam text-primary"></i>
                     <h6 data-translate="receive_stock">Receive Stock</h6>
-                    <p class="text-muted small mb-0" data-translate="receive_stock_action">Record new inventory shipments</p>
+                    <p class="text-muted small mb-0" data-translate="record_inventory_desc">Record new inventory shipments</p>
                 </a>
             </div>
             
-            <div class="quick-action-wrapper">
+            <div class="col-lg-2 col-md-3 col-sm-4 col-6 mb-3">
                 <a href="{% url 'frontend:inventory_check' %}" class="quick-action">
                     <i class="bi bi-boxes text-primary"></i>
                     <h6 data-translate="check_stock">Check Stock</h6>
@@ -90,37 +89,30 @@
                 </a>
             </div>
             
-            <div class="quick-action-wrapper">
+            <div class="col-lg-2 col-md-3 col-sm-4 col-6 mb-3">
                 <a href="{% url 'frontend:transfer_center' %}" class="quick-action">
                     <i class="bi bi-arrow-left-right text-warning"></i>
                     <h6 data-translate="transfer_items">Transfer Items</h6>
-                    <p class="text-muted small mb-0" data-translate="transfer_items">Move stock between vessels</p>
+                    <p class="text-muted small mb-0" data-translate="move_stock_desc">Move stock between vessels</p>
                 </a>
             </div>
             
-            <div class="quick-action-wrapper">
+            <div class="col-lg-2 col-md-3 col-sm-4 col-6 mb-3">
                 <a href="{% url 'frontend:reports_dashboard' %}" class="quick-action">
                     <i class="bi bi-graph-up text-info"></i>
                     <h6 data-translate="view_reports">View Reports</h6>
-                    <p class="text-muted small mb-0" data-translate="view_reports">Sales & inventory reports</p>
+                    <p class="text-muted small mb-0" data-translate="sales_inventory_desc">Sales & inventory reports</p>
                 </a>
             </div>
             
-            <div class="quick-action-wrapper">
+            <div class="col-lg-2 col-md-3 col-sm-4 col-6 mb-3">
                 <a href="/admin/" class="quick-action">
                     <i class="bi bi-gear text-secondary"></i>
                     <h6 data-translate="system_setup">System Setup</h6>
-                    <p class="text-muted small mb-0" data-translate="system_setup">Manage products & vessels</p>
+                    <p class="text-muted small mb-0" data-translate="manage_products_desc">Manage products & vessels</p>
                 </a>
             </div>
             
-            <div class="quick-action-wrapper">
-                <a href="#" class="quick-action" onclick="showComingSoon()">
-                    <i class="bi bi-bell text-danger"></i>
-                    <h6 data-translate="alerts">Alerts</h6>
-                    <p class="text-muted small mb-0" data-translate="alerts">Low stock notifications</p>
-                </a>
-            </div>
         </div>
     </div>
 </div>
@@ -357,13 +349,24 @@
 <script>
 function updateClock() {
     const now = new Date();
-    const timeString = now.toLocaleTimeString('en-GB', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: false 
-    });
-    document.getElementById('liveClock').textContent = timeString;
+    const savedLang = localStorage.getItem("preferred_language") || "en";
+
+    const options = {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: savedLang === "ar" // Arabic users may prefer 12-hour format
+    };
+
+    const timeString = now.toLocaleTimeString(savedLang === "ar" ? "ar-EG" : "en-GB", options);
+
+    document.getElementById("liveClock").textContent = timeString;
 }
+
+// Run once on page load
+document.addEventListener("DOMContentLoaded", updateClock);
+
+// Keep it updating every minute
+setInterval(updateClock, 60000);
 
 // Update clock every second
 setInterval(updateClock, 1000);
