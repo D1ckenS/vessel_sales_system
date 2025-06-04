@@ -10,7 +10,7 @@
             <div class="card-body text-center py-4">
                 <h2 class="mb-3">
                     <i class="bi bi-sun text-warning"></i> 
-                    <span data-translate="welcome_back">Welcome back,</span> {{ user.first_name|default:user.username }}!
+                    <span data-translate="welcome_back">Welcome back,</span> <span id="username-display">{{ user.first_name|default:user.username }}</span>!
                 </h2>
                 <p class="lead text-muted mb-0">{{ today|date:"l, F d, Y" }}</p>
             </div>
@@ -22,7 +22,7 @@
 <div class="row mb-4">
     <div class="col-md-3 col-sm-6 mb-3">
         <div class="stats-card">
-            <div class="stats-number text-success">
+            <div class="stats-number text-success" data-number data-original="{{ today_sales.total_revenue|default:0|floatformat:2 }}">
                 {{ today_sales.total_revenue|default:0|floatformat:2 }}
             </div>
             <div class="stats-label"><span data-translate="today_revenue">Today's Revenue (JOD)</span></div>
@@ -30,7 +30,7 @@
     </div>
     <div class="col-md-3 col-sm-6 mb-3">
         <div class="stats-card">
-            <div class="stats-number text-primary">
+            <div class="stats-number text-primary" data-number data-original="{{ today_sales.transaction_count|default:0 }}">
                 {{ today_sales.transaction_count|default:0 }}
             </div>
             <div class="stats-label"><span data-translate="today_transactions">Today's Transactions</span></div>
@@ -44,12 +44,13 @@
             <div class="stats-label"><span data-translate="active_vessels">Active Vessels</span></div>
         </div>
     </div>
-    <div class="col-md-3 col-sm-6 mb-3">
-        <div class="stats-card">
-            <div class="stats-number text-warning">
-                <i class="bi bi-clock"></i> <span id="liveClock" data-time="{{ now|date:'H:i' }}"></span>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stats-card">
+                <div class="stats-number text-warning">
+                    <i class="bi bi-clock" id="clock-icon-protected"></i> <span id="liveClock" data-time="{{ now|date:'H:i' }}"></span>
+                </div>
+                <div class="stats-label"><span data-translate="current_time">Current Time</span></div>
             </div>
-            <div class="stats-label" data-translate="current_time">Current Time</div>
         </div>
     </div>
 </div>
@@ -349,17 +350,24 @@
 <script>
 function updateClock() {
     const now = new Date();
-    const savedLang = localStorage.getItem("preferred_language") || "en";
+    const currentLang = window.translator ? window.translator.currentLanguage : 'en';
 
     const options = {
         hour: "2-digit",
         minute: "2-digit",
-        hour12: savedLang === "ar" // Arabic users may prefer 12-hour format
+        hour12: false
     };
 
-    const timeString = now.toLocaleTimeString(savedLang === "ar" ? "ar-EG" : "en-GB", options);
-
-    document.getElementById("liveClock").textContent = timeString;
+    const timeString = now.toLocaleTimeString(currentLang === "ar" ? "ar-SA" : "en-GB", options);
+    
+    // Apply number translation if Arabic
+    const translatedTime = currentLang === 'ar' ? 
+        window.translateNumber(timeString) : timeString;
+    
+    const clockElement = document.getElementById("liveClock");
+    if (clockElement) {
+        clockElement.textContent = translatedTime;
+    }
 }
 
 // Run once on page load
@@ -380,33 +388,5 @@ function showComingSoon() {
 setTimeout(function() {
     window.location.reload();
 }, 300000);
-
-function translateTransactionType(type) {
-    const transactionTypes = {
-        en: {
-            'Sale': 'Sale',
-            'Supply': 'Supply', 
-            'Transfer Out': 'Transfer Out',
-            'Transfer In': 'Transfer In',
-            'Supply (Stock Received)': 'Supply (Stock Received)',
-            'Sale (Sold to Customers)': 'Sale (Sold to Customers)',
-            'Transfer Out (Sent to Another Vessel)': 'Transfer Out (Sent to Another Vessel)',
-            'Transfer In (Received from Another Vessel)': 'Transfer In (Received from Another Vessel)'
-        },
-        ar: {
-            'Sale': 'مبيعات',
-            'Supply': 'توريد',
-            'Transfer Out': 'تحويل خارج', 
-            'Transfer In': 'تحويل داخل',
-            'Supply (Stock Received)': 'توريد (مخزون مستلم)',
-            'Sale (Sold to Customers)': 'مبيعات (بيع للعملاء)',
-            'Transfer Out (Sent to Another Vessel)': 'تحويل خارج (مرسل لسفينة أخرى)',
-            'Transfer In (Received from Another Vessel)': 'تحويل داخل (مستلم من سفينة أخرى)'
-        }
-    };
-
-    const currentLang = window.translator ? window.translator.currentLanguage : 'en';
-    return transactionTypes[currentLang][type] || type;
-}
 </script>
 {% endblock %}

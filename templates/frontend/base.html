@@ -637,6 +637,35 @@
         return number.toString(); // English numerals
     };
 
+        // Transaction type translation helper (moved from dashboard.html)
+        window.translateTransactionType = function(type) {
+            const types = {
+                'en': {
+                    'Sale': 'Sale',
+                    'Supply': 'Supply',
+                    'Transfer Out': 'Transfer Out',
+                    'Transfer In': 'Transfer In',
+                    'Supply (Stock Received)': 'Supply (Stock Received)',
+                    'Sale (Sold to Customers)': 'Sale (Sold to Customers)',
+                    'Transfer Out (Sent to Another Vessel)': 'Transfer Out (Sent to Another Vessel)',
+                    'Transfer In (Received from Another Vessel)': 'Transfer In (Received from Another Vessel)'
+                },
+                'ar': {
+                    'Sale': 'مبيعات',
+                    'Supply': 'توريد',
+                    'Transfer Out': 'تحويل خارج', 
+                    'Transfer In': 'تحويل داخل',
+                    'Supply (Stock Received)': 'توريد (مخزون مستلم)',
+                    'Sale (Sold to Customers)': 'مبيعات (بيع للعملاء)',
+                    'Transfer Out (Sent to Another Vessel)': 'تحويل خارج (مرسل لسفينة أخرى)',
+                    'Transfer In (Received from Another Vessel)': 'تحويل داخل (مستلم من سفينة أخرى)'
+                }
+            };
+            
+            const currentLang = window.translator ? window.translator.currentLanguage : 'en';
+            return types[currentLang][type] || type;
+        };
+
     // Format currency for different languages
     window.translateCurrency = function(amount) {
         const currentLang = window.translator ? window.translator.currentLanguage : 'en';
@@ -752,16 +781,19 @@
             
             if (currentLang === 'ar' && arName) {
                 element.textContent = arName;
-            } else {
+            } else if (enName){
                 element.textContent = enName;
             }
         });
 
-        // Update transaction types
+        // 9. Update transaction types immediately
         document.querySelectorAll('.transaction-type').forEach(element => {
-            const originalType = element.getAttribute('data-type');
+            const originalType = element.getAttribute('data-type') || element.textContent;
+            if (!element.getAttribute('data-type')) {
+                element.setAttribute('data-type', originalType);
+            }
             element.textContent = translateTransactionType(originalType);
-        });        
+        });
 
         // Update placeholders based on current language
         document.querySelectorAll('[data-placeholder-en]').forEach(element => {
@@ -777,22 +809,41 @@
         });
 
         // Update numbers and currency displays
-        document.querySelectorAll('.stats-number, .fw-bold, [data-number]').forEach(element => {
+        document.querySelectorAll('.stats-number:not(.text-warning)').forEach(element => {
             const originalText = element.getAttribute('data-original') || element.textContent;
-            
-            // Store original if not stored
             if (!element.getAttribute('data-original')) {
                 element.setAttribute('data-original', originalText);
             }
             
-            // Extract numbers and translate them
-            const numberMatch = originalText.match(/[\d,]+\.?\d*/);
+            const numberMatch = originalText.match(/[\d,]+\.?\d*/g);
             if (numberMatch) {
-                const number = numberMatch[0].replace(/,/g, '');
-                const translatedNumber = translateNumber(number);
-                element.textContent = originalText.replace(numberMatch[0], translatedNumber);
+                let updatedText = originalText;
+                numberMatch.forEach(number => {
+                    const translatedNumber = translateNumber(number.replace(/,/g, ''));
+                    updatedText = updatedText.replace(number, translatedNumber);
+                });
+                element.textContent = updatedText;
             }
         });
+
+        // 9. Update currency and badges immediately
+        document.querySelectorAll('.badge, [data-currency], .text-muted small').forEach(element => {
+            if (element.textContent.includes('JOD')) {
+                const amount = element.textContent.match(/[\d,]+\.?\d*/);
+                if (amount) {
+                    element.textContent = element.textContent.replace(/[\d,]+\.?\d* JOD/, translateCurrency(amount[0]));
+                }
+            }
+        });
+        
+        // 10. Update "Active" badges and status text
+        document.querySelectorAll('.badge').forEach(element => {
+            if (element.textContent.includes('Active') || element.textContent.includes('نشط')) {
+                element.innerHTML = '<span data-translate="active">Active</span>';
+                const span = element.querySelector('span');
+                span.textContent = window.translator._('active');
+            }
+        });        
         
         // Update modal button text
         const cancelSpan = document.querySelector('#confirmationCancel span');
@@ -1109,7 +1160,7 @@
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || '',
                 'X-User-Language': newLang
             },
             body: JSON.stringify({
@@ -1198,7 +1249,7 @@
         // Fix Issue 1: Apply translations after page load
         setTimeout(() => {
             updatePageTranslations();
-        }, 100);
+        }, 0);
     });
     </script>
     
