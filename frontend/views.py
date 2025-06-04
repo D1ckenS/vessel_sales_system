@@ -81,7 +81,7 @@ def po_supply(request, po_id):
     try:
         po = PurchaseOrder.objects.select_related('vessel').get(id=po_id)
     except PurchaseOrder.DoesNotExist:
-        messages.error(request, 'Purchase Order not found.')
+        BilingualMessages.error(request, 'Purchase Order not found.')
         return redirect('frontend:supply_entry')
     
     # Get existing supplies for this PO (to populate shopping cart if PO was previously started)
@@ -156,7 +156,7 @@ def po_complete(request, po_id):
             total_cost = po.total_cost
             transaction_count = po.transaction_count
             
-            messages.success(request, 
+            BilingualMessages.success(request, 
                 f'Purchase Order {po.po_number} completed! '
                 f'{transaction_count} items received for {total_cost:.3f} JOD total cost.'
             )
@@ -164,7 +164,7 @@ def po_complete(request, po_id):
             return redirect('frontend:supply_entry')
             
         except PurchaseOrder.DoesNotExist:
-            messages.error(request, 'Purchase Order not found.')
+            BilingualMessages.error(request, 'Purchase Order not found.')
             return redirect('frontend:supply_entry')
 
 @login_required
@@ -555,7 +555,7 @@ def trip_sales(request, trip_id):
     try:
         trip = Trip.objects.select_related('vessel').get(id=trip_id)
     except Trip.DoesNotExist:
-        messages.error(request, 'Trip not found.')
+        BilingualMessages.error(request, 'Trip not found.')
         return redirect('frontend:sales_entry')
     
     # Get existing sales for this trip (to populate shopping cart if trip was previously started)

@@ -57,5 +57,5 @@ urlpatterns = [
     
     # Suppress Chrome DevTools requests
     path('.well-known/appspecific/com.chrome.devtools.json', lambda r: HttpResponse('{}', content_type='application/json')),
-    # path('api/set-language/', views.set_language, name='set_language'),
+    path('api/set-language/', views.set_language, name='set_language'),
 ]

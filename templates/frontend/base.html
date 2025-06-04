@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ CURRENT_LANGUAGE }}" dir="{{ LANGUAGE_DIRECTION }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,6 +11,49 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
     
     <style>
+        /* Enhanced RTL Support */
+        [dir="rtl"] {
+            text-align: right;
+        }
+
+        [dir="rtl"] .navbar-nav {
+            flex-direction: row-reverse;
+        }
+
+        [dir="rtl"] .navbar-brand {
+            margin-left: auto;
+            margin-right: 0;
+        }
+
+        [dir="rtl"] .btn-group {
+            flex-direction: row-reverse;
+        }
+
+        [dir="rtl"] .d-flex {
+            flex-direction: row-reverse;
+        }
+
+        [dir="rtl"] .ms-auto {
+            margin-right: auto !important;
+            margin-left: 0 !important;
+        }
+
+        [dir="rtl"] .me-auto {
+            margin-left: auto !important;
+            margin-right: 0 !important;
+        }
+
+        [dir="rtl"] .dropdown-menu {
+            right: 0;
+            left: auto;
+        }
+
+        /* Numbers in Arabic */
+        [dir="rtl"] .stats-number,
+        [dir="rtl"] .fw-bold[data-number] {
+            font-family: 'Arabic-Indic', 'Tahoma', sans-serif;
+        }
+        
         :root {
             --primary-blue: #0f4c75;
             --secondary-blue: #3282b8;
@@ -1005,6 +1048,148 @@
                 'show_inventory': 'اظهار المخزون',
             }
         };
+
+    // Enhanced Language Detection and Communication with Backend
+    window.setupLanguageDetection = function() {
+        // Send current language to backend with every AJAX request
+        const originalFetch = window.fetch;
+        window.fetch = function(url, options = {}) {
+            // Add language header to all requests
+            const currentLang = window.translator ? window.translator.currentLanguage : 'en';
+            
+            if (!options.headers) {
+                options.headers = {};
+            }
+            
+            // Add custom header for language detection
+            options.headers['X-User-Language'] = currentLang;
+            
+            return originalFetch(url, options);
+        };
+
+        // Also add to XMLHttpRequest for legacy AJAX
+        const originalXHROpen = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function(method, url, async, user, password) {
+            const result = originalXHROpen.apply(this, arguments);
+            const currentLang = window.translator ? window.translator.currentLanguage : 'en';
+            this.setRequestHeader('X-User-Language', currentLang);
+            return result;
+        };
+    };
+
+    // Enhanced Language Toggle with Backend Communication
+    window.toggleLanguage = function() {
+        const currentLang = window.translator.currentLanguage;
+        const newLang = currentLang === 'en' ? 'ar' : 'en';
+        
+        // Switch language in translator
+        window.translator.setLanguage(newLang);
+        
+        // Update button text
+        const langButton = document.getElementById('currentLangText');
+        if (langButton) {
+            const targetLang = newLang === 'en' ? 'AR' : 'EN';
+            langButton.textContent = targetLang;
+        }
+        
+        // Update HTML lang attribute
+        document.documentElement.lang = newLang;
+        
+        // Add/remove RTL class for Arabic
+        if (newLang === 'ar') {
+            document.body.classList.add('rtl-layout');
+            document.documentElement.dir = 'rtl';
+        } else {
+            document.body.classList.remove('rtl-layout');
+            document.documentElement.dir = 'ltr';
+        }
+        
+        // Send language preference to backend for session storage
+        fetch('/api/set-language/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'X-User-Language': newLang
+            },
+            body: JSON.stringify({
+                language: newLang
+            })
+        }).catch(error => {
+            console.warn('Could not save language preference to backend:', error);
+        });
+        
+        // Update all translatable elements on the page
+        setTimeout(() => {
+            console.log('🔄 About to call updatePageTranslations from toggleLanguage');
+            
+            // Update vessel names explicitly
+            document.querySelectorAll('.vessel-name').forEach((element, index) => {
+                const currentLang = window.translator.currentLanguage;
+                const enName = element.getAttribute('data-en');
+                const arName = element.getAttribute('data-ar');
+                
+                console.log(`Updating vessel ${index}: ${enName} -> ${currentLang === 'ar' ? arName : enName}`);
+                
+                if (currentLang === 'ar' && arName) {
+                    element.textContent = arName;
+                } else {
+                    element.textContent = enName;
+                }
+            });
+            
+            // Update other translations
+            updatePageTranslations();
+            updateClock();
+        }, 100);
+        
+        console.log('🌐 Language switched to:', newLang);
+    };
+
+    // Enhanced message handling for bilingual responses
+    window.handleBilingualResponse = function(response) {
+        if (response.language && response.language !== window.translator.currentLanguage) {
+            // Backend sent response in different language, update if needed
+            console.log(`Backend response in ${response.language}, current UI in ${window.translator.currentLanguage}`);
+        }
+        
+        return response;
+    };
+
+    // Enhanced AJAX helpers with bilingual support
+    window.bilingualFetch = async function(url, options = {}) {
+        try {
+            const response = await fetch(url, options);
+            const data = await response.json();
+            
+            // Handle bilingual responses
+            return handleBilingualResponse(data);
+        } catch (error) {
+            console.error('Bilingual fetch error:', error);
+            throw error;
+        }
+    };
+
+    // Initialize language detection on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        setupLanguageDetection();
+        
+        // The rest of your existing DOMContentLoaded code...
+    });
+
+    // Additional helper for handling Django messages with language switching
+    window.handleDjangoMessages = function() {
+        // If Django messages are present and language changes, 
+        // we might want to re-translate them (for future enhancement)
+        const messages = document.querySelectorAll('.alert');
+        messages.forEach(alert => {
+            // This could be enhanced to store message keys and re-translate
+            // For now, we'll leave Django messages as-is since they're server-rendered
+        });
+    };
+
+    // Call this when language changes
+    window.addEventListener('languageChanged', handleDjangoMessages);
         
         // Set translations and current language
         window.translator.setTranslations(globalTranslations);
