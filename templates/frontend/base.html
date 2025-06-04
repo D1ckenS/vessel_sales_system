@@ -688,6 +688,12 @@
             }
         });
 
+        // Update transaction types
+        document.querySelectorAll('.transaction-type').forEach(element => {
+            const originalType = element.getAttribute('data-type');
+            element.textContent = translateTransactionType(originalType);
+        });        
+
         // Update placeholders based on current language
         document.querySelectorAll('[data-placeholder-en]').forEach(element => {
             const currentLang = window.translator.currentLanguage;
@@ -779,6 +785,17 @@
                 'active': 'Active',
                 'duty_free_available': 'Duty-Free Available',
                 'time': 'Time',
+                'quick_tips': 'Quick Tips',
+                'use': 'Use',
+                'for_daily_transactions': 'for daily transactions',
+                'check': 'Check',
+                'before_transfers': 'before transfers',
+                'business_insights': 'for business insights',
+                'recent_activity': 'Recent Activity',
+                'view_all_transactions': 'View All Transactions',
+                'no_recent_activity': 'No recent activity',
+                'units_recent': ' units • ',
+                'general_products': 'General Products Only',
                 // Sales Entry Form Translations
                 'create_new_trip': 'Create New Trip',
                 'select_vessel': 'Select Vessel',
@@ -831,6 +848,7 @@
                 'no_items_in_cart': 'No items in cart',
                 'use_form': 'Use the form above to add sales items to this trip',
                 'sales_items': 'Sales Items',
+                'show_inventory': 'Show Inventory',
             },
             ar: {
                 'cancel': 'إلغاء',
@@ -875,6 +893,17 @@
                 'vessel_status': 'حالة السفن',
                 'active': 'نشط',
                 'duty_free_available': 'متوفر (سوق حرة)',
+                'quick_tips': 'نصائح سريعة',
+                'use': 'استخدم',
+                'for_daily_transactions': 'للحركات اليومية',
+                'check': 'افحص',
+                'before_transfers': 'قبل التحويلات',
+                'business_insights': 'للتحليلات التجارية',
+                'recent_activity': 'النشاط الحالي',
+                'view_all_transactions': 'عرض جميع الحركات',
+                'no_recent_activity': 'لا يوجد نشاط حديث',
+                'units_recent': ' وحدات • ',
+                'general_products': 'منتجات عامة فقط',
                 // Sales Entry Form Translations
                 'create_new_trip': 'إنشاء رحلة جديدة',
                 'select_vessel': 'اختر السفينة',
@@ -928,6 +957,8 @@
                 'no_items_in_cart': 'لا يوجد عناصر في السلة',
                 'use_form': 'استخدم النموذج بالأعلى لاضافة المبيعات لهذه الرحلة',
                 'sales_items': 'عناصر المبيعات',
+                // Inventory Check
+                'show_inventory': 'اظهار المخزون',
             }
         };
         

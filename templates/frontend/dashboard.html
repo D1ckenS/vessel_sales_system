@@ -245,7 +245,7 @@
                                     {% if vessel.has_duty_free %}
                                         <i class="bi bi-check-circle text-success"></i> <span data-translate="duty_free_available">Duty-Free Available</span>
                                     {% else %}
-                                        <i class="bi bi-x-circle text-muted"></i> General Products Only
+                                        <i class="bi bi-x-circle text-muted"></i><span data-translate="general_products"> General Products Only</span>
                                     {% endif %}
                                 </small>
                             </div>
@@ -268,7 +268,7 @@
         <div class="card h-100">
             <div class="card-header">
                 <h5 class="mb-0">
-                    <i class="bi bi-clock-history"></i> Recent Activity
+                    <i class="bi bi-clock-history"></i> <span data-translate="recent_activity">Recent Activity</span>
                 </h5>
             </div>
             <div class="card-body">
@@ -288,13 +288,13 @@
                                         {% elif transaction.transaction_type == 'TRANSFER_IN' %}
                                             <i class="bi bi-arrow-left text-info"></i>
                                         {% endif %}
-                                        {{ transaction.get_transaction_type_display }}
+                                        <span class="transaction-type" data-type="{{ transaction.get_transaction_type_display }}">{{ transaction.get_transaction_type_display }}</span>
                                     </h6>
                                     <p class="mb-1 small">
                                         <strong><span class="vessel-name" data-en="{{ transaction.vessel.name }}" data-ar="{{ transaction.vessel.name_ar }}">{{ transaction.vessel.name }}</span></strong> - {{ transaction.product.name }}
                                     </p>
                                     <small class="text-muted">
-                                        {{ transaction.quantity|floatformat:0 }} units • {{ transaction.total_amount|floatformat:2 }} JOD
+                                        {{ transaction.quantity|floatformat:0 }}<span data-translate="units_recent"> units • </span>{{ transaction.total_amount|floatformat:2 }} JOD
                                     </small>
                                 </div>
                                 <small class="text-muted">{{ transaction.created_at|timesince }} ago</small>
@@ -304,13 +304,13 @@
                     </div>
                     <div class="text-center mt-3">
                         <a href="{% url 'frontend:transactions_list' %}" class="btn btn-outline-primary btn-sm">
-                            View All Transactions
+                            <span data-translate="view_all_transactions">View All Transactions</span>
                         </a>
                     </div>
                 {% else %}
                     <div class="text-center py-4">
                         <i class="bi bi-clock-history text-muted" style="font-size: 3rem;"></i>
-                        <p class="text-muted mt-2">No recent activity</p>
+                        <p class="text-muted mt-2"><span data-translate="no_recent_activity">No recent activity</span></p>
                     </div>
                 {% endif %}
             </div>
@@ -324,25 +324,25 @@
         <div class="card">
             <div class="card-body">
                 <h6 class="card-title">
-                    <i class="bi bi-lightbulb text-warning"></i> Quick Tips
+                    <i class="bi bi-lightbulb text-warning"></i> <span data-translate="quick_tips">Quick Tips</span>
                 </h6>
                 <div class="row">
                     <div class="col-md-4 mb-2">
                         <small class="text-muted">
                             <i class="bi bi-check-circle text-success"></i> 
-                            Use <strong>Sales Entry</strong> for daily transactions
+                            <span data-translate="use">Use</span> <strong><span data-translate="sales_entry">Sales Entry</span></strong> <span data-translate="for_daily_transactions">for daily transactions</span>
                         </small>
                     </div>
                     <div class="col-md-4 mb-2">
                         <small class="text-muted">
                             <i class="bi bi-check-circle text-success"></i> 
-                            Check <strong>Inventory</strong> before transfers
+                            <span data-translate="check">Check</span> <strong><span data-translate="inventory">Inventory</span></strong> <span data-translate="before_transfers">before transfers</span>
                         </small>
                     </div>
                     <div class="col-md-4 mb-2">
                         <small class="text-muted">
                             <i class="bi bi-check-circle text-success"></i> 
-                            View <strong>Reports</strong> for business insights
+                            <span data-translate="view">View</span> <strong><span data-translate="reports">Reports</span></strong> <span data-translate="business_insights">for business insights</span>
                         </small>
                     </div>
                 </div>
@@ -377,5 +377,33 @@ function showComingSoon() {
 setTimeout(function() {
     window.location.reload();
 }, 300000);
+
+function translateTransactionType(type) {
+    const transactionTypes = {
+        en: {
+            'Sale': 'Sale',
+            'Supply': 'Supply', 
+            'Transfer Out': 'Transfer Out',
+            'Transfer In': 'Transfer In',
+            'Supply (Stock Received)': 'Supply (Stock Received)',
+            'Sale (Sold to Customers)': 'Sale (Sold to Customers)',
+            'Transfer Out (Sent to Another Vessel)': 'Transfer Out (Sent to Another Vessel)',
+            'Transfer In (Received from Another Vessel)': 'Transfer In (Received from Another Vessel)'
+        },
+        ar: {
+            'Sale': 'مبيعات',
+            'Supply': 'توريد',
+            'Transfer Out': 'تحويل خارج', 
+            'Transfer In': 'تحويل داخل',
+            'Supply (Stock Received)': 'توريد (مخزون مستلم)',
+            'Sale (Sold to Customers)': 'مبيعات (بيع للعملاء)',
+            'Transfer Out (Sent to Another Vessel)': 'تحويل خارج (مرسل لسفينة أخرى)',
+            'Transfer In (Received from Another Vessel)': 'تحويل داخل (مستلم من سفينة أخرى)'
+        }
+    };
+
+    const currentLang = window.translator ? window.translator.currentLanguage : 'en';
+    return transactionTypes[currentLang][type] || type;
+}
 </script>
 {% endblock %}
