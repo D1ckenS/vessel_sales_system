@@ -1,7 +1,6 @@
 {% extends 'frontend/base.html' %}
-{% load i18n %}
 
-{% block title %}{% trans "All Transactions" %} - {% trans "Vessel Sales System" %}{% endblock %}
+{% block title %}All Transactions - Vessel Sales System{% endblock %}
 
 {% block content %}
 <!-- Page Header -->
@@ -11,12 +10,12 @@
             <div>
                 <h2>
                     <i class="bi bi-list-ul text-primary"></i> 
-                    {% trans "All Transactions" %}
+                    <span data-translate="all_transactions">All Transactions</span>
                 </h2>
-                <p class="text-muted mb-0">{% trans "Complete transaction history across all vessels" %}</p>
+                <p class="text-muted mb-0"><span data-translate="complete_transaction_history">Complete transaction history across all vessels</span></p>
             </div>
             <a href="{% url 'frontend:dashboard' %}" class="btn btn-outline-secondary">
-                <i class="bi bi-arrow-left"></i> {% trans "Back to Dashboard" %}
+                <i class="bi bi-arrow-left"></i> <span data-translate="back_to_dashboard">Back to Dashboard</span>
             </a>
         </div>
     </div>
@@ -28,25 +27,25 @@
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0">
-                    <i class="bi bi-funnel"></i> {% trans "Filter Transactions" %}
+                    <i class="bi bi-funnel"></i> <span data-translate="filter_transactions">Filter Transactions</span>
                 </h5>
             </div>
             <div class="card-body">
                 <form method="GET">
                     <div class="row">
                         <div class="col-md-3">
-                            <label class="form-label fw-bold">{% trans "Transaction Type" %}</label>
+                            <label class="form-label fw-bold"><span data-translate="transaction_type">Transaction Type</span></label>
                             <select class="form-select" name="type">
-                                <option value="">{% trans "All Types" %}</option>
+                                <option value=""><span data-translate="all_types">All Types</span></option>
                                 {% for code, display in transaction_types %}
-                                <option value="{{ code }}" {% if filters.type == code %}selected{% endif %}>{{ display }}</option>
+                                <option value="{{ code }}" {% if filters.type == code %}selected{% endif %} data-transaction-type="{{ display }}">{{ display }}</option>
                                 {% endfor %}
                             </select>
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label fw-bold">{% trans "Vessel" %}</label>
+                            <label class="form-label fw-bold"><span data-translate="vessel">Vessel</span></label>
                             <select class="form-select" name="vessel">
-                                <option value="">{% trans "All Vessels" %}</option>
+                                <option value=""><span data-translate="all_vessels">All Vessels</span></option>
                                 {% for vessel in vessels %}
                                 <option value="{{ vessel.id }}" {% if filters.vessel == vessel.id|stringformat:"s" %}selected{% endif %}>
                                     <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
@@ -55,16 +54,16 @@
                             </select>
                         </div>
                         <div class="col-md-2">
-                            <label class="form-label fw-bold">{% trans "From Date" %}</label>
+                            <label class="form-label fw-bold"><span data-translate="from_date">From Date</span></label>
                             <input type="date" class="form-control" name="date_from" value="{{ filters.date_from }}">
                         </div>
                         <div class="col-md-2">
-                            <label class="form-label fw-bold">{% trans "To Date" %}</label>
+                            <label class="form-label fw-bold"><span data-translate="to_date">To Date</span></label>
                             <input type="date" class="form-control" name="date_to" value="{{ filters.date_to }}">
                         </div>
                         <div class="col-md-2 d-flex align-items-end">
                             <button type="submit" class="btn btn-primary w-100">
-                                <i class="bi bi-funnel"></i> {% trans "Filter" %}
+                                <i class="bi bi-funnel"></i> <span data-translate="filter">Filter</span>
                             </button>
                         </div>
                     </div>
@@ -80,14 +79,14 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
-                    <i class="bi bi-table"></i> {% trans "Recent Transactions" %} ({% trans "Latest 200" %})
+                    <i class="bi bi-table"></i> <span data-translate="recent_transactions">Recent Transactions</span> (<span data-translate="latest_200">Latest 200</span>)
                 </h5>
                 <div class="d-flex gap-2">
                     <button class="btn btn-outline-success btn-sm" onclick="exportTransactions()">
-                        <i class="bi bi-file-earmark-excel"></i> {% trans "Export" %}
+                        <i class="bi bi-file-earmark-excel"></i> <span data-translate="export">Export</span>
                     </button>
                     <a href="?{% if filters.type %}type={{ filters.type }}&{% endif %}{% if filters.vessel %}vessel={{ filters.vessel }}&{% endif %}{% if filters.date_from %}date_from={{ filters.date_from }}&{% endif %}{% if filters.date_to %}date_to={{ filters.date_to }}&{% endif %}" class="btn btn-outline-secondary btn-sm">
-                        <i class="bi bi-arrow-clockwise"></i> {% trans "Refresh" %}
+                        <i class="bi bi-arrow-clockwise"></i> <span data-translate="refresh">Refresh</span>
                     </a>
                 </div>
             </div>
@@ -96,46 +95,46 @@
                     <table class="table table-hover mb-0">
                         <thead class="table-light">
                             <tr>
-                                <th>{% trans "Date" %}</th>
-                                <th>{% trans "Type" %}</th>
-                                <th>{% trans "Vessel" %}</th>
-                                <th>{% trans "Product" %}</th>
-                                <th class="text-center">{% trans "Quantity" %}</th>
-                                <th class="text-end">{% trans "Amount" %}</th>
-                                <th>{% trans "Trip/PO" %}</th>
-                                <th>{% trans "Created By" %}</th>
+                                <th><span data-translate="date">Date</span></th>
+                                <th><span data-translate="type">Type</span></th>
+                                <th><span data-translate="vessel">Vessel</span></th>
+                                <th><span data-translate="product">Product</span></th>
+                                <th class="text-center"><span data-translate="quantity">Quantity</span></th>
+                                <th class="text-end"><span data-translate="amount">Amount</span></th>
+                                <th><span data-translate="trip_po">Trip/PO</span></th>
+                                <th><span data-translate="created_by">Created By</span></th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for transaction in transactions %}
                             <tr>
                                 <td>
-                                    <div>{{ transaction.transaction_date|date:"d/m/Y" }}</div>
-                                    <small class="text-muted">{{ transaction.created_at|time:"H:i" }}</small>
+                                    <div class="transaction-date" data-date="{{ transaction.transaction_date|date:"d/m/Y" }}">{{ transaction.transaction_date|date:"d/m/Y" }}</div>
+                                    <small class="text-muted transaction-time" data-time="{{ transaction.created_at|time:"H:i" }}">{{ transaction.created_at|time:"H:i" }}</small>
                                 </td>
                                 <td>
-                                    <span class="badge {% if transaction.transaction_type == 'SALE' %}bg-success{% elif transaction.transaction_type == 'SUPPLY' %}bg-primary{% elif transaction.transaction_type == 'TRANSFER_OUT' %}bg-warning{% else %}bg-info{% endif %}">
+                                    <span class="badge transaction-type-badge {% if transaction.transaction_type == 'SALE' %}bg-success{% elif transaction.transaction_type == 'SUPPLY' %}bg-primary{% elif transaction.transaction_type == 'TRANSFER_OUT' %}bg-warning{% else %}bg-info{% endif %}" data-type="{{ transaction.get_transaction_type_display }}">
                                         {{ transaction.get_transaction_type_display }}
                                     </span>
                                 </td>
                                 <td>
                                     <span class="badge {% if transaction.vessel.name|lower == 'amman' %}bg-primary{% elif transaction.vessel.name|lower == 'aylah' %}bg-danger{% elif transaction.vessel.name|lower == 'sinaa' %}bg-success{% elif transaction.vessel.name|lower == 'nefertiti' %}bg-secondary{% elif transaction.vessel.name|lower == 'babel' %}bg-warning{% elif transaction.vessel.name|lower == 'dahab' %}bg-info{% else %}bg-primary{% endif %}">
-                                        <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ transaction.vessel.name }}</span>
+                                        <span class="vessel-name" data-en="{{ transaction.vessel.name }}" data-ar="{{ transaction.vessel.name_ar }}">{{ transaction.vessel.name }}</span>
                                     </span>
                                 </td>
                                 <td>
                                     <div>
                                         <strong>{{ transaction.product.name }}</strong>
-                                        <small class="text-muted d-block">ID: {{ transaction.product.item_id }}</small>
+                                        <small class="text-muted d-block"><span data-translate="id_label">ID</span>: {{ transaction.product.item_id }}</small>
                                     </div>
                                 </td>
                                 <td class="text-center">
-                                    <span class="fw-bold">{{ transaction.quantity|floatformat:0 }}</span>
-                                    <small class="text-muted d-block">units</small>
+                                    <span class="fw-bold transaction-quantity" data-number data-original="{{ transaction.quantity|floatformat:0 }}">{{ transaction.quantity|floatformat:0 }}</span>
+                                    <small class="text-muted d-block"><span data-translate="units">units</span></small>
                                 </td>
                                 <td class="text-end">
-                                    <span class="fw-bold">{{ transaction.total_amount|floatformat:3 }}</span>
-                                    <small class="text-muted d-block">JOD</small>
+                                    <span class="fw-bold transaction-amount" data-number data-original="{{ transaction.total_amount|floatformat:3 }}">{{ transaction.total_amount|floatformat:3 }}</span>
+                                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
                                 </td>
                                 <td>
                                     {% if transaction.trip %}
@@ -152,15 +151,15 @@
                                 </td>
                                 <td>
                                     <small>{{ transaction.created_by.username|default:"System" }}</small>
-                                    <small class="text-muted d-block">{{ transaction.created_at|timesince }} ago</small>
+                                    <small class="text-muted d-block transaction-time-ago" data-time="{{ transaction.created_at|timesince }}">{{ transaction.created_at|timesince }} ago</small>
                                 </td>
                             </tr>
                             {% empty %}
                             <tr>
                                 <td colspan="8" class="text-center text-muted py-4">
                                     <i class="bi bi-list-ul" style="font-size: 2rem;"></i>
-                                    <p class="mt-2 mb-0">{% trans "No transactions found" %}</p>
-                                    <small>{% trans "Try adjusting your filter criteria" %}</small>
+                                    <p class="mt-2 mb-0"><span data-translate="no_transactions_found">No transactions found</span></p>
+                                    <small><span data-translate="try_adjusting_filters">Try adjusting your filter criteria</span></small>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -173,16 +172,16 @@
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <small class="text-muted">
-                                {% trans "Showing latest 200 transactions" %}
+                                <span data-translate="showing_latest_200">Showing latest 200 transactions</span>
                                 {% if filters.type or filters.vessel or filters.date_from or filters.date_to %}
-                                ({% trans "filtered" %})
+                                (<span data-translate="filtered">filtered</span>)
                                 {% endif %}
                             </small>
                         </div>
                         {% if filters.type or filters.vessel or filters.date_from or filters.date_to %}
                         <div>
                             <a href="{% url 'frontend:transactions_list' %}" class="btn btn-outline-secondary btn-sm">
-                                <i class="bi bi-x-circle"></i> {% trans "Clear Filters" %}
+                                <i class="bi bi-x-circle"></i> <span data-translate="clear_filters">Clear Filters</span>
                             </a>
                         </div>
                         {% endif %}
@@ -198,7 +197,102 @@
 {% block extra_js %}
 <script>
 function exportTransactions() {
-    alert('📊 {% trans "Export feature coming soon!" %}\n\n{% trans "This will generate an Excel file with transaction data." %}');
+    const exportMsg = window.translator._('export_feature_coming_soon');
+    const excelMsg = window.translator._('excel_file_description');
+    alert(`📊 ${exportMsg}\n\n${excelMsg}`);
 }
+
+// Enhanced translation for transaction table
+document.addEventListener('DOMContentLoaded', function() {
+    // Update transaction type badges on language change
+    window.addEventListener('languageChanged', function() {
+        updateTransactionTypes();
+        updateAllTransactionElements();
+        updateTransactionTimes();
+    });
+    
+    function updateTransactionTypes() {
+        document.querySelectorAll('.transaction-type-badge').forEach(badge => {
+            const originalType = badge.getAttribute('data-type');
+            if (originalType) {
+                badge.textContent = window.translateTransactionType(originalType);
+            }
+        });
+        
+        // Update select options
+        document.querySelectorAll('option[data-transaction-type]').forEach(option => {
+            const type = option.getAttribute('data-transaction-type');
+            if (type) {
+                option.textContent = window.translateTransactionType(type);
+            }
+        });
+    }
+    
+    function updateAllTransactionElements() {
+        // Update time displays (hours:minutes format)
+        document.querySelectorAll('.transaction-time').forEach(element => {
+            const originalTime = element.getAttribute('data-time');
+            if (originalTime && window.translator.currentLanguage === 'ar') {
+                const translatedTime = window.translateNumber(originalTime);
+                element.textContent = translatedTime;
+            } else if (originalTime) {
+                element.textContent = originalTime;
+            }
+        });
+        
+        // Update dates with proper Arabic format
+        document.querySelectorAll('.transaction-date').forEach(element => {
+            const originalDate = element.getAttribute('data-date');
+            if (originalDate && window.translator.currentLanguage === 'ar') {
+                const translatedDate = window.translateNumber(originalDate);
+                element.textContent = translatedDate;
+            } else if (originalDate) {
+                element.textContent = originalDate;
+            }
+        });
+        
+        // Update all number displays
+        document.querySelectorAll('.transaction-quantity, .transaction-amount').forEach(element => {
+            const originalValue = element.getAttribute('data-original') || element.textContent.trim();
+            if (!element.getAttribute('data-original')) {
+                element.setAttribute('data-original', originalValue);
+            }
+            const translatedNumber = window.translateNumber(originalValue);
+            element.textContent = translatedNumber;
+        });
+    }
+    
+    function updateTransactionTimes() {
+        document.querySelectorAll('.transaction-time-ago').forEach(element => {
+            const originalTime = element.getAttribute('data-time');
+            const currentLang = window.translator.currentLanguage;
+            
+            if (currentLang === 'ar') {
+                let arabicTime = originalTime
+                    .replace(/(\d+)\s*days?/g, (match, num) => window.translateNumber(num) + ' يوم')
+                    .replace(/(\d+)\s*hours?/g, (match, num) => window.translateNumber(num) + ' ساعة') 
+                    .replace(/(\d+)\s*minutes?/g, (match, num) => window.translateNumber(num) + ' دقيقة')
+                    .replace(/(\d+)\s*weeks?/g, (match, num) => window.translateNumber(num) + ' أسبوع')
+                    .replace(/(\d+)\s*months?/g, (match, num) => window.translateNumber(num) + ' شهر')
+                    .replace(/(\d+)\s*years?/g, (match, num) => window.translateNumber(num) + ' سنة')
+                    .replace(/,\s*/g, '، ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+                
+                arabicTime += ' مضت';
+                element.textContent = arabicTime;
+            } else {
+                element.textContent = originalTime + ' ago';
+            }
+        });
+    }
+    
+    // Initial call
+    setTimeout(() => {
+        updateTransactionTypes();
+        updateAllTransactionElements();
+        updateTransactionTimes();
+    }, 0);
+});
 </script>
 {% endblock %}

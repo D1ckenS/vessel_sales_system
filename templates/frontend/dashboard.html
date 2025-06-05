@@ -25,7 +25,10 @@
             <div class="stats-number text-success" data-number data-original="{{ today_sales.total_revenue|default:0|floatformat:2 }}">
                 {{ today_sales.total_revenue|default:0|floatformat:2 }}
             </div>
-            <div class="stats-label"><span data-translate="today_revenue">Today's Revenue (JOD)</span></div>
+            <div class="stats-label">
+                <span data-translate="today_revenue">Today's Revenue</span> 
+                (<span data-currency-symbol>JOD</span>)
+            </div>
         </div>
     </div>
     <div class="col-md-3 col-sm-6 mb-3">
@@ -44,76 +47,84 @@
             <div class="stats-label"><span data-translate="active_vessels">Active Vessels</span></div>
         </div>
     </div>
-        <div class="col-md-3 col-sm-6 mb-3">
-            <div class="stats-card">
-                <div class="stats-number text-warning">
-                    <i class="bi bi-clock" id="clock-icon-protected"></i> <span id="liveClock" data-time="{{ now|date:'H:i' }}"></span>
-                </div>
-                <div class="stats-label"><span data-translate="current_time">Current Time</span></div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="stats-card">
+            <div class="stats-number text-warning">
+                <i class="bi bi-clock" id="clock-icon-protected"></i> <span id="liveClock" data-time="{{ now|date:'H:i' }}"></span>
             </div>
+            <div class="stats-label"><span data-translate="current_time">Current Time</span></div>
         </div>
     </div>
 </div>
 
 <!-- Quick Actions -->
-<div class="row mb-4">
-    <div class="col-12 text-center">
-        <h3 class="mb-3">
-            <i class="bi bi-lightning"></i> <span data-translate="quick_actions">Quick Actions</span>
-        </h3>
-    </div>
-    
-    <div class="col-12">
-        <div class="row justify-content-center">
-            
-            <div class="col-lg-2 col-md-3 col-sm-4 col-6 mb-3">
-                <a href="{% url 'frontend:sales_entry' %}" class="quick-action">
-                    <i class="bi bi-cart-plus text-success"></i>
-                    <h6 data-translate="record_sales">Record Sales</h6>
-                    <p class="text-muted small mb-0" data-translate="add_sales_desc">Add new sales transactions</p>
-                </a>
-            </div>
+<div class="container-fluid px-0 mb-4">
+    <div class="row">
+        <div class="col-12 text-center">
+            <h3 class="mb-3">
+                <i class="bi bi-lightning"></i> <span data-translate="quick_actions">Quick Actions</span>
+            </h3>
+        </div>
+        
+        <div class="col-12">
+            <div class="d-flex flex-wrap justify-content-center gap-2">
+                
+                <div class="quick-action-wrapper">
+                    <a href="{% url 'frontend:sales_entry' %}" class="quick-action">
+                        <i class="bi bi-cart-plus text-success"></i>
+                        <h6 data-translate="record_sales">Record Sales</h6>
+                        <p class="text-muted small mb-0" data-translate="add_sales_desc">Add new sales transactions</p>
+                    </a>
+                </div>
 
-            <div class="col-lg-2 col-md-3 col-sm-4 col-6 mb-3">
-                <a href="{% url 'frontend:supply_entry' %}" class="quick-action">
-                    <i class="bi bi-box-seam text-primary"></i>
-                    <h6 data-translate="receive_stock">Receive Stock</h6>
-                    <p class="text-muted small mb-0" data-translate="record_inventory_desc">Record new inventory shipments</p>
-                </a>
+                <div class="quick-action-wrapper">
+                    <a href="{% url 'frontend:supply_entry' %}" class="quick-action">
+                        <i class="bi bi-box-seam text-primary"></i>
+                        <h6 data-translate="receive_stock">Receive Stock</h6>
+                        <p class="text-muted small mb-0" data-translate="record_inventory_desc">Record new inventory shipments</p>
+                    </a>
+                </div>
+                
+                <div class="quick-action-wrapper">
+                    <a href="{% url 'frontend:inventory_check' %}" class="quick-action">
+                        <i class="bi bi-boxes text-primary"></i>
+                        <h6 data-translate="check_stock">Check Stock</h6>
+                        <p class="text-muted small mb-0" data-translate="view_inventory_desc">View inventory levels</p>
+                    </a>
+                </div>
+                
+                <div class="quick-action-wrapper">
+                    <a href="{% url 'frontend:transfer_center' %}" class="quick-action">
+                        <i class="bi bi-arrow-left-right text-warning"></i>
+                        <h6 data-translate="transfer_items">Transfer Items</h6>
+                        <p class="text-muted small mb-0" data-translate="move_stock_desc">Move stock between vessels</p>
+                    </a>
+                </div>
+                
+                <div class="quick-action-wrapper">
+                    <a href="{% url 'frontend:reports_dashboard' %}" class="quick-action">
+                        <i class="bi bi-graph-up text-info"></i>
+                        <h6 data-translate="view_reports">View Reports</h6>
+                        <p class="text-muted small mb-0" data-translate="sales_inventory_desc">Sales & inventory reports</p>
+                    </a>
+                </div>
+                
+                <div class="quick-action-wrapper">
+                    <a href="/admin/" class="quick-action">
+                        <i class="bi bi-gear text-secondary"></i>
+                        <h6 data-translate="system_setup">System Setup</h6>
+                        <p class="text-muted small mb-0" data-translate="manage_products_desc">Manage products & vessels</p>
+                    </a>
+                </div>
+                
+                <div class="quick-action-wrapper">
+                    <a href="#" class="quick-action" onclick="showComingSoon()">
+                        <i class="bi bi-bell text-danger"></i>
+                        <h6 data-translate="alerts">Alerts</h6>
+                        <p class="text-muted small mb-0" data-translate="low_stock_desc">Low stock notifications</p>
+                    </a>
+                </div>
             </div>
-            
-            <div class="col-lg-2 col-md-3 col-sm-4 col-6 mb-3">
-                <a href="{% url 'frontend:inventory_check' %}" class="quick-action">
-                    <i class="bi bi-boxes text-primary"></i>
-                    <h6 data-translate="check_stock">Check Stock</h6>
-                    <p class="text-muted small mb-0" data-translate="view_inventory_desc">View inventory levels</p>
-                </a>
-            </div>
-            
-            <div class="col-lg-2 col-md-3 col-sm-4 col-6 mb-3">
-                <a href="{% url 'frontend:transfer_center' %}" class="quick-action">
-                    <i class="bi bi-arrow-left-right text-warning"></i>
-                    <h6 data-translate="transfer_items">Transfer Items</h6>
-                    <p class="text-muted small mb-0" data-translate="move_stock_desc">Move stock between vessels</p>
-                </a>
-            </div>
-            
-            <div class="col-lg-2 col-md-3 col-sm-4 col-6 mb-3">
-                <a href="{% url 'frontend:reports_dashboard' %}" class="quick-action">
-                    <i class="bi bi-graph-up text-info"></i>
-                    <h6 data-translate="view_reports">View Reports</h6>
-                    <p class="text-muted small mb-0" data-translate="sales_inventory_desc">Sales & inventory reports</p>
-                </a>
-            </div>
-            
-            <div class="col-lg-2 col-md-3 col-sm-4 col-6 mb-3">
-                <a href="/admin/" class="quick-action">
-                    <i class="bi bi-gear text-secondary"></i>
-                    <h6 data-translate="system_setup">System Setup</h6>
-                    <p class="text-muted small mb-0" data-translate="manage_products_desc">Manage products & vessels</p>
-                </a>
-            </div>
-            
         </div>
     </div>
 </div>
@@ -213,130 +224,229 @@
         max-width: none;
     }
 }
+
+/* 🔧 MOBILE NAVIGATION RTL FIXES */
+@media (max-width: 991px) {
+    /* Fix collapsed navbar in RTL */
+    [dir="rtl"] .navbar-collapse {
+        direction: rtl;
+        text-align: right;
+    }
+    
+    /* Fix navbar items alignment in mobile */
+    [dir="rtl"] .navbar-nav {
+        flex-direction: column !important;
+        align-items: flex-end;
+    }
+    
+    /* Fix navbar toggler position */
+    [dir="rtl"] .navbar-toggler {
+        order: -1;
+        margin-left: auto;
+        margin-right: 0;
+    }
+    
+    /* Fix brand position in RTL mobile */
+    [dir="rtl"] .navbar-brand {
+        margin-left: 0;
+        margin-right: auto;
+    }
+    
+    /* Ensure proper collapse behavior */
+    .navbar-collapse.show {
+        display: block !important;
+    }
+    
+    .navbar-collapse.collapsing {
+        height: auto !important;
+    }
+}
+
+/* Fix language toggle in mobile */
+@media (max-width: 991px) {
+    [dir="rtl"] .navbar-nav .nav-item {
+        text-align: right;
+        width: 100%;
+    }
+}
+
+/* RTL Fixes for Recent Activity */
+[dir="rtl"] .list-group-item .d-flex {
+    flex-direction: row-reverse;
+}
+
+[dir="rtl"] .list-group-item .flex-grow-1 {
+    text-align: right;
+}
+
+[dir="rtl"] .list-group-item .justify-content-between {
+    flex-direction: row-reverse;
+}
+
+[dir="rtl"] .list-group-item small.text-muted:last-child {
+    order: -1;
+    margin-left: 0;
+    margin-right: 1rem;
+}
+
+[dir="rtl"] .transaction-type {
+    direction: rtl;
+    text-align: right;
+}
+
+[dir="rtl"] .list-group-item p.small {
+    direction: rtl;
+    text-align: right;
+}
+
+[dir="rtl"] .list-group-item small.text-muted {
+    direction: rtl;
+    text-align: right;
+}
+
+/* Fix bullet separator in RTL */
+[dir="rtl"] .list-group-item small.text-muted {
+    direction: rtl;
+    unicode-bidi: plaintext;
+}
+
+[dir="rtl"] .recent-activity-item {
+    direction: rtl;
+    text-align: right;
+}
+
+[dir="rtl"] .recent-activity-item .flex-grow-1 {
+    margin-left: 1rem;
+    margin-right: 0;
+}
 </style>
 
 <!-- Vessel Status & Recent Activity -->
-<div class="row">
-    <!-- Vessel Status -->
-    <div class="col-lg-6 mb-4">
-        <div class="card h-100">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="bi bi-ship"></i> <span data-translate="vessel_status">Vessel Status</span>
-                </h5>
-            </div>
-            <div class="card-body">
-                {% if vessels %}
-                    <div class="list-group list-group-flush">
-                        {% for vessel in vessels %}
-                        <div class="list-group-item d-flex justify-content-between align-items-center border-0">
-                            <div>
-                                <h6 class="mb-1">
-                                    <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
-                                </h6>
-                                <small class="text-muted">
-                                    {% if vessel.has_duty_free %}
-                                        <i class="bi bi-check-circle text-success"></i> <span data-translate="duty_free_available">Duty-Free Available</span>
-                                    {% else %}
-                                        <i class="bi bi-x-circle text-muted"></i><span data-translate="general_products"> General Products Only</span>
-                                    {% endif %}
-                                </small>
-                            </div>
-                            <span class="badge bg-success rounded-pill"><span data-translate="active">Active</span></span>
-                        </div>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    <div class="text-center py-4">
-                        <i class="bi bi-ship text-muted" style="font-size: 3rem;"></i>
-                        <p class="text-muted mt-2">No active vessels found</p>
-                    </div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-    
-    <!-- Recent Activity -->
-    <div class="col-lg-6 mb-4">
-        <div class="card h-100">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="bi bi-clock-history"></i> <span data-translate="recent_activity">Recent Activity</span>
-                </h5>
-            </div>
-            <div class="card-body">
-                {% if recent_transactions %}
-                    <div class="list-group list-group-flush">
-                        {% for transaction in recent_transactions %}
-                        <div class="list-group-item border-0 px-0">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div class="flex-grow-1">
+<div class="container-fluid px-0">
+    <div class="row">
+        <!-- Vessel Status -->
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-ship"></i> <span data-translate="vessel_status">Vessel Status</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if vessels %}
+                        <div class="list-group list-group-flush">
+                            {% for vessel in vessels %}
+                            <div class="list-group-item d-flex justify-content-between align-items-center border-0">
+                                <div>
                                     <h6 class="mb-1">
-                                        {% if transaction.transaction_type == 'SALE' %}
-                                            <i class="bi bi-cart text-success"></i>
-                                        {% elif transaction.transaction_type == 'SUPPLY' %}
-                                            <i class="bi bi-box-seam text-primary"></i>
-                                        {% elif transaction.transaction_type == 'TRANSFER_OUT' %}
-                                            <i class="bi bi-arrow-right text-warning"></i>
-                                        {% elif transaction.transaction_type == 'TRANSFER_IN' %}
-                                            <i class="bi bi-arrow-left text-info"></i>
-                                        {% endif %}
-                                        <span class="transaction-type" data-type="{{ transaction.get_transaction_type_display }}">{{ transaction.get_transaction_type_display }}</span>
+                                        <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
                                     </h6>
-                                    <p class="mb-1 small">
-                                        <strong><span class="vessel-name" data-en="{{ transaction.vessel.name }}" data-ar="{{ transaction.vessel.name_ar }}">{{ transaction.vessel.name }}</span></strong> - {{ transaction.product.name }}
-                                    </p>
                                     <small class="text-muted">
-                                        {{ transaction.quantity|floatformat:0 }}<span data-translate="units_recent"> units • </span>{{ transaction.total_amount|floatformat:2 }} JOD
+                                        {% if vessel.has_duty_free %}
+                                            <i class="bi bi-check-circle text-success"></i> <span data-translate="duty_free_available">Duty-Free Available</span>
+                                        {% else %}
+                                            <i class="bi bi-x-circle text-muted"></i><span data-translate="general_products"> General Products Only</span>
+                                        {% endif %}
                                     </small>
                                 </div>
-                                <small class="text-muted">{{ transaction.created_at|timesince }} ago</small>
+                                <span class="badge bg-success rounded-pill"><span data-translate="active">Active</span></span>
                             </div>
+                            {% endfor %}
                         </div>
-                        {% endfor %}
-                    </div>
-                    <div class="text-center mt-3">
-                        <a href="{% url 'frontend:transactions_list' %}" class="btn btn-outline-primary btn-sm">
-                            <span data-translate="view_all_transactions">View All Transactions</span>
-                        </a>
-                    </div>
-                {% else %}
-                    <div class="text-center py-4">
-                        <i class="bi bi-clock-history text-muted" style="font-size: 3rem;"></i>
-                        <p class="text-muted mt-2"><span data-translate="no_recent_activity">No recent activity</span></p>
-                    </div>
-                {% endif %}
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="bi bi-ship text-muted" style="font-size: 3rem;"></i>
+                            <p class="text-muted mt-2">No active vessels found</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Recent Activity -->
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-clock-history"></i> <span data-translate="recent_activity">Recent Activity</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_transactions %}
+                        <div class="list-group list-group-flush">
+                            {% for transaction in recent_transactions %}
+                            <div class="list-group-item border-0 px-0">
+                                <div class="d-flex justify-content-between align-items-start recent-activity-item">
+                                    <div class="flex-grow-1">
+                                        <h6 class="mb-1">
+                                            {% if transaction.transaction_type == 'SALE' %}
+                                                <i class="bi bi-cart text-success"></i>
+                                            {% elif transaction.transaction_type == 'SUPPLY' %}
+                                                <i class="bi bi-box-seam text-primary"></i>
+                                            {% elif transaction.transaction_type == 'TRANSFER_OUT' %}
+                                                <i class="bi bi-arrow-right text-warning"></i>
+                                            {% elif transaction.transaction_type == 'TRANSFER_IN' %}
+                                                <i class="bi bi-arrow-left text-info"></i>
+                                            {% endif %}
+                                            <span class="transaction-type" data-type="{{ transaction.get_transaction_type_display }}">{{ transaction.get_transaction_type_display }}</span>
+                                        </h6>
+                                        <p class="mb-1 small">
+                                            <strong><span class="vessel-name" data-en="{{ transaction.vessel.name }}" data-ar="{{ transaction.vessel.name_ar }}">{{ transaction.vessel.name }}</span></strong> - {{ transaction.product.name }}
+                                        </p>
+                                        <small class="text-muted">
+                                            <span class="transaction-quantity" data-number data-original="{{ transaction.quantity|floatformat:0 }}">{{ transaction.quantity|floatformat:0 }}</span><span data-translate="units_recent"> units • </span><span class="transaction-amount" data-number data-original="{{ transaction.total_amount|floatformat:2 }}">{{ transaction.total_amount|floatformat:2 }}</span> <span data-currency-symbol>JOD</span>
+                                        </small>
+                                    </div>
+                                    <small class="text-muted transaction-time" data-time="{{ transaction.created_at|timesince }}">{{ transaction.created_at|timesince }} ago</small>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="text-center mt-3">
+                            <a href="{% url 'frontend:transactions_list' %}" class="btn btn-outline-primary btn-sm">
+                                <span data-translate="view_all_transactions">View All Transactions</span>
+                            </a>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="bi bi-clock-history text-muted" style="font-size: 3rem;"></i>
+                            <p class="text-muted mt-2"><span data-translate="no_recent_activity">No recent activity</span></p>
+                        </div>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>
 </div>
 
 <!-- Quick Tips -->
-<div class="row">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-body">
-                <h6 class="card-title">
-                    <i class="bi bi-lightbulb text-warning"></i> <span data-translate="quick_tips">Quick Tips</span>
-                </h6>
-                <div class="row">
-                    <div class="col-md-4 mb-2">
-                        <small class="text-muted">
-                            <i class="bi bi-check-circle text-success"></i> 
-                            <span data-translate="use">Use</span> <strong><span data-translate="sales_entry">Sales Entry</span></strong> <span data-translate="for_daily_transactions">for daily transactions</span>
-                        </small>
-                    </div>
-                    <div class="col-md-4 mb-2">
-                        <small class="text-muted">
-                            <i class="bi bi-check-circle text-success"></i> 
-                            <span data-translate="check">Check</span> <strong><span data-translate="inventory">Inventory</span></strong> <span data-translate="before_transfers">before transfers</span>
-                        </small>
-                    </div>
-                    <div class="col-md-4 mb-2">
-                        <small class="text-muted">
-                            <i class="bi bi-check-circle text-success"></i> 
-                            <span data-translate="view">View</span> <strong><span data-translate="reports">Reports</span></strong> <span data-translate="business_insights">for business insights</span>
-                        </small>
+<div class="container-fluid px-0">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="bi bi-lightbulb text-warning"></i> <span data-translate="quick_tips">Quick Tips</span>
+                    </h6>
+                    <div class="row">
+                        <div class="col-md-4 mb-2">
+                            <small class="text-muted">
+                                <i class="bi bi-check-circle text-success"></i> 
+                                <span data-translate="use">Use</span> <strong><span data-translate="sales_entry">Sales Entry</span></strong> <span data-translate="for_daily_transactions">for daily transactions</span>
+                            </small>
+                        </div>
+                        <div class="col-md-4 mb-2">
+                            <small class="text-muted">
+                                <i class="bi bi-check-circle text-success"></i> 
+                                <span data-translate="check">Check</span> <strong><span data-translate="inventory">Inventory</span></strong> <span data-translate="before_transfers">before transfers</span>
+                            </small>
+                        </div>
+                        <div class="col-md-4 mb-2">
+                            <small class="text-muted">
+                                <i class="bi bi-check-circle text-success"></i> 
+                                <span data-translate="view">View</span> <strong><span data-translate="reports">Reports</span></strong> <span data-translate="business_insights">for business insights</span>
+                            </small>
+                        </div>
                     </div>
                 </div>
             </div>

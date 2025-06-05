@@ -843,7 +843,55 @@
                 const span = element.querySelector('span');
                 span.textContent = window.translator._('active');
             }
-        });        
+        });
+
+        // 11. Update currency symbols
+        document.querySelectorAll('[data-currency-symbol]').forEach(element => {
+            const currentLang = window.translator.currentLanguage;
+            if (currentLang === 'ar') {
+                element.textContent = 'دينار';
+            } else {
+                element.textContent = 'JOD';
+            }
+        });
+
+        // 12. Update transaction numbers and currency
+        document.querySelectorAll('.transaction-quantity, .transaction-amount').forEach(element => {
+            const originalValue = element.getAttribute('data-original') || element.textContent;
+            const translatedNumber = translateNumber(originalValue);
+            element.textContent = translatedNumber;
+        });
+
+        // 13. Update timesince translations
+        document.querySelectorAll('.transaction-time').forEach(element => {
+            const originalTime = element.getAttribute('data-time');
+            const currentLang = window.translator.currentLanguage;
+            
+            if (currentLang === 'ar') {
+                // Convert common English time phrases to Arabic (handle plurals)
+                let arabicTime = originalTime
+                    .replace(/(\d+)\s*days?/g, (match, num) => translateNumber(num) + ' يوم')
+                    .replace(/(\d+)\s*hours?/g, (match, num) => translateNumber(num) + ' ساعة') 
+                    .replace(/(\d+)\s*minutes?/g, (match, num) => translateNumber(num) + ' دقيقة')
+                    .replace(/(\d+)\s*weeks?/g, (match, num) => translateNumber(num) + ' أسبوع')
+                    .replace(/(\d+)\s*months?/g, (match, num) => translateNumber(num) + ' شهر')
+                    .replace(/(\d+)\s*years?/g, (match, num) => translateNumber(num) + ' سنة')
+                    .replace(/,\s*/g, '، ')  // Replace comma with Arabic comma
+                    .replace(/\s+/g, ' ')  // Clean up extra spaces
+                    .trim();
+                
+                // Add "مضت" if not already there and if it doesn't contain "ago"
+                if (!arabicTime.includes('مضت')) {
+                    arabicTime += ' مضت';
+                }
+                
+                element.textContent = arabicTime;
+            } else {
+                // For English, ensure "ago" is present
+                const timeWithoutAgo = originalTime.replace(' ago', '');
+                element.textContent = timeWithoutAgo + ' ago';
+            }
+        });
         
         // Update modal button text
         const cancelSpan = document.querySelector('#confirmationCancel span');
@@ -934,6 +982,40 @@
                 'no_recent_activity': 'No recent activity',
                 'units_recent': ' units • ',
                 'general_products': 'General Products Only',
+                'alerts': 'Alerts',
+                'low_stock_desc': 'Low stock notifications',
+                // Transactions page translations
+                'all_transactions': 'All Transactions',
+                'complete_transaction_history': 'Complete transaction history across all vessels',
+                'back_to_dashboard': 'Back to Dashboard',
+                'filter_transactions': 'Filter Transactions',
+                'transaction_type': 'Transaction Type',
+                'all_types': 'All Types',
+                'all_vessels': 'All Vessels',
+                'from_date': 'From Date',
+                'to_date': 'To Date',
+                'filter': 'Filter',
+                'recent_transactions': 'Recent Transactions',
+                'latest_200': 'Latest 200',
+                'export': 'Export',
+                'refresh': 'Refresh',
+                'date': 'Date',
+                'type': 'Type',
+                'vessel': 'Vessel',
+                'product': 'Product',
+                'quantity': 'Quantity',
+                'amount': 'Amount',
+                'trip_po': 'Trip/PO',
+                'created_by': 'Created By',
+                'units': 'units',
+                'no_transactions_found': 'No transactions found',
+                'try_adjusting_filters': 'Try adjusting your filter criteria',
+                'showing_latest_200': 'Showing latest 200 transactions',
+                'filtered': 'filtered',
+                'clear_filters': 'Clear Filters',
+                'export_feature_coming_soon': 'Export feature coming soon!',
+                'excel_file_description': 'This will generate an Excel file with transaction data.',
+                'id_label': 'ID',
                 // Sales Entry Form Translations
                 'create_new_trip': 'Create New Trip',
                 'select_vessel': 'Select Vessel',
@@ -1042,6 +1124,40 @@
                 'no_recent_activity': 'لا يوجد نشاط حديث',
                 'units_recent': ' وحدات • ',
                 'general_products': 'منتجات عامة فقط',
+                'alerts': 'التنبيهات',
+                'low_stock_desc': 'تنبيهات انخفاض المخزون',
+                // Transactions page translations (Arabic)
+                'all_transactions': 'جميع الحركات',
+                'complete_transaction_history': 'سجل كامل للحركات عبر جميع السفن',
+                'back_to_dashboard': 'العودة للوحة التحكم',
+                'filter_transactions': 'تصفية الحركات',
+                'transaction_type': 'نوع الحركة',
+                'all_types': 'جميع الأنواع',
+                'all_vessels': 'جميع السفن',
+                'from_date': 'من تاريخ',
+                'to_date': 'إلى تاريخ',
+                'filter': 'تصفية',
+                'recent_transactions': 'الحركات الأخيرة',
+                'latest_200': 'آخر ٢٠٠',
+                'export': 'تصدير',
+                'refresh': 'تحديث',
+                'date': 'التاريخ',
+                'type': 'النوع',
+                'vessel': 'السفينة',
+                'product': 'المنتج',
+                'quantity': 'الكمية',
+                'amount': 'المبلغ',
+                'trip_po': 'رحلة/أمر شراء',
+                'created_by': 'أنشئ بواسطة',
+                'units': 'وحدات',
+                'no_transactions_found': 'لم يتم العثور على حركات',
+                'try_adjusting_filters': 'جرب تعديل معايير التصفية',
+                'showing_latest_200': 'عرض آخر ٢٠٠ حركة',
+                'filtered': 'مفلتر',
+                'clear_filters': 'مسح التصفيات',
+                'export_feature_coming_soon': 'ميزة التصدير قريباً!',
+                'excel_file_description': 'سيتم إنشاء ملف Excel بحدات الحركات.',
+                'id_label': 'رقم',
                 // Sales Entry Form Translations
                 'create_new_trip': 'إنشاء رحلة جديدة',
                 'select_vessel': 'اختر السفينة',
