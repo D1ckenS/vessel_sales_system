@@ -2075,11 +2075,21 @@ def comprehensive_report(request):
     )
 
     # Also update type_breakdown and vessel_breakdown:
-    type_breakdown = transactions.values('transaction_type').annotate(
-        count=Count('id'),
-        total_amount=Sum(F('unit_price') * F('quantity'), output_field=models.DecimalField()),
-        total_quantity=Sum('quantity')
-    ).order_by('transaction_type')
+    type_breakdown = []
+    for type_code, type_display in Transaction.TRANSACTION_TYPES:
+        type_stats = transactions.filter(transaction_type=type_code).aggregate(
+            count=Count('id'),
+            total_amount=Sum(F('unit_price') * F('quantity'), output_field=models.DecimalField()),
+            total_quantity=Sum('quantity')
+        )
+        if type_stats['count'] > 0:  # Only include types with data
+            type_breakdown.append({
+                'transaction_type': type_display,  # Use display name
+                'transaction_code': type_code,     # Keep code for reference
+                'count': type_stats['count'],
+                'total_amount': type_stats['total_amount'],
+                'total_quantity': type_stats['total_quantity']
+            })
 
     vessel_breakdown = transactions.values(
         'vessel__name', 'vessel__name_ar'
@@ -2390,6 +2400,11 @@ def monthly_report(request):
         month = today.month
         year = today.year
     
+    # Generate year range from system start to future
+    SYSTEM_START_YEAR = 2023  # Change this to when your system started
+    current_year = timezone.now().year
+    year_range = range(SYSTEM_START_YEAR, current_year + 1)  # From start year to current+2
+    
     # Calculate month date range
     first_day = date(year, month, 1)
     if month == 12:
@@ -2582,6 +2597,7 @@ def monthly_report(request):
     # Get month name
     month_name = calendar.month_name[month]
     profit_margin = ((monthly_profit / monthly_revenue * 100) if monthly_revenue > 0 else 0)
+    
     context = {
         'selected_month': month,
         'selected_year': year,
@@ -2597,6 +2613,7 @@ def monthly_report(request):
         'trend_months': trend_months,
         'vessels': vessels,
         'profit_margin': profit_margin,
+        'year_range': year_range,  # Added this line
     }
     
     return render(request, 'frontend/monthly_report.html', context)
