@@ -892,6 +892,20 @@
                 element.textContent = timeWithoutAgo + ' ago';
             }
         });
+
+        // Update PO numbers with Arabic-Indic numerals
+        document.querySelectorAll('.po-number').forEach(element => {
+            const originalValue = element.getAttribute('data-original') || element.textContent.trim();
+            if (!element.getAttribute('data-original')) {
+                element.setAttribute('data-original', originalValue);
+            }
+            if (window.translator.currentLanguage === 'ar') {
+                const translatedNumber = window.translateNumber(originalValue);
+                element.textContent = translatedNumber;
+            } else {
+                element.textContent = originalValue;
+            }
+        });        
         
         // Update modal button text
         const cancelSpan = document.querySelector('#confirmationCancel span');
@@ -1069,6 +1083,34 @@
                 'use_form': 'Use the form above to add sales items to this trip',
                 'sales_items': 'Sales Items',
                 'show_inventory': 'Show Inventory',
+                // Supply Entry translations
+                'receive_stock': 'Receive Stock',
+                'create_po_description': 'Create purchase order and receive inventory shipments',
+                'create_new_po': 'Create New Purchase Order',
+                'receiving_vessel': 'Receiving Vessel',
+                'choose_vessel': 'Choose vessel...',
+                'duty_free': 'Duty-Free',
+                'po_date': 'PO Date',
+                'po_number': 'Purchase Order Number',
+                'po_number_unique': 'Must be unique across all purchase orders',
+                'po_notes': 'PO Notes (Optional)',
+                'clear_form': 'Clear Form',
+                'create_po_add_items': 'Create PO & Add Items',
+                'recent_purchase_orders': 'Recent Purchase Orders',
+                'po_hash': 'PO #',
+                'total_cost': 'Total Cost',
+                'status': 'Status',
+                'completed': 'Completed',
+                'in_progress': 'In Progress',
+                'add_items': 'Add Items',
+                'view': 'View',
+                'click_to_resume': 'Click to resume',
+                'click_to_resume_po': 'Click to resume this PO',
+                'no_pos_recorded': 'No purchase orders recorded yet',
+                'create_first_po': 'Create your first purchase order using the form above',
+                'enter_po_number': 'Please enter a purchase order number',
+                'items': 'items',
+                'actions': 'Actions',
             },
             ar: {
                 'cancel': 'إلغاء',
@@ -1211,6 +1253,34 @@
                 'no_items_in_cart': 'لا يوجد عناصر في السلة',
                 'use_form': 'استخدم النموذج بالأعلى لاضافة المبيعات لهذه الرحلة',
                 'sales_items': 'عناصر المبيعات',
+                // Supply Entry translations (Arabic)
+                'receive_stock': 'استلام البضائع',
+                'create_po_description': 'إنشاء أمر شراء واستلام شحنات المخزون',
+                'create_new_po': 'إنشاء أمر شراء جديد',
+                'receiving_vessel': 'السفينة المستلمة',
+                'choose_vessel': 'اختر السفينة...',
+                'duty_free': 'سوق حرة',
+                'po_date': 'تاريخ أمر الشراء',
+                'po_number': 'رقم أمر الشراء',
+                'po_number_unique': 'يجب أن يكون فريداً عبر جميع أوامر الشراء',
+                'po_notes': 'ملاحظات أمر الشراء (اختياري)',
+                'clear_form': 'مسح النموذج',
+                'create_po_add_items': 'إنشاء أمر الشراء وإضافة العناصر',
+                'recent_purchase_orders': 'أوامر الشراء الأخيرة',
+                'po_hash': 'رقم أمر الشراء',
+                'total_cost': 'التكلفة الإجمالية',
+                'status': 'الحالة',
+                'completed': 'مكتمل',
+                'in_progress': 'قيد التنفيذ',
+                'add_items': 'إضافة عناصر',
+                'view': 'عرض',
+                'click_to_resume': 'انقر للمتابعة',
+                'click_to_resume_po': 'انقر لمتابعة أمر الشراء',
+                'no_pos_recorded': 'لم يتم تسجيل أوامر شراء بعد',
+                'create_first_po': 'أنشئ أمر الشراء الأول باستخدام النموذج أعلاه',
+                'enter_po_number': 'يرجى إدخال رقم أمر الشراء',
+                'items': 'عناصر',
+                'actions': 'الإجراءات',                
                 // Inventory Check
                 'show_inventory': 'اظهار المخزون',
             }

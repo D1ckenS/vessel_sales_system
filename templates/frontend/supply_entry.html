@@ -1,7 +1,6 @@
 {% extends 'frontend/base.html' %}
-{% load i18n %}
 
-{% block title %}{% trans "Receive Stock" %} - {% trans "Vessel Sales System" %}{% endblock %}
+{% block title %}Receive Stock - Vessel Sales System{% endblock %}
 
 {% block content %}
 <!-- Page Header -->
@@ -11,12 +10,12 @@
             <div>
                 <h2>
                     <i class="bi bi-box-seam text-primary"></i> 
-                    {% trans "Receive Stock" %}
+                    <span data-translate="receive_stock">Receive Stock</span>
                 </h2>
-                <p class="text-muted mb-0">{% trans "Create purchase order and receive inventory shipments" %}</p>
+                <p class="text-muted mb-0"><span data-translate="create_po_description">Create purchase order and receive inventory shipments</span></p>
             </div>
             <a href="{% url 'frontend:dashboard' %}" class="btn btn-outline-secondary">
-                <i class="bi bi-arrow-left"></i> {% trans "Back to Dashboard" %}
+                <i class="bi bi-arrow-left"></i> <span data-translate="back_to_dashboard">Back to Dashboard</span>
             </a>
         </div>
     </div>
@@ -28,7 +27,7 @@
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0">
-                    <i class="bi bi-plus-circle"></i> {% trans "Create New Purchase Order" %}
+                    <i class="bi bi-plus-circle"></i> <span data-translate="create_new_po">Create New Purchase Order</span>
                 </h5>
             </div>
             <div class="card-body">
@@ -39,21 +38,21 @@
                     <div class="row mb-4">
                         <div class="col-md-6">
                             <label class="form-label fw-bold">
-                                <i class="bi bi-ship"></i> {% trans "Receiving Vessel" %} *
+                                <i class="bi bi-ship"></i> <span data-translate="receiving_vessel">Receiving Vessel</span> *
                             </label>
                             <select class="form-select form-select-lg" name="vessel" required>
-                                <option value="">{% trans "Choose vessel..." %}</option>
+                                <option value=""><span data-translate="choose_vessel">Choose vessel...</span></option>
                                 {% for vessel in vessels %}
                                 <option value="{{ vessel.id }}" data-name="{{ vessel.name }}" data-duty-free="{{ vessel.has_duty_free }}">
                                     <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
-                                    {% if vessel.has_duty_free %}<span class="text-success">({% trans "Duty-Free" %})</span>{% endif %}
+                                    {% if vessel.has_duty_free %}<span class="text-success">(<span data-translate="duty_free">Duty-Free</span>)</span>{% endif %}
                                 </option>
                                 {% endfor %}
                             </select>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-bold">
-                                <i class="bi bi-calendar"></i> {% trans "PO Date" %} *
+                                <i class="bi bi-calendar"></i> <span data-translate="po_date">PO Date</span> *
                             </label>
                             <input type="date" class="form-control form-control-lg" name="po_date" value="{{ today|date:'Y-m-d' }}" required>
                         </div>
@@ -62,29 +61,33 @@
                     <!-- Purchase Order Details -->
                     <div class="mb-4">
                         <label class="form-label fw-bold">
-                            <i class="bi bi-receipt"></i> {% trans "Purchase Order Number" %} *
+                            <i class="bi bi-receipt"></i> <span data-translate="po_number">Purchase Order Number</span> *
                         </label>
                         <input type="text" class="form-control form-control-lg" name="po_number" 
-                               placeholder="{% trans 'e.g., PO001, PO-2025-001' %}" required>
-                        <small class="text-muted">{% trans "Must be unique across all purchase orders" %}</small>
+                               data-placeholder-en="e.g., PO001, PO-2025-001" 
+                               data-placeholder-ar="مثال: PO001, PO-2025-001"
+                               placeholder="e.g., PO001, PO-2025-001" required>
+                        <small class="text-muted"><span data-translate="po_number_unique">Must be unique across all purchase orders</span></small>
                     </div>
 
                     <!-- PO Notes -->
                     <div class="mb-4">
                         <label class="form-label fw-bold">
-                            <i class="bi bi-chat-left-text"></i> {% trans "PO Notes (Optional)" %}
+                            <i class="bi bi-chat-left-text"></i> <span data-translate="po_notes">PO Notes (Optional)</span>
                         </label>
                         <textarea class="form-control" name="notes" rows="3" 
-                                  placeholder="{% trans 'Additional notes about this purchase order...' %}"></textarea>
+                                  data-placeholder-en="Additional notes about this purchase order..."
+                                  data-placeholder-ar="ملاحظات إضافية حول أمر الشراء..."
+                                  placeholder="Additional notes about this purchase order..."></textarea>
                     </div>
 
                     <!-- Action Buttons -->
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                         <button type="button" class="btn btn-outline-secondary btn-lg me-md-2" onclick="clearForm()">
-                            <i class="bi bi-x-circle"></i> {% trans "Clear Form" %}
+                            <i class="bi bi-x-circle"></i> <span data-translate="clear_form">Clear Form</span>
                         </button>
                         <button type="submit" class="btn btn-primary btn-lg">
-                            <i class="bi bi-arrow-right"></i> {% trans "Create PO & Add Items" %}
+                            <i class="bi bi-arrow-right"></i> <span data-translate="create_po_add_items">Create PO & Add Items</span>
                         </button>
                     </div>
                 </form>
@@ -99,7 +102,7 @@
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0">
-                    <i class="bi bi-clock-history"></i> {% trans "Recent Purchase Orders" %}
+                    <i class="bi bi-clock-history"></i> <span data-translate="recent_purchase_orders">Recent Purchase Orders</span>
                 </h5>
             </div>
             <div class="card-body">
@@ -107,22 +110,22 @@
                     <table class="table table-hover">
                         <thead>
                             <tr>
-                                <th><i class="bi bi-receipt"></i> {% trans "PO #" %}</th>
-                                <th><i class="bi bi-ship"></i> {% trans "Vessel" %}</th>
-                                <th><i class="bi bi-calendar"></i> {% trans "Date" %}</th>
-                                <th><i class="bi bi-currency-dollar"></i> {% trans "Total Cost" %}</th>
-                                <th><i class="bi bi-check-circle"></i> {% trans "Status" %}</th>
-                                <th><i class="bi bi-person"></i> {% trans "Created By" %}</th>
-                                <th><i class="bi bi-gear"></i> {% trans "Actions" %}</th>
+                                <th><i class="bi bi-receipt"></i> <span data-translate="po_hash">PO #</span></th>
+                                <th><i class="bi bi-ship"></i> <span data-translate="vessel">Vessel</span></th>
+                                <th><i class="bi bi-calendar"></i> <span data-translate="date">Date</span></th>
+                                <th><i class="bi bi-currency-dollar"></i> <span data-translate="total_cost">Total Cost</span></th>
+                                <th><i class="bi bi-check-circle"></i> <span data-translate="status">Status</span></th>
+                                <th><i class="bi bi-person"></i> <span data-translate="created_by">Created By</span></th>
+                                <th><i class="bi bi-gear"></i> <span data-translate="actions">Actions</span></th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for po in recent_pos %}
-                            <tr {% if not po.is_completed %}class="table-info cursor-pointer" onclick="resumePO({{ po.id }})" title="{% trans 'Click to resume this PO' %}"{% endif %}>
+                            <tr {% if not po.is_completed %}class="table-info cursor-pointer" onclick="resumePO({{ po.id }})" title=""{% endif %} data-po-id="{{ po.id }}" data-completed="{{ po.is_completed }}">
                                 <td>
-                                    <strong>{{ po.po_number }}</strong>
+                                    <strong class="po-number" data-original="{{ po.po_number }}">{{ po.po_number }}</strong>
                                     {% if not po.is_completed %}
-                                        <small class="text-muted d-block">{% trans "Click to resume" %}</small>
+                                        <small class="text-muted d-block"><span data-translate="click_to_resume">Click to resume</span></small>
                                     {% endif %}
                                 </td>
                                 <td>
@@ -131,32 +134,32 @@
                                     </span>
                                 </td>
                                 <td>
-                                    {{ po.po_date|date:"d/m/Y" }}
+                                    <span class="po-date" data-date="{{ po.po_date|date:'d/m/Y' }}">{{ po.po_date|date:"d/m/Y" }}</span>
                                 </td>
                                 <td>
-                                    <span class="fw-bold">{{ po.total_cost|floatformat:3 }}</span>
-                                    <small class="text-muted">JOD</small>
-                                    <small class="text-muted d-block">({{ po.transaction_count }} {% trans "items" %})</small>
+                                    <span class="fw-bold po-cost" data-number data-original="{{ po.total_cost|floatformat:3 }}">{{ po.total_cost|floatformat:3 }}</span>
+                                    <small class="text-muted"><span data-currency-symbol>JOD</span></small>
+                                    <small class="text-muted d-block">(<span class="po-items" data-number data-original="{{ po.transaction_count }}">{{ po.transaction_count }}</span> <span data-translate="items">items</span>)</small>
                                 </td>
                                 <td>
                                     {% if po.is_completed %}
-                                        <span class="badge bg-success">{% trans "Completed" %}</span>
+                                        <span class="badge bg-success"><span data-translate="completed">Completed</span></span>
                                     {% else %}
-                                        <span class="badge bg-warning">{% trans "In Progress" %}</span>
+                                        <span class="badge bg-warning"><span data-translate="in_progress">In Progress</span></span>
                                     {% endif %}
                                 </td>
                                 <td>
                                     <small>{{ po.created_by.username|default:"System" }}</small>
-                                    <small class="text-muted d-block">{{ po.created_at|timesince }} {% trans "ago" %}</small>
+                                    <small class="text-muted d-block po-time-ago" data-time="{{ po.created_at|timesince }}">{{ po.created_at|timesince }} ago</small>
                                 </td>
                                 <td>
                                     {% if not po.is_completed %}
                                         <a href="{% url 'frontend:po_supply' po.id %}" class="btn btn-primary btn-sm">
-                                            <i class="bi bi-plus"></i> {% trans "Add Items" %}
+                                            <i class="bi bi-plus"></i> <span data-translate="add_items">Add Items</span>
                                         </a>
                                     {% else %}
                                         <button class="btn btn-outline-secondary btn-sm" onclick="viewPODetails({{ po.id }})">
-                                            <i class="bi bi-eye"></i> {% trans "View" %}
+                                            <i class="bi bi-eye"></i> <span data-translate="view">View</span>
                                         </button>
                                     {% endif %}
                                 </td>
@@ -165,8 +168,8 @@
                             <tr>
                                 <td colspan="7" class="text-center text-muted py-4">
                                     <i class="bi bi-receipt" style="font-size: 2rem;"></i>
-                                    <p class="mt-2 mb-0">{% trans "No purchase orders recorded yet" %}</p>
-                                    <small>{% trans "Create your first purchase order using the form above" %}</small>
+                                    <p class="mt-2 mb-0"><span data-translate="no_pos_recorded">No purchase orders recorded yet</span></p>
+                                    <small><span data-translate="create_first_po">Create your first purchase order using the form above</span></small>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -187,39 +190,123 @@ function clearForm() {
 }
 
 function resumePO(poId) {
-    // Navigate to PO supply page to resume work
     window.location.href = `/supply/po/${poId}/`;
 }
 
 function viewPODetails(poId) {
-    // Redirect to PO supply page to view details
     window.location.href = `/supply/po/${poId}/`;
 }
 
-// Form validation
+// Enhanced translation for supply entry
+document.addEventListener('DOMContentLoaded', function() {
+    // Update on language change
+    window.addEventListener('languageChanged', function() {
+        updateSupplyPageTranslations();
+        updateTooltips();
+    });
+    
+    function updateSupplyPageTranslations() {
+        // Update PO numbers with Arabic-Indic numerals
+        document.querySelectorAll('td:first-child strong').forEach(element => {
+            const originalText = element.textContent;
+            if (window.translator.currentLanguage === 'ar') {
+                const translatedText = window.translateNumber(originalText);
+                element.textContent = translatedText;
+            }
+        });
+        
+        // Update dates with Arabic-Indic numerals
+        document.querySelectorAll('.po-date').forEach(element => {
+            const originalDate = element.getAttribute('data-date');
+            if (originalDate && window.translator.currentLanguage === 'ar') {
+                const translatedDate = window.translateNumber(originalDate);
+                element.textContent = translatedDate;
+            } else if (originalDate) {
+                element.textContent = originalDate;
+            }
+        });
+        
+        // Update PO costs and item counts
+        document.querySelectorAll('.po-cost, .po-items').forEach(element => {
+            const originalValue = element.getAttribute('data-original') || element.textContent.trim();
+            if (!element.getAttribute('data-original')) {
+                element.setAttribute('data-original', originalValue);
+            }
+            const translatedNumber = window.translateNumber(originalValue);
+            element.textContent = translatedNumber;
+        });
+        
+        // Fix timesince displays
+        document.querySelectorAll('.po-time-ago').forEach(element => {
+            const originalTime = element.getAttribute('data-time');
+            const currentLang = window.translator.currentLanguage;
+            
+            if (currentLang === 'ar') {
+                let arabicTime = originalTime
+                    .replace(/(\d+)\s*days?/g, (match, num) => window.translateNumber(num) + ' يوم')
+                    .replace(/(\d+)\s*hours?/g, (match, num) => window.translateNumber(num) + ' ساعة') 
+                    .replace(/(\d+)\s*minutes?/g, (match, num) => window.translateNumber(num) + ' دقيقة')
+                    .replace(/(\d+)\s*weeks?/g, (match, num) => window.translateNumber(num) + ' أسبوع')
+                    .replace(/(\d+)\s*months?/g, (match, num) => window.translateNumber(num) + ' شهر')
+                    .replace(/(\d+)\s*years?/g, (match, num) => window.translateNumber(num) + ' سنة')
+                    .replace(/,\s*/g, '، ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+                
+                // Remove "ago" and add "مضت"
+                arabicTime = arabicTime.replace(/\s*ago\s*/, '');
+                if (!arabicTime.includes('مضت')) {
+                    arabicTime += ' مضت';
+                }
+                
+                element.textContent = arabicTime;
+            } else {
+                const timeWithoutAgo = originalTime.replace(' ago', '');
+                element.textContent = timeWithoutAgo + ' ago';
+            }
+        });
+    }
+    
+    function updateTooltips() {
+        // Update clickable row tooltips
+        document.querySelectorAll('tr[data-po-id]').forEach(row => {
+            const isCompleted = row.getAttribute('data-completed') === 'True';
+            if (!isCompleted) {
+                const tooltip = window.translator._('click_to_resume_po');
+                row.setAttribute('title', tooltip);
+            }
+        });
+    }
+    
+    // Initial call
+    setTimeout(() => {
+        updateSupplyPageTranslations();
+        updateTooltips();
+    }, 100);
+});
+
+// Form validation with translated messages
 document.getElementById('poForm').addEventListener('submit', function(e) {
     const poNumber = document.querySelector('[name="po_number"]').value.trim();
     
     if (!poNumber) {
         e.preventDefault();
-        alert('{% trans "Please enter a purchase order number" %}');
+        const message = window.translator._('enter_po_number');
+        alert(message);
         return;
     }
-    
 });
 
 // Add cursor pointer style for clickable rows
-document.addEventListener('DOMContentLoaded', function() {
-    const style = document.createElement('style');
-    style.textContent = `
-        .cursor-pointer {
-            cursor: pointer;
-        }
-        .cursor-pointer:hover {
-            background-color: var(--bs-info) !important;
-        }
-    `;
-    document.head.appendChild(style);
-});
+const style = document.createElement('style');
+style.textContent = `
+    .cursor-pointer {
+        cursor: pointer;
+    }
+    .cursor-pointer:hover {
+        background-color: var(--bs-info) !important;
+    }
+`;
+document.head.appendChild(style);
 </script>
 {% endblock %}
