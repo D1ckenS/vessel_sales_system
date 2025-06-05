@@ -1,0 +1,503 @@
+{% extends 'frontend/base.html' %}
+
+{% block title %}<span data-translate="comprehensive_report">Comprehensive Report</span> - <span data-translate="vessel_sales_system">Vessel Sales System</span>{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>
+                    <i class="bi bi-clipboard-data text-primary"></i> 
+                    <span data-translate="comprehensive_report">Comprehensive Report</span>
+                </h2>
+                <p class="text-muted mb-0">
+                    {% if date_range_info %}
+                        {% if date_range_info.type == 'single_day' %}
+                            <span data-translate="single_day_report">Single Day Report</span> - {{ date_range_info.date }}
+                        {% else %}
+                            <span data-translate="duration_report">Duration Report</span> - {{ date_range_info.from }} <span data-translate="to">to</span> {{ date_range_info.to }} ({{ date_range_info.days }} <span data-translate="days">days</span>)
+                        {% endif %}
+                    {% else %}
+                        <span data-translate="all_transactions_overview">Complete overview of all transactions</span>
+                    {% endif %}
+                </p>
+            </div>
+            <a href="{% url 'frontend:reports_dashboard' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> <span data-translate="back_to_reports">Back to Reports</span>
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Summary Statistics -->
+<div class="row mb-4">
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="stats-card">
+            <div class="stats-number text-primary" data-number data-original="{{ summary_stats.total_transactions|default:0 }}">
+                {{ summary_stats.total_transactions|default:0 }}
+            </div>
+            <div class="stats-label"><span data-translate="total_transactions">Total Transactions</span></div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="stats-card">
+            <div class="stats-number text-success" data-number data-original="{{ summary_stats.total_sales_revenue|default:0|floatformat:0 }}">
+                {{ summary_stats.total_sales_revenue|default:0|floatformat:0 }}
+            </div>
+            <div class="stats-label">
+                <span data-translate="sales_revenue">Sales Revenue</span> 
+                (<span data-currency-symbol>JOD</span>)
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="stats-card">
+            <div class="stats-number text-warning" data-number data-original="{{ summary_stats.total_purchase_cost|default:0|floatformat:0 }}">
+                {{ summary_stats.total_purchase_cost|default:0|floatformat:0 }}
+            </div>
+            <div class="stats-label">
+                <span data-translate="purchase_costs">Purchase Costs</span> 
+                (<span data-currency-symbol>JOD</span>)
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="stats-card">
+            <div class="stats-number text-info" data-number data-original="{{ summary_stats.total_quantity|default:0|floatformat:0 }}">
+                {{ summary_stats.total_quantity|default:0|floatformat:0 }}
+            </div>
+            <div class="stats-label"><span data-translate="total_quantity">Total Quantity</span></div>
+        </div>
+    </div>
+</div>
+
+<!-- Transaction Type Breakdown -->
+<div class="row mb-4">
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-pie-chart"></i> <span data-translate="breakdown_by_type">Breakdown by Type</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                {% for type_data in type_breakdown %}
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div>
+                        <span class="transaction-type" data-type="{{ type_data.transaction_type }}">
+                            {{ type_data.transaction_type }}
+                        </span>
+                        <small class="text-muted d-block">
+                            <span data-number data-original="{{ type_data.count }}">{{ type_data.count }}</span> <span data-translate="transactions">transactions</span>
+                        </small>
+                    </div>
+                    <div class="text-end">
+                        <strong data-number data-original="{{ type_data.total_amount|default:0|floatformat:2 }}">
+                            {{ type_data.total_amount|default:0|floatformat:2 }}
+                        </strong> <span data-currency-symbol>JOD</span>
+                        <small class="text-muted d-block">
+                            <span data-number data-original="{{ type_data.total_quantity|floatformat:0 }}">{{ type_data.total_quantity|floatformat:0 }}</span> <span data-translate="units">units</span>
+                        </small>
+                    </div>
+                </div>
+                {% empty %}
+                <p class="text-muted text-center"><span data-translate="no_data_available">No data available</span></p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-ship"></i> <span data-translate="breakdown_by_vessel">Breakdown by Vessel</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                {% for vessel_data in vessel_breakdown %}
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div>
+                        <span class="vessel-name" data-en="{{ vessel_data.vessel__name }}" data-ar="{{ vessel_data.vessel__name_ar }}">
+                            {{ vessel_data.vessel__name }}
+                        </span>
+                        <small class="text-muted d-block">
+                            <span data-number data-original="{{ vessel_data.count }}">{{ vessel_data.count }}</span> <span data-translate="transactions">transactions</span>
+                        </small>
+                    </div>
+                    <div class="text-end">
+                        <strong data-number data-original="{{ vessel_data.total_amount|default:0|floatformat:2 }}">
+                            {{ vessel_data.total_amount|default:0|floatformat:2 }}
+                        </strong> <span data-currency-symbol>JOD</span>
+                        <small class="text-muted d-block">
+                            <span data-number data-original="{{ vessel_data.total_quantity|floatformat:0 }}">{{ vessel_data.total_quantity|floatformat:0 }}</span> <span data-translate="units">units</span>
+                        </small>
+                    </div>
+                </div>
+                {% empty %}
+                <p class="text-muted text-center"><span data-translate="no_data_available">No data available</span></p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-funnel"></i> <span data-translate="filter_transactions">Filter Transactions</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="GET">
+                    <div class="row">
+                        <div class="col-md-2">
+                            <label class="form-label fw-bold" data-translate="vessel">Vessel</label>
+                            <select class="form-select" name="vessel">
+                                <option value="" data-translate="all_vessels">All Vessels</option>
+                                {% for vessel in vessels %}
+                                <option value="{{ vessel.id }}" {% if filters.vessel == vessel.id|stringformat:"s" %}selected{% endif %}>
+                                    <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label fw-bold" data-translate="from_date">From Date</label>
+                            <input type="date" class="form-control" name="date_from" value="{{ filters.date_from }}"
+                                   data-placeholder-en="Select from date" data-placeholder-ar="اختر من تاريخ">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label fw-bold" data-translate="to_date">To Date</label>
+                            <input type="date" class="form-control" name="date_to" value="{{ filters.date_to }}"
+                                   data-placeholder-en="Optional - leave blank for single day" data-placeholder-ar="اختياري - اتركه فارغاً ليوم واحد">
+                            <small class="text-muted" data-translate="to_date_help">Optional - leave blank for single day report</small>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold" data-translate="transaction_type">Transaction Type</label>
+                            <select class="form-select" name="transaction_type">
+                                <option value="" data-translate="all_types">All Types</option>
+                                {% for code, display in transaction_types %}
+                                <option value="{{ code }}" {% if filters.transaction_type == code %}selected{% endif %}>
+                                    <span class="transaction-type" data-type="{{ display }}">{{ display }}</span>
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary me-2">
+                                <i class="bi bi-funnel"></i> <span data-translate="filter">Filter</span>
+                            </button>
+                            <a href="{% url 'frontend:comprehensive_report' %}" class="btn btn-outline-secondary">
+                                <i class="bi bi-x-circle"></i> <span data-translate="clear">Clear</span>
+                            </a>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Transactions Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-table"></i> 
+                    <span data-translate="transaction_details">Transaction Details</span> 
+                    (<span data-number data-original="{{ total_shown }}">{{ total_shown }}</span>
+                    {% if total_available > 200 %}
+                        <span data-translate="of">of</span> <span data-number data-original="{{ total_available }}">{{ total_available }}</span>
+                    {% endif %})
+                </h5>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-success btn-sm" onclick="exportComprehensiveReport()">
+                        <i class="bi bi-file-earmark-excel"></i> <span data-translate="export">Export</span>
+                    </button>
+                    <button class="btn btn-outline-primary btn-sm" onclick="printComprehensiveReport()">
+                        <i class="bi bi-printer"></i> <span data-translate="print">Print</span>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th><span data-translate="date">Date</span></th>
+                                <th><span data-translate="type">Type</span></th>
+                                <th><span data-translate="vessel">Vessel</span></th>
+                                <th><span data-translate="product">Product</span></th>
+                                <th class="text-center"><span data-translate="quantity">Quantity</span></th>
+                                <th class="text-end"><span data-translate="unit_price">Unit Price</span></th>
+                                <th class="text-end"><span data-translate="total_amount">Total Amount</span></th>
+                                <th><span data-translate="reference">Reference</span></th>
+                                <th><span data-translate="created_by">Created By</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for transaction in transactions %}
+                            <tr>
+                                <td>
+                                    <div>{{ transaction.transaction_date|date:"d/m/Y" }}</div>
+                                    <small class="text-muted">{{ transaction.created_at|date:"H:i" }}</small>
+                                </td>
+                                <td>
+                                    {% if transaction.transaction_type == 'SALE' %}
+                                        <span class="badge bg-success">
+                                    {% elif transaction.transaction_type == 'SUPPLY' %}
+                                        <span class="badge bg-primary">
+                                    {% elif transaction.transaction_type == 'TRANSFER_OUT' %}
+                                        <span class="badge bg-warning">
+                                    {% elif transaction.transaction_type == 'TRANSFER_IN' %}
+                                        <span class="badge bg-info">
+                                    {% endif %}
+                                        <span class="transaction-type" data-type="{{ transaction.get_transaction_type_display }}">
+                                            {{ transaction.get_transaction_type_display }}
+                                        </span>
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="vessel-name" data-en="{{ transaction.vessel.name }}" data-ar="{{ transaction.vessel.name_ar }}">
+                                        {{ transaction.vessel.name }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="fw-bold">{{ transaction.product.name }}</div>
+                                    <small class="text-muted">{{ transaction.product.item_id }}</small>
+                                    {% if transaction.product.is_duty_free %}
+                                        <span class="badge bg-warning badge-sm ms-1" data-translate="duty_free">Duty-Free</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    <span class="fw-bold transaction-quantity" data-number data-original="{{ transaction.quantity|floatformat:0 }}">
+                                        {{ transaction.quantity|floatformat:0 }}
+                                    </span>
+                                    <small class="text-muted d-block" data-translate="units">units</small>
+                                </td>
+                                <td class="text-end">
+                                    <span data-number data-original="{{ transaction.unit_price|floatformat:3 }}">
+                                        {{ transaction.unit_price|floatformat:3 }}
+                                    </span>
+                                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+                                </td>
+                                <td class="text-end">
+                                    <span class="fw-bold transaction-amount" data-number data-original="{{ transaction.total_amount|floatformat:3 }}">
+                                        {{ transaction.total_amount|floatformat:3 }}
+                                    </span>
+                                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+                                </td>
+                                <td>
+                                    {% if transaction.trip %}
+                                        <small><span data-translate="trip">Trip</span>: {{ transaction.trip.trip_number }}</small>
+                                    {% elif transaction.purchase_order %}
+                                        <small><span data-translate="po">PO</span>: {{ transaction.purchase_order.po_number }}</small>
+                                    {% elif transaction.transfer_to_vessel %}
+                                        <small><span data-translate="to">To</span>: 
+                                            <span class="vessel-name" data-en="{{ transaction.transfer_to_vessel.name }}" data-ar="{{ transaction.transfer_to_vessel.name_ar }}">
+                                                {{ transaction.transfer_to_vessel.name }}
+                                            </span>
+                                        </small>
+                                    {% elif transaction.transfer_from_vessel %}
+                                        <small><span data-translate="from">From</span>: 
+                                            <span class="vessel-name" data-en="{{ transaction.transfer_from_vessel.name }}" data-ar="{{ transaction.transfer_from_vessel.name_ar }}">
+                                                {{ transaction.transfer_from_vessel.name }}
+                                            </span>
+                                        </small>
+                                    {% else %}
+                                        <small class="text-muted">--</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small>{{ transaction.created_by.username|default:"System" }}</small>
+                                    <small class="text-muted d-block transaction-time" data-time="{{ transaction.created_at|timesince }}">
+                                        {{ transaction.created_at|timesince }} ago
+                                    </small>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="9" class="text-center text-muted py-4">
+                                    <i class="bi bi-clipboard-data" style="font-size: 2rem;"></i>
+                                    <p class="mt-2 mb-0" data-translate="no_transactions_found">No transactions found</p>
+                                    <small data-translate="try_adjusting_filters">Try adjusting your filter criteria</small>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Footer -->
+                <div class="card-footer bg-light">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <small class="text-muted">
+                                <span data-translate="showing">Showing</span> 
+                                <span data-number data-original="{{ total_shown }}">{{ total_shown }}</span> 
+                                <span data-translate="transactions">transactions</span>
+                                {% if total_available > 200 %}
+                                    <span data-translate="of">of</span> 
+                                    <span data-number data-original="{{ total_available }}">{{ total_available }}</span> 
+                                    <span data-translate="total">total</span>
+                                {% endif %}
+                                {% if filters.vessel or filters.date_from or filters.date_to or filters.transaction_type %}
+                                (<span data-translate="filtered">filtered</span>)
+                                {% endif %}
+                            </small>
+                        </div>
+                        {% if total_available > 200 %}
+                        <div>
+                            <small class="text-warning">
+                                <i class="bi bi-info-circle"></i>
+                                <span data-translate="limited_results">Limited to 200 most recent results</span>
+                            </small>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Add page-specific translations
+document.addEventListener('DOMContentLoaded', function() {
+    const pageTranslations = {
+        en: {
+            'comprehensive_report': 'Comprehensive Report',
+            'single_day_report': 'Single Day Report',
+            'duration_report': 'Duration Report',
+            'to': 'to',
+            'days': 'days',
+            'all_transactions_overview': 'Complete overview of all transactions',
+            'back_to_reports': 'Back to Reports',
+            'total_transactions': 'Total Transactions',
+            'sales_revenue': 'Sales Revenue',
+            'purchase_costs': 'Purchase Costs',
+            'total_quantity': 'Total Quantity',
+            'breakdown_by_type': 'Breakdown by Type',
+            'breakdown_by_vessel': 'Breakdown by Vessel',
+            'transactions': 'transactions',
+            'units': 'units',
+            'no_data_available': 'No data available',
+            'filter_transactions': 'Filter Transactions',
+            'vessel': 'Vessel',
+            'all_vessels': 'All Vessels',
+            'from_date': 'From Date',
+            'to_date': 'To Date',
+            'to_date_help': 'Optional - leave blank for single day report',
+            'transaction_type': 'Transaction Type',
+            'all_types': 'All Types',
+            'filter': 'Filter',
+            'clear': 'Clear',
+            'transaction_details': 'Transaction Details',
+            'of': 'of',
+            'export': 'Export',
+            'print': 'Print',
+            'date': 'Date',
+            'type': 'Type',
+            'product': 'Product',
+            'quantity': 'Quantity',
+            'unit_price': 'Unit Price',
+            'total_amount': 'Total Amount',
+            'reference': 'Reference',
+            'created_by': 'Created By',
+            'duty_free': 'Duty-Free',
+            'trip': 'Trip',
+            'po': 'PO',
+            'from': 'From',
+            'no_transactions_found': 'No transactions found',
+            'try_adjusting_filters': 'Try adjusting your filter criteria',
+            'showing': 'Showing',
+            'total': 'total',
+            'filtered': 'filtered',
+            'limited_results': 'Limited to 200 most recent results',
+            'vessel_sales_system': 'Vessel Sales System'
+        },
+        ar: {
+            'comprehensive_report': 'التقرير الشامل',
+            'single_day_report': 'تقرير يوم واحد',
+            'duration_report': 'تقرير فترة',
+            'to': 'إلى',
+            'days': 'أيام',
+            'all_transactions_overview': 'نظرة شاملة على جميع الحركات',
+            'back_to_reports': 'الرجوع للتقارير',
+            'total_transactions': 'إجمالي الحركات',
+            'sales_revenue': 'إيرادات المبيعات',
+            'purchase_costs': 'تكاليف الشراء',
+            'total_quantity': 'إجمالي الكمية',
+            'breakdown_by_type': 'التوزيع حسب النوع',
+            'breakdown_by_vessel': 'التوزيع حسب السفينة',
+            'transactions': 'حركات',
+            'units': 'وحدات',
+            'no_data_available': 'لا توجد بيانات متاحة',
+            'filter_transactions': 'تصفية الحركات',
+            'vessel': 'السفينة',
+            'all_vessels': 'جميع السفن',
+            'from_date': 'من تاريخ',
+            'to_date': 'إلى تاريخ',
+            'to_date_help': 'اختياري - اتركه فارغاً لتقرير يوم واحد',
+            'transaction_type': 'نوع الحركة',
+            'all_types': 'جميع الأنواع',
+            'filter': 'تصفية',
+            'clear': 'مسح',
+            'transaction_details': 'تفاصيل الحركات',
+            'of': 'من',
+            'export': 'تصدير',
+            'print': 'طباعة',
+            'date': 'التاريخ',
+            'type': 'النوع',
+            'product': 'المنتج',
+            'quantity': 'الكمية',
+            'unit_price': 'سعر الوحدة',
+            'total_amount': 'المبلغ الإجمالي',
+            'reference': 'المرجع',
+            'created_by': 'أنشئ بواسطة',
+            'duty_free': 'سوق حرة',
+            'trip': 'رحلة',
+            'po': 'أمر شراء',
+            'from': 'من',
+            'no_transactions_found': 'لم يتم العثور على حركات',
+            'try_adjusting_filters': 'جرب تعديل معايير التصفية',
+            'showing': 'عرض',
+            'total': 'إجمالي',
+            'filtered': 'مفلتر',
+            'limited_results': 'مقتصر على ٢٠٠ نتيجة حديثة',
+            'vessel_sales_system': 'نظام مبيعات السفن'
+        }
+    };
+
+    // Merge with global translations
+    const currentTranslations = window.translator.translations;
+    Object.keys(pageTranslations).forEach(lang => {
+        if (currentTranslations[lang]) {
+            Object.assign(currentTranslations[lang], pageTranslations[lang]);
+        }
+    });
+    
+    // Apply translations
+    updatePageTranslations();
+});
+
+// Export and Print functions
+function exportComprehensiveReport() {
+    alertTranslated('export_feature_coming_soon');
+}
+
+function printComprehensiveReport() {
+    alertTranslated('print_feature_coming_soon');
+}
+</script>
+{% endblock %}

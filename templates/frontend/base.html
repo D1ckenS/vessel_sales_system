@@ -10,42 +10,103 @@
     <!-- Bootstrap Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
     
-    <style>
+<style>
         /* Enhanced RTL Support */
         [dir="rtl"] {
             text-align: right;
         }
 
+        /* 🎯 CORRECT TARGET: Apply flex-direction to PARENT container */
+        .navbar-collapse {
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+        }
+
+        /* LTR: Default order */
+        html[dir="ltr"] .navbar-collapse {
+            flex-direction: row !important;
+        }
+
+        /* RTL: Reverse the ORDER of the two ul elements */
+        html[dir="rtl"] .navbar-collapse {
+            flex-direction: row-reverse !important;
+        }
+
+        /* Individual navbar-nav items keep normal direction */
+        .navbar-nav {
+            flex-direction: row !important;
+        }
+
+        /* Remove any conflicting margins */
+        #mainNavItems,
+        #userNavItems {
+            margin: 0 !important;
+        }
+
+        /* 🔧 COMPREHENSIVE NAVBAR RTL FIXES */
         [dir="rtl"] .navbar-nav {
             flex-direction: row-reverse;
         }
 
         [dir="rtl"] .navbar-brand {
-            margin-left: auto;
-            margin-right: 0;
+            margin-left: auto !important;
+            margin-right: 0 !important;
         }
 
+        /* Fix Bootstrap margin classes for RTL */
+        [dir="rtl"] .me-auto {
+            margin-right: 0 !important;
+            margin-left: auto !important;
+        }
+
+        [dir="rtl"] .ms-auto {
+            margin-left: 0 !important;
+            margin-right: auto !important;
+        }
+
+        [dir="rtl"] .me-3 {
+            margin-right: 0 !important;
+            margin-left: 1rem !important;
+        }
+
+        [dir="rtl"] .ms-2 {
+            margin-left: 0 !important;
+            margin-right: 0.5rem !important;
+        }
+
+        /* Navbar collapse button positioning */
+        [dir="rtl"] .navbar-toggler {
+            margin-left: 0 !important;
+            margin-right: auto !important;
+        }
+
+        /* Dropdown menu positioning */
+        [dir="rtl"] .dropdown-menu {
+            right: 0 !important;
+            left: auto !important;
+            text-align: right;
+        }
+
+        [dir="rtl"] .dropdown-item {
+            text-align: right;
+            padding-right: 1rem;
+            padding-left: 1rem;
+        }
+
+        /* Navbar nav items spacing */
+        [dir="rtl"] .navbar-nav .nav-item {
+            margin-left: 0.25rem;
+            margin-right: 0.25rem;
+        }
+
+        /* Button groups and flex containers */
         [dir="rtl"] .btn-group {
             flex-direction: row-reverse;
         }
 
         [dir="rtl"] .d-flex {
             flex-direction: row-reverse;
-        }
-
-        [dir="rtl"] .ms-auto {
-            margin-right: auto !important;
-            margin-left: 0 !important;
-        }
-
-        [dir="rtl"] .me-auto {
-            margin-left: auto !important;
-            margin-right: 0 !important;
-        }
-
-        [dir="rtl"] .dropdown-menu {
-            right: 0;
-            left: auto;
         }
 
         /* Numbers in Arabic */
@@ -250,6 +311,15 @@
             .quick-action i {
                 font-size: 3.5rem;
             }
+
+            /* RTL mobile fixes */
+            [dir="rtl"] .navbar-nav {
+                text-align: right;
+            }
+
+            [dir="rtl"] .navbar-toggler {
+                margin-left: 0;
+            }
         }
 
         /* Loading animation */
@@ -288,47 +358,6 @@
             background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
             color: #856404;
         }
-        /* RTL Layout for Arabic */
-        .rtl-layout {
-            direction: rtl;
-            text-align: right;
-        }
-
-        .rtl-layout .navbar-nav {
-            flex-direction: row-reverse;
-        }
-
-        .rtl-layout .navbar-brand {
-            margin-left: auto;
-            margin-right: 0;
-        }
-
-        .rtl-layout .btn-group {
-            flex-direction: row-reverse;
-        }
-
-        .rtl-layout .d-flex {
-            flex-direction: row-reverse;
-        }
-
-        .rtl-layout .ms-2,
-        .rtl-layout .me-2 {
-            margin-left: 0.5rem !important;
-            margin-right: 0.5rem !important;
-        }
-
-        .rtl-layout .text-end {
-            text-align: right !important;
-        }
-
-        .rtl-layout .text-start {
-            text-align: left !important;
-        }
-
-        .rtl-layout .dropdown-menu {
-            right: 0;
-            left: auto;
-        }
 
         /* Language Toggle Button Styling */
         #languageToggle {
@@ -347,7 +376,21 @@
             font-weight: bold;
             letter-spacing: 1px;
         }
-    </style>
+
+        /* 🔧 ENHANCED RTL LAYOUT CLASS */
+        .rtl-layout {
+            direction: rtl;
+            text-align: right;
+        }
+
+        .rtl-layout .navbar {
+            text-align: right;
+        }
+
+        .rtl-layout .navbar-collapse {
+            text-align: right;
+        }
+</style>
 
     {% block extra_css %}{% endblock %}
 </head>
@@ -364,7 +407,8 @@
             </button>
             
             <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
+                <!-- 🔧 FIXED: Use CSS class instead of Bootstrap me-auto for better RTL control -->
+                <ul class="navbar-nav" id="mainNavItems">
                     <li class="nav-item">
                         <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" 
                            href="{% url 'frontend:dashboard' %}">
@@ -403,7 +447,8 @@
                     </li>
                 </ul>
                 
-                <ul class="navbar-nav">
+                <!-- 🔧 FIXED: Separate navbar section for user controls -->
+                <ul class="navbar-nav" id="userNavItems">
                     <!-- Language Toggle Button -->
                     <li class="nav-item">
                         <button class="btn btn-outline-light btn-sm me-3" id="languageToggle" onclick="toggleLanguage()">
@@ -416,9 +461,9 @@
                             <i class="bi bi-person-circle"></i> {{ user.username }}
                         </a>
                         <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="/admin/"><i class="bi bi-gear"></i> Admin Panel</a></li>
+                            <li><a class="dropdown-item" href="/admin/"><i class="bi bi-gear"></i> <span data-translate="admin_panel">Admin Panel</span></a></li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{% url 'admin:logout' %}"><i class="bi bi-box-arrow-right"></i> Logout</a></li>
+                            <li><a class="dropdown-item" href="{% url 'admin:logout' %}"><i class="bi bi-box-arrow-right"></i> <span data-translate="logout">Logout</span></a></li>
                         </ul>
                     </li>
                 </ul>
@@ -637,34 +682,34 @@
         return number.toString(); // English numerals
     };
 
-        // Transaction type translation helper (moved from dashboard.html)
-        window.translateTransactionType = function(type) {
-            const types = {
-                'en': {
-                    'Sale': 'Sale',
-                    'Supply': 'Supply',
-                    'Transfer Out': 'Transfer Out',
-                    'Transfer In': 'Transfer In',
-                    'Supply (Stock Received)': 'Supply (Stock Received)',
-                    'Sale (Sold to Customers)': 'Sale (Sold to Customers)',
-                    'Transfer Out (Sent to Another Vessel)': 'Transfer Out (Sent to Another Vessel)',
-                    'Transfer In (Received from Another Vessel)': 'Transfer In (Received from Another Vessel)'
-                },
-                'ar': {
-                    'Sale': 'مبيعات',
-                    'Supply': 'توريد',
-                    'Transfer Out': 'تحويل خارج', 
-                    'Transfer In': 'تحويل داخل',
-                    'Supply (Stock Received)': 'توريد (مخزون مستلم)',
-                    'Sale (Sold to Customers)': 'مبيعات (بيع للعملاء)',
-                    'Transfer Out (Sent to Another Vessel)': 'تحويل خارج (مرسل لسفينة أخرى)',
-                    'Transfer In (Received from Another Vessel)': 'تحويل داخل (مستلم من سفينة أخرى)'
-                }
-            };
-            
-            const currentLang = window.translator ? window.translator.currentLanguage : 'en';
-            return types[currentLang][type] || type;
+    // Transaction type translation helper (moved from dashboard.html)
+    window.translateTransactionType = function(type) {
+        const types = {
+            'en': {
+                'Sale': 'Sale',
+                'Supply': 'Supply',
+                'Transfer Out': 'Transfer Out',
+                'Transfer In': 'Transfer In',
+                'Supply (Stock Received)': 'Supply (Stock Received)',
+                'Sale (Sold to Customers)': 'Sale (Sold to Customers)',
+                'Transfer Out (Sent to Another Vessel)': 'Transfer Out (Sent to Another Vessel)',
+                'Transfer In (Received from Another Vessel)': 'Transfer In (Received from Another Vessel)'
+            },
+            'ar': {
+                'Sale': 'مبيعات',
+                'Supply': 'توريد',
+                'Transfer Out': 'تحويل خارج', 
+                'Transfer In': 'تحويل داخل',
+                'Supply (Stock Received)': 'توريد (مخزون مستلم)',
+                'Sale (Sold to Customers)': 'مبيعات (بيع للعملاء)',
+                'Transfer Out (Sent to Another Vessel)': 'تحويل خارج (مرسل لسفينة أخرى)',
+                'Transfer In (Received from Another Vessel)': 'تحويل داخل (مستلم من سفينة أخرى)'
+            }
         };
+        
+        const currentLang = window.translator ? window.translator.currentLanguage : 'en';
+        return types[currentLang][type] || type;
+    };
 
     // Format currency for different languages
     window.translateCurrency = function(amount) {
@@ -710,12 +755,11 @@
     window.showStyledConfirm = window.confirmTranslated;
     window.showStyledAlert = window.alertTranslated;
 
-    // Language Toggle Functionality
     window.toggleLanguage = function() {
         const currentLang = window.translator.currentLanguage;
         const newLang = currentLang === 'en' ? 'ar' : 'en';
         
-        // Switch language in translator
+        // Switch language
         window.translator.setLanguage(newLang);
         
         // Update button text
@@ -725,43 +769,20 @@
             langButton.textContent = targetLang;
         }
         
-        // Update HTML lang attribute
+        // 🎯 SIMPLE: Just set the dir attribute - CSS handles the rest
         document.documentElement.lang = newLang;
+        document.documentElement.dir = newLang === 'ar' ? 'rtl' : 'ltr';
         
-        // Add/remove RTL class for Arabic
         if (newLang === 'ar') {
             document.body.classList.add('rtl-layout');
-            document.documentElement.dir = 'rtl';
         } else {
             document.body.classList.remove('rtl-layout');
-            document.documentElement.dir = 'ltr';
         }
         
-        // Update all translatable elements on the page
+        // Update translations
         setTimeout(() => {
-            console.log('🔄 About to call updatePageTranslations from toggleLanguage');
-            
-            // Update vessel names explicitly
-            document.querySelectorAll('.vessel-name').forEach((element, index) => {
-                const currentLang = window.translator.currentLanguage;
-                const enName = element.getAttribute('data-en');
-                const arName = element.getAttribute('data-ar');
-                
-                console.log(`Updating vessel ${index}: ${enName} -> ${currentLang === 'ar' ? arName : enName}`);
-                
-                if (currentLang === 'ar' && arName) {
-                    element.textContent = arName;
-                } else {
-                    element.textContent = enName;
-                }
-            });
-            
-            // Update other translations
             updatePageTranslations();
-            updateClock();
         }, 100);
-        
-        console.log('🌐 Language switched to:', newLang);
     };
 
     window.updatePageTranslations = function() {
@@ -786,7 +807,7 @@
             }
         });
 
-        // 9. Update transaction types immediately
+        // Update transaction types immediately
         document.querySelectorAll('.transaction-type').forEach(element => {
             const originalType = element.getAttribute('data-type') || element.textContent;
             if (!element.getAttribute('data-type')) {
@@ -826,7 +847,7 @@
             }
         });
 
-        // 9. Update currency and badges immediately
+        // Update currency and badges immediately
         document.querySelectorAll('.badge, [data-currency], .text-muted small').forEach(element => {
             if (element.textContent.includes('JOD')) {
                 const amount = element.textContent.match(/[\d,]+\.?\d*/);
@@ -836,7 +857,7 @@
             }
         });
         
-        // 10. Update "Active" badges and status text
+        // Update "Active" badges and status text
         document.querySelectorAll('.badge').forEach(element => {
             if (element.textContent.includes('Active') || element.textContent.includes('نشط')) {
                 element.innerHTML = '<span data-translate="active">Active</span>';
@@ -845,7 +866,7 @@
             }
         });
 
-        // 11. Update currency symbols
+        // Update currency symbols
         document.querySelectorAll('[data-currency-symbol]').forEach(element => {
             const currentLang = window.translator.currentLanguage;
             if (currentLang === 'ar') {
@@ -855,14 +876,14 @@
             }
         });
 
-        // 12. Update transaction numbers and currency
+        // Update transaction numbers and currency
         document.querySelectorAll('.transaction-quantity, .transaction-amount').forEach(element => {
             const originalValue = element.getAttribute('data-original') || element.textContent;
             const translatedNumber = translateNumber(originalValue);
             element.textContent = translatedNumber;
         });
 
-        // 13. Update timesince translations
+        // Update timesince translations
         document.querySelectorAll('.transaction-time').forEach(element => {
             const originalTime = element.getAttribute('data-time');
             const currentLang = window.translator.currentLanguage;
@@ -905,7 +926,7 @@
             } else {
                 element.textContent = originalValue;
             }
-        });        
+        });
         
         // Update modal button text
         const cancelSpan = document.querySelector('#confirmationCancel span');
@@ -917,30 +938,32 @@
         if (okSpan) okSpan.textContent = _('ok');
     };
 
-    // Initialize language on page load
-    document.addEventListener('DOMContentLoaded', function() {
-        const savedLang = localStorage.getItem('preferred_language') || 'en';
-        const langButton = document.getElementById('currentLangText');
+        // 🔧 ENHANCED INITIALIZATION WITH RTL FIXES
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedLang = localStorage.getItem('preferred_language') || 'en';
+            const langButton = document.getElementById('currentLangText');
+            
+            console.log('🚀 Initializing language system with:', savedLang);
+            
+            // Fix Issue 2: Show target language (opposite of current)
+            if (langButton) {
+                const targetLang = savedLang === 'en' ? 'AR' : 'EN';
+                langButton.textContent = targetLang;
+            }
+            
+            // Apply RTL for Arabic
+            if (savedLang === 'ar') {
+                document.body.classList.add('rtl-layout');
+                document.documentElement.dir = 'rtl';
+                document.documentElement.lang = 'ar';
+            } else {
+                document.body.classList.remove('rtl-layout');
+                document.documentElement.dir = 'ltr';
+                document.documentElement.lang = 'en';
+            }
         
-        // Fix Issue 2: Show target language (opposite of current)
-        if (langButton) {
-            const targetLang = savedLang === 'en' ? 'AR' : 'EN';
-            langButton.textContent = targetLang;
-        }
-        
-        // Apply RTL for Arabic
-        if (savedLang === 'ar') {
-            document.body.classList.add('rtl-layout');
-            document.documentElement.dir = 'rtl';
-            document.documentElement.lang = 'ar';
-        } else {
-            document.body.classList.remove('rtl-layout');
-            document.documentElement.dir = 'ltr';
-            document.documentElement.lang = 'en';
-        }
-        
-        // Set up global translations
-        const globalTranslations = {
+            // Set up global translations
+            const globalTranslations = {
             en: {
                 'cancel': 'Cancel',
                 'confirm': 'Confirm', 
@@ -1080,7 +1103,7 @@
                 'notes': 'Notes (Optional)',
                 'sales_cart': 'Sales Cart',
                 'no_items_in_cart': 'No items in cart',
-                'use_form': 'Use the form above to add sales items to this trip',
+                'use_form_sales': 'Use the form above to add sales items to this trip',
                 'sales_items': 'Sales Items',
                 'show_inventory': 'Show Inventory',
                 // Supply Entry translations
@@ -1111,6 +1134,16 @@
                 'enter_po_number': 'Please enter a purchase order number',
                 'items': 'items',
                 'actions': 'Actions',
+                // PO Supply Transactions
+                'back_to_pos': 'Back to POs',
+                'po_supply': 'PO Supply',
+                'unit_cost': 'Unit Cost',
+                'use_form_po': 'Use the form above to add supply items to this purchase order',
+                'supply_cart': 'Supply Cart',
+                'complete_po': 'Complete PO',
+                'purchase_cost': 'Purchase Cost',
+                'avg_cost_per_item': 'Average Cost per Item',
+                'add_supply_item': 'Add Supply Item',
             },
             ar: {
                 'cancel': 'إلغاء',
@@ -1155,7 +1188,7 @@
                 'vessel_status': 'حالة السفن',
                 'active': 'نشط',
                 'duty_free_available': 'متوفر (سوق حرة)',
-                'quick_tips': 'نصائح سريعة',
+                'quick_tips': 'نصائح سريعة',
                 'use': 'استخدم',
                 'for_daily_transactions': 'للحركات اليومية',
                 'check': 'افحص',
@@ -1240,7 +1273,7 @@
                 'trip_items': 'عناصر الرحلة',
                 'items_in_cart': 'عناصر السلة',
                 'revenue_per_passenger': 'الإيراد لكل راكب',
-                'sales_list': 'قائمة المبيعات',
+                'sales_list': 'قائمة المبيعات',
                 'item_count': 'عدد العناصر',
                 'add_sales_item': 'اضف العنصر للمبيعات',
                 'scan': 'مسح',
@@ -1251,7 +1284,7 @@
                 'notes': 'ملاحظات',
                 'sales_cart': 'سلة المبيعات',
                 'no_items_in_cart': 'لا يوجد عناصر في السلة',
-                'use_form': 'استخدم النموذج بالأعلى لاضافة المبيعات لهذه الرحلة',
+                'use_form_sales': 'استخدم النموذج بالأعلى لاضافة المبيعات لهذه الرحلة',
                 'sales_items': 'عناصر المبيعات',
                 // Supply Entry translations (Arabic)
                 'receive_stock': 'استلام البضائع',
@@ -1280,162 +1313,32 @@
                 'create_first_po': 'أنشئ أمر الشراء الأول باستخدام النموذج أعلاه',
                 'enter_po_number': 'يرجى إدخال رقم أمر الشراء',
                 'items': 'عناصر',
-                'actions': 'الإجراءات',                
+                'actions': 'الإجراءات',
+                //PO Supply Transactions
+                'back_to_pos': 'العودة لقائمة اوامر الشراء',
+                'po_supply': 'استلام شحنات المخزون',
+                'unit_cost': 'تكلفة الوحدة',
+                'use_form_po': 'استخدم النموذج بالأعلى لاضافة شحنات المخزون لهذه الامر الشراء',
+                'supply_cart': 'سلة المشتريات',
+                'complete_po': 'انهاء امر الشراء',
+                'purchase_cost': 'تكلفة الشراء',
+                'avg_cost_per_item': 'متوسط تكلفة الوحدة',
+                'add_supply_item': 'اضافة عنصر شحنات المخزون',
                 // Inventory Check
                 'show_inventory': 'اظهار المخزون',
             }
         };
-
-    // Enhanced Language Detection and Communication with Backend
-    window.setupLanguageDetection = function() {
-        // Send current language to backend with every AJAX request
-        const originalFetch = window.fetch;
-        window.fetch = function(url, options = {}) {
-            // Add language header to all requests
-            const currentLang = window.translator ? window.translator.currentLanguage : 'en';
-            
-            if (!options.headers) {
-                options.headers = {};
-            }
-            
-            // Add custom header for language detection
-            options.headers['X-User-Language'] = currentLang;
-            
-            return originalFetch(url, options);
-        };
-
-        // Also add to XMLHttpRequest for legacy AJAX
-        const originalXHROpen = XMLHttpRequest.prototype.open;
-        XMLHttpRequest.prototype.open = function(method, url, async, user, password) {
-            const result = originalXHROpen.apply(this, arguments);
-            const currentLang = window.translator ? window.translator.currentLanguage : 'en';
-            this.setRequestHeader('X-User-Language', currentLang);
-            return result;
-        };
-    };
-
-    // Enhanced Language Toggle with Backend Communication
-    window.toggleLanguage = function() {
-        const currentLang = window.translator.currentLanguage;
-        const newLang = currentLang === 'en' ? 'ar' : 'en';
-        
-        // Switch language in translator
-        window.translator.setLanguage(newLang);
-        
-        // Update button text
-        const langButton = document.getElementById('currentLangText');
-        if (langButton) {
-            const targetLang = newLang === 'en' ? 'AR' : 'EN';
-            langButton.textContent = targetLang;
-        }
-        
-        // Update HTML lang attribute
-        document.documentElement.lang = newLang;
-        
-        // Add/remove RTL class for Arabic
-        if (newLang === 'ar') {
-            document.body.classList.add('rtl-layout');
-            document.documentElement.dir = 'rtl';
-        } else {
-            document.body.classList.remove('rtl-layout');
-            document.documentElement.dir = 'ltr';
-        }
-        
-        // Send language preference to backend for session storage
-        fetch('/api/set-language/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || '',
-                'X-User-Language': newLang
-            },
-            body: JSON.stringify({
-                language: newLang
-            })
-        }).catch(error => {
-            console.warn('Could not save language preference to backend:', error);
-        });
-        
-        // Update all translatable elements on the page
-        setTimeout(() => {
-            console.log('🔄 About to call updatePageTranslations from toggleLanguage');
-            
-            // Update vessel names explicitly
-            document.querySelectorAll('.vessel-name').forEach((element, index) => {
-                const currentLang = window.translator.currentLanguage;
-                const enName = element.getAttribute('data-en');
-                const arName = element.getAttribute('data-ar');
-                
-                console.log(`Updating vessel ${index}: ${enName} -> ${currentLang === 'ar' ? arName : enName}`);
-                
-                if (currentLang === 'ar' && arName) {
-                    element.textContent = arName;
-                } else {
-                    element.textContent = enName;
-                }
-            });
-            
-            // Update other translations
-            updatePageTranslations();
-            updateClock();
-        }, 100);
-        
-        console.log('🌐 Language switched to:', newLang);
-    };
-
-    // Enhanced message handling for bilingual responses
-    window.handleBilingualResponse = function(response) {
-        if (response.language && response.language !== window.translator.currentLanguage) {
-            // Backend sent response in different language, update if needed
-            console.log(`Backend response in ${response.language}, current UI in ${window.translator.currentLanguage}`);
-        }
-        
-        return response;
-    };
-
-    // Enhanced AJAX helpers with bilingual support
-    window.bilingualFetch = async function(url, options = {}) {
-        try {
-            const response = await fetch(url, options);
-            const data = await response.json();
-            
-            // Handle bilingual responses
-            return handleBilingualResponse(data);
-        } catch (error) {
-            console.error('Bilingual fetch error:', error);
-            throw error;
-        }
-    };
-
-    // Initialize language detection on page load
-    document.addEventListener('DOMContentLoaded', function() {
-        setupLanguageDetection();
-        
-        // The rest of your existing DOMContentLoaded code...
-    });
-
-    // Additional helper for handling Django messages with language switching
-    window.handleDjangoMessages = function() {
-        // If Django messages are present and language changes, 
-        // we might want to re-translate them (for future enhancement)
-        const messages = document.querySelectorAll('.alert');
-        messages.forEach(alert => {
-            // This could be enhanced to store message keys and re-translate
-            // For now, we'll leave Django messages as-is since they're server-rendered
-        });
-    };
-
-    // Call this when language changes
-    window.addEventListener('languageChanged', handleDjangoMessages);
         
         // Set translations and current language
         window.translator.setTranslations(globalTranslations);
         window.translator.currentLanguage = savedLang;
         
-        // Fix Issue 1: Apply translations after page load
+        // Apply translations after page load
         setTimeout(() => {
             updatePageTranslations();
         }, 0);
+        
+        console.log('🎯 Language system initialized successfully');
     });
     </script>
     

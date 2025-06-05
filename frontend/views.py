@@ -2,7 +2,7 @@ from django.forms import ValidationError
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.db.models import Sum, Count, Q, F
+from django.db.models import Sum, Count, Q, F, Case, When, Avg
 from django.http import JsonResponse
 from datetime import date, timedelta, datetime
 from decimal import Decimal
@@ -11,6 +11,7 @@ from vessels.models import Vessel
 from products.models import Product
 from transactions.models import Transaction, InventoryLot, Trip, PurchaseOrder
 from .utils import BilingualMessages
+from django.utils import timezone
 
 # @login_required
 def supply_entry(request):
@@ -1969,13 +1970,375 @@ def set_language(request):
 
 # @login_required
 def reports_dashboard(request):
-    """Reports hub with different report options"""
-    return render(request, 'frontend/reports_dashboard.html')
+    """Reports hub with statistics and report options"""
+    from django.utils import timezone
+    today = timezone.now().date()
+    
+    # Today's revenue from sales using F() expressions
+    today_sales = Transaction.objects.filter(
+        transaction_date=today,
+        transaction_type='SALE'
+    ).aggregate(
+        total_revenue=Sum(F('unit_price') * F('quantity')),
+        count=Count('id')
+    )
+    
+    # Today's transaction count (all types)
+    today_transactions = Transaction.objects.filter(
+        transaction_date=today
+    ).count()
+    
+    # Today's trips (completed and in-progress)
+    today_trips = Trip.objects.filter(
+        trip_date=today
+    ).count()
+    
+    # Today's purchase orders (completed and in-progress)  
+    today_pos = PurchaseOrder.objects.filter(
+        po_date=today
+    ).count()
+    
+    context = {
+        'today_stats': {
+            'revenue': today_sales['total_revenue'] or 0,
+            'transactions': today_transactions,
+            'trips': today_trips,
+            'purchase_orders': today_pos,
+        }
+    }
+    
+    return render(request, 'frontend/reports_dashboard.html', context)
+
+# @login_required  
+def comprehensive_report(request):
+    """Comprehensive transaction report - all transaction types with filtering"""
+    
+    # Get filter parameters
+    vessel_filter = request.GET.get('vessel')
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    transaction_type_filter = request.GET.get('transaction_type')
+    
+    # Base queryset - all transactions
+    transactions = Transaction.objects.select_related(
+        'vessel', 'product', 'created_by', 'trip', 'purchase_order'
+    ).order_by('-transaction_date', '-created_at')
+    
+    # Apply filters
+    if vessel_filter:
+        transactions = transactions.filter(vessel_id=vessel_filter)
+        
+    if date_from:
+        try:
+            date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
+            transactions = transactions.filter(transaction_date__gte=date_from_obj)
+        except ValueError:
+            pass
+    
+    if date_to:
+        try:
+            date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
+            transactions = transactions.filter(transaction_date__lte=date_to_obj)
+        except ValueError:
+            pass
+    else:
+        # If no "to date", and we have "from date", make it a single day report
+        if date_from:
+            try:
+                date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
+                transactions = transactions.filter(transaction_date=date_from_obj)
+            except ValueError:
+                pass
+    
+    if transaction_type_filter:
+        transactions = transactions.filter(transaction_type=transaction_type_filter)
+    
+    # Calculate summary statistics using F() expressions for calculated totals
+    summary_stats = transactions.aggregate(
+        total_transactions=Count('id'),
+        total_sales_revenue=Sum(
+            F('unit_price') * F('quantity'), 
+            filter=Q(transaction_type='SALE')
+        ),
+        total_purchase_cost=Sum(
+            F('unit_price') * F('quantity'), 
+            filter=Q(transaction_type='SUPPLY')
+        ),
+        total_quantity=Sum('quantity'),
+        sales_count=Count('id', filter=Q(transaction_type='SALE')),
+        supply_count=Count('id', filter=Q(transaction_type='SUPPLY')),
+        transfer_out_count=Count('id', filter=Q(transaction_type='TRANSFER_OUT')),
+        transfer_in_count=Count('id', filter=Q(transaction_type='TRANSFER_IN')),
+    )
+    
+    # Get breakdown by transaction type using F() expressions
+    type_breakdown = transactions.values('transaction_type').annotate(
+        count=Count('id'),
+        total_amount=Sum(F('unit_price') * F('quantity')),
+        total_quantity=Sum('quantity')
+    ).order_by('transaction_type')
+    
+    # Get breakdown by vessel using F() expressions
+    vessel_breakdown = transactions.values(
+        'vessel__name', 'vessel__name_ar'
+    ).annotate(
+        count=Count('id'),
+        total_amount=Sum(F('unit_price') * F('quantity')),
+        total_quantity=Sum('quantity')
+    ).order_by('vessel__name')
+    
+    # Get top products using F() expressions
+    product_breakdown = transactions.values(
+        'product__name', 'product__item_id'
+    ).annotate(
+        count=Count('id'),
+        total_amount=Sum(F('unit_price') * F('quantity')),
+        total_quantity=Sum('quantity')
+    ).order_by('-total_quantity')[:10]
+    
+    # Get date range info
+    date_range_info = None
+    if date_from:
+        if date_to:
+            date_range_info = {
+                'type': 'duration',
+                'from': date_from,
+                'to': date_to,
+                'days': (datetime.strptime(date_to, '%Y-%m-%d').date() - 
+                        datetime.strptime(date_from, '%Y-%m-%d').date()).days + 1
+            }
+        else:
+            date_range_info = {
+                'type': 'single_day',
+                'date': date_from
+            }
+    
+    # Get vessels for filter dropdown
+    vessels = Vessel.objects.filter(active=True).order_by('name')
+    
+    # Limit transactions for display performance
+    transactions_limited = transactions[:200]
+    
+    context = {
+        'transactions': transactions_limited,
+        'vessels': vessels,
+        'transaction_types': Transaction.TRANSACTION_TYPES,
+        'filters': {
+            'vessel': vessel_filter,
+            'date_from': date_from,
+            'date_to': date_to,
+            'transaction_type': transaction_type_filter,
+        },
+        'summary_stats': summary_stats,
+        'type_breakdown': type_breakdown,
+        'vessel_breakdown': vessel_breakdown,
+        'product_breakdown': product_breakdown,
+        'date_range_info': date_range_info,
+        'total_shown': min(transactions.count(), 200),
+        'total_available': transactions.count(),
+    }
+    
+    return render(request, 'frontend/comprehensive_report.html', context)
 
 # @login_required
 def daily_report(request):
-    """User-friendly daily reports"""
-    return render(request, 'frontend/daily_report.html')
+    """Comprehensive daily operations report for a specific date"""
+    from django.utils import timezone
+    from datetime import timedelta
+    
+    # Get selected date (default to today)
+    selected_date_str = request.GET.get('date')
+    if selected_date_str:
+        try:
+            selected_date = datetime.strptime(selected_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            selected_date = timezone.now().date()
+    else:
+        selected_date = timezone.now().date()
+    
+    # Get previous day for comparison
+    previous_date = selected_date - timedelta(days=1)
+    
+    # Get all active vessels
+    vessels = Vessel.objects.filter(active=True).order_by('name')
+    
+    # === SUMMARY STATISTICS ===
+    
+    # Daily transactions for selected date
+    daily_transactions = Transaction.objects.filter(transaction_date=selected_date)
+    
+    # Previous day transactions for comparison
+    previous_transactions = Transaction.objects.filter(transaction_date=previous_date)
+    
+    # Summary stats for selected date
+    daily_stats = daily_transactions.aggregate(
+        total_revenue=Sum(F('unit_price') * F('quantity'), filter=Q(transaction_type='SALE')),
+        total_purchase_cost=Sum(F('unit_price') * F('quantity'), filter=Q(transaction_type='SUPPLY')),
+        total_transactions=Count('id'),
+        sales_count=Count('id', filter=Q(transaction_type='SALE')),
+        supply_count=Count('id', filter=Q(transaction_type='SUPPLY')),
+        transfer_count=Count('id', filter=Q(transaction_type__in=['TRANSFER_IN', 'TRANSFER_OUT'])),
+        total_quantity=Sum('quantity'),
+    )
+    
+    # Previous day stats for comparison
+    previous_stats = previous_transactions.aggregate(
+        total_revenue=Sum(F('unit_price') * F('quantity'), filter=Q(transaction_type='SALE')),
+        total_transactions=Count('id'),
+    )
+    
+    # Calculate profit margin
+    daily_revenue = daily_stats['total_revenue'] or 0
+    daily_costs = daily_stats['total_purchase_cost'] or 0
+    daily_profit = daily_revenue - daily_costs
+    profit_margin = (daily_profit / daily_revenue * 100) if daily_revenue > 0 else 0
+    
+    # Calculate change from previous day
+    prev_revenue = previous_stats['total_revenue'] or 0
+    revenue_change = ((daily_revenue - prev_revenue) / prev_revenue * 100) if prev_revenue > 0 else 0
+    
+    prev_transactions = previous_stats['total_transactions'] or 0
+    transaction_change = daily_stats['total_transactions'] - prev_transactions
+    
+    # === VESSEL BREAKDOWN ===
+    
+    vessel_breakdown = []
+    for vessel in vessels:
+        vessel_transactions = daily_transactions.filter(vessel=vessel)
+        
+        vessel_stats = vessel_transactions.aggregate(
+            revenue=Sum(F('unit_price') * F('quantity'), filter=Q(transaction_type='SALE')),
+            costs=Sum(F('unit_price') * F('quantity'), filter=Q(transaction_type='SUPPLY')),
+            sales_count=Count('id', filter=Q(transaction_type='SALE')),
+            supply_count=Count('id', filter=Q(transaction_type='SUPPLY')),
+            transfer_out_count=Count('id', filter=Q(transaction_type='TRANSFER_OUT')),
+            transfer_in_count=Count('id', filter=Q(transaction_type='TRANSFER_IN')),
+            total_quantity=Sum('quantity'),
+        )
+        
+        # Get trips for this vessel on this date
+        vessel_trips = Trip.objects.filter(
+            vessel=vessel,
+            trip_date=selected_date
+        ).values('trip_number', 'is_completed', 'passenger_count')
+        
+        # Get POs for this vessel on this date
+        vessel_pos = PurchaseOrder.objects.filter(
+            vessel=vessel,
+            po_date=selected_date
+        ).values('po_number', 'is_completed')
+        
+        # Calculate vessel profit
+        vessel_revenue = vessel_stats['revenue'] or 0
+        vessel_costs = vessel_stats['costs'] or 0
+        vessel_profit = vessel_revenue - vessel_costs
+        
+        vessel_breakdown.append({
+            'vessel': vessel,
+            'stats': vessel_stats,
+            'profit': vessel_profit,
+            'trips': list(vessel_trips),
+            'pos': list(vessel_pos),
+        })
+    
+    # === INVENTORY CHANGES ===
+    
+    # Products that had inventory changes today
+    inventory_changes = daily_transactions.values(
+        'product__name', 'product__item_id', 'vessel__name', 'vessel__name_ar'
+    ).annotate(
+        total_in=Sum('quantity', filter=Q(transaction_type__in=['SUPPLY', 'TRANSFER_IN'])),
+        total_out=Sum('quantity', filter=Q(transaction_type__in=['SALE', 'TRANSFER_OUT'])),
+        net_change=Sum(
+            Case(
+                When(transaction_type__in=['SUPPLY', 'TRANSFER_IN'], then=F('quantity')),
+                When(transaction_type__in=['SALE', 'TRANSFER_OUT'], then=-F('quantity')),
+                default=0
+            )
+        )
+    ).filter(
+        Q(total_in__gt=0) | Q(total_out__gt=0)
+    ).order_by('-total_out')[:20]  # Top 20 most active products
+    
+    # === BUSINESS INSIGHTS ===
+    
+    # Best performing vessel by revenue
+    best_vessel = max(vessel_breakdown, key=lambda v: v['stats']['revenue'] or 0) if vessel_breakdown else None
+    
+    # Most active vessel by transaction count
+    most_active_vessel = max(vessel_breakdown, key=lambda v: (v['stats']['sales_count'] or 0) + (v['stats']['supply_count'] or 0)) if vessel_breakdown else None
+    
+    # Low stock alerts (products with less than 10 units total across all vessels)
+    low_stock_products = []
+    for product in Product.objects.filter(active=True):
+        total_stock = InventoryLot.objects.filter(
+            product=product,
+            remaining_quantity__gt=0
+        ).aggregate(total=Sum('remaining_quantity'))['total'] or 0
+        
+        if total_stock < 10:
+            low_stock_products.append({
+                'product': product,
+                'total_stock': total_stock
+            })
+    
+    # Unusual activity (vessels with unusually high transaction count compared to their average)
+    unusual_activity = []
+    for vessel_data in vessel_breakdown:
+        vessel = vessel_data['vessel']
+        today_count = (vessel_data['stats']['sales_count'] or 0) + (vessel_data['stats']['supply_count'] or 0)
+        
+        # Get average transaction count for this vessel over last 30 days
+        thirty_days_ago = selected_date - timedelta(days=30)
+        avg_transactions = Transaction.objects.filter(
+            vessel=vessel,
+            transaction_date__gte=thirty_days_ago,
+            transaction_date__lt=selected_date
+        ).values('transaction_date').annotate(
+            daily_count=Count('id')
+        ).aggregate(avg=Avg('daily_count'))['avg'] or 0
+        
+        # If today's count is 50% higher than average, flag it
+        if avg_transactions > 0 and today_count > avg_transactions * 1.5:
+            unusual_activity.append({
+                'vessel': vessel,
+                'today_count': today_count,
+                'avg_count': round(avg_transactions, 1),
+                'percentage_increase': round((today_count - avg_transactions) / avg_transactions * 100, 1)
+            })
+    
+    # === ALL TRIPS AND POS FOR THE DAY ===
+    
+    # All trips on this date
+    daily_trips = Trip.objects.filter(
+        trip_date=selected_date
+    ).select_related('vessel').order_by('vessel__name', 'trip_number')
+    
+    # All POs on this date
+    daily_pos = PurchaseOrder.objects.filter(
+        po_date=selected_date
+    ).select_related('vessel').order_by('vessel__name', 'po_number')
+    
+    context = {
+        'selected_date': selected_date,
+        'previous_date': previous_date,
+        'daily_stats': daily_stats,
+        'daily_profit': daily_profit,
+        'profit_margin': profit_margin,
+        'revenue_change': revenue_change,
+        'transaction_change': transaction_change,
+        'vessel_breakdown': vessel_breakdown,
+        'inventory_changes': inventory_changes,
+        'best_vessel': best_vessel,
+        'most_active_vessel': most_active_vessel,
+        'low_stock_products': low_stock_products[:10],  # Limit to top 10
+        'unusual_activity': unusual_activity,
+        'daily_trips': daily_trips,
+        'daily_pos': daily_pos,
+        'vessels': vessels,
+    }
+    
+    return render(request, 'frontend/daily_report.html', context)
 
 # @login_required
 def monthly_report(request):

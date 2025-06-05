@@ -1,7 +1,6 @@
 {% extends 'frontend/base.html' %}
-{% load i18n %}
 
-{% block title %}{% trans "PO Supply" %} - {{ po.po_number }} - {% trans "Vessel Sales System" %}{% endblock %}
+{% block title %}PO Supply - {{ po.po_number }} - Vessel Sales System{% endblock %}
 
 {% block content %}
 <!-- Page Header -->
@@ -11,20 +10,20 @@
             <div>
                 <h2>
                     <i class="bi bi-box-seam text-primary"></i> 
-                    {% trans "PO Supply" %}: {{ po.po_number }}
+                    <span data-translate="po_supply">PO Supply</span>: <span class="po-number-display" data-original="{{ po.po_number }}">{{ po.po_number }}</span>
                 </h2>
                 <p class="text-muted mb-0">
                     <i class="bi bi-ship"></i> <span class="vessel-name" data-en="{{ po.vessel.name }}" data-ar="{{ po.vessel.name_ar }}">{{ po.vessel.name }}</span> •
-                    <i class="bi bi-calendar"></i> {{ po.po_date|date:"d/m/Y" }}
+                    <i class="bi bi-calendar"></i> <span class="po-date-display" data-date="{{ po.po_date|date:'d/m/Y' }}">{{ po.po_date|date:"d/m/Y" }}</span>
                 </p>
             </div>
             <div class="d-flex gap-2">
                 <a href="{% url 'frontend:supply_entry' %}" class="btn btn-outline-secondary">
-                    <i class="bi bi-arrow-left"></i> {% trans "Back to POs" %}
+                    <i class="bi bi-arrow-left"></i> <span data-translate="back_to_pos">Back to POs</span>
                 </a>
                 {% if can_edit %}
                 <button type="button" class="btn btn-success" id="completePOBtn" onclick="completePOSupplies()">
-                    <i class="bi bi-check-circle"></i> {% trans "Complete PO" %} (<span id="itemCountBadge">0</span>)
+                    <i class="bi bi-check-circle"></i> <span data-translate="complete_po">Complete PO</span> (<span id="itemCountBadge">0</span>)
                 </button>
                 {% endif %}
             </div>
@@ -39,42 +38,42 @@
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-3">
-                        <h6 class="mb-1 opacity-75">{% trans "Total Cost" %}</h6>
+                        <h6 class="mb-1 opacity-75"><span data-translate="total_cost">Total Cost</span></h6>
                         <h3 class="mb-0" id="poTotalCost">
                             {% if po.is_completed %}
-                                {{ po.total_cost|floatformat:3 }} JOD
+                                <span class="cost-display" data-number data-original="{{ po.total_cost|floatformat:3 }}">{{ po.total_cost|floatformat:3 }}</span> <span data-currency-symbol>JOD</span>
                             {% else %}
-                                0.000 JOD
+                                <span class="cost-display" data-number data-original="0.000">0.000</span> <span data-currency-symbol>JOD</span>
                             {% endif %}
                         </h3>
                     </div>
                     <div class="col-md-3">
-                        <h6 class="mb-1 opacity-75">{% trans "Items in Cart" %}</h6>
+                        <h6 class="mb-1 opacity-75"><span data-translate="items_in_cart">Items in Cart</span></h6>
                         <h3 class="mb-0" id="itemCount">
                             {% if po.is_completed %}
-                                {{ po.transaction_count }}
+                                <span class="item-count-display" data-number data-original="{{ po.transaction_count }}">{{ po.transaction_count }}</span>
                             {% else %}
-                                0
+                                <span class="item-count-display" data-number data-original="0">0</span>
                             {% endif %}
                         </h3>
                     </div>
                     <div class="col-md-3">
-                        <h6 class="mb-1 opacity-75">{% trans "Avg Cost per Item" %}</h6>
+                        <h6 class="mb-1 opacity-75"><span data-translate="avg_cost_per_item">Avg Cost per Item</span></h6>
                         <h3 class="mb-0" id="avgCostPerItem">
                             {% if po.is_completed and po.transaction_count > 0 %}
-                                {% widthratio po.total_cost po.transaction_count 1 %} JOD
+                                <span class="avg-cost-display" data-number data-original="{% widthratio po.total_cost po.transaction_count 1 %}">{% widthratio po.total_cost po.transaction_count 1 %}</span> <span data-currency-symbol>JOD</span>
                             {% else %}
-                                0.000 JOD
+                                <span class="avg-cost-display" data-number data-original="0.000">0.000</span> <span data-currency-symbol>JOD</span>
                             {% endif %}
                         </h3>
                     </div>
                     <div class="col-md-3">
-                        <h6 class="mb-1 opacity-75">{% trans "Status" %}</h6>
+                        <h6 class="mb-1 opacity-75"><span data-translate="status">Status</span></h6>
                         <h3 class="mb-0">
                             {% if po.is_completed %}
-                                <span class="badge bg-light text-dark">{% trans "Completed" %}</span>
+                                <span class="badge bg-light text-dark"><span data-translate="completed">Completed</span></span>
                             {% else %}
-                                <span class="badge bg-warning text-dark">{% trans "In Progress" %}</span>
+                                <span class="badge bg-warning text-dark"><span data-translate="in_progress">In Progress</span></span>
                             {% endif %}
                         </h3>
                     </div>
@@ -91,7 +90,7 @@
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0" id="formTitle">
-                    <i class="bi bi-plus-circle"></i> {% trans "Add Supply Item" %}
+                    <i class="bi bi-plus-circle"></i> <span data-translate="add_supply_item">Add Supply Item</span>
                 </h5>
             </div>
             <div class="card-body">
@@ -104,30 +103,34 @@
                     <div class="row mb-3">
                         <div class="col-md-4">
                             <label class="form-label fw-bold">
-                                <i class="bi bi-search"></i> {% trans "Search Product" %}
+                                <i class="bi bi-search"></i> <span data-translate="search_product">Search Product</span>
                             </label>
                             <div class="input-group">
                                 <input type="text" class="form-control form-control-lg" id="productSearch" 
-                                       placeholder="{% trans 'Type product name, ID, or scan barcode...' %}">
+                                       data-placeholder-en="Type product name, ID, or scan barcode..."
+                                       data-placeholder-ar="اكتب اسم المنتج، الرقم، أو امسح الباركود..."
+                                       placeholder="Type product name, ID, or scan barcode...">
                                 <button class="btn btn-outline-secondary" type="button" onclick="showComingSoon()">
-                                    <i class="bi bi-upc-scan"></i> {% trans "Scan" %}
+                                    <i class="bi bi-upc-scan"></i> <span data-translate="scan">Scan</span>
                                 </button>
                             </div>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label fw-bold">
-                                <i class="bi bi-123"></i> {% trans "Quantity" %}
+                                <i class="bi bi-123"></i> <span data-translate="quantity">Quantity</span>
                             </label>
                             <input type="number" class="form-control form-control-lg" id="supplyQuantity" 
                                    placeholder="0" min="1" step="1" disabled>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label fw-bold">
-                                <i class="bi bi-currency-dollar"></i> {% trans "Purchase Cost (JOD)" %}
+                                <i class="bi bi-currency-dollar"></i>
+                                <span data-translate="purchase_cost">Purchase Cost</span>
+                                (<span data-currency-symbol>JOD</span>)
                             </label>
                             <input type="number" class="form-control form-control-lg" id="purchaseCost" 
                                    placeholder="0.000" min="0.001" step="0.001" disabled>
-                            <small class="text-muted">{% trans "Cost per unit" %}</small>
+                            <small class="text-muted"><span data-translate="cost_per_unit">Cost per unit</span></small>
                         </div>
                     </div>
                     
@@ -136,20 +139,20 @@
                         <div class="alert alert-info">
                             <div class="row">
                                 <div class="col-md-3">
-                                    <strong>{% trans "Product:" %}</strong>
+                                    <strong><span data-translate="product_colon">Product:</span></strong>
                                     <div id="productName">-</div>
                                 </div>
                                 <div class="col-md-3">
-                                    <strong>{% trans "Default Cost:" %}</strong>
-                                    <div id="defaultCost">- JOD</div>
+                                    <strong><span data-translate="default_cost_colon">Default Cost:</span></strong>
+                                    <div id="defaultCost">- <span data-currency-symbol>JOD</span></div>
                                 </div>
                                 <div class="col-md-3">
-                                    <strong>{% trans "Duty-Free:" %}</strong>
+                                    <strong><span data-translate="duty_free_colon">Duty-Free:</span></strong>
                                     <div id="dutyFreeStatus">-</div>
                                 </div>
                                 <div class="col-md-3">
-                                    <strong>{% trans "Total Cost:" %}</strong>
-                                    <div id="totalCost">0.000 JOD</div>
+                                    <strong><span data-translate="total_cost_colon">Total Cost:</span></strong>
+                                    <div id="totalCost">0.000 <span data-currency-symbol>JOD</span></div>
                                 </div>
                             </div>
                         </div>
@@ -159,17 +162,19 @@
                     <div class="row">
                         <div class="col-md-6">
                             <label class="form-label fw-bold">
-                                <i class="bi bi-chat-left-text"></i> {% trans "Notes (Optional)" %}
+                                <i class="bi bi-chat-left-text"></i> <span data-translate="po_notes">Notes (Optional)</span>
                             </label>
                             <input type="text" class="form-control" id="supplyNotes" 
-                                   placeholder="{% trans 'Additional notes for this supply...' %}">
+                                   data-placeholder-en="Additional notes for this supply..."
+                                   data-placeholder-ar="ملاحظات إضافية لهذا التوريد..."
+                                   placeholder="Additional notes for this supply...">
                         </div>
                         <div class="col-md-6 d-flex align-items-end gap-2">
                             <button type="button" class="btn btn-outline-secondary" onclick="cancelEdit()">
-                                <i class="bi bi-x-circle"></i> {% trans "Cancel" %}
+                                <i class="bi bi-x-circle"></i> <span data-translate="cancel">Cancel</span>
                             </button>
                             <button type="submit" class="btn btn-primary flex-grow-1" id="addSupplyBtn" disabled>
-                                <i class="bi bi-plus"></i> <span id="addBtnText">{% trans "Add to PO" %}</span>
+                                <i class="bi bi-plus"></i> <span id="addBtnText" data-translate="add_to_po">Add to PO</span>
                             </button>
                         </div>
                     </div>
@@ -187,15 +192,15 @@
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
                     <i class="bi bi-list"></i> 
-                    {% if can_edit %}{% trans "Supply Cart" %}{% else %}{% trans "Supply Items" %}{% endif %} 
+                    {% if can_edit %}<span data-translate="supply_cart">Supply Cart</span>{% else %}<span data-translate="supply_items">Supply Items</span>{% endif %} 
                     (<span id="suppliesListCount">0</span>)
                 </h5>
                 <div class="d-flex gap-2">
                     <button class="btn btn-outline-success btn-sm" onclick="exportPOSupplies()">
-                        <i class="bi bi-file-earmark-excel"></i> {% trans "Export" %}
+                        <i class="bi bi-file-earmark-excel"></i> <span data-translate="export">Export</span>
                     </button>
                     <button class="btn btn-outline-primary btn-sm" onclick="printPOSupplies()">
-                        <i class="bi bi-printer"></i> {% trans "Print" %}
+                        <i class="bi bi-printer"></i> <span data-translate="print">Print</span>
                     </button>
                 </div>
             </div>
@@ -204,14 +209,14 @@
                     <table class="table table-hover mb-0">
                         <thead class="table-light">
                             <tr>
-                                {% if not can_edit %}<th>{% trans "Time" %}</th>{% endif %}
-                                <th>{% trans "Product" %}</th>
-                                <th class="text-center">{% trans "Quantity" %}</th>
-                                <th class="text-end">{% trans "Unit Cost" %}</th>
-                                <th class="text-end">{% trans "Total Cost" %}</th>
-                                <th>{% trans "Notes" %}</th>
+                                {% if not can_edit %}<th><span data-translate="time">Time</span></th>{% endif %}
+                                <th><span data-translate="product">Product</span></th>
+                                <th class="text-center"><span data-translate="quantity">Quantity</span></th>
+                                <th class="text-end"><span data-translate="unit_cost">Unit Cost</span></th>
+                                <th class="text-end"><span data-translate="total_cost">Total Cost</span></th>
+                                <th><span data-translate="notes">Notes</span></th>
                                 {% if can_edit %}
-                                <th class="text-center">{% trans "Actions" %}</th>
+                                <th class="text-center"><span data-translate="actions">Actions</span></th>
                                 {% endif %}
                             </tr>
                         </thead>
@@ -224,8 +229,8 @@
                 <!-- Empty State -->
                 <div id="emptySuppliesState" class="text-center py-5" style="display: none;">
                     <i class="bi bi-cart-x text-muted" style="font-size: 3rem;"></i>
-                    <h5 class="text-muted mt-3">{% trans "No items in cart" %}</h5>
-                    <p class="text-muted">{% trans "Use the form above to add supply items to this purchase order" %}</p>
+                    <h5 class="text-muted mt-3"><span data-translate="no_items_in_cart">No items in cart</span></h5>
+                    <p class="text-muted"><span data-translate="use_form_po">Use the form above to add supply items to this purchase order</span></p>
                 </div>
             </div>
         </div>
@@ -235,10 +240,11 @@
 {% endblock %}
 
 {% block extra_js %}
-<!-- Translation Data for PO Supply -->
+<!-- Enhanced Translation for PO Supply -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const translations = {
+    // Translation data specific to PO Supply
+    const poSupplyTranslations = {
         en: {
             // PO Confirmation messages
             'cancel_po_with_cart': 'Cancel PO? This will clear your cart and may delete the PO if no items were previously saved.',
@@ -271,6 +277,12 @@ document.addEventListener('DOMContentLoaded', function() {
             'already_in_cart': 'Already in Cart',
             'duty_free_not_supported': 'Duty-Free Not Supported',
             'completing': 'Completing...',
+            'edit_supply_item': 'Edit Supply Item',
+            'yes': 'Yes',
+            'no': 'No',
+            'edit_item': 'Edit Item',
+            'remove_item': 'Remove Item',
+            'id_colon': 'ID:',
             
             // Units and currency
             'units': 'units',
@@ -304,19 +316,66 @@ document.addEventListener('DOMContentLoaded', function() {
             'already_in_cart': 'موجود في السلة',
             'duty_free_not_supported': 'المعفى من الرسوم غير مدعوم',
             'completing': 'جاري الإكمال...',
+            'edit_supply_item': 'تعديل عنصر التوريد',
+            'yes': 'نعم',
+            'no': 'لا',
+            'edit_item': 'تعديل العنصر',
+            'remove_item': 'إزالة العنصر',
+            'id_colon': 'رقم:',
             
             'units': 'وحدة',
             'jod': 'دينار'
         }
     };
     
-    // MERGE with existing translations instead of overwriting
-    if (window.translator.translations.en) {
-        Object.assign(window.translator.translations.en, translations.en);
-        Object.assign(window.translator.translations.ar, translations.ar);
-    } else {
-        window.translator.setTranslations(translations);
+    // Merge translations with global translator
+    if (window.translator && window.translator.translations) {
+        Object.assign(window.translator.translations.en, poSupplyTranslations.en);
+        Object.assign(window.translator.translations.ar, poSupplyTranslations.ar);
     }
+
+    // Update page elements on language change
+    window.addEventListener('languageChanged', function() {
+        updatePOSupplyTranslations();
+    });
+    
+    function updatePOSupplyTranslations() {
+        // Update PO number display
+        document.querySelectorAll('.po-number-display').forEach(element => {
+            const originalValue = element.getAttribute('data-original') || element.textContent.trim();
+            if (!element.getAttribute('data-original')) {
+                element.setAttribute('data-original', originalValue);
+            }
+            const translatedNumber = window.translateNumber(originalValue);
+            element.textContent = translatedNumber;
+        });
+        
+        // Update date display
+        document.querySelectorAll('.po-date-display').forEach(element => {
+            const originalDate = element.getAttribute('data-date');
+            if (originalDate && window.translator.currentLanguage === 'ar') {
+                const translatedDate = window.translateNumber(originalDate);
+                element.textContent = translatedDate;
+            } else if (originalDate) {
+                element.textContent = originalDate;
+            }
+        });
+        
+        // Update all numbers
+        document.querySelectorAll('.cost-display, .item-count-display, .avg-cost-display').forEach(element => {
+            const originalValue = element.getAttribute('data-original') || element.textContent.trim();
+            if (!element.getAttribute('data-original')) {
+                element.setAttribute('data-original', originalValue);
+            }
+            const translatedNumber = window.translateNumber(originalValue);
+            element.textContent = translatedNumber;
+        });
+    }
+    
+    // Initial translation update
+    setTimeout(() => {
+        updatePOSupplyTranslations();
+    }, 0);
 
     // Check if required elements exist and if PO is editable
     const poIdElement = document.getElementById('poId');
@@ -351,7 +410,7 @@ document.addEventListener('DOMContentLoaded', function() {
         setupEventListeners();
     } catch (error) {
         console.error('Error initializing PO cart:', error);
-        showAlert(_('error_loading_cart'), 'warning');
+        showAlert(window.translator._('error_loading_cart'), 'warning');
         poSuppliesCart = [];
         updateCartDisplay();
     }
@@ -472,12 +531,12 @@ function searchProducts(searchTerm) {
             showProductSelection(data.products);
         } else {
             clearProductSelection();
-            showAlert(_('no_products_found'), 'warning');
+            showAlert(window.translator._('no_products_found'), 'warning');
         }
     })
     .catch(error => {
         console.error('Error searching products:', error);
-        showAlert(_('error_searching'), 'danger');
+        showAlert(window.translator._('error_searching'), 'danger');
     });
 }
 
@@ -504,13 +563,13 @@ function displayProductPage() {
     document.getElementById('productInfo').innerHTML = `
         <div class="alert alert-warning">
             <div class="d-flex justify-content-between align-items-center mb-2">
-                <h6 class="mb-0"><i class="bi bi-list"></i> Multiple products found (${allMatchedProducts.length}). Please select one:</h6>
+                <h6 class="mb-0"><i class="bi bi-list"></i> ${window.translator._('multiple_products_found', {count: allMatchedProducts.length})}</h6>
                 <div class="d-flex align-items-center gap-2">
                     <button type="button" class="btn btn-sm btn-outline-secondary" 
                             onclick="navigateProducts(-1)" ${currentProductPage === 0 ? 'disabled' : ''}>
                         <i class="bi bi-chevron-left"></i>
                     </button>
-                    <small class="text-muted">Page ${currentProductPage + 1} of ${totalPages}</small>
+                    <small class="text-muted">${window.translator._('page_x_of_y', {current: currentProductPage + 1, total: totalPages})}</small>
                     <button type="button" class="btn btn-sm btn-outline-secondary" 
                             onclick="navigateProducts(1)" ${currentProductPage === totalPages - 1 ? 'disabled' : ''}>
                         <i class="bi bi-chevron-right"></i>
@@ -523,15 +582,15 @@ function displayProductPage() {
                             onclick="selectProduct(${JSON.stringify(product).replace(/"/g, '&quot;')})">
                         <div>
                             <strong>${product.name}</strong>
-                            <br><small class="text-muted">ID: ${product.item_id}</small>
+                            <br><small class="text-muted">${window.translator._('id_colon')} ${product.item_id}</small>
                         </div>
-                        <span class="badge bg-primary">${product.purchase_price.toFixed(3)} JOD</span>
+                        <span class="badge bg-primary">${window.translateNumber(product.purchase_price.toFixed(3))} ${window.translator._('jod')}</span>
                     </button>
                 `).join('')}
             </div>
             <small class="text-muted mt-2 d-block">
                 <i class="bi bi-lightbulb"></i> 
-                Use ← → arrows to browse more products, or refine your search for specific results.
+                ${window.translator._('browse_products_tip')}
             </small>
         </div>
     `;
@@ -560,8 +619,8 @@ function selectProduct(product) {
     
     // Update UI
     document.getElementById('productName').textContent = product.name;
-    document.getElementById('defaultCost').textContent = product.purchase_price.toFixed(3) + ' JOD';
-    document.getElementById('dutyFreeStatus').textContent = product.is_duty_free ? '{% trans "Yes" %}' : '{% trans "No" %}';
+    document.getElementById('defaultCost').textContent = window.translateNumber(product.purchase_price.toFixed(3)) + ' ' + window.translator._('jod');
+    document.getElementById('dutyFreeStatus').textContent = product.is_duty_free ? window.translator._('yes') : window.translator._('no');
     
     // Enable inputs
     document.getElementById('supplyQuantity').disabled = false;
@@ -586,7 +645,7 @@ function updateTotalCost() {
     const quantity = parseInt(document.getElementById('supplyQuantity').value) || 0;
     const cost = parseFloat(document.getElementById('purchaseCost').value) || 0;
     const total = quantity * cost;
-    document.getElementById('totalCost').textContent = total.toFixed(3) + ' JOD';
+    document.getElementById('totalCost').textContent = window.translateNumber(total.toFixed(3)) + ' ' + window.translator._('jod');
 }
 
 function validateForm() {
@@ -596,7 +655,7 @@ function validateForm() {
     const addBtnText = document.getElementById('addBtnText');
     
     let isValid = selectedProduct && quantity > 0 && cost > 0;
-    let buttonText = editingIndex >= 0 ? _('update_item') : _('add_to_po');
+    let buttonText = editingIndex >= 0 ? window.translator._('update_item') : window.translator._('add_to_po');
     let buttonClass = 'btn btn-primary flex-grow-1';
     
     // Check for duplicate product (only when not editing)
@@ -604,7 +663,7 @@ function validateForm() {
         const existingIndex = poSuppliesCart.findIndex(item => item.product_id === selectedProduct.id);
         if (existingIndex !== -1) {
             isValid = false;
-            buttonText = _('already_in_cart');
+            buttonText = window.translator._('already_in_cart');
             buttonClass = 'btn btn-warning flex-grow-1';
             
             // Highlight existing item in cart
@@ -618,7 +677,7 @@ function validateForm() {
     // Check duty-free compatibility
     if (selectedProduct?.is_duty_free && !{{ po.vessel.has_duty_free|yesno:"true,false" }}) {
         isValid = false;
-        buttonText = _('duty_free_not_supported');
+        buttonText = window.translator._('duty_free_not_supported');
         buttonClass = 'btn btn-danger flex-grow-1';
     }
     
@@ -657,7 +716,7 @@ function clearProductSelection() {
     const addBtn = document.getElementById('addSupplyBtn');
     addBtn.disabled = true;
     addBtn.className = 'btn btn-primary flex-grow-1';
-    document.getElementById('addBtnText').textContent = _('add_to_po');
+    document.getElementById('addBtnText').textContent = window.translator._('add_to_po');
 }
 
 // Shopping cart operations
@@ -693,24 +752,25 @@ function addToCart() {
     saveCartToStorage();
     updateCartDisplay();
     clearForm();
-    showAlert(_('item_added_success'), 'success');
+    showAlert(window.translator._('item_added_success'), 'success');
     
     // Focus back to search field for next item
     document.getElementById('productSearch').focus();
 }
 
-function removeFromCart(index) {
-    if (confirmTranslated('remove_cart_item')) {
+async function removeFromCart(index) {
+    const confirmed = await confirmTranslated('remove_cart_item');
+    if (confirmed) {
         poSuppliesCart.splice(index, 1);
         saveCartToStorage();
         updateCartDisplay();
-        showAlert(_('item_removed'), 'info');
+        showAlert(window.translator._('item_removed'), 'info');
     }
 }
 
 function editCartItem(index) {
     if (index < 0 || index >= poSuppliesCart.length) {
-        showAlert(_('invalid_item_edit'), 'error');
+        showAlert(window.translator._('invalid_item_edit'), 'error');
         return;
     }
     
@@ -720,8 +780,8 @@ function editCartItem(index) {
     editingIndex = index;
     
     // Update UI to edit mode
-    document.getElementById('formTitle').innerHTML = '<i class="bi bi-pencil"></i> {% trans "Edit Supply Item" %}';
-    document.getElementById('addBtnText').textContent = '{% trans "Update Item" %}';
+    document.getElementById('formTitle').innerHTML = '<i class="bi bi-pencil"></i> ' + window.translator._('edit_supply_item');
+    document.getElementById('addBtnText').textContent = window.translator._('update_item');
     
     // Simulate product selection by setting selectedProduct
     selectedProduct = {
@@ -743,9 +803,9 @@ function editCartItem(index) {
     
     // Update product info display
     document.getElementById('productName').textContent = item.product_name;
-    document.getElementById('defaultCost').textContent = item.unit_price.toFixed(3) + ' JOD';
-    document.getElementById('dutyFreeStatus').textContent = item.is_duty_free ? '{% trans "Yes" %}' : '{% trans "No" %}';
-    document.getElementById('totalCost').textContent = item.total_amount.toFixed(3) + ' JOD';
+    document.getElementById('defaultCost').textContent = window.translateNumber(item.unit_price.toFixed(3)) + ' ' + window.translator._('jod');
+    document.getElementById('dutyFreeStatus').textContent = item.is_duty_free ? window.translator._('yes') : window.translator._('no');
+    document.getElementById('totalCost').textContent = window.translateNumber(item.total_amount.toFixed(3)) + ' ' + window.translator._('jod');
     
     // Show product info
     document.getElementById('productInfo').style.display = 'block';
@@ -787,20 +847,20 @@ async function cancelEdit() {
                     window.location.href = "{% url 'frontend:supply_entry' %}";
                 }, 2000);
             } else {
-                showAlert(data.error || _('error_cancelling_po'), 'danger');
+                showAlert(data.error || window.translator._('error_cancelling_po'), 'danger');
             }
         })
         .catch(error => {
             console.error('Error cancelling PO:', error);
-            showAlert(_('error_cancelling_po'), 'danger');
+            showAlert(window.translator._('error_cancelling_po'), 'danger');
         });
     }
 }
 
 function exitEditMode() {
     editingIndex = -1;
-    document.getElementById('formTitle').innerHTML = '<i class="bi bi-plus-circle"></i> {% trans "Add Supply Item" %}';
-    document.getElementById('addBtnText').textContent = '{% trans "Add to PO" %}';
+    document.getElementById('formTitle').innerHTML = '<i class="bi bi-plus-circle"></i> ' + window.translator._('add_supply_item');
+    document.getElementById('addBtnText').textContent = window.translator._('add_to_po');
     clearForm();
 }
 
@@ -810,13 +870,13 @@ function updateCartDisplay() {
     // For completed POs, use actual transaction data instead of cart
     if (!canEdit) {
         {% if po.total_cost %}
-        document.getElementById('poTotalCost').textContent = '{{ po.total_cost|floatformat:3 }} JOD';
-        document.getElementById('itemCount').textContent = '{{ po.transaction_count }}';
+        document.getElementById('poTotalCost').innerHTML = window.translateNumber('{{ po.total_cost|floatformat:3 }}') + ' ' + window.translator._('jod');
+        document.getElementById('itemCount').textContent = window.translateNumber('{{ po.transaction_count }}');
         const avgCost = {{ po.transaction_count }} > 0 ? {{ po.total_cost }} / {{ po.transaction_count }} : 0;
-        document.getElementById('avgCostPerItem').textContent = avgCost.toFixed(3) + ' JOD';
-        document.getElementById('suppliesListCount').textContent = '{{ po.transaction_count }}';
+        document.getElementById('avgCostPerItem').innerHTML = window.translateNumber(avgCost.toFixed(3)) + ' ' + window.translator._('jod');
+        document.getElementById('suppliesListCount').textContent = window.translateNumber('{{ po.transaction_count }}');
         if (document.getElementById('itemCountBadge')) {
-            document.getElementById('itemCountBadge').textContent = '{{ po.transaction_count }}';
+            document.getElementById('itemCountBadge').textContent = window.translateNumber('{{ po.transaction_count }}');
         }
         return; // Exit early for completed POs
         {% endif %}
@@ -831,9 +891,9 @@ function updateCartDisplay() {
     
     // Update counts
     const count = poSuppliesCart.length;
-    suppliesListCount.textContent = count;
-    itemCount.textContent = count;
-    if (itemCountBadge) itemCountBadge.textContent = count;
+    suppliesListCount.textContent = window.translateNumber(count.toString());
+    itemCount.textContent = window.translateNumber(count.toString());
+    if (itemCountBadge) itemCountBadge.textContent = window.translateNumber(count.toString());
     
     // Calculate totals
     let totalCost = 0;
@@ -841,10 +901,10 @@ function updateCartDisplay() {
         totalCost += item.total_amount;
     });
     
-    document.getElementById('poTotalCost').textContent = totalCost.toFixed(3) + ' JOD';
+    document.getElementById('poTotalCost').innerHTML = window.translateNumber(totalCost.toFixed(3)) + ' ' + window.translator._('jod');
     
     const avgCost = count > 0 ? totalCost / count : 0;
-    document.getElementById('avgCostPerItem').textContent = avgCost.toFixed(3) + ' JOD';
+    document.getElementById('avgCostPerItem').innerHTML = window.translateNumber(avgCost.toFixed(3)) + ' ' + window.translator._('jod');
     
     // Update table
     if (count === 0) {
@@ -857,31 +917,31 @@ function updateCartDisplay() {
                 <td>
                     <div>
                         <strong>${item.product_name}</strong>
-                        <small class="text-muted d-block">{% trans "ID:" %} ${item.product_item_id}</small>
-                        ${item.is_duty_free ? '<span class="badge bg-warning text-dark">{% trans "Duty-Free" %}</span>' : ''}
+                        <small class="text-muted d-block">${window.translator._('id_colon')} ${item.product_item_id}</small>
+                        ${item.is_duty_free ? '<span class="badge bg-warning text-dark">' + window.translator._('duty_free') + '</span>' : ''}
                     </div>
                 </td>
                 <td class="text-center">
-                    <span class="fw-bold">${item.quantity}</span>
-                    <small class="text-muted d-block">{% trans "units" %}</small>
+                    <span class="fw-bold">${window.translateNumber(item.quantity.toString())}</span>
+                    <small class="text-muted d-block">${window.translator._('units')}</small>
                 </td>
                 <td class="text-end">
-                    <span class="fw-bold">${item.unit_price.toFixed(3)}</span>
-                    <small class="text-muted d-block">JOD</small>
+                    <span class="fw-bold">${window.translateNumber(item.unit_price.toFixed(3))}</span>
+                    <small class="text-muted d-block">${window.translator._('jod')}</small>
                 </td>
                 <td class="text-end">
-                    <span class="fw-bold text-primary">${item.total_amount.toFixed(3)}</span>
-                    <small class="text-muted d-block">JOD</small>
+                    <span class="fw-bold text-primary">${window.translateNumber(item.total_amount.toFixed(3))}</span>
+                    <small class="text-muted d-block">${window.translator._('jod')}</small>
                 </td>
                 <td>
                     <small>${item.notes || '-'}</small>
                 </td>
                 <td class="text-center">
                     <div class="btn-group btn-group-sm">
-                        <button class="btn btn-outline-primary" onclick="editCartItem(${index})" title="{% trans 'Edit Item' %}">
+                        <button class="btn btn-outline-primary" onclick="editCartItem(${index})" title="${window.translator._('edit_item')}">
                             <i class="bi bi-pencil"></i>
                         </button>
-                        <button class="btn btn-outline-danger" onclick="removeFromCart(${index})" title="{% trans 'Remove Item' %}">
+                        <button class="btn btn-outline-danger" onclick="removeFromCart(${index})" title="${window.translator._('remove_item')}">
                             <i class="bi bi-trash"></i>
                         </button>
                     </div>
@@ -895,7 +955,7 @@ function displayCompletedSupplies(completedSupplies) {
     const suppliesList = document.getElementById('suppliesList');
     const suppliesListCount = document.getElementById('suppliesListCount');
     
-    suppliesListCount.textContent = completedSupplies.length;
+    suppliesListCount.textContent = window.translateNumber(completedSupplies.length.toString());
     
     if (completedSupplies.length === 0) {
         document.getElementById('emptySuppliesState').style.display = 'block';
@@ -906,20 +966,20 @@ function displayCompletedSupplies(completedSupplies) {
                 <td>
                     <div>
                         <strong>${item.product_name}</strong>
-                        <small class="text-muted d-block">{% trans "ID:" %} ${item.product_item_id}</small>
+                        <small class="text-muted d-block">${window.translator._('id_colon')} ${item.product_item_id}</small>
                     </div>
                 </td>
                 <td class="text-center">
-                    <span class="fw-bold">${item.quantity}</span>
-                    <small class="text-muted d-block">{% trans "units" %}</small>
+                    <span class="fw-bold">${window.translateNumber(item.quantity.toString())}</span>
+                    <small class="text-muted d-block">${window.translator._('units')}</small>
                 </td>
                 <td class="text-end">
-                    <span class="fw-bold">${item.unit_price.toFixed(3)}</span>
-                    <small class="text-muted d-block">JOD</small>
+                    <span class="fw-bold">${window.translateNumber(item.unit_price.toFixed(3))}</span>
+                    <small class="text-muted d-block">${window.translator._('jod')}</small>
                 </td>
                 <td class="text-end">
-                    <span class="fw-bold text-primary">${item.total_amount.toFixed(3)}</span>
-                    <small class="text-muted d-block">JOD</small>
+                    <span class="fw-bold text-primary">${window.translateNumber(item.total_amount.toFixed(3))}</span>
+                    <small class="text-muted d-block">${window.translator._('jod')}</small>
                 </td>
                 <td><small>${item.notes || '-'}</small></td>
             </tr>
@@ -929,16 +989,11 @@ function displayCompletedSupplies(completedSupplies) {
 
 async function completePOSupplies() {
     if (poSuppliesCart.length === 0) {
-        showAlert(_('add_one_item_first'), 'warning');
+        showAlert(window.translator._('add_one_item_first'), 'warning');
         return;
     }
     
     const totalCost = poSuppliesCart.reduce((sum, item) => sum + item.total_amount, 0);
-    
-    const confirmMsg = _('complete_po_confirm', {
-        count: poSuppliesCart.length,
-        cost: totalCost.toFixed(3)
-    });
     
     const confirmed = await confirmTranslated('complete_po_confirm', {
         count: poSuppliesCart.length,
@@ -949,7 +1004,7 @@ async function completePOSupplies() {
     const completePOBtn = document.getElementById('completePOBtn');
     const originalText = completePOBtn.innerHTML;
     
-    completePOBtn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> ${_('completing')}`;
+    completePOBtn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> ${window.translator._('completing')}`;
     completePOBtn.disabled = true;
     
     // Prepare data - make sure all fields are present
@@ -989,14 +1044,14 @@ async function completePOSupplies() {
                 window.location.href = "{% url 'frontend:supply_entry' %}";
             }, 2000);
         } else {
-            showAlert(data.error || _('error_completing_po'), 'danger');
+            showAlert(data.error || window.translator._('error_completing_po'), 'danger');
             completePOBtn.innerHTML = originalText;
             completePOBtn.disabled = false;
         }
     })
     .catch(error => {
         console.error('Error completing PO:', error);
-        showAlert(_('error_completing_po'), 'danger');
+        showAlert(window.translator._('error_completing_po'), 'danger');
         completePOBtn.innerHTML = originalText;
         completePOBtn.disabled = false;
     });

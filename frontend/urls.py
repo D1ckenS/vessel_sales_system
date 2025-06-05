@@ -51,6 +51,7 @@ urlpatterns = [
     path('reports/analytics/', views.analytics_report, name='analytics_report'),
     path('reports/trips/', views.trip_reports, name='trip_reports'),  # NEW
     path('reports/purchase-orders/', views.po_reports, name='po_reports'),  # NEW
+    path('reports/comprehensive/', views.comprehensive_report, name='comprehensive_report'),
     
     # Transactions
     path('transactions/', views.transactions_list, name='transactions_list'),  # NEW

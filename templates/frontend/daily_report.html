@@ -1,0 +1,651 @@
+{% extends 'frontend/base.html' %}
+
+{% block title %}<span data-translate="daily_report">Daily Report</span> - <span data-translate="vessel_sales_system">Vessel Sales System</span>{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>
+                    <i class="bi bi-calendar-day text-success"></i> 
+                    <span data-translate="daily_operations_report">Daily Operations Report</span>
+                </h2>
+                <p class="text-muted mb-0">
+                    <span data-translate="operations_summary_for">Operations summary for</span> 
+                    <strong>{{ selected_date|date:"l, F d, Y" }}</strong>
+                </p>
+            </div>
+            <div class="d-flex gap-2">
+                <a href="{% url 'frontend:reports_dashboard' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> <span data-translate="back_to_reports">Back to Reports</span>
+                </a>
+                <button class="btn btn-outline-success btn-sm" onclick="exportDailyReport()">
+                    <i class="bi bi-file-earmark-excel"></i> <span data-translate="export">Export</span>
+                </button>
+                <button class="btn btn-outline-primary btn-sm" onclick="printDailyReport()">
+                    <i class="bi bi-printer"></i> <span data-translate="print">Print</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Date Selector -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <form method="GET" class="d-flex align-items-center gap-3">
+                    <label class="form-label fw-bold mb-0" data-translate="select_date">Select Date:</label>
+                    <input type="date" class="form-control" name="date" value="{{ selected_date|date:'Y-m-d' }}" style="max-width: 200px;">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-calendar-check"></i> <span data-translate="view_report">View Report</span>
+                    </button>
+                    {% if selected_date != today %}
+                    <a href="{% url 'frontend:daily_report' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-calendar-today"></i> <span data-translate="today">Today</span>
+                    </a>
+                    {% endif %}
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Summary Statistics -->
+<div class="row mb-4">
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="stats-card">
+            <div class="stats-number text-success" data-number data-original="{{ daily_stats.total_revenue|default:0|floatformat:0 }}">
+                {{ daily_stats.total_revenue|default:0|floatformat:0 }}
+            </div>
+            <div class="stats-label">
+                <span data-translate="daily_revenue">Daily Revenue</span> 
+                (<span data-currency-symbol>JOD</span>)
+                {% if revenue_change != 0 %}
+                <small class="d-block {% if revenue_change > 0 %}text-success{% else %}text-danger{% endif %}">
+                    {% if revenue_change > 0 %}↗{% else %}↘{% endif %} {{ revenue_change|floatformat:1 }}%
+                </small>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="stats-card">
+            <div class="stats-number text-primary" data-number data-original="{{ daily_stats.total_transactions|default:0 }}">
+                {{ daily_stats.total_transactions|default:0 }}
+            </div>
+            <div class="stats-label">
+                <span data-translate="total_transactions">Total Transactions</span>
+                {% if transaction_change != 0 %}
+                <small class="d-block {% if transaction_change > 0 %}text-success{% else %}text-danger{% endif %}">
+                    {% if transaction_change > 0 %}+{% endif %}{{ transaction_change }}
+                </small>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="stats-card">
+            <div class="stats-number {% if daily_profit > 0 %}text-success{% elif daily_profit < 0 %}text-danger{% else %}text-muted{% endif %}" 
+                 data-number data-original="{{ daily_profit|floatformat:0 }}">
+                {{ daily_profit|floatformat:0 }}
+            </div>
+            <div class="stats-label">
+                <span data-translate="daily_profit">Daily Profit</span> 
+                (<span data-currency-symbol>JOD</span>)
+                <small class="d-block text-muted">
+                    {{ profit_margin|floatformat:1 }}% <span data-translate="margin">margin</span>
+                </small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="stats-card">
+            <div class="stats-number text-info" data-number data-original="{{ daily_stats.total_quantity|default:0|floatformat:0 }}">
+                {{ daily_stats.total_quantity|default:0|floatformat:0 }}
+            </div>
+            <div class="stats-label">
+                <span data-translate="units_moved">Units Moved</span>
+                <small class="d-block text-muted">
+                    <span data-translate="all_operations">All operations</span>
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Transaction Type Breakdown -->
+<div class="row mb-4">
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-pie-chart"></i> <span data-translate="transaction_breakdown">Transaction Breakdown</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-6">
+                        <div class="text-center p-3 border rounded">
+                            <div class="h4 text-success mb-1" data-number data-original="{{ daily_stats.sales_count|default:0 }}">
+                                {{ daily_stats.sales_count|default:0 }}
+                            </div>
+                            <small class="text-muted transaction-type" data-type="Sales">Sales</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="text-center p-3 border rounded">
+                            <div class="h4 text-primary mb-1" data-number data-original="{{ daily_stats.supply_count|default:0 }}">
+                                {{ daily_stats.supply_count|default:0 }}
+                            </div>
+                            <small class="text-muted transaction-type" data-type="Supplies">Supplies</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <div class="text-center p-3 border rounded">
+                            <div class="h4 text-warning mb-1" data-number data-original="{{ daily_stats.transfer_count|default:0 }}">
+                                {{ daily_stats.transfer_count|default:0 }}
+                            </div>
+                            <small class="text-muted transaction-type" data-type="Transfers">Transfers</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-award"></i> <span data-translate="daily_highlights">Daily Highlights</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if best_vessel %}
+                <div class="mb-3">
+                    <strong data-translate="top_revenue_vessel">Top Revenue Vessel:</strong>
+                    <span class="vessel-name" data-en="{{ best_vessel.vessel.name }}" data-ar="{{ best_vessel.vessel.name_ar }}">
+                        {{ best_vessel.vessel.name }}
+                    </span>
+                    <span class="badge bg-success ms-2">
+                        <span data-number data-original="{{ best_vessel.stats.revenue|default:0|floatformat:0 }}">
+                            {{ best_vessel.stats.revenue|default:0|floatformat:0 }}
+                        </span> <span data-currency-symbol>JOD</span>
+                    </span>
+                </div>
+                {% endif %}
+                
+                {% if most_active_vessel %}
+                <div class="mb-3">
+                    <strong data-translate="most_active_vessel">Most Active Vessel:</strong>
+                    <span class="vessel-name" data-en="{{ most_active_vessel.vessel.name }}" data-ar="{{ most_active_vessel.vessel.name_ar }}">
+                        {{ most_active_vessel.vessel.name }}
+                    </span>
+                    <span class="badge bg-primary ms-2">
+                        <span data-number data-original="{{ most_active_vessel.stats.sales_count|add:most_active_vessel.stats.supply_count }}">
+                            {{ most_active_vessel.stats.sales_count|add:most_active_vessel.stats.supply_count }}
+                        </span> <span data-translate="transactions">transactions</span>
+                    </span>
+                </div>
+                {% endif %}
+                
+                {% if low_stock_products %}
+                <div>
+                    <strong class="text-warning">
+                        <i class="bi bi-exclamation-triangle"></i> 
+                        <span data-translate="low_stock_items">Low Stock Items:</span>
+                    </strong>
+                    <span class="badge bg-warning text-dark">{{ low_stock_products|length }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Vessel Performance Breakdown -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-ship"></i> <span data-translate="vessel_performance">Vessel Performance</span>
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th><span data-translate="vessel">Vessel</span></th>
+                                <th class="text-center"><span data-translate="sales">Sales</span></th>
+                                <th class="text-center"><span data-translate="supplies">Supplies</span></th>
+                                <th class="text-center"><span data-translate="transfers">Transfers</span></th>
+                                <th class="text-end"><span data-translate="revenue">Revenue</span></th>
+                                <th class="text-end"><span data-translate="profit">Profit</span></th>
+                                <th class="text-center"><span data-translate="trips_pos">Trips/POs</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for vessel_data in vessel_breakdown %}
+                            <tr>
+                                <td>
+                                    <span class="vessel-name" data-en="{{ vessel_data.vessel.name }}" data-ar="{{ vessel_data.vessel.name_ar }}">
+                                        {{ vessel_data.vessel.name }}
+                                    </span>
+                                    {% if vessel_data.vessel.has_duty_free %}
+                                        <span class="badge bg-info badge-sm ms-1" data-translate="duty_free">Duty-Free</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    <span class="fw-bold text-success" data-number data-original="{{ vessel_data.stats.sales_count|default:0 }}">
+                                        {{ vessel_data.stats.sales_count|default:0 }}
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="fw-bold text-primary" data-number data-original="{{ vessel_data.stats.supply_count|default:0 }}">
+                                        {{ vessel_data.stats.supply_count|default:0 }}
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="fw-bold text-warning">
+                                        <span data-number data-original="{{ vessel_data.stats.transfer_out_count|default:0 }}">{{ vessel_data.stats.transfer_out_count|default:0 }}</span>/<span data-number data-original="{{ vessel_data.stats.transfer_in_count|default:0 }}">{{ vessel_data.stats.transfer_in_count|default:0 }}</span>
+                                    </span>
+                                    <small class="text-muted d-block"><span data-translate="out_in">Out/In</span></small>
+                                </td>
+                                <td class="text-end">
+                                    <span class="fw-bold text-success" data-number data-original="{{ vessel_data.stats.revenue|default:0|floatformat:2 }}">
+                                        {{ vessel_data.stats.revenue|default:0|floatformat:2 }}
+                                    </span>
+                                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+                                </td>
+                                <td class="text-end">
+                                    <span class="fw-bold {% if vessel_data.profit > 0 %}text-success{% elif vessel_data.profit < 0 %}text-danger{% else %}text-muted{% endif %}" 
+                                          data-number data-original="{{ vessel_data.profit|floatformat:2 }}">
+                                        {{ vessel_data.profit|floatformat:2 }}
+                                    </span>
+                                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+                                </td>
+                                <td class="text-center">
+                                    {% if vessel_data.trips %}
+                                        <div class="mb-1">
+                                            <small class="text-muted"><span data-translate="trips">Trips</span>:</small>
+                                            {% for trip in vessel_data.trips %}
+                                                <span class="badge {% if trip.is_completed %}bg-success{% else %}bg-warning{% endif %} badge-sm">
+                                                    {{ trip.trip_number }}
+                                                </span>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                    {% if vessel_data.pos %}
+                                        <div>
+                                            <small class="text-muted"><span data-translate="pos">POs</span>:</small>
+                                            {% for po in vessel_data.pos %}
+                                                <span class="badge {% if po.is_completed %}bg-primary{% else %}bg-secondary{% endif %} badge-sm">
+                                                    {{ po.po_number }}
+                                                </span>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                    {% if not vessel_data.trips and not vessel_data.pos %}
+                                        <small class="text-muted">--</small>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Inventory Changes and Alerts -->
+<div class="row mb-4">
+    <div class="col-md-8 mb-3">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-arrow-repeat"></i> <span data-translate="inventory_activity">Inventory Activity</span>
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th><span data-translate="product">Product</span></th>
+                                <th><span data-translate="vessel">Vessel</span></th>
+                                <th class="text-center"><span data-translate="received">Received</span></th>
+                                <th class="text-center"><span data-translate="sold_sent">Sold/Sent</span></th>
+                                <th class="text-center"><span data-translate="net_change">Net Change</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for change in inventory_changes %}
+                            <tr>
+                                <td>
+                                    <div class="fw-bold">{{ change.product__name }}</div>
+                                    <small class="text-muted">{{ change.product__item_id }}</small>
+                                </td>
+                                <td>
+                                    <span class="vessel-name" data-en="{{ change.vessel__name }}" data-ar="{{ change.vessel__name_ar }}">
+                                        {{ change.vessel__name }}
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="text-success" data-number data-original="{{ change.total_in|default:0|floatformat:0 }}">
+                                        {{ change.total_in|default:0|floatformat:0 }}
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="text-danger" data-number data-original="{{ change.total_out|default:0|floatformat:0 }}">
+                                        {{ change.total_out|default:0|floatformat:0 }}
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="fw-bold {% if change.net_change > 0 %}text-success{% elif change.net_change < 0 %}text-danger{% else %}text-muted{% endif %}" 
+                                          data-number data-original="{{ change.net_change|floatformat:0 }}">
+                                        {% if change.net_change > 0 %}+{% endif %}{{ change.net_change|floatformat:0 }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-3">
+                                    <span data-translate="no_inventory_changes">No inventory changes on this date</span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-3">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0 text-warning">
+                    <i class="bi bi-exclamation-triangle"></i> <span data-translate="alerts">Alerts</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Low Stock Alerts -->
+                {% if low_stock_products %}
+                <div class="mb-3">
+                    <h6 class="text-warning"><span data-translate="low_stock_alert">Low Stock Alert</span></h6>
+                    {% for item in low_stock_products %}
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <small class="fw-bold">{{ item.product.name }}</small>
+                            <small class="text-muted d-block">{{ item.product.item_id }}</small>
+                        </div>
+                        <span class="badge bg-warning text-dark">
+                            <span data-number data-original="{{ item.total_stock }}">{{ item.total_stock }}</span> <span data-translate="units">units</span>
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                
+                <!-- Unusual Activity -->
+                {% if unusual_activity %}
+                <div class="mb-3">
+                    <h6 class="text-info"><span data-translate="unusual_activity">Unusual Activity</span></h6>
+                    {% for activity in unusual_activity %}
+                    <div class="mb-2">
+                        <small class="fw-bold vessel-name" data-en="{{ activity.vessel.name }}" data-ar="{{ activity.vessel.name_ar }}">
+                            {{ activity.vessel.name }}
+                        </small>
+                        <small class="text-muted d-block">
+                            <span data-number data-original="{{ activity.today_count }}">{{ activity.today_count }}</span> <span data-translate="vs_avg">vs avg</span> 
+                            <span data-number data-original="{{ activity.avg_count }}">{{ activity.avg_count }}</span>
+                            (+{{ activity.percentage_increase }}%)
+                        </small>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                
+                <!-- No Alerts -->
+                {% if not low_stock_products and not unusual_activity %}
+                <div class="text-center text-muted">
+                    <i class="bi bi-check-circle text-success" style="font-size: 2rem;"></i>
+                    <p class="mt-2 mb-0"><span data-translate="no_alerts">No alerts for this date</span></p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- All Trips and POs for the Day -->
+<div class="row">
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-ship"></i> <span data-translate="daily_trips">Daily Trips</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if daily_trips %}
+                    {% for trip in daily_trips %}
+                    <div class="d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
+                        <div>
+                            <strong>{{ trip.trip_number }}</strong>
+                            <small class="text-muted d-block">
+                                <span class="vessel-name" data-en="{{ trip.vessel.name }}" data-ar="{{ trip.vessel.name_ar }}">
+                                    {{ trip.vessel.name }}
+                                </span>
+                                {% if trip.passenger_count %}
+                                - <span data-number data-original="{{ trip.passenger_count }}">{{ trip.passenger_count }}</span> <span data-translate="passengers">passengers</span>
+                                {% endif %}
+                            </small>
+                        </div>
+                        <span class="badge {% if trip.is_completed %}bg-success{% else %}bg-warning{% endif %}">
+                            {% if trip.is_completed %}
+                                <span data-translate="completed">Completed</span>
+                            {% else %}
+                                <span data-translate="in_progress">In Progress</span>
+                            {% endif %}
+                        </span>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                <div class="text-center text-muted py-3">
+                    <i class="bi bi-ship" style="font-size: 2rem;"></i>
+                    <p class="mt-2 mb-0"><span data-translate="no_trips_this_date">No trips on this date</span></p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-receipt"></i> <span data-translate="daily_pos">Daily Purchase Orders</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if daily_pos %}
+                    {% for po in daily_pos %}
+                    <div class="d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
+                        <div>
+                            <strong>{{ po.po_number }}</strong>
+                            <small class="text-muted d-block">
+                                <span class="vessel-name" data-en="{{ po.vessel.name }}" data-ar="{{ po.vessel.name_ar }}">
+                                    {{ po.vessel.name }}
+                                </span>
+                            </small>
+                        </div>
+                        <span class="badge {% if po.is_completed %}bg-primary{% else %}bg-secondary{% endif %}">
+                            {% if po.is_completed %}
+                                <span data-translate="completed">Completed</span>
+                            {% else %}
+                                <span data-translate="in_progress">In Progress</span>
+                            {% endif %}
+                        </span>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                <div class="text-center text-muted py-3">
+                    <i class="bi bi-receipt" style="font-size: 2rem;"></i>
+                    <p class="mt-2 mb-0"><span data-translate="no_pos_this_date">No purchase orders on this date</span></p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Add page-specific translations
+document.addEventListener('DOMContentLoaded', function() {
+    const pageTranslations = {
+        en: {
+            'daily_operations_report': 'Daily Operations Report',
+            'operations_summary_for': 'Operations summary for',
+            'back_to_reports': 'Back to Reports',
+            'export': 'Export',
+            'print': 'Print',
+            'select_date': 'Select Date',
+            'view_report': 'View Report',
+            'today': 'Today',
+            'daily_revenue': 'Daily Revenue',
+            'total_transactions': 'Total Transactions',
+            'daily_profit': 'Daily Profit',
+            'margin': 'margin',
+            'units_moved': 'Units Moved',
+            'all_operations': 'All operations',
+            'transaction_breakdown': 'Transaction Breakdown',
+            'daily_highlights': 'Daily Highlights',
+            'top_revenue_vessel': 'Top Revenue Vessel',
+            'most_active_vessel': 'Most Active Vessel',
+            'transactions': 'transactions',
+            'low_stock_items': 'Low Stock Items',
+            'vessel_performance': 'Vessel Performance',
+            'vessel': 'Vessel',
+            'sales': 'Sales',
+            'supplies': 'Supplies',
+            'transfers': 'Transfers',
+            'revenue': 'Revenue',
+            'profit': 'Profit',
+            'trips_pos': 'Trips/POs',
+            'duty_free': 'Duty-Free',
+            'out_in': 'Out/In',
+            'trips': 'Trips',
+            'pos': 'POs',
+            'inventory_activity': 'Inventory Activity',
+            'product': 'Product',
+            'received': 'Received',
+            'sold_sent': 'Sold/Sent',
+            'net_change': 'Net Change',
+            'no_inventory_changes': 'No inventory changes on this date',
+            'alerts': 'Alerts',
+            'low_stock_alert': 'Low Stock Alert',
+            'units': 'units',
+            'unusual_activity': 'Unusual Activity',
+            'vs_avg': 'vs avg',
+            'no_alerts': 'No alerts for this date',
+            'daily_trips': 'Daily Trips',
+            'passengers': 'passengers',
+            'completed': 'Completed',
+            'in_progress': 'In Progress',
+            'no_trips_this_date': 'No trips on this date',
+            'daily_pos': 'Daily Purchase Orders',
+            'no_pos_this_date': 'No purchase orders on this date',
+            'vessel_sales_system': 'Vessel Sales System'
+        },
+        ar: {
+            'daily_operations_report': 'تقرير العمليات اليومية',
+            'operations_summary_for': 'ملخص العمليات لتاريخ',
+            'back_to_reports': 'الرجوع للتقارير',
+            'export': 'تصدير',
+            'print': 'طباعة',
+            'select_date': 'اختر التاريخ',
+            'view_report': 'عرض التقرير',
+            'today': 'اليوم',
+            'daily_revenue': 'الإيرادات اليومية',
+            'total_transactions': 'إجمالي الحركات',
+            'daily_profit': 'الربح اليومي',
+            'margin': 'هامش',
+            'units_moved': 'الوحدات المنقولة',
+            'all_operations': 'جميع العمليات',
+            'transaction_breakdown': 'توزيع الحركات',
+            'daily_highlights': 'النقاط المهمة اليومية',
+            'top_revenue_vessel': 'السفينة الأعلى إيراداً',
+            'most_active_vessel': 'السفينة الأكثر نشاطاً',
+            'transactions': 'حركات',
+            'low_stock_items': 'عناصر منخفضة المخزون',
+            'vessel_performance': 'أداء السفن',
+            'vessel': 'السفينة',
+            'sales': 'المبيعات',
+            'supplies': 'التوريدات',
+            'transfers': 'التحويلات',
+            'revenue': 'الإيرادات',
+            'profit': 'الربح',
+            'trips_pos': 'الرحلات/أوامر الشراء',
+            'duty_free': 'سوق حرة',
+            'out_in': 'خارج/داخل',
+            'trips': 'الرحلات',
+            'pos': 'أوامر الشراء',
+            'inventory_activity': 'نشاط المخزون',
+            'product': 'المنتج',
+            'received': 'مستلم',
+            'sold_sent': 'مباع/مرسل',
+            'net_change': 'التغيير الصافي',
+            'no_inventory_changes': 'لا توجد تغييرات في المخزون في هذا التاريخ',
+            'alerts': 'التنبيهات',
+            'low_stock_alert': 'تنبيه انخفاض المخزون',
+            'units': 'وحدات',
+            'unusual_activity': 'نشاط غير اعتيادي',
+            'vs_avg': 'مقابل المتوسط',
+            'no_alerts': 'لا توجد تنبيهات لهذا التاريخ',
+            'daily_trips': 'الرحلات اليومية',
+            'passengers': 'راكب',
+            'completed': 'مكتمل',
+            'in_progress': 'قيد التنفيذ',
+            'no_trips_this_date': 'لا توجد رحلات في هذا التاريخ',
+            'daily_pos': 'أوامر الشراء اليومية',
+            'no_pos_this_date': 'لا توجد أوامر شراء في هذا التاريخ',
+            'vessel_sales_system': 'نظام مبيعات السفن'
+        }
+    };
+
+    // Merge with global translations
+    const currentTranslations = window.translator.translations;
+    Object.keys(pageTranslations).forEach(lang => {
+        if (currentTranslations[lang]) {
+            Object.assign(currentTranslations[lang], pageTranslations[lang]);
+        }
+    });
+    
+    // Apply translations
+    updatePageTranslations();
+});
+
+// Export and Print functions
+function exportDailyReport() {
+    alertTranslated('export_feature_coming_soon');
+}
+
+function printDailyReport() {
+    alertTranslated('print_feature_coming_soon');
+}
+</script>
+{% endblock %}
