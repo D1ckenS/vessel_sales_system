@@ -1,28 +1,37 @@
 {% extends 'frontend/base.html' %}
 
-{% block title %}<span data-translate="reports">Reports</span> - <span data-translate="vessel_sales_system">Vessel Sales System</span>{% endblock %}
+{% block title %}<span data-translate="reports_dashboard">Reports Dashboard</span> - <span data-translate="vessel_sales_system">Vessel Sales System</span>{% endblock %}
 
 {% block content %}
 <!-- Page Header -->
 <div class="row mb-4">
     <div class="col-12">
-        <div class="card">
-            <div class="card-body text-center py-4">
-                <h2 class="mb-3">
-                    <i class="bi bi-graph-up text-info"></i> 
-                    <span data-translate="reports_center">Reports Center</span>
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>
+                    <i class="bi bi-graph-up text-primary"></i> 
+                    <span data-translate="reports_dashboard">Reports Dashboard</span>
                 </h2>
-                <p class="lead text-muted mb-0" data-translate="reports_subtitle">Comprehensive business insights and analytics</p>
+                <p class="text-muted mb-0">
+                    <span data-translate="comprehensive_business_analytics">Comprehensive business analytics and reporting center</span>
+                </p>
+            </div>
+            <div class="text-end">
+                <small class="text-muted d-block">
+                    <span data-translate="last_updated">Last Updated</span>: <span id="last-updated-time"></span>
+                </small>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Quick Stats Overview -->
+<!-- Today's Statistics -->
 <div class="row mb-4">
     <div class="col-md-3 col-sm-6 mb-3">
         <div class="stats-card">
-            <div class="stats-number text-success">{{ today_stats.revenue|default:0|floatformat:0 }}</div>
+            <div class="stats-number text-success" data-number data-original="{{ today_stats.revenue|default:0|floatformat:0 }}">
+                {{ today_stats.revenue|default:0|floatformat:0 }}
+            </div>
             <div class="stats-label">
                 <span data-translate="today_revenue">Today's Revenue</span> 
                 (<span data-currency-symbol>JOD</span>)
@@ -31,20 +40,32 @@
     </div>
     <div class="col-md-3 col-sm-6 mb-3">
         <div class="stats-card">
-            <div class="stats-number text-primary">{{ today_stats.transactions|default:0 }}</div>
-            <div class="stats-label"><span data-translate="today_transactions">Today's Transactions</span></div>
+            <div class="stats-number text-primary" data-number data-original="{{ today_stats.transactions|default:0 }}">
+                {{ today_stats.transactions|default:0 }}
+            </div>
+            <div class="stats-label">
+                <span data-translate="today_transactions">Today's Transactions</span>
+            </div>
         </div>
     </div>
     <div class="col-md-3 col-sm-6 mb-3">
         <div class="stats-card">
-            <div class="stats-number text-info">{{ today_stats.trips|default:0 }}</div>
-            <div class="stats-label"><span data-translate="active_trips">Active Trips</span></div>
+            <div class="stats-number text-info" data-number data-original="{{ today_stats.trips|default:0 }}">
+                {{ today_stats.trips|default:0 }}
+            </div>
+            <div class="stats-label">
+                <span data-translate="today_trips">Today's Trips</span>
+            </div>
         </div>
     </div>
     <div class="col-md-3 col-sm-6 mb-3">
         <div class="stats-card">
-            <div class="stats-number text-warning">{{ today_stats.purchase_orders|default:0 }}</div>
-            <div class="stats-label"><span data-translate="active_pos">Active POs</span></div>
+            <div class="stats-number text-warning" data-number data-original="{{ today_stats.purchase_orders|default:0 }}">
+                {{ today_stats.purchase_orders|default:0 }}
+            </div>
+            <div class="stats-label">
+                <span data-translate="today_pos">Today's Purchase Orders</span>
+            </div>
         </div>
     </div>
 </div>
@@ -52,7 +73,7 @@
 <!-- Report Categories -->
 <div class="row">
     <!-- Comprehensive Reports -->
-    <div class="col-lg-4 mb-4">
+    <div class="col-md-4 mb-4">
         <div class="card h-100">
             <div class="card-header bg-primary text-white">
                 <h5 class="mb-0">
@@ -61,51 +82,18 @@
                 </h5>
             </div>
             <div class="card-body">
-                <!-- All Transactions Report -->
-                <div class="report-item mb-3">
-                    <a href="{% url 'frontend:comprehensive_report' %}" class="text-decoration-none">
-                        <div class="d-flex align-items-center p-3 border rounded hover-bg">
-                            <div class="report-icon me-3">
-                                <i class="bi bi-list-ul text-primary fs-3"></i>
-                            </div>
-                            <div class="flex-grow-1">
-                                <h6 class="mb-1" data-translate="all_transactions_report">All Transactions Report</h6>
-                                <p class="small text-muted mb-0" data-translate="all_transactions_desc">Complete overview of sales, purchases, and transfers</p>
-                            </div>
-                            <i class="bi bi-chevron-right text-muted"></i>
-                        </div>
+                <p class="card-text text-muted">
+                    <span data-translate="detailed_transaction_analysis">Detailed transaction analysis and complete business overview</span>
+                </p>
+                <div class="d-grid gap-2">
+                    <a href="{% url 'frontend:comprehensive_report' %}" class="btn btn-outline-primary">
+                        <i class="bi bi-table"></i> <span data-translate="comprehensive_report">Comprehensive Report</span>
                     </a>
-                </div>
-
-                <!-- Daily Report -->
-                <div class="report-item mb-3">
-                    <a href="{% url 'frontend:daily_report' %}" class="text-decoration-none">
-                        <div class="d-flex align-items-center p-3 border rounded hover-bg">
-                            <div class="report-icon me-3">
-                                <i class="bi bi-calendar-day text-success fs-3"></i>
-                            </div>
-                            <div class="flex-grow-1">
-                                <h6 class="mb-1" data-translate="daily_report">Daily Report</h6>
-                                <p class="small text-muted mb-0" data-translate="daily_report_desc">Today's operations summary and performance</p>
-                            </div>
-                            <i class="bi bi-chevron-right text-muted"></i>
-                        </div>
+                    <a href="{% url 'frontend:daily_report' %}" class="btn btn-outline-success">
+                        <i class="bi bi-calendar-day"></i> <span data-translate="daily_report">Daily Report</span>
                     </a>
-                </div>
-
-                <!-- Monthly Report -->
-                <div class="report-item">
-                    <a href="{% url 'frontend:monthly_report' %}" class="text-decoration-none">
-                        <div class="d-flex align-items-center p-3 border rounded hover-bg">
-                            <div class="report-icon me-3">
-                                <i class="bi bi-calendar-month text-warning fs-3"></i>
-                            </div>
-                            <div class="flex-grow-1">
-                                <h6 class="mb-1" data-translate="monthly_report">Monthly Report</h6>
-                                <p class="small text-muted mb-0" data-translate="monthly_report_desc">Monthly trends and business insights</p>
-                            </div>
-                            <i class="bi bi-chevron-right text-muted"></i>
-                        </div>
+                    <a href="{% url 'frontend:monthly_report' %}" class="btn btn-outline-info">
+                        <i class="bi bi-calendar-month"></i> <span data-translate="monthly_report">Monthly Report</span>
                     </a>
                 </div>
             </div>
@@ -113,309 +101,170 @@
     </div>
 
     <!-- Sales & Operations -->
-    <div class="col-lg-4 mb-4">
+    <div class="col-md-4 mb-4">
         <div class="card h-100">
             <div class="card-header bg-success text-white">
                 <h5 class="mb-0">
-                    <i class="bi bi-cart-check"></i> 
+                    <i class="bi bi-ship"></i> 
                     <span data-translate="sales_operations">Sales & Operations</span>
                 </h5>
             </div>
             <div class="card-body">
-                <!-- Trip Reports -->
-                <div class="report-item mb-3">
-                    <a href="{% url 'frontend:trip_reports' %}" class="text-decoration-none">
-                        <div class="d-flex align-items-center p-3 border rounded hover-bg">
-                            <div class="report-icon me-3">
-                                <i class="bi bi-ship text-success fs-3"></i>
-                            </div>
-                            <div class="flex-grow-1">
-                                <h6 class="mb-1" data-translate="trip_reports">Trip Reports</h6>
-                                <p class="small text-muted mb-0" data-translate="trip_reports_desc">Analyze trip performance and passenger revenue</p>
-                            </div>
-                            <i class="bi bi-chevron-right text-muted"></i>
-                        </div>
+                <p class="card-text text-muted">
+                    <span data-translate="trip_sales_performance">Trip performance and sales analytics</span>
+                </p>
+                <div class="d-grid gap-2">
+                    <a href="{% url 'frontend:trip_reports' %}" class="btn btn-outline-success">
+                        <i class="bi bi-ship"></i> <span data-translate="trip_reports">Trip Reports</span>
                     </a>
-                </div>
-
-                <!-- Sales Analytics -->
-                <div class="report-item mb-3">
-                    <a href="{% url 'frontend:analytics_report' %}" class="text-decoration-none">
-                        <div class="d-flex align-items-center p-3 border rounded hover-bg">
-                            <div class="report-icon me-3">
-                                <i class="bi bi-graph-up-arrow text-info fs-3"></i>
-                            </div>
-                            <div class="flex-grow-1">
-                                <h6 class="mb-1" data-translate="sales_analytics">Sales Analytics</h6>
-                                <p class="small text-muted mb-0" data-translate="sales_analytics_desc">Deep dive into sales patterns and trends</p>
-                            </div>
-                            <i class="bi bi-chevron-right text-muted"></i>
-                        </div>
+                    <a href="{% url 'frontend:po_reports' %}" class="btn btn-outline-primary">
+                        <i class="bi bi-receipt"></i> <span data-translate="po_reports">Purchase Order Reports</span>
                     </a>
-                </div>
-
-                <!-- Transaction History -->
-                <div class="report-item">
-                    <a href="{% url 'frontend:transactions_list' %}" class="text-decoration-none">
-                        <div class="d-flex align-items-center p-3 border rounded hover-bg">
-                            <div class="report-icon me-3">
-                                <i class="bi bi-clock-history text-secondary fs-3"></i>
-                            </div>
-                            <div class="flex-grow-1">
-                                <h6 class="mb-1" data-translate="transaction_history">Transaction History</h6>
-                                <p class="small text-muted mb-0" data-translate="transaction_history_desc">Complete transaction log with filters</p>
-                            </div>
-                            <i class="bi bi-chevron-right text-muted"></i>
-                        </div>
+                    <a href="{% url 'frontend:transactions_list' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-list-ul"></i> <span data-translate="transaction_log">Transaction Log</span>
                     </a>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Inventory & Procurement -->
-    <div class="col-lg-4 mb-4">
+    <!-- Advanced Analytics -->
+    <div class="col-md-4 mb-4">
         <div class="card h-100">
-            <div class="card-header bg-warning text-dark">
+            <div class="card-header bg-warning text-white">
                 <h5 class="mb-0">
-                    <i class="bi bi-boxes"></i> 
-                    <span data-translate="inventory_procurement">Inventory & Procurement</span>
+                    <i class="bi bi-graph-up"></i> 
+                    <span data-translate="advanced_analytics">Advanced Analytics</span>
                 </h5>
             </div>
             <div class="card-body">
-                <!-- Purchase Order Reports -->
-                <div class="report-item mb-3">
-                    <a href="{% url 'frontend:po_reports' %}" class="text-decoration-none">
-                        <div class="d-flex align-items-center p-3 border rounded hover-bg">
-                            <div class="report-icon me-3">
-                                <i class="bi bi-receipt text-primary fs-3"></i>
-                            </div>
-                            <div class="flex-grow-1">
-                                <h6 class="mb-1" data-translate="po_reports">Purchase Order Reports</h6>
-                                <p class="small text-muted mb-0" data-translate="po_reports_desc">Supply chain and procurement analysis</p>
-                            </div>
-                            <i class="bi bi-chevron-right text-muted"></i>
-                        </div>
+                <p class="card-text text-muted">
+                    <span data-translate="business_intelligence">Business intelligence and predictive analytics</span>
+                </p>
+                <div class="d-grid gap-2">
+                    <a href="{% url 'frontend:analytics_report' %}" class="btn btn-outline-warning">
+                        <i class="bi bi-graph-up-arrow"></i> <span data-translate="analytics_dashboard">Analytics Dashboard</span>
                     </a>
-                </div>
-
-                <!-- Inventory Reports -->
-                <div class="report-item mb-3">
-                    <a href="{% url 'frontend:inventory_check' %}" class="text-decoration-none">
-                        <div class="d-flex align-items-center p-3 border rounded hover-bg">
-                            <div class="report-icon me-3">
-                                <i class="bi bi-boxes text-warning fs-3"></i>
-                            </div>
-                            <div class="flex-grow-1">
-                                <h6 class="mb-1" data-translate="inventory_reports">Inventory Reports</h6>
-                                <p class="small text-muted mb-0" data-translate="inventory_reports_desc">Stock levels and inventory analysis</p>
-                            </div>
-                            <i class="bi bi-chevron-right text-muted"></i>
-                        </div>
-                    </a>
-                </div>
-
-                <!-- Transfer Reports -->
-                <div class="report-item">
-                    <a href="{% url 'frontend:transfer_center' %}" class="text-decoration-none">
-                        <div class="d-flex align-items-center p-3 border rounded hover-bg">
-                            <div class="report-icon me-3">
-                                <i class="bi bi-arrow-left-right text-info fs-3"></i>
-                            </div>
-                            <div class="flex-grow-1">
-                                <h6 class="mb-1" data-translate="transfer_reports">Transfer Reports</h6>
-                                <p class="small text-muted mb-0" data-translate="transfer_reports_desc">Inter-vessel stock movement analysis</p>
-                            </div>
-                            <i class="bi bi-chevron-right text-muted"></i>
-                        </div>
-                    </a>
+                    <button class="btn btn-outline-info" onclick="showComingSoon('inventory_forecast')">
+                        <i class="bi bi-boxes"></i> <span data-translate="inventory_forecast">Inventory Forecast</span>
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="showComingSoon('profitability_analysis')">
+                        <i class="bi bi-currency-dollar"></i> <span data-translate="profitability_analysis">Profitability Analysis</span>
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Quick Export Actions -->
-<div class="row">
+<!-- Quick Actions -->
+<div class="row mt-4">
     <div class="col-12">
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0">
-                    <i class="bi bi-download"></i> 
-                    <span data-translate="quick_exports">Quick Exports</span>
+                    <i class="bi bi-lightning"></i> 
+                    <span data-translate="quick_actions">Quick Actions</span>
                 </h5>
             </div>
             <div class="card-body">
                 <div class="row">
-                    <div class="col-md-3 mb-3">
-                        <button class="btn btn-outline-success w-100" onclick="exportTodayData()">
-                            <i class="bi bi-file-earmark-excel me-2"></i>
-                            <span data-translate="export_today">Export Today's Data</span>
+                    <div class="col-md-3 mb-2">
+                        <button class="btn btn-outline-primary w-100" onclick="showComingSoon('export_all')">
+                            <i class="bi bi-file-earmark-excel"></i> <span data-translate="export_all_reports">Export All Reports</span>
                         </button>
                     </div>
-                    <div class="col-md-3 mb-3">
-                        <button class="btn btn-outline-primary w-100" onclick="exportWeeklyData()">
-                            <i class="bi bi-file-earmark-pdf me-2"></i>
-                            <span data-translate="export_weekly">Export Weekly Report</span>
+                    <div class="col-md-3 mb-2">
+                        <button class="btn btn-outline-success w-100" onclick="showComingSoon('schedule_reports')">
+                            <i class="bi bi-clock"></i> <span data-translate="schedule_reports">Schedule Reports</span>
                         </button>
                     </div>
-                    <div class="col-md-3 mb-3">
-                        <button class="btn btn-outline-warning w-100" onclick="exportMonthlyData()">
-                            <i class="bi bi-file-earmark-excel me-2"></i>
-                            <span data-translate="export_monthly">Export Monthly Report</span>
+                    <div class="col-md-3 mb-2">
+                        <button class="btn btn-outline-info w-100" onclick="showComingSoon('email_reports')">
+                            <i class="bi bi-envelope"></i> <span data-translate="email_reports">Email Reports</span>
                         </button>
                     </div>
-                    <div class="col-md-3 mb-3">
-                        <button class="btn btn-outline-info w-100" onclick="scheduleReport()">
-                            <i class="bi bi-calendar-event me-2"></i>
-                            <span data-translate="schedule_report">Schedule Report</span>
-                        </button>
+                    <div class="col-md-3 mb-2">
+                        <a href="{% url 'frontend:inventory_check' %}" class="btn btn-outline-warning w-100">
+                            <i class="bi bi-boxes"></i> <span data-translate="inventory_check">Inventory Check</span>
+                        </a>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
-
-<!-- Custom CSS -->
-<style>
-.hover-bg {
-    transition: all 0.3s ease;
-    cursor: pointer;
-}
-
-.hover-bg:hover {
-    background-color: #f8f9fa !important;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-}
-
-.report-icon {
-    width: 60px;
-    height: 60px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0,0,0,0.05);
-    border-radius: 10px;
-}
-
-.report-item:last-child {
-    margin-bottom: 0 !important;
-}
-
-/* RTL Support */
-[dir="rtl"] .report-item .d-flex {
-    flex-direction: row-reverse;
-}
-
-[dir="rtl"] .report-item .me-3 {
-    margin-right: 0 !important;
-    margin-left: 1rem !important;
-}
-
-[dir="rtl"] .bi-chevron-right:before {
-    content: "\f285"; /* chevron-left */
-}
-
-/* Card animations */
-.card {
-    transition: all 0.3s ease;
-}
-
-.card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(0,0,0,0.1);
-}
-
-/* Stats cards responsiveness */
-@media (max-width: 768px) {
-    .stats-card {
-        margin-bottom: 1rem;
-    }
-    
-    .report-icon {
-        width: 50px;
-        height: 50px;
-    }
-    
-    .report-icon i {
-        font-size: 1.5rem !important;
-    }
-}
-</style>
 
 {% endblock %}
 
 {% block extra_js %}
 <script>
-// Add page-specific translations
+// Update last updated time
 document.addEventListener('DOMContentLoaded', function() {
+    const now = new Date();
+    const timeString = now.toLocaleTimeString();
+    document.getElementById('last-updated-time').textContent = timeString;
+    
+    // Add page-specific translations
     const pageTranslations = {
         en: {
-            'reports_center': 'Reports Center',
-            'reports_subtitle': 'Comprehensive business insights and analytics',
-            'active_trips': 'Active Trips',
-            'active_pos': 'Active POs',
+            'reports_dashboard': 'Reports Dashboard',
+            'comprehensive_business_analytics': 'Comprehensive business analytics and reporting center',
+            'last_updated': 'Last Updated',
+            'today_revenue': "Today's Revenue",
+            'today_transactions': "Today's Transactions", 
+            'today_trips': "Today's Trips",
+            'today_pos': "Today's Purchase Orders",
             'comprehensive_reports': 'Comprehensive Reports',
-            'all_transactions_report': 'All Transactions Report',
-            'all_transactions_desc': 'Complete overview of sales, purchases, and transfers',
+            'detailed_transaction_analysis': 'Detailed transaction analysis and complete business overview',
+            'comprehensive_report': 'Comprehensive Report',
             'daily_report': 'Daily Report',
-            'daily_report_desc': 'Today\'s operations summary and performance',
             'monthly_report': 'Monthly Report',
-            'monthly_report_desc': 'Monthly trends and business insights',
             'sales_operations': 'Sales & Operations',
+            'trip_sales_performance': 'Trip performance and sales analytics',
             'trip_reports': 'Trip Reports',
-            'trip_reports_desc': 'Analyze trip performance and passenger revenue',
-            'sales_analytics': 'Sales Analytics',
-            'sales_analytics_desc': 'Deep dive into sales patterns and trends',
-            'transaction_history': 'Transaction History',
-            'transaction_history_desc': 'Complete transaction log with filters',
-            'inventory_procurement': 'Inventory & Procurement',
             'po_reports': 'Purchase Order Reports',
-            'po_reports_desc': 'Supply chain and procurement analysis',
-            'inventory_reports': 'Inventory Reports',
-            'inventory_reports_desc': 'Stock levels and inventory analysis',
-            'transfer_reports': 'Transfer Reports',
-            'transfer_reports_desc': 'Inter-vessel stock movement analysis',
-            'quick_exports': 'Quick Exports',
-            'export_today': 'Export Today\'s Data',
-            'export_weekly': 'Export Weekly Report',
-            'export_monthly': 'Export Monthly Report',
-            'schedule_report': 'Schedule Report',
+            'transaction_log': 'Transaction Log',
+            'advanced_analytics': 'Advanced Analytics',
+            'business_intelligence': 'Business intelligence and predictive analytics',
+            'analytics_dashboard': 'Analytics Dashboard',
+            'inventory_forecast': 'Inventory Forecast',
+            'profitability_analysis': 'Profitability Analysis',
+            'quick_actions': 'Quick Actions',
+            'export_all_reports': 'Export All Reports',
+            'schedule_reports': 'Schedule Reports',
+            'email_reports': 'Email Reports',
+            'inventory_check': 'Inventory Check',
             'vessel_sales_system': 'Vessel Sales System'
         },
         ar: {
-            'reports_center': 'مركز التقارير',
-            'reports_subtitle': 'رؤى شاملة للأعمال والتحليلات',
-            'active_trips': 'الرحلات النشطة',
-            'active_pos': 'أوامر الشراء النشطة',
+            'reports_dashboard': 'لوحة التقارير',
+            'comprehensive_business_analytics': 'تحليلات الأعمال الشاملة ومركز التقارير',
+            'last_updated': 'آخر تحديث',
+            'today_revenue': 'إيرادات اليوم',
+            'today_transactions': 'حركات اليوم',
+            'today_trips': 'رحلات اليوم',
+            'today_pos': 'أوامر شراء اليوم',
             'comprehensive_reports': 'التقارير الشاملة',
-            'all_transactions_report': 'تقرير جميع الحركات',
-            'all_transactions_desc': 'نظرة شاملة على المبيعات والمشتريات والتحويلات',
+            'detailed_transaction_analysis': 'تحليل مفصل للحركات ونظرة شاملة على الأعمال',
+            'comprehensive_report': 'التقرير الشامل',
             'daily_report': 'التقرير اليومي',
-            'daily_report_desc': 'ملخص العمليات والأداء اليومي',
             'monthly_report': 'التقرير الشهري',
-            'monthly_report_desc': 'الاتجاهات الشهرية ورؤى الأعمال',
             'sales_operations': 'المبيعات والعمليات',
+            'trip_sales_performance': 'أداء الرحلات وتحليلات المبيعات',
             'trip_reports': 'تقارير الرحلات',
-            'trip_reports_desc': 'تحليل أداء الرحلات وإيرادات الركاب',
-            'sales_analytics': 'تحليلات المبيعات',
-            'sales_analytics_desc': 'تحليل عميق لأنماط واتجاهات المبيعات',
-            'transaction_history': 'تاريخ الحركات',
-            'transaction_history_desc': 'سجل كامل للحركات مع المرشحات',
-            'inventory_procurement': 'المخزون والمشتريات',
             'po_reports': 'تقارير أوامر الشراء',
-            'po_reports_desc': 'تحليل سلسلة التوريد والمشتريات',
-            'inventory_reports': 'تقارير المخزون',
-            'inventory_reports_desc': 'مستويات المخزون وتحليل المخزون',
-            'transfer_reports': 'تقارير التحويلات',
-            'transfer_reports_desc': 'تحليل حركة المخزون بين السفن',
-            'quick_exports': 'التصديرات السريعة',
-            'export_today': 'تصدير بيانات اليوم',
-            'export_weekly': 'تصدير التقرير الأسبوعي',
-            'export_monthly': 'تصدير التقرير الشهري',
-            'schedule_report': 'جدولة التقرير',
+            'transaction_log': 'سجل الحركات',
+            'advanced_analytics': 'التحليلات المتقدمة',
+            'business_intelligence': 'ذكاء الأعمال والتحليلات التنبؤية',
+            'analytics_dashboard': 'لوحة التحليلات',
+            'inventory_forecast': 'توقعات المخزون',
+            'profitability_analysis': 'تحليل الربحية',
+            'quick_actions': 'الإجراءات السريعة',
+            'export_all_reports': 'تصدير جميع التقارير',
+            'schedule_reports': 'جدولة التقارير',
+            'email_reports': 'إرسال التقارير بالبريد',
+            'inventory_check': 'فحص المخزون',
             'vessel_sales_system': 'نظام مبيعات السفن'
         }
     };
@@ -432,21 +281,8 @@ document.addEventListener('DOMContentLoaded', function() {
     updatePageTranslations();
 });
 
-// Export functions
-function exportTodayData() {
-    alertTranslated('export_feature_coming_soon');
-}
-
-function exportWeeklyData() {
-    alertTranslated('export_feature_coming_soon');
-}
-
-function exportMonthlyData() {
-    alertTranslated('export_feature_coming_soon');
-}
-
-function scheduleReport() {
-    alertTranslated('schedule_feature_coming_soon', {feature: _('schedule_report')});
+function showComingSoon(feature) {
+    alertTranslated('feature_coming_soon');
 }
 </script>
 {% endblock %}

@@ -1,0 +1,652 @@
+{% extends 'frontend/base.html' %}
+
+{% block title %}<span data-translate="analytics_dashboard">Analytics Dashboard</span> - <span data-translate="vessel_sales_system">Vessel Sales System</span>{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>
+                    <i class="bi bi-graph-up-arrow text-warning"></i> 
+                    <span data-translate="analytics_dashboard">Analytics Dashboard</span>
+                </h2>
+                <p class="text-muted mb-0">
+                    <span data-translate="advanced_business_intelligence">Advanced business intelligence and performance metrics</span>
+                </p>
+            </div>
+            <div class="d-flex gap-2">
+                <a href="{% url 'frontend:reports_dashboard' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> <span data-translate="back_to_reports">Back to Reports</span>
+                </a>
+                <button class="btn btn-outline-success btn-sm" onclick="exportAnalytics()">
+                    <i class="bi bi-file-earmark-excel"></i> <span data-translate="export">Export</span>
+                </button>
+                <button class="btn btn-outline-primary btn-sm" onclick="printAnalytics()">
+                    <i class="bi bi-printer"></i> <span data-translate="print">Print</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Key Performance Indicators -->
+<div class="row mb-4">
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="stats-card analytics-kpi">
+            <div class="stats-number text-success" data-number data-original="{{ revenue_30_days.total_revenue|default:0|floatformat:0 }}">
+                {{ revenue_30_days.total_revenue|default:0|floatformat:0 }}
+            </div>
+            <div class="stats-label">
+                <span data-translate="revenue_30_days">Revenue (30 Days)</span> 
+                (<span data-currency-symbol>JOD</span>)
+                <small class="d-block text-muted">
+                    <span data-translate="avg_per_transaction">Avg per transaction</span>: 
+                    <span data-number data-original="{{ avg_revenue_per_transaction|floatformat:2 }}">{{ avg_revenue_per_transaction|floatformat:2 }}</span>
+                </small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="stats-card analytics-kpi">
+            <div class="stats-number {% if growth_rate > 0 %}text-success{% elif growth_rate < 0 %}text-danger{% else %}text-muted{% endif %}" 
+                 data-number data-original="{{ growth_rate|floatformat:1 }}">
+                {{ growth_rate|floatformat:1 }}%
+            </div>
+            <div class="stats-label">
+                <span data-translate="growth_rate">Growth Rate</span>
+                <small class="d-block text-muted">
+                    <span data-translate="this_vs_last_month">This vs last month</span>
+                </small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="stats-card analytics-kpi">
+            <div class="stats-number text-info" data-number data-original="{{ revenue_per_passenger|floatformat:2 }}">
+                {{ revenue_per_passenger|floatformat:2 }}
+            </div>
+            <div class="stats-label">
+                <span data-translate="revenue_per_passenger">Revenue per Passenger</span>
+                (<span data-currency-symbol>JOD</span>)
+                <small class="d-block text-muted">
+                    <span data-translate="last_90_days">Last 90 days</span>
+                </small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="stats-card analytics-kpi">
+            <div class="stats-number text-warning" data-number data-original="{{ efficiency_score|floatformat:0 }}">
+                {{ efficiency_score|floatformat:0 }}
+            </div>
+            <div class="stats-label">
+                <span data-translate="efficiency_score">Efficiency Score</span>
+                <small class="d-block text-muted">
+                    <span data-translate="operational_performance">Operational performance</span>
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Vessel Analytics & Top Products -->
+<div class="row mb-4">
+    <!-- Vessel Analytics -->
+    <div class="col-md-8 mb-3">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-ship"></i> <span data-translate="vessel_analytics">Vessel Analytics</span>
+                    <small class="text-muted">(<span data-translate="last_30_days">Last 30 days</span>)</small>
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th><span data-translate="vessel">Vessel</span></th>
+                                <th class="text-end"><span data-translate="revenue">Revenue</span></th>
+                                <th class="text-center"><span data-translate="profit_margin">Profit Margin</span></th>
+                                <th class="text-center"><span data-translate="trips">Trips</span></th>
+                                <th class="text-end"><span data-translate="revenue_per_trip">Revenue/Trip</span></th>
+                                <th class="text-center"><span data-translate="performance">Performance</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for vessel_data in vessel_analytics %}
+                            <tr>
+                                <td>
+                                    <span class="vessel-name" data-en="{{ vessel_data.vessel.name }}" data-ar="{{ vessel_data.vessel.name_ar }}">
+                                        {{ vessel_data.vessel.name }}
+                                    </span>
+                                    {% if vessel_data.vessel.has_duty_free %}
+                                        <span class="badge bg-info badge-sm ms-1" data-translate="duty_free">Duty-Free</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    <span class="fw-bold text-success" data-number data-original="{{ vessel_data.revenue|floatformat:0 }}">
+                                        {{ vessel_data.revenue|floatformat:0 }}
+                                    </span>
+                                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+                                </td>
+                                <td class="text-center">
+                                    <span class="{% if vessel_data.profit_margin > 20 %}text-success{% elif vessel_data.profit_margin > 10 %}text-warning{% else %}text-danger{% endif %}" 
+                                          data-number data-original="{{ vessel_data.profit_margin|floatformat:1 }}">
+                                        {{ vessel_data.profit_margin|floatformat:1 }}%
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="fw-bold" data-number data-original="{{ vessel_data.trips_count }}">
+                                        {{ vessel_data.trips_count }}
+                                    </span>
+                                </td>
+                                <td class="text-end">
+                                    <span data-number data-original="{{ vessel_data.revenue_per_trip|floatformat:0 }}">
+                                        {{ vessel_data.revenue_per_trip|floatformat:0 }}
+                                    </span>
+                                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+                                </td>
+                                <td class="text-center">
+                                    {% if vessel_data.profit_margin > 20 %}
+                                        <span class="badge bg-success"><span data-translate="excellent">Excellent</span></span>
+                                    {% elif vessel_data.profit_margin > 10 %}
+                                        <span class="badge bg-warning"><span data-translate="good">Good</span></span>
+                                    {% elif vessel_data.profit_margin > 0 %}
+                                        <span class="badge bg-secondary"><span data-translate="fair">Fair</span></span>
+                                    {% else %}
+                                        <span class="badge bg-danger"><span data-translate="poor">Poor</span></span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Top Products -->
+    <div class="col-md-4 mb-3">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-trophy-fill text-warning"></i> <span data-translate="top_products">Top Products</span>
+                    <small class="text-muted">(<span data-translate="last_90_days">90 days</span>)</small>
+                </h5>
+            </div>
+            <div class="card-body">
+                <div style="max-height: 400px; overflow-y: auto;">
+                    {% for product in top_products %}
+                    <div class="d-flex justify-content-between align-items-center mb-2 p-2 border rounded position-relative">
+                        <div class="position-absolute top-0 start-0 bg-warning text-dark px-1" style="font-size: 0.7rem; border-radius: 0 0 3px 0;">
+                            #{{ forloop.counter }}
+                        </div>
+                        <div class="flex-grow-1 ms-2">
+                            <strong>{{ product.product__name }}</strong>
+                            <small class="text-muted d-block">{{ product.product__item_id }}</small>
+                            <small class="text-info">{{ product.product__category__name }}</small>
+                        </div>
+                        <div class="text-end">
+                            <span class="fw-bold text-success" data-number data-original="{{ product.total_revenue|floatformat:0 }}">
+                                {{ product.total_revenue|floatformat:0 }}
+                            </span>
+                            <small class="text-muted d-block">
+                                <span data-number data-original="{{ product.total_quantity|floatformat:0 }}">{{ product.total_quantity|floatformat:0 }}</span> <span data-translate="sold">sold</span>
+                            </small>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center text-muted py-3">
+                        <i class="bi bi-box" style="font-size: 2rem;"></i>
+                        <p class="mt-2 mb-0"><span data-translate="no_sales_data">No sales data</span></p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Inventory Analysis & Monthly Trends -->
+<div class="row mb-4">
+    <!-- Inventory Analysis -->
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-boxes"></i> <span data-translate="inventory_analysis">Inventory Analysis</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                <div style="max-height: 350px; overflow-y: auto;">
+                    {% for item in inventory_analysis %}
+                    <div class="d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
+                        <div>
+                            <strong>{{ item.product.name }}</strong>
+                            <small class="text-muted d-block">{{ item.product.item_id }}</small>
+                            <div class="mt-1">
+                                {% if item.turnover_rate > 50 %}
+                                    <span class="badge bg-success badge-sm">
+                                        <span data-translate="fast_moving">Fast Moving</span>
+                                    </span>
+                                {% elif item.turnover_rate > 20 %}
+                                    <span class="badge bg-warning badge-sm">
+                                        <span data-translate="moderate">Moderate</span>
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-danger badge-sm">
+                                        <span data-translate="slow_moving">Slow Moving</span>
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            <div class="fw-bold">
+                                <span data-number data-original="{{ item.turnover_rate|floatformat:1 }}">{{ item.turnover_rate|floatformat:1 }}</span>%
+                            </div>
+                            <small class="text-muted">
+                                <span data-translate="stock">Stock</span>: <span data-number data-original="{{ item.total_stock }}">{{ item.total_stock }}</span>
+                            </small>
+                            <small class="text-muted d-block">
+                                <span data-number data-original="{{ item.days_remaining|floatformat:0 }}">{{ item.days_remaining|floatformat:0 }}</span> <span data-translate="days_left">days left</span>
+                            </small>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center text-muted py-3">
+                        <i class="bi bi-boxes" style="font-size: 2rem;"></i>
+                        <p class="mt-2 mb-0"><span data-translate="no_inventory_data">No inventory data</span></p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Monthly Trends -->
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-graph-up"></i> <span data-translate="revenue_trends">Revenue Trends</span>
+                    <small class="text-muted">(<span data-translate="last_12_months">Last 12 months</span>)</small>
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% for month_data in monthly_trends %}
+                    <div class="col-md-4 col-sm-6 mb-3">
+                        <div class="text-center p-2 border rounded position-relative">
+                            <!-- Trend indicator -->
+                            {% if forloop.counter > 1 %}
+                                <div class="position-absolute top-0 end-0 text-info" style="font-size: 0.8rem;">
+                                    <i class="bi bi-graph-up"></i>
+                                </div>
+                            {% endif %}
+                            <small class="text-muted d-block">{{ month_data.month|slice:":3" }} {{ month_data.year }}</small>
+                            <div class="h6 text-success mb-1" data-number data-original="{{ month_data.revenue|floatformat:0 }}">
+                                {{ month_data.revenue|floatformat:0 }}
+                            </div>
+                            <small class="text-muted"><span data-currency-symbol>JOD</span></small>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Passenger Analytics & Business Insights -->
+<div class="row">
+    <!-- Passenger Analytics -->
+    <div class="col-md-4 mb-3">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-people"></i> <span data-translate="passenger_analytics">Passenger Analytics</span>
+                </h5>
+            </div>
+            <div class="card-body text-center">
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <div class="h3 text-primary" data-number data-original="{{ passenger_analytics.total_passengers|default:0 }}">
+                            {{ passenger_analytics.total_passengers|default:0 }}
+                        </div>
+                        <small class="text-muted"><span data-translate="total_passengers_90_days">Total Passengers (90 days)</span></small>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-6">
+                        <div class="h5 text-info" data-number data-original="{{ passenger_analytics.avg_passengers_per_trip|default:0|floatformat:1 }}">
+                            {{ passenger_analytics.avg_passengers_per_trip|default:0|floatformat:1 }}
+                        </div>
+                        <small class="text-muted"><span data-translate="avg_per_trip">Avg per Trip</span></small>
+                    </div>
+                    <div class="col-6">
+                        <div class="h5 text-success" data-number data-original="{{ revenue_per_passenger|floatformat:2 }}">
+                            {{ revenue_per_passenger|floatformat:2 }}
+                        </div>
+                        <small class="text-muted"><span data-translate="revenue_per_person">Revenue per Person</span></small>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12">
+                        <div class="h5 text-warning" data-number data-original="{{ passenger_analytics.total_trips|default:0 }}">
+                            {{ passenger_analytics.total_trips|default:0 }}
+                        </div>
+                        <small class="text-muted"><span data-translate="total_completed_trips">Total Completed Trips</span></small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Business Insights -->
+    <div class="col-md-8 mb-3">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-lightbulb"></i> <span data-translate="business_insights">Business Insights</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <!-- Growth Insights -->
+                    <div class="col-md-6 mb-3">
+                        <div class="insight-card p-3 border rounded">
+                            <h6 class="text-primary">
+                                <i class="bi bi-graph-up-arrow"></i> <span data-translate="growth_analysis">Growth Analysis</span>
+                            </h6>
+                            {% if growth_rate > 10 %}
+                                <p class="text-success mb-2">
+                                    <i class="bi bi-check-circle"></i> 
+                                    <span data-translate="strong_growth">Strong growth momentum</span> ({{ growth_rate|floatformat:1 }}%)
+                                </p>
+                                <small class="text-muted">
+                                    <span data-translate="excellent_performance">Excellent performance! Consider expanding successful strategies.</span>
+                                </small>
+                            {% elif growth_rate > 0 %}
+                                <p class="text-warning mb-2">
+                                    <i class="bi bi-info-circle"></i> 
+                                    <span data-translate="moderate_growth">Moderate growth</span> ({{ growth_rate|floatformat:1 }}%)
+                                </p>
+                                <small class="text-muted">
+                                    <span data-translate="room_for_improvement">Room for improvement. Analyze top-performing vessels.</span>
+                                </small>
+                            {% else %}
+                                <p class="text-danger mb-2">
+                                    <i class="bi bi-exclamation-triangle"></i> 
+                                    <span data-translate="declining_performance">Declining performance</span> ({{ growth_rate|floatformat:1 }}%)
+                                </p>
+                                <small class="text-muted">
+                                    <span data-translate="review_strategies">Review operational strategies and market conditions.</span>
+                                </small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Efficiency Insights -->
+                    <div class="col-md-6 mb-3">
+                        <div class="insight-card p-3 border rounded">
+                            <h6 class="text-warning">
+                                <i class="bi bi-speedometer2"></i> <span data-translate="efficiency_analysis">Efficiency Analysis</span>
+                            </h6>
+                            {% if efficiency_score > 80 %}
+                                <p class="text-success mb-2">
+                                    <i class="bi bi-check-circle"></i> 
+                                    <span data-translate="high_efficiency">High operational efficiency</span>
+                                </p>
+                                <small class="text-muted">
+                                    <span data-translate="maintain_standards">Maintain current operational standards.</span>
+                                </small>
+                            {% elif efficiency_score > 60 %}
+                                <p class="text-warning mb-2">
+                                    <i class="bi bi-info-circle"></i> 
+                                    <span data-translate="average_efficiency">Average efficiency</span>
+                                </p>
+                                <small class="text-muted">
+                                    <span data-translate="optimize_processes">Consider optimizing daily processes.</span>
+                                </small>
+                            {% else %}
+                                <p class="text-danger mb-2">
+                                    <i class="bi bi-exclamation-triangle"></i> 
+                                    <span data-translate="low_efficiency">Low efficiency detected</span>
+                                </p>
+                                <small class="text-muted">
+                                    <span data-translate="urgent_review">Urgent review of operations needed.</span>
+                                </small>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Action Items -->
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <h6 class="text-secondary">
+                            <i class="bi bi-list-check"></i> <span data-translate="recommended_actions">Recommended Actions</span>
+                        </h6>
+                        <ul class="list-unstyled">
+                            {% if growth_rate < 5 %}
+                            <li class="mb-1">
+                                <i class="bi bi-arrow-right text-primary"></i> 
+                                <span data-translate="analyze_top_vessels">Analyze top-performing vessels and replicate strategies</span>
+                            </li>
+                            {% endif %}
+                            {% if efficiency_score < 70 %}
+                            <li class="mb-1">
+                                <i class="bi bi-arrow-right text-warning"></i> 
+                                <span data-translate="streamline_operations">Streamline daily operations to improve efficiency</span>
+                            </li>
+                            {% endif %}
+                            <li class="mb-1">
+                                <i class="bi bi-arrow-right text-info"></i> 
+                                <span data-translate="monitor_inventory">Monitor inventory turnover for slow-moving items</span>
+                            </li>
+                            <li class="mb-1">
+                                <i class="bi bi-arrow-right text-success"></i> 
+                                <span data-translate="focus_top_products">Focus marketing on top-performing products</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Add page-specific translations
+document.addEventListener('DOMContentLoaded', function() {
+    const pageTranslations = {
+        en: {
+            'analytics_dashboard': 'Analytics Dashboard',
+            'advanced_business_intelligence': 'Advanced business intelligence and performance metrics',
+            'back_to_reports': 'Back to Reports',
+            'export': 'Export',
+            'print': 'Print',
+            'revenue_30_days': 'Revenue (30 Days)',
+            'avg_per_transaction': 'Avg per transaction',
+            'growth_rate': 'Growth Rate',
+            'this_vs_last_month': 'This vs last month',
+            'revenue_per_passenger': 'Revenue per Passenger',
+            'last_90_days': 'Last 90 days',
+            'efficiency_score': 'Efficiency Score',
+            'operational_performance': 'Operational performance',
+            'vessel_analytics': 'Vessel Analytics',
+            'last_30_days': 'Last 30 days',
+            'vessel': 'Vessel',
+            'revenue': 'Revenue',
+            'profit_margin': 'Profit Margin',
+            'trips': 'Trips',
+            'revenue_per_trip': 'Revenue/Trip',
+            'performance': 'Performance',
+            'duty_free': 'Duty-Free',
+            'excellent': 'Excellent',
+            'good': 'Good',
+            'fair': 'Fair',
+            'poor': 'Poor',
+            'top_products': 'Top Products',
+            'sold': 'sold',
+            'no_sales_data': 'No sales data',
+            'inventory_analysis': 'Inventory Analysis',
+            'fast_moving': 'Fast Moving',
+            'moderate': 'Moderate',
+            'slow_moving': 'Slow Moving',
+            'stock': 'Stock',
+            'days_left': 'days left',
+            'no_inventory_data': 'No inventory data',
+            'revenue_trends': 'Revenue Trends',
+            'last_12_months': 'Last 12 months',
+            'passenger_analytics': 'Passenger Analytics',
+            'total_passengers_90_days': 'Total Passengers (90 days)',
+            'avg_per_trip': 'Avg per Trip',
+            'revenue_per_person': 'Revenue per Person',
+            'total_completed_trips': 'Total Completed Trips',
+            'business_insights': 'Business Insights',
+            'growth_analysis': 'Growth Analysis',
+            'strong_growth': 'Strong growth momentum',
+            'excellent_performance': 'Excellent performance! Consider expanding successful strategies.',
+            'moderate_growth': 'Moderate growth',
+            'room_for_improvement': 'Room for improvement. Analyze top-performing vessels.',
+            'declining_performance': 'Declining performance',
+            'review_strategies': 'Review operational strategies and market conditions.',
+            'efficiency_analysis': 'Efficiency Analysis',
+            'high_efficiency': 'High operational efficiency',
+            'maintain_standards': 'Maintain current operational standards.',
+            'average_efficiency': 'Average efficiency',
+            'optimize_processes': 'Consider optimizing daily processes.',
+            'low_efficiency': 'Low efficiency detected',
+            'urgent_review': 'Urgent review of operations needed.',
+            'recommended_actions': 'Recommended Actions',
+            'analyze_top_vessels': 'Analyze top-performing vessels and replicate strategies',
+            'streamline_operations': 'Streamline daily operations to improve efficiency',
+            'monitor_inventory': 'Monitor inventory turnover for slow-moving items',
+            'focus_top_products': 'Focus marketing on top-performing products',
+            'vessel_sales_system': 'Vessel Sales System'
+        },
+        ar: {
+            'analytics_dashboard': 'لوحة التحليلات',
+            'advanced_business_intelligence': 'ذكاء الأعمال المتقدم ومقاييس الأداء',
+            'back_to_reports': 'الرجوع للتقارير',
+            'export': 'تصدير',
+            'print': 'طباعة',
+            'revenue_30_days': 'الإيرادات (٣٠ يوم)',
+            'avg_per_transaction': 'متوسط كل حركة',
+            'growth_rate': 'معدل النمو',
+            'this_vs_last_month': 'هذا الشهر مقابل الماضي',
+            'revenue_per_passenger': 'الإيرادات لكل راكب',
+            'last_90_days': 'آخر ٩٠ يوم',
+            'efficiency_score': 'نقاط الكفاءة',
+            'operational_performance': 'الأداء التشغيلي',
+            'vessel_analytics': 'تحليلات السفن',
+            'last_30_days': 'آخر ٣٠ يوم',
+            'vessel': 'السفينة',
+            'revenue': 'الإيرادات',
+            'profit_margin': 'هامش الربح',
+            'trips': 'الرحلات',
+            'revenue_per_trip': 'الإيرادات/الرحلة',
+            'performance': 'الأداء',
+            'duty_free': 'سوق حرة',
+            'excellent': 'ممتاز',
+            'good': 'جيد',
+            'fair': 'مقبول',
+            'poor': 'ضعيف',
+            'top_products': 'أفضل المنتجات',
+            'sold': 'مباع',
+            'no_sales_data': 'لا توجد بيانات مبيعات',
+            'inventory_analysis': 'تحليل المخزون',
+            'fast_moving': 'سريع الحركة',
+            'moderate': 'متوسط',
+            'slow_moving': 'بطيء الحركة',
+            'stock': 'المخزون',
+            'days_left': 'يوم متبقي',
+            'no_inventory_data': 'لا توجد بيانات مخزون',
+            'revenue_trends': 'اتجاهات الإيرادات',
+            'last_12_months': 'آخر ١٢ شهر',
+            'passenger_analytics': 'تحليلات الركاب',
+            'total_passengers_90_days': 'إجمالي الركاب (٩٠ يوم)',
+            'avg_per_trip': 'متوسط كل رحلة',
+            'revenue_per_person': 'الإيرادات لكل شخص',
+            'total_completed_trips': 'إجمالي الرحلات المكتملة',
+            'business_insights': 'رؤى الأعمال',
+            'growth_analysis': 'تحليل النمو',
+            'strong_growth': 'زخم نمو قوي',
+            'excellent_performance': 'أداء ممتاز! فكر في توسيع الاستراتيجيات الناجحة.',
+            'moderate_growth': 'نمو متوسط',
+            'room_for_improvement': 'مجال للتحسن. حلل السفن عالية الأداء.',
+            'declining_performance': 'أداء متراجع',
+            'review_strategies': 'راجع الاستراتيجيات التشغيلية وظروف السوق.',
+            'efficiency_analysis': 'تحليل الكفاءة',
+            'high_efficiency': 'كفاءة تشغيلية عالية',
+            'maintain_standards': 'حافظ على المعايير التشغيلية الحالية.',
+            'average_efficiency': 'كفاءة متوسطة',
+            'optimize_processes': 'فكر في تحسين العمليات اليومية.',
+            'low_efficiency': 'تم اكتشاف كفاءة منخفضة',
+            'urgent_review': 'مراجعة عاجلة للعمليات مطلوبة.',
+            'recommended_actions': 'الإجراءات الموصى بها',
+            'analyze_top_vessels': 'حلل السفن عالية الأداء وكرر الاستراتيجيات',
+            'streamline_operations': 'بسط العمليات اليومية لتحسين الكفاءة',
+            'monitor_inventory': 'راقب دوران المخزون للعناصر بطيئة الحركة',
+            'focus_top_products': 'ركز التسويق على المنتجات عالية الأداء',
+            'vessel_sales_system': 'نظام مبيعات السفن'
+        }
+    };
+
+    // Merge with global translations
+    const currentTranslations = window.translator.translations;
+    Object.keys(pageTranslations).forEach(lang => {
+        if (currentTranslations[lang]) {
+            Object.assign(currentTranslations[lang], pageTranslations[lang]);
+        }
+    });
+    
+    // Apply translations
+    updatePageTranslations();
+});
+
+// Export and Print functions
+function exportAnalytics() {
+    alertTranslated('export_feature_coming_soon');
+}
+
+function printAnalytics() {
+    alertTranslated('print_feature_coming_soon');
+}
+</script>
+
+<style>
+.analytics-kpi {
+    background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+    border: 1px solid #e9ecef;
+    transition: transform 0.2s ease;
+}
+
+.analytics-kpi:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.insight-card {
+    background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+    transition: transform 0.2s ease;
+}
+
+.insight-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.table-row-active {
+    background-color: rgba(0,123,255,0.05);
+}
+</style>
+{% endblock %}

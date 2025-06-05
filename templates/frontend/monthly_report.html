@@ -1,0 +1,435 @@
+{% extends 'frontend/base.html' %}
+
+{% block title %}<span data-translate="monthly_report">Monthly Report</span> - <span data-translate="vessel_sales_system">Vessel Sales System</span>{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>
+                    <i class="bi bi-calendar-month text-info"></i> 
+                    <span data-translate="monthly_report">Monthly Report</span>
+                </h2>
+                <p class="text-muted mb-0">
+                    <span data-translate="monthly_operations_analysis">Monthly operations and financial analysis for</span> 
+                    <strong>{{ month_name }} {{ selected_year }}</strong>
+                </p>
+            </div>
+            <div class="d-flex gap-2">
+                <a href="{% url 'frontend:reports_dashboard' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> <span data-translate="back_to_reports">Back to Reports</span>
+                </a>
+                <button class="btn btn-outline-success btn-sm" onclick="exportMonthlyReport()">
+                    <i class="bi bi-file-earmark-excel"></i> <span data-translate="export">Export</span>
+                </button>
+                <button class="btn btn-outline-primary btn-sm" onclick="printMonthlyReport()">
+                    <i class="bi bi-printer"></i> <span data-translate="print">Print</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Month Selector -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <form method="GET" class="d-flex align-items-center gap-3">
+                    <label class="form-label fw-bold mb-0" data-translate="select_month">Select Month:</label>
+                    <select class="form-control" name="month" style="max-width: 150px;">
+                        {% for i in "123456789012"|make_list %}
+                            {% with month_num=forloop.counter %}
+                            <option value="{{ month_num }}" {% if month_num == selected_month %}selected{% endif %}>
+                                {{ month_num|date:"F" }}
+                            </option>
+                            {% endwith %}
+                        {% endfor %}
+                    </select>
+                    <select class="form-control" name="year" style="max-width: 100px;">
+                        {% for year in "2023,2024,2025,2026"|make_list %}
+                        <option value="{{ year }}" {% if year == selected_year|stringformat:"s" %}selected{% endif %}>{{ year }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-calendar-check"></i> <span data-translate="view_report">View Report</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Monthly Summary -->
+<div class="row mb-4">
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="stats-card">
+            <div class="stats-number text-success" data-number data-original="{{ monthly_stats.total_revenue|default:0|floatformat:0 }}">
+                {{ monthly_stats.total_revenue|default:0|floatformat:0 }}
+            </div>
+            <div class="stats-label">
+                <span data-translate="monthly_revenue">Monthly Revenue</span> 
+                (<span data-currency-symbol>JOD</span>)
+                {% if revenue_change != 0 %}
+                <small class="d-block {% if revenue_change > 0 %}text-success{% else %}text-danger{% endif %}">
+                    {% if revenue_change > 0 %}↗{% else %}↘{% endif %} {{ revenue_change|floatformat:1 }}% <span data-translate="vs_last_month">vs last month</span>
+                </small>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="stats-card">
+            <div class="stats-number {% if monthly_profit > 0 %}text-success{% elif monthly_profit < 0 %}text-danger{% else %}text-muted{% endif %}" 
+                 data-number data-original="{{ monthly_profit|floatformat:0 }}">
+                {{ monthly_profit|floatformat:0 }}
+            </div>
+            <div class="stats-label">
+                <span data-translate="monthly_profit">Monthly Profit</span> 
+                (<span data-currency-symbol>JOD</span>)
+                <small class="d-block text-muted">
+                    {{ profit_margin|floatformat:1 }}% <span data-translate="margin">margin</span>
+                </small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="stats-card">
+            <div class="stats-number text-primary" data-number data-original="{{ monthly_stats.total_transactions|default:0 }}">
+                {{ monthly_stats.total_transactions|default:0 }}
+            </div>
+            <div class="stats-label">
+                <span data-translate="total_transactions">Total Transactions</span>
+                <small class="d-block text-muted">
+                    <span data-number data-original="{{ monthly_stats.sales_count|default:0 }}">{{ monthly_stats.sales_count|default:0 }}</span> <span data-translate="sales">sales</span>, 
+                    <span data-number data-original="{{ monthly_stats.supply_count|default:0 }}">{{ monthly_stats.supply_count|default:0 }}</span> <span data-translate="supplies">supplies</span>
+                </small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="stats-card">
+            <div class="stats-number text-info" data-number data-original="{{ monthly_stats.total_quantity|default:0|floatformat:0 }}">
+                {{ monthly_stats.total_quantity|default:0|floatformat:0 }}
+            </div>
+            <div class="stats-label">
+                <span data-translate="units_processed">Units Processed</span>
+                <small class="d-block text-muted">
+                    <span data-translate="all_operations">All operations</span>
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Daily Performance Chart -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-graph-up"></i> <span data-translate="daily_performance">Daily Performance</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead class="table-light">
+                            <tr>
+                                <th><span data-translate="date">Date</span></th>
+                                <th><span data-translate="day">Day</span></th>
+                                <th class="text-end"><span data-translate="revenue">Revenue</span></th>
+                                <th class="text-end"><span data-translate="costs">Costs</span></th>
+                                <th class="text-end"><span data-translate="profit">Profit</span></th>
+                                <th class="text-center"><span data-translate="transactions">Transactions</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for day in daily_breakdown %}
+                            <tr {% if day.transactions > 0 %}class="table-row-active"{% endif %}>
+                                <td>{{ day.date|date:"d/m" }}</td>
+                                <td>
+                                    <span class="day-name" data-en="{{ day.day_name }}" data-ar="{{ day.day_name }}">
+                                        {{ day.day_name }}
+                                    </span>
+                                </td>
+                                <td class="text-end">
+                                    <span class="text-success" data-number data-original="{{ day.revenue|floatformat:0 }}">
+                                        {{ day.revenue|floatformat:0 }}
+                                    </span>
+                                </td>
+                                <td class="text-end">
+                                    <span class="text-warning" data-number data-original="{{ day.costs|floatformat:0 }}">
+                                        {{ day.costs|floatformat:0 }}
+                                    </span>
+                                </td>
+                                <td class="text-end">
+                                    <span class="{% if day.profit > 0 %}text-success{% elif day.profit < 0 %}text-danger{% else %}text-muted{% endif %}" 
+                                          data-number data-original="{{ day.profit|floatformat:0 }}">
+                                        {{ day.profit|floatformat:0 }}
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    {% if day.transactions > 0 %}
+                                        <span class="fw-bold" data-number data-original="{{ day.transactions }}">{{ day.transactions }}</span>
+                                        <small class="text-muted d-block">
+                                            <span data-number data-original="{{ day.sales }}">{{ day.sales }}</span>/<span data-number data-original="{{ day.supplies }}">{{ day.supplies }}</span>
+                                        </small>
+                                    {% else %}
+                                        <span class="text-muted">--</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Vessel Performance & Top Products -->
+<div class="row mb-4">
+    <!-- Vessel Performance -->
+    <div class="col-md-8 mb-3">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-ship"></i> <span data-translate="vessel_performance">Vessel Performance</span>
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th><span data-translate="vessel">Vessel</span></th>
+                                <th class="text-end"><span data-translate="revenue">Revenue</span></th>
+                                <th class="text-end"><span data-translate="profit">Profit</span></th>
+                                <th class="text-center"><span data-translate="trips">Trips</span></th>
+                                <th class="text-center"><span data-translate="pos">POs</span></th>
+                                <th class="text-center"><span data-translate="transactions">Transactions</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for vessel_data in vessel_performance %}
+                            <tr>
+                                <td>
+                                    <span class="vessel-name" data-en="{{ vessel_data.vessel.name }}" data-ar="{{ vessel_data.vessel.name_ar }}">
+                                        {{ vessel_data.vessel.name }}
+                                    </span>
+                                    {% if vessel_data.vessel.has_duty_free %}
+                                        <span class="badge bg-info badge-sm ms-1" data-translate="duty_free">Duty-Free</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    <span class="fw-bold text-success" data-number data-original="{{ vessel_data.revenue|floatformat:2 }}">
+                                        {{ vessel_data.revenue|floatformat:2 }}
+                                    </span>
+                                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+                                </td>
+                                <td class="text-end">
+                                    <span class="fw-bold {% if vessel_data.profit > 0 %}text-success{% elif vessel_data.profit < 0 %}text-danger{% else %}text-muted{% endif %}" 
+                                          data-number data-original="{{ vessel_data.profit|floatformat:2 }}">
+                                        {{ vessel_data.profit|floatformat:2 }}
+                                    </span>
+                                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+                                </td>
+                                <td class="text-center">
+                                    <span class="fw-bold" data-number data-original="{{ vessel_data.trips_count }}">
+                                        {{ vessel_data.trips_count }}
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="fw-bold" data-number data-original="{{ vessel_data.pos_count }}">
+                                        {{ vessel_data.pos_count }}
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="text-success" data-number data-original="{{ vessel_data.sales_count }}">{{ vessel_data.sales_count }}</span>/<span class="text-primary" data-number data-original="{{ vessel_data.supply_count }}">{{ vessel_data.supply_count }}</span>
+                                    <small class="text-muted d-block"><span data-translate="sales_supplies">Sales/Supplies</span></small>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Top Products -->
+    <div class="col-md-4 mb-3">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-trophy"></i> <span data-translate="top_products">Top Products</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                {% for product in top_products %}
+                <div class="d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
+                    <div>
+                        <strong>{{ product.product__name }}</strong>
+                        <small class="text-muted d-block">{{ product.product__item_id }}</small>
+                    </div>
+                    <div class="text-end">
+                        <span class="fw-bold text-success" data-number data-original="{{ product.total_revenue|floatformat:0 }}">
+                            {{ product.total_revenue|floatformat:0 }}
+                        </span>
+                        <small class="text-muted d-block">
+                            <span data-number data-original="{{ product.total_quantity_sold|floatformat:0 }}">{{ product.total_quantity_sold|floatformat:0 }}</span> <span data-translate="sold">sold</span>
+                        </small>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="text-center text-muted py-3">
+                    <i class="bi bi-box" style="font-size: 2rem;"></i>
+                    <p class="mt-2 mb-0"><span data-translate="no_sales_data">No sales data</span></p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Monthly Trends -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-graph-up-arrow"></i> <span data-translate="twelve_month_trend">12-Month Trend</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% for month_data in trend_months %}
+                    <div class="col-md-2 col-sm-4 col-6 mb-3">
+                        <div class="text-center p-2 border rounded">
+                            <small class="text-muted d-block">{{ month_data.month|slice:":3" }} {{ month_data.year }}</small>
+                            <div class="h6 text-success mb-1" data-number data-original="{{ month_data.revenue|floatformat:0 }}">
+                                {{ month_data.revenue|floatformat:0 }}
+                            </div>
+                            <small class="text-muted">
+                                <span data-translate="profit">Profit</span>: 
+                                <span class="{% if month_data.profit > 0 %}text-success{% elif month_data.profit < 0 %}text-danger{% else %}text-muted{% endif %}" 
+                                      data-number data-original="{{ month_data.profit|floatformat:0 }}">
+                                    {{ month_data.profit|floatformat:0 }}
+                                </span>
+                            </small>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Add page-specific translations
+document.addEventListener('DOMContentLoaded', function() {
+    const pageTranslations = {
+        en: {
+            'monthly_report': 'Monthly Report',
+            'monthly_operations_analysis': 'Monthly operations and financial analysis for',
+            'back_to_reports': 'Back to Reports',
+            'export': 'Export',
+            'print': 'Print',
+            'select_month': 'Select Month',
+            'view_report': 'View Report',
+            'monthly_revenue': 'Monthly Revenue',
+            'vs_last_month': 'vs last month',
+            'monthly_profit': 'Monthly Profit',
+            'margin': 'margin',
+            'total_transactions': 'Total Transactions',
+            'sales': 'sales',
+            'supplies': 'supplies',
+            'units_processed': 'Units Processed',
+            'all_operations': 'All operations',
+            'daily_performance': 'Daily Performance',
+            'date': 'Date',
+            'day': 'Day',
+            'revenue': 'Revenue',
+            'costs': 'Costs',
+            'profit': 'Profit',
+            'transactions': 'Transactions',
+            'vessel_performance': 'Vessel Performance',
+            'vessel': 'Vessel',
+            'trips': 'Trips',
+            'pos': 'POs',
+            'duty_free': 'Duty-Free',
+            'sales_supplies': 'Sales/Supplies',
+            'top_products': 'Top Products',
+            'sold': 'sold',
+            'no_sales_data': 'No sales data',
+            'twelve_month_trend': '12-Month Trend',
+            'vessel_sales_system': 'Vessel Sales System'
+        },
+        ar: {
+            'monthly_report': 'التقرير الشهري',
+            'monthly_operations_analysis': 'تحليل العمليات والأعمال الشهرية لشهر',
+            'back_to_reports': 'الرجوع للتقارير',
+            'export': 'تصدير',
+            'print': 'طباعة',
+            'select_month': 'اختر الشهر',
+            'view_report': 'عرض التقرير',
+            'monthly_revenue': 'الإيرادات الشهرية',
+            'vs_last_month': 'مقابل الشهر الماضي',
+            'monthly_profit': 'الربح الشهري',
+            'margin': 'هامش',
+            'total_transactions': 'إجمالي الحركات',
+            'sales': 'مبيعات',
+            'supplies': 'توريدات',
+            'units_processed': 'الوحدات المعالجة',
+            'all_operations': 'جميع العمليات',
+            'daily_performance': 'الأداء اليومي',
+            'date': 'التاريخ',
+            'day': 'اليوم',
+            'revenue': 'الإيرادات',
+            'costs': 'التكاليف',
+            'profit': 'الربح',
+            'transactions': 'الحركات',
+            'vessel_performance': 'أداء السفن',
+            'vessel': 'السفينة',
+            'trips': 'الرحلات',
+            'pos': 'أوامر الشراء',
+            'duty_free': 'سوق حرة',
+            'sales_supplies': 'مبيعات/توريدات',
+            'top_products': 'أفضل المنتجات',
+            'sold': 'مباع',
+            'no_sales_data': 'لا توجد بيانات مبيعات',
+            'twelve_month_trend': 'اتجاه ١٢ شهر',
+            'vessel_sales_system': 'نظام مبيعات السفن'
+        }
+    };
+
+    // Merge with global translations
+    const currentTranslations = window.translator.translations;
+    Object.keys(pageTranslations).forEach(lang => {
+        if (currentTranslations[lang]) {
+            Object.assign(currentTranslations[lang], pageTranslations[lang]);
+        }
+    });
+    
+    // Apply translations
+    updatePageTranslations();
+});
+
+// Export and Print functions
+function exportMonthlyReport() {
+    alertTranslated('export_feature_coming_soon');
+}
+
+function printMonthlyReport() {
+    alertTranslated('print_feature_coming_soon');
+}
+</script>
+{% endblock %}
