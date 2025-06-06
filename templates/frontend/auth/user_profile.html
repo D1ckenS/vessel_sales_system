@@ -1,8 +1,7 @@
 {% extends 'frontend/base.html' %}
-{% load static %}
 
 {% block title %}
-    <span data-en="User Profile" data-ar="الملف الشخصي">User Profile</span>
+    <span data-translate="user_profile">User Profile</span>
 {% endblock %}
 
 {% block content %}
@@ -26,21 +25,21 @@
                     <!-- Status Badges -->
                     <div class="mt-3">
                         {% if user.is_active %}
-                            <span class="badge bg-success me-1">
-                                <i class="fas fa-check me-1"></i>
-                                <span data-en="Active" data-ar="نشط">Active</span>
+                            <span class="badge me-1" style="background: var(--success-green); color: white;">
+                                <i class="bi bi-check-circle me-1"></i>
+                                <span data-translate="active">Active</span>
                             </span>
                         {% endif %}
                         {% if user.is_staff %}
-                            <span class="badge bg-primary me-1">
-                                <i class="fas fa-user-shield me-1"></i>
-                                <span data-en="Staff" data-ar="فريق">Staff</span>
+                            <span class="badge me-1" style="background: var(--primary-blue); color: white;">
+                                <i class="bi bi-shield-check me-1"></i>
+                                <span data-translate="staff">Staff</span>
                             </span>
                         {% endif %}
                         {% if user.is_superuser %}
-                            <span class="badge bg-warning">
-                                <i class="fas fa-crown me-1"></i>
-                                <span data-en="Admin" data-ar="مدير">Admin</span>
+                            <span class="badge" style="background: var(--warning-orange); color: white;">
+                                <i class="bi bi-star me-1"></i>
+                                <span data-translate="admin">Admin</span>
                             </span>
                         {% endif %}
                     </div>
@@ -51,17 +50,17 @@
             <div class="card mt-4">
                 <div class="card-header">
                     <h6 class="mb-0">
-                        <i class="fas fa-layer-group me-2"></i>
-                        <span data-en="User Groups" data-ar="مجموعات المستخدم">User Groups</span>
+                        <i class="bi bi-collection me-2"></i>
+                        <span data-translate="user_groups">User Groups</span>
                     </h6>
                 </div>
                 <div class="card-body">
                     {% if user_groups %}
                         {% for group in user_groups %}
-                            <span class="badge bg-secondary me-1 mb-1">{{ group.name }}</span>
+                            <span class="badge me-1 mb-1" style="background: var(--secondary-blue); color: white;">{{ group.name }}</span>
                         {% endfor %}
                     {% else %}
-                        <p class="text-muted mb-0" data-en="No groups assigned" data-ar="لا توجد مجموعات مخصصة">No groups assigned</p>
+                        <p class="text-muted mb-0" data-translate="no_groups_assigned">No groups assigned</p>
                     {% endif %}
                 </div>
             </div>
@@ -70,26 +69,21 @@
             <div class="card mt-4">
                 <div class="card-header">
                     <h6 class="mb-0">
-                        <i class="fas fa-cog me-2"></i>
-                        <span data-en="Account Settings" data-ar="إعدادات الحساب">Account Settings</span>
+                        <i class="bi bi-gear me-2"></i>
+                        <span data-translate="account_settings">Account Settings</span>
                     </h6>
                 </div>
                 <div class="card-body">
                     <div class="d-grid gap-2">
                         <a href="{% url 'frontend:change_password' %}" class="btn btn-outline-primary">
-                            <i class="fas fa-key me-2"></i>
-                            <span data-en="Change Password" data-ar="تغيير كلمة المرور">Change Password</span>
+                            <i class="bi bi-key me-2"></i>
+                            <span data-translate="change_password">Change Password</span>
                         </a>
-                        {% if user.is_superuser or user.groups.all|length > 0 %}
-                            {% for group in user.groups.all %}
-                                {% if group.name == 'Administrators' or group.name == 'Managers' %}
-                                    <a href="{% url 'frontend:user_management' %}" class="btn btn-outline-success">
-                                        <i class="fas fa-users me-2"></i>
-                                        <span data-en="Manage Users" data-ar="إدارة المستخدمين">Manage Users</span>
-                                    </a>
-                                    {% break %}
-                                {% endif %}
-                            {% endfor %}
+                        {% if user.is_superuser %}
+                            <a href="{% url 'frontend:user_management' %}" class="btn btn-outline-success">
+                                <i class="bi bi-people me-2"></i>
+                                <span data-translate="manage_users">Manage Users</span>
+                            </a>
                         {% endif %}
                     </div>
                 </div>
@@ -101,43 +95,43 @@
             <div class="card">
                 <div class="card-header">
                     <h5 class="mb-0">
-                        <i class="fas fa-info-circle me-2"></i>
-                        <span data-en="Account Information" data-ar="معلومات الحساب">Account Information</span>
+                        <i class="bi bi-info-circle me-2"></i>
+                        <span data-translate="account_information">Account Information</span>
                     </h5>
                 </div>
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-6">
-                            <h6 class="text-muted" data-en="Username" data-ar="اسم المستخدم">Username</h6>
+                            <h6 class="text-muted" data-translate="username">Username</h6>
                             <p>{{ user.username }}</p>
                         </div>
                         <div class="col-md-6">
-                            <h6 class="text-muted" data-en="Email" data-ar="البريد الإلكتروني">Email</h6>
+                            <h6 class="text-muted" data-translate="email">Email</h6>
                             <p>{{ user.email|default:"-" }}</p>
                         </div>
                     </div>
                     <div class="row">
                         <div class="col-md-6">
-                            <h6 class="text-muted" data-en="First Name" data-ar="الاسم الأول">First Name</h6>
+                            <h6 class="text-muted" data-translate="first_name">First Name</h6>
                             <p>{{ user.first_name|default:"-" }}</p>
                         </div>
                         <div class="col-md-6">
-                            <h6 class="text-muted" data-en="Last Name" data-ar="اسم العائلة">Last Name</h6>
+                            <h6 class="text-muted" data-translate="last_name">Last Name</h6>
                             <p>{{ user.last_name|default:"-" }}</p>
                         </div>
                     </div>
                     <div class="row">
                         <div class="col-md-6">
-                            <h6 class="text-muted" data-en="Date Joined" data-ar="تاريخ الانضمام">Date Joined</h6>
+                            <h6 class="text-muted" data-translate="date_joined">Date Joined</h6>
                             <p>{{ user.date_joined|date:"d/m/Y H:i" }}</p>
                         </div>
                         <div class="col-md-6">
-                            <h6 class="text-muted" data-en="Last Login" data-ar="آخر دخول">Last Login</h6>
+                            <h6 class="text-muted" data-translate="last_login">Last Login</h6>
                             <p>
                                 {% if user.last_login %}
                                     {{ user.last_login|date:"d/m/Y H:i" }}
                                 {% else %}
-                                    <span data-en="Never" data-ar="أبداً">Never</span>
+                                    <span data-translate="never">Never</span>
                                 {% endif %}
                             </p>
                         </div>
@@ -149,16 +143,16 @@
             <div class="card mt-4">
                 <div class="card-header">
                     <h5 class="mb-0">
-                        <i class="fas fa-clock me-2"></i>
-                        <span data-en="Recent Activity" data-ar="النشاط الأخير">Recent Activity</span>
+                        <i class="bi bi-clock-history me-2"></i>
+                        <span data-translate="recent_activity">Recent Activity</span>
                     </h5>
                 </div>
                 <div class="card-body">
                     <div class="timeline">
                         <div class="timeline-item">
-                            <div class="timeline-marker bg-success"></div>
+                            <div class="timeline-marker" style="background-color: var(--success-green);"></div>
                             <div class="timeline-content">
-                                <h6 class="mb-1" data-en="Logged In" data-ar="تسجيل الدخول">Logged In</h6>
+                                <h6 class="mb-1" data-translate="logged_in">Logged In</h6>
                                 <p class="text-muted mb-0">
                                     {% now "d/m/Y H:i" %}
                                 </p>
@@ -167,9 +161,9 @@
                         
                         {% if user.last_login %}
                         <div class="timeline-item">
-                            <div class="timeline-marker bg-info"></div>
+                            <div class="timeline-marker" style="background-color: var(--accent-blue);"></div>
                             <div class="timeline-content">
-                                <h6 class="mb-1" data-en="Previous Login" data-ar="الدخول السابق">Previous Login</h6>
+                                <h6 class="mb-1" data-translate="previous_login">Previous Login</h6>
                                 <p class="text-muted mb-0">
                                     {{ user.last_login|date:"d/m/Y H:i" }}
                                 </p>
@@ -178,9 +172,9 @@
                         {% endif %}
                         
                         <div class="timeline-item">
-                            <div class="timeline-marker bg-primary"></div>
+                            <div class="timeline-marker" style="background-color: var(--primary-blue);"></div>
                             <div class="timeline-content">
-                                <h6 class="mb-1" data-en="Account Created" data-ar="إنشاء الحساب">Account Created</h6>
+                                <h6 class="mb-1" data-translate="account_created">Account Created</h6>
                                 <p class="text-muted mb-0">
                                     {{ user.date_joined|date:"d/m/Y H:i" }}
                                 </p>
@@ -190,22 +184,22 @@
                 </div>
             </div>
             
-            <!-- Permissions Overview (for admins) -->
-            {% if user.is_superuser or user.groups.all %}
+            <!-- Permissions Overview -->
+            {% if user.is_superuser or user_groups %}
             <div class="card mt-4">
                 <div class="card-header">
                     <h5 class="mb-0">
-                        <i class="fas fa-shield-alt me-2"></i>
-                        <span data-en="Permissions Overview" data-ar="نظرة عامة على الصلاحيات">Permissions Overview</span>
+                        <i class="bi bi-shield-check me-2"></i>
+                        <span data-translate="permissions_overview">Permissions Overview</span>
                     </h5>
                 </div>
                 <div class="card-body">
                     {% if user.is_superuser %}
                         <div class="alert alert-warning">
-                            <i class="fas fa-crown me-2"></i>
-                            <strong data-en="Superuser Access" data-ar="وصول المدير العام">Superuser Access</strong>
+                            <i class="bi bi-star me-2"></i>
+                            <strong data-translate="superuser_access">Superuser Access</strong>
                             <br>
-                            <span data-en="You have full administrative access to all system features." data-ar="لديك وصول إداري كامل لجميع ميزات النظام.">
+                            <span data-translate="superuser_desc">
                                 You have full administrative access to all system features.
                             </span>
                         </div>
@@ -214,23 +208,23 @@
                             {% for group in user_groups %}
                                 <div class="col-md-6 mb-3">
                                     <div class="permission-group">
-                                        <h6 class="text-primary">{{ group.name }}</h6>
+                                        <h6 style="color: var(--primary-blue);">{{ group.name }}</h6>
                                         <div class="permission-list">
                                             {% if group.name == 'Managers' %}
-                                                <span class="badge bg-success me-1">View Reports</span>
-                                                <span class="badge bg-success me-1">Manage Operations</span>
-                                                <span class="badge bg-success me-1">Export Data</span>
+                                                <span class="badge me-1" style="background: var(--success-green); color: white;">View Reports</span>
+                                                <span class="badge me-1" style="background: var(--success-green); color: white;">Manage Operations</span>
+                                                <span class="badge me-1" style="background: var(--success-green); color: white;">Export Data</span>
                                             {% elif group.name == 'Vessel Operators' %}
-                                                <span class="badge bg-info me-1">Manage Trips</span>
-                                                <span class="badge bg-info me-1">Record Sales</span>
-                                                <span class="badge bg-info me-1">View Inventory</span>
+                                                <span class="badge me-1" style="background: var(--accent-blue); color: var(--primary-blue);">Manage Trips</span>
+                                                <span class="badge me-1" style="background: var(--accent-blue); color: var(--primary-blue);">Record Sales</span>
+                                                <span class="badge me-1" style="background: var(--accent-blue); color: var(--primary-blue);">View Inventory</span>
                                             {% elif group.name == 'Inventory Staff' %}
-                                                <span class="badge bg-warning me-1">Manage Inventory</span>
-                                                <span class="badge bg-warning me-1">Process Transfers</span>
-                                                <span class="badge bg-warning me-1">Create POs</span>
+                                                <span class="badge me-1" style="background: var(--warning-orange); color: white;">Manage Inventory</span>
+                                                <span class="badge me-1" style="background: var(--warning-orange); color: white;">Process Transfers</span>
+                                                <span class="badge me-1" style="background: var(--warning-orange); color: white;">Create POs</span>
                                             {% elif group.name == 'Viewers' %}
-                                                <span class="badge bg-secondary me-1">View Reports</span>
-                                                <span class="badge bg-secondary me-1">Read Only</span>
+                                                <span class="badge me-1" style="background: var(--dark-gray); color: white;">View Reports</span>
+                                                <span class="badge me-1" style="background: var(--dark-gray); color: white;">Read Only</span>
                                             {% endif %}
                                         </div>
                                     </div>
@@ -250,7 +244,7 @@
     width: 80px;
     height: 80px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #2c5aa0 0%, #4a7c59 100%);
+    background: linear-gradient(135deg, var(--secondary-blue) 0%, var(--primary-blue) 100%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -307,8 +301,16 @@
 }
 
 .card {
-    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-    border: 1px solid rgba(0, 0, 0, 0.125);
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+    border: none;
+    border-radius: 15px;
+}
+
+.card-header {
+    border-radius: 15px 15px 0 0 !important;
+    background: linear-gradient(135deg, var(--secondary-blue) 0%, var(--primary-blue) 100%);
+    color: white;
+    border: none;
 }
 </style>
 {% endblock %}
