@@ -11,6 +11,33 @@ class BilingualMessages:
     # Message translations - Add more as needed
     MESSAGES = {
         'en': {
+            # Authentication messages
+            'username_password_required': 'Username and password are required.',
+            'login_successful': 'Welcome back, {username}! You have successfully logged in.',
+            'logout_successful': 'You have been successfully logged out. See you soon, {username}!',
+            'invalid_credentials': 'Invalid username or password. Please try again.',
+            'account_deactivated': 'Your account has been deactivated. Please contact your administrator.',
+            
+            # User Management
+            'user_created_success': 'User "{username}" has been created successfully.',
+            'user_updated_success': 'User "{username}" has been updated successfully.',
+            'username_exists': 'Username "{username}" already exists. Please choose a different username.',
+            'email_exists': 'Email "{email}" is already in use. Please choose a different email.',
+            'passwords_do_not_match': 'Passwords do not match. Please ensure both password fields are identical.',
+            'password_too_short': 'Password must be at least 6 characters long.',
+            'user_not_found': 'User not found.',
+            'error_creating_user': 'Error creating user: {error}',
+            'error_updating_user': 'Error updating user: {error}',
+            'password_reset_success': 'Password for user "{username}" has been reset successfully.',
+            'error_resetting_password': 'Error resetting password: {error}',
+            'cannot_deactivate_yourself': 'You cannot deactivate your own account.',
+            'user_activated_success': 'User "{username}" has been activated successfully.',
+            'user_deactivated_success': 'User "{username}" has been deactivated successfully.',
+            'current_password_incorrect': 'Current password is incorrect.',
+            'password_changed_success': 'Your password has been changed successfully.',
+            'error_changing_password': 'Error changing password: {error}',
+            'error_setting_up_groups': 'Error setting up groups: {error}',
+            
             # Product messages
             'product_created_success': 'Product "{name}" (ID: {item_id}) created successfully.',
             'product_created_with_stock': 'Product "{name}" created with stock: {vessels}',
@@ -47,6 +74,33 @@ class BilingualMessages:
             'back_to_dashboard': 'Back to Dashboard',
         },
         'ar': {
+            # Authentication messages (Arabic)
+            'username_password_required': 'اسم المستخدم وكلمة المرور مطلوبان.',
+            'login_successful': 'مرحباً بعودتك، {username}! تم تسجيل الدخول بنجاح.',
+            'logout_successful': 'تم تسجيل الخروج بنجاح. نراك قريباً، {username}!',
+            'invalid_credentials': 'اسم المستخدم أو كلمة المرور غير صحيحين. يرجى المحاولة مرة أخرى.',
+            'account_deactivated': 'تم إلغاء تنشيط حسابك. يرجى الاتصال بالمدير.',
+            
+            # User Management (Arabic)
+            'user_created_success': 'تم إنشاء المستخدم "{username}" بنجاح.',
+            'user_updated_success': 'تم تحديث المستخدم "{username}" بنجاح.',
+            'username_exists': 'اسم المستخدم "{username}" موجود بالفعل. يرجى اختيار اسم مستخدم مختلف.',
+            'email_exists': 'البريد الإلكتروني "{email}" مستخدم بالفعل. يرجى اختيار بريد إلكتروني مختلف.',
+            'passwords_do_not_match': 'كلمات المرور غير متطابقة. يرجى التأكد من أن حقلي كلمة المرور متطابقان.',
+            'password_too_short': 'يجب أن تكون كلمة المرور 6 أحرف على الأقل.',
+            'user_not_found': 'المستخدم غير موجود.',
+            'error_creating_user': 'خطأ في إنشاء المستخدم: {error}',
+            'error_updating_user': 'خطأ في تحديث المستخدم: {error}',
+            'password_reset_success': 'تم إعادة تعيين كلمة المرور للمستخدم "{username}" بنجاح.',
+            'error_resetting_password': 'خطأ في إعادة تعيين كلمة المرور: {error}',
+            'cannot_deactivate_yourself': 'لا يمكنك إلغاء تنشيط حسابك الخاص.',
+            'user_activated_success': 'تم تنشيط المستخدم "{username}" بنجاح.',
+            'user_deactivated_success': 'تم إلغاء تنشيط المستخدم "{username}" بنجاح.',
+            'current_password_incorrect': 'كلمة المرور الحالية غير صحيحة.',
+            'password_changed_success': 'تم تغيير كلمة المرور الخاصة بك بنجاح.',
+            'error_changing_password': 'خطأ في تغيير كلمة المرور: {error}',
+            'error_setting_up_groups': 'خطأ في إعداد المجموعات: {error}',
+            
             # Product messages (Arabic)
             'product_created_success': 'تم إنشاء المنتج "{name}" (الرقم: {item_id}) بنجاح.',
             'product_created_with_stock': 'تم إنشاء المنتج "{name}" مع المخزون: {vessels}',
@@ -87,8 +141,24 @@ class BilingualMessages:
     @classmethod
     def get_user_language(cls, request):
         """Get user's preferred language from session/localStorage"""
-        # This would typically come from request headers, session, or user preference
-        # For now, we'll use a default implementation
+        # Try from session first (set by authentication system)
+        if hasattr(request, 'session') and 'preferred_language' in request.session:
+            lang = request.session['preferred_language']
+            if lang in ['en', 'ar']:
+                return lang
+        
+        # Try from custom header (set by JavaScript)
+        if 'HTTP_X_USER_LANGUAGE' in request.META:
+            lang = request.META['HTTP_X_USER_LANGUAGE']
+            if lang in ['en', 'ar']:
+                return lang
+        
+        # Try from Accept-Language header
+        accept_lang = request.META.get('HTTP_ACCEPT_LANGUAGE', '')
+        if 'ar' in accept_lang.lower():
+            return 'ar'
+        
+        # Default implementation for backward compatibility
         return getattr(request, 'LANGUAGE_CODE', 'en')
 
     @classmethod
@@ -104,32 +174,31 @@ class BilingualMessages:
             return message_template
 
     @classmethod
+    def add_message(cls, request, level, message_key, **kwargs):
+        """Add bilingual message to Django messages framework"""
+        language = cls.get_user_language(request)
+        message_text = cls.get_message(message_key, language, **kwargs)
+        messages.add_message(request, level, message_text)
+
+    @classmethod
     def success(cls, request, message_key, **kwargs):
         """Add bilingual success message"""
-        language = cls.get_user_language(request)
-        message = cls.get_message(message_key, language, **kwargs)
-        messages.success(request, message)
+        cls.add_message(request, messages.SUCCESS, message_key, **kwargs)
 
     @classmethod
     def error(cls, request, message_key, **kwargs):
         """Add bilingual error message"""
-        language = cls.get_user_language(request)
-        message = cls.get_message(message_key, language, **kwargs)
-        messages.error(request, message)
+        cls.add_message(request, messages.ERROR, message_key, **kwargs)
 
     @classmethod
     def warning(cls, request, message_key, **kwargs):
         """Add bilingual warning message"""
-        language = cls.get_user_language(request)
-        message = cls.get_message(message_key, language, **kwargs)
-        messages.warning(request, message)
+        cls.add_message(request, messages.WARNING, message_key, **kwargs)
 
     @classmethod
     def info(cls, request, message_key, **kwargs):
         """Add bilingual info message"""
-        language = cls.get_user_language(request)
-        message = cls.get_message(message_key, language, **kwargs)
-        messages.info(request, message)
+        cls.add_message(request, messages.INFO, message_key, **kwargs)
 
     @classmethod
     def json_response(cls, request, success=True, message_key=None, data=None, **kwargs):
@@ -150,7 +219,7 @@ class BilingualMessages:
         return JsonResponse(response_data)
 
 
-# Middleware to detect user language from localStorage/headers
+# Middleware to detect user language from various sources
 class LanguageDetectionMiddleware:
     """
     Middleware to detect user's preferred language from various sources
@@ -170,15 +239,15 @@ class LanguageDetectionMiddleware:
     def detect_language(self, request):
         """Detect user's preferred language"""
         
-        # 1. Try from custom header (set by JavaScript)
-        if 'HTTP_X_USER_LANGUAGE' in request.META:
-            lang = request.META['HTTP_X_USER_LANGUAGE']
+        # 1. Try from session (highest priority for authenticated users)
+        if hasattr(request, 'session') and 'preferred_language' in request.session:
+            lang = request.session['preferred_language']
             if lang in ['en', 'ar']:
                 return lang
         
-        # 2. Try from session
-        if hasattr(request, 'session') and 'preferred_language' in request.session:
-            lang = request.session['preferred_language']
+        # 2. Try from custom header (set by JavaScript)
+        if 'HTTP_X_USER_LANGUAGE' in request.META:
+            lang = request.META['HTTP_X_USER_LANGUAGE']
             if lang in ['en', 'ar']:
                 return lang
         

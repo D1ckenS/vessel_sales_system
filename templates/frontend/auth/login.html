@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Vessel Sales System</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary-blue: #0f4c75;
+            --secondary-blue: #3282b8;
+            --accent-blue: #bbe1fa;
+            --success-green: #28a745;
+            --warning-orange: #fd7e14;
+            --danger-red: #dc3545;
+            --light-gray: #f8f9fa;
+            --dark-gray: #6c757d;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, var(--accent-blue) 0%, #e3f2fd 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .login-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(15, 76, 117, 0.15);
+            overflow: hidden;
+            max-width: 900px;
+            width: 100%;
+            min-height: 500px;
+            display: flex;
+        }
+        
+        .login-left {
+            background: linear-gradient(135deg, var(--primary-blue) 0%, var(--secondary-blue) 100%);
+            padding: 60px 40px;
+            color: white;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .login-left::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="20" cy="20" r="2" fill="rgba(255,255,255,0.1)"/><circle cx="80" cy="80" r="2" fill="rgba(255,255,255,0.1)"/><circle cx="40" cy="60" r="1" fill="rgba(255,255,255,0.05)"/><circle cx="60" cy="40" r="1" fill="rgba(255,255,255,0.05)"/></svg>');
+            opacity: 0.3;
+        }
+        
+        .login-right {
+            padding: 60px 40px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        
+        .brand-logo {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .brand-subtitle {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            margin-bottom: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .vessel-icon {
+            background: rgba(255,255,255,0.2);
+            padding: 15px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .login-form {
+            max-width: 400px;
+        }
+        
+        .form-floating {
+            margin-bottom: 1rem;
+        }
+        
+        .form-control {
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 1rem;
+            height: auto;
+            transition: all 0.3s ease;
+        }
+        
+        .form-control:focus {
+            border-color: var(--secondary-blue);
+            box-shadow: 0 0 0 0.2rem rgba(50, 130, 184, 0.15);
+        }
+        
+        .btn-login {
+            background: linear-gradient(135deg, var(--secondary-blue) 0%, var(--primary-blue) 100%);
+            border: none;
+            border-radius: 12px;
+            padding: 1rem 2rem;
+            font-weight: 600;
+            color: white;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-top: 1rem;
+        }
+        
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(50, 130, 184, 0.3);
+            color: white;
+        }
+        
+        .language-switcher {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+        
+        .language-btn {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            border-radius: 8px;
+            padding: 8px 15px;
+            font-size: 0.9rem;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+        
+        .language-btn:hover {
+            background: rgba(255,255,255,0.3);
+            color: white;
+        }
+        
+        .alert {
+            border-radius: 12px;
+            border: none;
+            margin-bottom: 1.5rem;
+        }
+        
+        .alert-success {
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            color: #155724;
+        }
+        
+        .alert-danger {
+            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+            color: #721c24;
+        }
+        
+        .maritime-features {
+            margin-top: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .feature-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 1rem;
+            font-size: 0.95rem;
+            opacity: 0.9;
+        }
+        
+        .feature-icon {
+            width: 20px;
+            text-align: center;
+        }
+        
+        @media (max-width: 768px) {
+            .login-container {
+                flex-direction: column;
+                margin: 20px;
+                min-height: auto;
+            }
+            
+            .login-left {
+                padding: 40px 30px;
+                text-align: center;
+            }
+            
+            .login-right {
+                padding: 40px 30px;
+            }
+            
+            .brand-logo {
+                font-size: 2rem;
+                justify-content: center;
+            }
+        }
+        
+        /* RTL Support */
+        .rtl {
+            direction: rtl;
+        }
+        
+        .rtl .language-switcher {
+            left: 20px;
+            right: auto;
+        }
+        
+        .rtl .feature-item {
+            flex-direction: row-reverse;
+        }
+
+        /* Loading animation */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Language Switcher -->
+    <div class="language-switcher">
+        <button type="button" class="btn language-btn" onclick="toggleLanguage()">
+            <i class="bi bi-globe me-1"></i>
+            <span id="current-language" data-translate="target_language">عربي</span>
+        </button>
+    </div>
+
+    <div class="login-container">
+        <!-- Left Side - Branding -->
+        <div class="login-left">
+            <div class="brand-logo">
+                <div class="vessel-icon">
+                    <i class="bi bi-ship" style="font-size: 2rem;"></i>
+                </div>
+                <div>
+                    <div data-translate="vessel_sales">Vessel Sales</div>
+                    <div style="font-size: 0.6em; font-weight: normal; opacity: 0.8;" data-translate="management_system">Management System</div>
+                </div>
+            </div>
+            
+            <div class="brand-subtitle" data-translate="system_description">
+                Maritime inventory and sales management platform for Jordanian vessels
+            </div>
+            
+            <div class="maritime-features">
+                <div class="feature-item">
+                    <i class="bi bi-shield-check feature-icon"></i>
+                    <span data-translate="feature_fleet">6 Vessel Fleet Management</span>
+                </div>
+                <div class="feature-item">
+                    <i class="bi bi-boxes feature-icon"></i>
+                    <span data-translate="feature_fifo">FIFO Inventory System</span>
+                </div>
+                <div class="feature-item">
+                    <i class="bi bi-graph-up feature-icon"></i>
+                    <span data-translate="feature_analytics">Advanced Analytics</span>
+                </div>
+                <div class="feature-item">
+                    <i class="bi bi-globe feature-icon"></i>
+                    <span data-translate="feature_bilingual">Bilingual Interface</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Right Side - Login Form -->
+        <div class="login-right">
+            <div class="login-form">
+                <h2 class="mb-4" data-translate="welcome_back_login">Welcome Back</h2>
+                <p class="text-muted mb-4" data-translate="login_instruction">
+                    Please sign in to access the vessel management system
+                </p>
+                
+                <!-- Display Messages -->
+                {% if messages %}
+                    {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                            <i class="bi bi-info-circle me-2"></i>
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+                
+                <form method="post" id="loginForm">
+                    {% csrf_token %}
+                    
+                    <div class="form-floating">
+                        <input type="text" class="form-control" id="username" name="username" 
+                               placeholder="Username" required autocomplete="username">
+                        <label for="username">
+                            <i class="bi bi-person me-2"></i>
+                            <span data-translate="username">Username</span>
+                        </label>
+                    </div>
+                    
+                    <div class="form-floating">
+                        <input type="password" class="form-control" id="password" name="password" 
+                               placeholder="Password" required autocomplete="current-password">
+                        <label for="password">
+                            <i class="bi bi-lock me-2"></i>
+                            <span data-translate="password">Password</span>
+                        </label>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-login">
+                        <i class="bi bi-box-arrow-in-right me-2"></i>
+                        <span data-translate="sign_in">Sign In</span>
+                    </button>
+                </form>
+                
+                <div class="text-center mt-4">
+                    <small class="text-muted">
+                        <span data-translate="need_access">
+                            Need access? Contact your system administrator
+                        </span>
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Translation System (simplified version matching your base.html)
+        let currentLanguage = localStorage.getItem('preferred_language') || 'en';
+        
+        const translations = {
+            en: {
+                'target_language': 'عربي',
+                'vessel_sales': 'Vessel Sales',
+                'management_system': 'Management System',
+                'system_description': 'Maritime inventory and sales management platform for Jordanian vessels',
+                'feature_fleet': '6 Vessel Fleet Management',
+                'feature_fifo': 'FIFO Inventory System',
+                'feature_analytics': 'Advanced Analytics',
+                'feature_bilingual': 'Bilingual Interface',
+                'welcome_back_login': 'Welcome Back',
+                'login_instruction': 'Please sign in to access the vessel management system',
+                'username': 'Username',
+                'password': 'Password',
+                'sign_in': 'Sign In',
+                'signing_in': 'Signing In...',
+                'need_access': 'Need access? Contact your system administrator'
+            },
+            ar: {
+                'target_language': 'English',
+                'vessel_sales': 'مبيعات السفن',
+                'management_system': 'نظام الإدارة',
+                'system_description': 'منصة إدارة المخزون والمبيعات البحرية للسفن الأردنية',
+                'feature_fleet': 'إدارة أسطول ٦ سفن',
+                'feature_fifo': 'نظام مخزون الوارد أولاً صادر أولاً',
+                'feature_analytics': 'تحليلات متقدمة',
+                'feature_bilingual': 'واجهة ثنائية اللغة',
+                'welcome_back_login': 'مرحباً بعودتك',
+                'login_instruction': 'يرجى تسجيل الدخول للوصول إلى نظام إدارة السفن',
+                'username': 'اسم المستخدم',
+                'password': 'كلمة المرور',
+                'sign_in': 'تسجيل الدخول',
+                'signing_in': 'جاري تسجيل الدخول...',
+                'need_access': 'تحتاج وصول؟ اتصل بمدير النظام'
+            }
+        };
+        
+        function updateLanguageDisplay() {
+            // Update all translatable elements
+            const elements = document.querySelectorAll('[data-translate]');
+            elements.forEach(element => {
+                const key = element.getAttribute('data-translate');
+                const text = translations[currentLanguage][key];
+                if (text) {
+                    element.textContent = text;
+                }
+            });
+            
+            // Update document direction and language
+            document.documentElement.setAttribute('dir', currentLanguage === 'ar' ? 'rtl' : 'ltr');
+            document.documentElement.setAttribute('lang', currentLanguage);
+            
+            // Update body class for RTL
+            if (currentLanguage === 'ar') {
+                document.body.classList.add('rtl');
+            } else {
+                document.body.classList.remove('rtl');
+            }
+        }
+        
+        function toggleLanguage() {
+            currentLanguage = currentLanguage === 'en' ? 'ar' : 'en';
+            localStorage.setItem('preferred_language', currentLanguage);
+            updateLanguageDisplay();
+        }
+        
+        // Initialize language on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            updateLanguageDisplay();
+            
+            // Focus on username field
+            document.getElementById('username').focus();
+            
+            // Form submission with loading state
+            const form = document.getElementById('loginForm');
+            const submitBtn = form.querySelector('button[type="submit"]');
+            
+            form.addEventListener('submit', function(e) {
+                const loadingText = translations[currentLanguage]['signing_in'];
+                submitBtn.innerHTML = '<span class="loading me-2"></span>' + loadingText;
+                submitBtn.disabled = true;
+            });
+        });
+        
+        // Handle Enter key
+        document.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                document.getElementById('loginForm').submit();
+            }
+        });
+    </script>
+</body>
+</html>

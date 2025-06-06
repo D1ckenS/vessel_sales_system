@@ -15,7 +15,7 @@ from django.utils import timezone
 from django.db import models
 from .utils.exports import ExcelExporter, PDFExporter
 
-# @login_required
+@login_required
 def supply_entry(request):
     """Step 1: Create new purchase order for supply transactions"""
     
@@ -77,7 +77,7 @@ def supply_entry(request):
             BilingualMessages.error(request, 'error_creating_po', error=str(e))
             return redirect('frontend:supply_entry')
 
-# @login_required
+@login_required
 def po_supply(request, po_id):
     """Step 2: Multi-item supply entry for a specific purchase order (Shopping Cart Approach)"""
     
@@ -146,7 +146,7 @@ def po_supply(request, po_id):
     return render(request, 'frontend/po_supply.html', context)
 
 
-# @login_required
+@login_required
 def po_complete(request, po_id):
     """Complete a purchase order and mark it as finished"""
     
@@ -170,7 +170,7 @@ def po_complete(request, po_id):
             BilingualMessages.error(request, 'Purchase Order not found.')
             return redirect('frontend:supply_entry')
 
-# @login_required
+@login_required
 def supply_search_products(request):
     """AJAX endpoint to search for products for supply entry"""
     if request.method != 'POST':
@@ -214,7 +214,7 @@ def supply_search_products(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
-# @login_required
+@login_required
 def supply_execute(request):
     """AJAX endpoint to execute supply transaction"""
     if request.method != 'POST':
@@ -295,7 +295,7 @@ def supply_execute(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': f'Supply failed: {str(e)}'})
 
-# @login_required
+@login_required
 def add_product(request):
     """Add new product with optional initial stock distribution"""
     
@@ -448,7 +448,7 @@ def add_product(request):
         BilingualMessages.error(request, 'invalid_request_method')
         return redirect('frontend:inventory_check')
 
-# @login_required
+@login_required
 def dashboard(request):
     """Main dashboard with overview and navigation"""
     
@@ -481,7 +481,7 @@ def dashboard(request):
     
     return render(request, 'frontend/dashboard.html', context)
 
-# @login_required
+@login_required
 def sales_entry(request):
     """Step 1: Create new trip for sales transactions"""
     
@@ -551,7 +551,7 @@ def sales_entry(request):
             BilingualMessages.error(request, 'error_creating_trip', error=str(e))
             return redirect('frontend:sales_entry')
 
-# @login_required
+@login_required
 def trip_sales(request, trip_id):
     """Step 2: Multi-item sales entry for a specific trip (Shopping Cart Approach)"""
     
@@ -619,7 +619,7 @@ def trip_sales(request, trip_id):
     
     return render(request, 'frontend/trip_sales.html', context)
 
-# @login_required
+@login_required
 def sales_search_products(request):
     """AJAX endpoint to search for products available on specific vessel"""
     if request.method != 'POST':
@@ -708,7 +708,7 @@ def sales_search_products(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
-# @login_required
+@login_required
 def sales_validate_inventory(request):
     """AJAX endpoint to validate inventory and preview FIFO consumption"""
     if request.method != 'POST':
@@ -780,7 +780,7 @@ def sales_validate_inventory(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
-# @login_required
+@login_required
 def sales_execute(request):
     """AJAX endpoint to execute sales transaction using FIFO system"""
     if request.method != 'POST':
@@ -854,7 +854,7 @@ def sales_execute(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': f'Sale failed: {str(e)}'})
 
-# @login_required
+@login_required
 def inventory_check(request):
     """Vessel-specific inventory interface with tabs and focused stats"""
     
@@ -1043,7 +1043,7 @@ def inventory_check(request):
     
     return render(request, 'frontend/inventory_check.html', context)
 
-# @login_required
+@login_required
 def inventory_details_ajax(request, product_id, vessel_id):
     """AJAX endpoint for product inventory details"""
     try:
@@ -1108,7 +1108,7 @@ def inventory_details_ajax(request, product_id, vessel_id):
     except (Product.DoesNotExist, Vessel.DoesNotExist):
         return JsonResponse({'success': False, 'error': 'Product or vessel not found'})
     
-# @login_required
+@login_required
 def inventory_data_ajax(request):
     """AJAX endpoint to load vessel inventory data for SPA"""
     if request.method != 'POST':
@@ -1277,7 +1277,7 @@ def inventory_data_ajax(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
-# @login_required 
+@login_required 
 def transfer_center(request):
     """Functional transfer interface with FIFO cost preservation"""
     
@@ -1299,7 +1299,7 @@ def transfer_center(request):
     
     return render(request, 'frontend/transfer_center.html', context)
 
-# @login_required
+@login_required
 def transfer_search_products(request):
     """AJAX endpoint to search for products with available inventory on specific vessel"""
     if request.method != 'POST':
@@ -1378,7 +1378,7 @@ def transfer_search_products(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
-# @login_required
+@login_required
 def transfer_execute(request):
     """AJAX endpoint to execute transfer using existing FIFO system"""
     if request.method != 'POST':
@@ -1470,7 +1470,7 @@ def get_vessel_badge_class(vessel_name):
     return colors.get(vessel_name.lower(), 'bg-primary')
 
 # AJAX endpoints for multi-item functionality
-# @login_required
+@login_required
 def trip_bulk_complete(request):
     """Complete trip with bulk transaction creation"""
     if request.method != 'POST':
@@ -1575,7 +1575,7 @@ def trip_bulk_complete(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': f'Error completing trip: {str(e)}'})
 
-# @login_required
+@login_required
 def po_bulk_complete(request):
     """Complete purchase order with bulk transaction creation"""
     if request.method != 'POST':
@@ -1685,7 +1685,7 @@ def po_bulk_complete(request):
 
 # Add this new view to handle trip cancellation
 
-# @login_required
+@login_required
 def trip_cancel(request):
     """Cancel trip and delete it from database (if no items committed)"""
     if request.method != 'POST':
@@ -1731,7 +1731,7 @@ def trip_cancel(request):
         return JsonResponse({'success': False, 'error': f'Error cancelling trip: {str(e)}'})
 
 # Add the same for PO
-# @login_required
+@login_required
 def po_cancel(request):
     """Cancel PO and delete it from database (if no items committed)"""
     if request.method != 'POST':
@@ -1776,7 +1776,7 @@ def po_cancel(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': f'Error cancelling purchase order: {str(e)}'})
 
-# @login_required
+@login_required
 def trip_reports(request):
     """Trip-based sales reports"""
     
@@ -1837,7 +1837,7 @@ def trip_reports(request):
     
     return render(request, 'frontend/trip_reports.html', context)
 
-# @login_required
+@login_required
 def po_reports(request):
     """Purchase Order reports"""
     
@@ -1894,7 +1894,7 @@ def po_reports(request):
     
     return render(request, 'frontend/po_reports.html', context)
 
-# @login_required
+@login_required
 def transactions_list(request):
     """Frontend transactions list to replace Django admin redirect"""
     
@@ -1943,7 +1943,7 @@ def transactions_list(request):
     
     return render(request, 'frontend/transactions_list.html', context)
 
-# @login_required
+@login_required
 def set_language(request):
     """AJAX endpoint to set user's language preference"""
     if request.method != 'POST':
@@ -1970,7 +1970,7 @@ def set_language(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
-# @login_required
+@login_required
 def reports_dashboard(request):
     """Reports hub with statistics and report options"""
     from django.utils import timezone
@@ -2011,7 +2011,7 @@ def reports_dashboard(request):
     
     return render(request, 'frontend/reports_dashboard.html', context)
 
-# @login_required  
+@login_required  
 def comprehensive_report(request):
     """Comprehensive transaction report - all transaction types with filtering"""
     
@@ -2152,7 +2152,7 @@ def comprehensive_report(request):
     
     return render(request, 'frontend/comprehensive_report.html', context)
 
-# @login_required
+@login_required
 def daily_report(request):
     """Comprehensive daily operations report for a specific date"""
     from django.utils import timezone
@@ -2377,7 +2377,7 @@ def daily_report(request):
     
     return render(request, 'frontend/daily_report.html', context)
 
-# @login_required
+@login_required
 def monthly_report(request):
     """Comprehensive monthly operations and financial report"""
     from django.utils import timezone
@@ -2619,7 +2619,7 @@ def monthly_report(request):
     
     return render(request, 'frontend/monthly_report.html', context)
 
-# @login_required
+@login_required
 def analytics_report(request):
     """Advanced business analytics and KPI dashboard"""
     from django.utils import timezone
@@ -2836,7 +2836,7 @@ def analytics_report(request):
     
     return render(request, 'frontend/analytics_report.html', context)
 
-# @login_required
+@login_required
 def export_inventory(request):
     """Export inventory data to Excel or PDF"""
     if request.method != 'POST':
@@ -2933,7 +2933,7 @@ def export_inventory(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
-# @login_required
+@login_required
 def export_transactions(request):
     """Export transaction data to Excel or PDF"""
     if request.method != 'POST':
@@ -3027,7 +3027,7 @@ def export_transactions(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
-# @login_required
+@login_required
 def export_trips(request):
     """Export trip reports to Excel or PDF"""
     if request.method != 'POST':
@@ -3120,7 +3120,7 @@ def export_trips(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
-# @login_required
+@login_required
 def export_purchase_orders(request):
     """Export purchase order reports to Excel or PDF"""
     if request.method != 'POST':
@@ -3212,7 +3212,7 @@ def export_purchase_orders(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
-# @login_required
+@login_required
 def export_monthly_report(request):
     """Export monthly report to Excel or PDF"""
     if request.method != 'POST':
@@ -3321,7 +3321,7 @@ def export_monthly_report(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
-# @login_required
+@login_required
 def export_daily_report(request):
     """Export daily report to Excel or PDF"""
     if request.method != 'POST':
@@ -3417,7 +3417,7 @@ def export_daily_report(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
-# @login_required
+@login_required
 def export_analytics_report(request):
     """Export analytics report to Excel or PDF"""
     if request.method != 'POST':

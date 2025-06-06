@@ -1,13 +1,35 @@
-# Replace your frontend/urls.py with this updated version
-
 from django.http import HttpResponse
 from django.urls import path
-from . import views
+from . import views, auth_views, test_views
 
 app_name = 'frontend'
 
 urlpatterns = [
+    # 🧪 TEMPORARY: Test authentication styling
+    path('test-login/', test_views.test_login, name='test_login'),
+    path('test-users/', test_views.test_user_management, name='test_user_management'),
+    path('test-password/', test_views.test_change_password, name='test_change_password'),
+    path('test-profile/', test_views.test_user_profile, name='test_user_profile'),    
+
+    # Authentication
+    path('login/', auth_views.user_login, name='login'),
+    path('logout/', auth_views.user_logout, name='logout'),
+    
+    # User Management
+    path('users/', auth_views.user_management, name='user_management'),
+    path('users/create/', auth_views.create_user, name='create_user'),
+    path('users/<int:user_id>/edit/', auth_views.edit_user, name='edit_user'),
+    path('users/<int:user_id>/reset-password/', auth_views.reset_user_password, name='reset_user_password'),
+    path('users/<int:user_id>/toggle-status/', auth_views.toggle_user_status, name='toggle_user_status'),
+    path('setup-groups/', auth_views.setup_groups, name='setup_groups'),
+    path('profile/', auth_views.user_profile, name='user_profile'),
+    path('change-password/', auth_views.change_password, name='change_password'),
+    
+    # Main Dashboard
     path('', views.dashboard, name='dashboard'),
+    
+    # Language & Settings
+    path('set-language/', views.set_language, name='set_language'),
     
     # Sales - Two-step workflow
     path('sales/', views.sales_entry, name='sales_entry'),  # Step 1: Create trip
@@ -26,9 +48,6 @@ urlpatterns = [
     path('supply/po/cancel/', views.po_cancel, name='po_cancel'),  # NEW: Cancel PO
     
     # Keep existing search endpoints (needed for product search)
-    path('supply/search-products/', views.supply_search_products, name='supply_search_products'),
-    
-    # Legacy supply endpoints (for existing search functionality)
     path('supply/search-products/', views.supply_search_products, name='supply_search_products'),
     
     # Inventory
@@ -67,5 +86,4 @@ urlpatterns = [
     
     # Suppress Chrome DevTools requests
     path('.well-known/appspecific/com.chrome.devtools.json', lambda r: HttpResponse('{}', content_type='application/json')),
-    # path('api/set-language/', views.set_language, name='set_language'),
 ]
