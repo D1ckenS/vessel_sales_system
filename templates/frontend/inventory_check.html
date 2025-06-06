@@ -1028,18 +1028,14 @@ function urgentRestock(productId, vessel) {
 }
 
 function exportToExcel() {
-    const btn = event.target;
-    const originalHtml = btn.innerHTML;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> <span data-translate="exporting">Exporting...</span>';
-    btn.disabled = true;
-    updatePageTranslations();
+    if (!currentVessel) {
+        alertTranslated('please_select_vessel');
+        return;
+    }
     
-    setTimeout(() => {
-        btn.innerHTML = originalHtml;
-        btn.disabled = false;
-        updatePageTranslations();
-        alertTranslated('export_feature_coming_soon', { message: 'excel_file_generation' });
-    }, 1500);
+    showExportModal('inventory', {
+        vessel_id: currentVessel.id
+    });
 }
 
 function showComingSoon() {

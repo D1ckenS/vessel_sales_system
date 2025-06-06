@@ -53,6 +53,15 @@ urlpatterns = [
     path('reports/purchase-orders/', views.po_reports, name='po_reports'),  # NEW
     path('reports/comprehensive/', views.comprehensive_report, name='comprehensive_report'),
     
+    # Exports
+    path('export/inventory/', views.export_inventory, name='export_inventory'),
+    path('export/transactions/', views.export_transactions, name='export_transactions'),
+    path('export/trips/', views.export_trips, name='export_trips'),
+    path('export/purchase-orders/', views.export_purchase_orders, name='export_purchase_orders'),
+    path('export/monthly-report/', views.export_monthly_report, name='export_monthly_report'),
+    path('export/daily-report/', views.export_daily_report, name='export_daily_report'),
+    path('export/analytics/', views.export_analytics_report, name='export_analytics_report'),
+    
     # Transactions
     path('transactions/', views.transactions_list, name='transactions_list'),  # NEW
     

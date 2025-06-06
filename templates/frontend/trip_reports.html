@@ -232,8 +232,15 @@
 
 {% block extra_js %}
 <script>
-function exportTrips() {
-    alert('📊 {% trans "Export feature coming soon!" %}\n\n{% trans "This will generate an Excel file with trip data." %}');
+function exportTripReports() {
+    const additionalData = {
+        vessel_filter: document.querySelector('[name="vessel"]')?.value || '',
+        date_from: document.querySelector('[name="date_from"]')?.value || '',
+        date_to: document.querySelector('[name="date_to"]')?.value || '',
+        status_filter: document.querySelector('[name="status"]')?.value || ''
+    };
+    
+    showExportModal('trips', additionalData);
 }
 
 function printTrips() {

@@ -493,7 +493,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Export and Print functions
 function exportComprehensiveReport() {
-    alertTranslated('export_feature_coming_soon');
+    const additionalData = {
+        vessel_filter: document.querySelector('[name="vessel"]')?.value || '',
+        date_from: document.querySelector('[name="date_from"]')?.value || '',
+        date_to: document.querySelector('[name="date_to"]')?.value || '',
+        transaction_type_filter: document.querySelector('[name="transaction_type"]')?.value || ''
+    };
+    
+    showExportModal('transactions', additionalData);
 }
 
 function printComprehensiveReport() {

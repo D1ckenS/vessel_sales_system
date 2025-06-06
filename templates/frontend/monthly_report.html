@@ -430,7 +430,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Export and Print functions
 function exportMonthlyReport() {
-    alertTranslated('export_feature_coming_soon');
+    const month = document.querySelector('[name="month"]')?.value || new Date().getMonth() + 1;
+    const year = document.querySelector('[name="year"]')?.value || new Date().getFullYear();
+    
+    showExportModal('monthly_report', {
+        month: month,
+        year: year
+    });
+}
+
+function printMonthlyReport() {
+    alertTranslated('print_feature_coming_soon');
 }
 
 function printMonthlyReport() {

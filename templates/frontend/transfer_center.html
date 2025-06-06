@@ -889,6 +889,12 @@ function viewTransferDetails(transferId) {
     showComingSoon();
 }
 
+function exportTransfers() {
+    showExportModal('transactions', {
+        transaction_type_filter: 'TRANSFER_OUT'
+    });
+}
+
 function showComingSoon() {
     alertTranslated('feature_coming_soon');
 }

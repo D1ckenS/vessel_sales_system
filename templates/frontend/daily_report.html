@@ -641,7 +641,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Export and Print functions
 function exportDailyReport() {
-    alertTranslated('export_feature_coming_soon');
+    const selectedDate = document.querySelector('[name="date"]')?.value || new Date().toISOString().split('T')[0];
+    
+    showExportModal('daily_report', {
+        date: selectedDate
+    });
+}
+
+function printDailyReport() {
+    alertTranslated('print_feature_coming_soon');
 }
 
 function printDailyReport() {
