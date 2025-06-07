@@ -759,8 +759,34 @@
                             <i class="bi bi-person-circle"></i> {{ user.username }}
                         </a>
                         <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="/admin/"><i class="bi bi-gear"></i> <span data-translate="admin_panel">Admin Panel</span></a></li>
+                            <!-- User Profile (everyone) -->
+                            <li><a class="dropdown-item" href="{% url 'frontend:user_profile' %}"><i class="bi bi-person"></i> <span data-translate="user_profile">My Profile</span></a></li>
+                            <li><a class="dropdown-item" href="{% url 'frontend:change_password' %}"><i class="bi bi-key"></i> <span data-translate="change_password">Change Password</span></a></li>
+                            
                             <li><hr class="dropdown-divider"></li>
+                            
+                            <!-- System Management (Superuser only) -->
+                            {% if user.is_superuser %}
+                            <li><h6 class="dropdown-header"><span data-translate="system_management">System Management</span></h6></li>
+                            <li><a class="dropdown-item" href="{% url 'frontend:user_management' %}"><i class="bi bi-people"></i> <span data-translate="user_management">User Management</span></a></li>
+                            <li><a class="dropdown-item" href="#" onclick="showComingSoon('vessel_management')"><i class="bi bi-ship"></i> <span data-translate="vessel_management">Vessel Management</span></a></li>
+                            <li><a class="dropdown-item" href="#" onclick="showComingSoon('product_management')"><i class="bi bi-box"></i> <span data-translate="product_management">Product Management</span></a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            {% endif %}
+                            
+                            <!-- Operations Management (Administrators & Managers) -->
+                            {% if user.is_superuser or user.groups.all|length > 0 %}
+                            <li><h6 class="dropdown-header"><span data-translate="operations_management">Operations Management</span></h6></li>
+                            <li><a class="dropdown-item" href="#" onclick="showComingSoon('trip_management')"><i class="bi bi-calendar-check"></i> <span data-translate="trip_management">Trip Management</span></a></li>
+                            <li><a class="dropdown-item" href="#" onclick="showComingSoon('po_management')"><i class="bi bi-receipt"></i> <span data-translate="po_management">PO Management</span></a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            {% endif %}
+                            
+                            <!-- Legacy Admin (remove this later) -->
+                            <li><a class="dropdown-item text-muted" href="/admin/"><i class="bi bi-gear"></i> <span data-translate="legacy_admin">Legacy Admin</span></a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            
+                            <!-- Logout -->
                             <li><a class="dropdown-item" href="{% url 'frontend:logout' %}"><i class="bi bi-box-arrow-right"></i> <span data-translate="logout">Logout</span></a></li>
                         </ul>
                     </li>
@@ -1565,6 +1591,16 @@
                 'transfer_canceled': 'Transfer canceled successfully.',
                 'duty_free_supported': 'Duty-Free Supported',
                 'no_duty_free': 'No Duty-Free',
+                'user_profile': 'My Profile',
+                'change_password': 'Change Password',
+                'system_management': 'System Management',
+                'user_management': 'User Management',
+                'vessel_management': 'Vessel Management',
+                'product_management': 'Product Management',
+                'operations_management': 'Operations Management',
+                'trip_management': 'Trip Management',
+                'po_management': 'PO Management',
+                'legacy_admin': 'Legacy Admin',
                 // User Management translations
                 'user_management': 'User Management',
                 'user_management_desc': 'Manage system users, roles, and permissions',
@@ -1806,6 +1842,17 @@
                 'transfer_canceled': 'تم إلغاء التحويل بنجاح.',
                 'duty_free_supported': 'السوق الحرة مدعومة',
                 'no_duty_free': 'لا سوق حرة',
+                'user_profile': 'ملفي الشخصي',
+                'change_password': 'تغيير كلمة المرور',
+                'system_management': 'إدارة النظام',
+                'user_management': 'إدارة المستخدمين',
+                'vessel_management': 'إدارة السفن',
+                'product_management': 'إدارة المنتجات',
+                'operations_management': 'إدارة العمليات',
+                'trip_management': 'إدارة الرحلات',
+                'po_management': 'إدارة أوامر الشراء',
+                'legacy_admin': 'الإدارة القديمة',
+                'legacy_admin_desc': 'ادارة المستخدمين والادوار والصلاحيات',
                 // User Management translations
                 'user_management': 'ادارة المستخدمين',
                 'user_management_desc': 'ادارة المستخدمين والادوار والصلاحيات',
@@ -2025,6 +2072,27 @@
         
         console.log('🎯 Language system initialized successfully');
     });
+
+    function showComingSoon(feature) {
+        const messages = {
+            en: {
+                'vessel_management': 'Vessel Management interface coming soon!\n\nThis will allow you to add, edit, and manage vessels without using Django admin.',
+                'product_management': 'Product Management interface coming soon!\n\nThis will allow you to manage products and categories with full CRUD operations.',
+                'trip_management': 'Trip Management interface coming soon!\n\nThis will provide advanced trip management and editing capabilities.',
+                'po_management': 'Purchase Order Management interface coming soon!\n\nThis will allow editing and managing existing purchase orders.'
+            },
+            ar: {
+                'vessel_management': 'واجهة إدارة السفن قادمة قريباً!\n\nستسمح لك بإضافة وتعديل وإدارة السفن بدون استخدام إدارة Django.',
+                'product_management': 'واجهة إدارة المنتجات قادمة قريباً!\n\nستسمح لك بإدارة المنتجات والفئات مع عمليات CRUD كاملة.',
+                'trip_management': 'واجهة إدارة الرحلات قادمة قريباً!\n\nستوفر قدرات متقدمة لإدارة وتعديل الرحلات.',
+                'po_management': 'واجهة إدارة أوامر الشراء قادمة قريباً!\n\nستسمح بتعديل وإدارة أوامر الشراء الموجودة.'
+            }
+        };
+        
+        const currentLang = window.translator ? window.translator.currentLanguage : 'en';
+        const message = messages[currentLang][feature] || messages.en[feature];
+        alert(message);
+    }
     </script>
     
     {% block extra_js %}{% endblock %}
