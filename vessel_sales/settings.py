@@ -174,7 +174,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Authentication Settings
 LOGIN_URL = 'frontend:login'
 LOGIN_REDIRECT_URL = 'frontend:dashboard'
-LOGOUT_REDIRECT_URL = 'frontend:login'
+LOGOUT_REDIRECT_URL = 'frontend/auth/login.html'
 
 # Session Settings
 SESSION_COOKIE_AGE = 86400  # 24 hours
