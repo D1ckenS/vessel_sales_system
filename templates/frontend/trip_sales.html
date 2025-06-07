@@ -1,7 +1,6 @@
 {% extends 'frontend/base.html' %}
-{% load i18n %}
 
-{% block title %}{% trans "Trip Sales" %} - {{ trip.trip_number }} - {% trans "Vessel Sales System" %}{% endblock %}
+{% block title %}Trip Sales - {{ trip.trip_number }} - Vessel Sales System{% endblock %}
 
 {% block content %}
 <!-- Page Header -->
@@ -11,12 +10,12 @@
             <div>
                 <h2>
                     <i class="bi bi-cart-plus text-success"></i> 
-                    <span data-translate="trip_sales">Trip Sales</span>: {{ trip.trip_number }}
+                    <span data-translate="trip_sales">Trip Sales</span>: <span data-number data-original="{{ trip.trip_number }}">{{ trip.trip_number }}</span>
                 </h2>
                 <p class="text-muted mb-0">
-                    <i class="bi bi-ship"></i> <span class="vessel-name" data-en="{{ trip.vessel.name }}" data-ar="{{ trip.vessel.name_ar }}">{{ trip.vessel.name }}</span> • 
-                    <i class="bi bi-people"></i> {{ trip.passenger_count }} <span data-translate="passengers">passengers</span> • 
-                    <i class="bi bi-calendar"></i> {{ trip.trip_date|date:"d/m/Y" }}
+                    <i class="bi bi-ship"></i> <span class="vessel-name" data-en="{{ trip.vessel.name }}" data-ar="{{ trip.vessel.name_ar }}">{{ trip.vessel.name }}</span> •
+                    <i class="bi bi-people"></i> <span data-number data-original="{{ trip.passenger_count }}">{{ trip.passenger_count }}</span> <span data-translate="passengers">passengers</span> •
+                    <i class="bi bi-calendar"></i> <span data-trip-date data-original="{{ trip.trip_date|date:'d/m/Y' }}">{{ trip.trip_date|date:"d/m/Y" }}</span>
                 </p>
             </div>
             <div class="d-flex gap-2">
@@ -60,24 +59,12 @@
                         </h3>
                     </div>
                     <div class="col-md-3">
-                        <h6 class="mb-1 opacity-75"><span data-translate="revenue_per_passenger">Revenue per Passenger</span></h6>
-                        <h3 class="mb-0" id="revenuePerPassenger">
-                            {% if trip.is_completed and trip.passenger_count > 0 %}
-                                {% widthratio trip.total_revenue trip.passenger_count 1 %} JOD
-                            {% else %}
-                                0.000 JOD
-                            {% endif %}
-                        </h3>
+                        <h6 class="mb-1 opacity-75"><span data-translate="total_cogs">Total COGS</span></h6>
+                        <h3 class="mb-0" id="totalCOGS">0.000 JOD</h3>
                     </div>
                     <div class="col-md-3">
-                        <h6 class="mb-1 opacity-75"><span data-translate="status">Status</span></h6>
-                        <h3 class="mb-0">
-                            {% if trip.is_completed %}
-                                <span class="badge bg-light text-dark"><span data-translate="completed">Completed</span></span>
-                            {% else %}
-                                <span class="badge bg-warning text-dark"><span data-translate="in_progress">In Progress</span></span>
-                            {% endif %}
-                        </h3>
+                        <h6 class="mb-1 opacity-75"><span data-translate="total_profit">Total Profit</span></h6>
+                        <h3 class="mb-0" id="totalProfit">0.000 JOD</h3>
                     </div>
                 </div>
             </div>
@@ -85,11 +72,11 @@
     </div>
 </div>
 
-{% if can_edit %}
-<!-- Add Sales Item Form -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card">
+<div class="row">
+    {% if can_edit %}
+    <!-- LEFT SIDE: Add Sales Item Form -->
+    <div class="col-md-6">
+        <div class="card h-100">
             <div class="card-header">
                 <h5 class="mb-0" id="formTitle">
                     <i class="bi bi-plus-circle"></i> <span data-translate="add_sales_item">Add Sales Item</span>
@@ -102,22 +89,19 @@
                     <input type="hidden" id="editIndex" value="-1">
                     
                     <!-- Product Search -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-search"></i> <span data-translate="search_product">Search Product</span>
+                        </label>
+                        <input type="text" class="form-control form-control-lg" id="productSearch" 
+                               data-placeholder-en="Type product name or ID..."
+                               data-placeholder-ar="اكتب اسم المنتج أو الرقم..."
+                               placeholder="Type product name or ID...">
+                    </div>
+                    
+                    <!-- Quantity and Notes -->
                     <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">
-                                <i class="bi bi-search"></i> <span data-translate="search_product">Search Product</span>
-                            </label>
-                            <div class="input-group">
-                                <input type="text" class="form-control form-control-lg" id="productSearch" 
-                                       placeholder='Type product name, ID, or scan barcode...'
-                                       data-placeholder-en="Type product name, ID, or scan barcode..."
-                                       data-placeholder-ar="اكتب اسم المنتج، الكود، او امسح الباركود...">
-                                <button class="btn btn-outline-secondary" type="button" onclick="showComingSoon()">
-                                    <i class="bi bi-upc-scan"></i> <span data-translate="scan">Scan</span>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
+                        <div class="col-6">
                             <label class="form-label fw-bold">
                                 <i class="bi bi-123"></i> <span data-translate="quantity">Quantity</span>
                             </label>
@@ -125,67 +109,93 @@
                                    placeholder="0" min="1" step="1" disabled>
                             <small class="text-muted" id="availableStock"><span data-translate="select_product_first">Select product first</span></small>
                         </div>
+                        <div class="col-6">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-chat-left-text"></i> <span data-translate="notes">Notes</span>
+                            </label>
+                            <input type="text" class="form-control" id="saleNotes" 
+                                   data-placeholder-en="Optional notes..."
+                                   data-placeholder-ar="ملاحظات اختيارية..."
+                                   placeholder="Optional notes...">
+                        </div>
                     </div>
                     
                     <!-- Product Info (Hidden initially) -->
                     <div id="productInfo" class="mb-3" style="display: none;">
                         <div class="alert alert-info">
-                            <div class="row">
-                                <div class="col-md-3">
-                                    <strong><span data-translate="product">Product: </span></strong>
+                            <div class="row text-center">
+                                <div class="col-3">
+                                    <strong><span data-translate="product">Product</span></strong>
                                     <div id="productName">-</div>
                                 </div>
-                                <div class="col-md-3">
-                                    <strong><span data-translate="unit_selling_price">Unit Price:</span></strong>
+                                <div class="col-3">
+                                    <strong><span data-translate="unit_selling_price">Unit Price</span></strong>
                                     <div id="unitPrice">- JOD</div>
                                 </div>
-                                <div class="col-md-3">
-                                    <strong><span data-translate="available">Available:</span></strong>
-                                    <div id="availableQty">- <span data-translate="units">units</span></div>
+                                <div class="col-3">
+                                    <strong><span data-translate="cogs">COGS</span></strong>
+                                    <div id="cogsCost">- JOD</div>
                                 </div>
-                                <div class="col-md-3">
-                                    <strong><span data-translate="total">Total:</span></strong>
-                                    <div id="totalAmount">0.000 JOD</div>
+                                <div class="col-3">
+                                    <strong><span data-translate="profit">Profit</span></strong>
+                                    <div id="profitAmount">- JOD</div>
                                 </div>
                             </div>
                         </div>
                     </div>
                     
-                    <!-- Notes and Buttons -->
-                    <div class="row">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">
-                                <i class="bi bi-chat-left-text"></i> <span data-translate="notes">Notes (Optional)</span>
-                            </label>
-                            <input type="text" class="form-control" id="saleNotes" 
-                                   placeholder='Additional notes for this sale...'
-                                   data-placeholder-en='Additional notes for this sale...'
-                                   data-placeholder-ar='ملاحظات إضافية لهذا البيع...'>
-                        </div>
-                        <div class="col-md-6 d-flex align-items-end gap-2">
-                            <button type="button" class="btn btn-outline-secondary" onclick="cancelEdit()">
-                                <i class="bi bi-x-circle"></i> <span data-translate="cancel">Cancel</span>
-                            </button>
-                            <button type="submit" class="btn btn-primary flex-grow-1" id="addSaleBtn" disabled>
-                                <i class="bi bi-plus"></i> <span id="addBtnText"><span data-translate="add_to_trip">Add to Trip</span></span>
-                            </button>
-                        </div>
+                    <!-- Action Buttons -->
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-outline-secondary" onclick="cancelEdit()">
+                            <i class="bi bi-x-circle"></i> <span data-translate="cancel">Cancel</span>
+                        </button>
+                        <button type="submit" class="btn btn-success" id="addSaleBtn" disabled>
+                            <i class="bi bi-plus"></i> <span id="addBtnText"><span data-translate="add_to_trip">Add to Trip</span></span>
+                        </button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
+    {% endif %}
+    
+    <!-- RIGHT SIDE: Available Products -->
+    <div class="col-md-{% if can_edit %}6{% else %}12{% endif %}">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-boxes"></i> <span data-translate="available_products_for">Available products for</span> 
+                    <span class="vessel-name" data-en="{{ trip.vessel.name }}" data-ar="{{ trip.vessel.name_ar }}">{{ trip.vessel.name }}</span>
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <div style="height: 400px; overflow-y: auto;">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th><span data-translate="product_name">Product Name</span></th>
+                                <th><span data-translate="product_id">Product ID</span></th>
+                                <th class="text-end"><span data-translate="stock_available">Stock Available</span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="availableProductsList">
+                            <!-- Will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
-{% endif %}
 
 <!-- Trip Sales List -->
-<div class="row">
+<div class="row mt-4">
     <div class="col-12">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
                     <i class="bi bi-list"></i> 
-                    {% if can_edit %}<span data-translate="sales_cart">Sales Cart</span> {% else %} <span data-translate="sales_items">Sales Items</span>{% endif %} 
+                    {% if can_edit %}<span data-translate="sales_cart">Sales Cart</span>{% else %}<span data-translate="sales_items">Sales Items</span>{% endif %} 
                     (<span id="salesListCount">0</span>)
                 </h5>
                 <div class="d-flex gap-2">
@@ -206,6 +216,8 @@
                                 <th><span data-translate="product">Product</span></th>
                                 <th class="text-center"><span data-translate="quantity">Quantity</span></th>
                                 <th class="text-end"><span data-translate="unit_selling_price">Unit Price</span></th>
+                                <th class="text-end"><span data-translate="cogs">COGS</span></th>
+                                <th class="text-end"><span data-translate="profit">Profit</span></th>
                                 <th class="text-end"><span data-translate="total">Total</span></th>
                                 <th><span data-translate="notes">Notes</span></th>
                                 {% if can_edit %}
@@ -233,108 +245,91 @@
 {% endblock %}
 
 {% block extra_js %}
-
-<!-- Translation Data -->
+<!-- Enhanced Trip Sales with COGS -->
 <script>
-// Load translation strings for JavaScript
+// Global shopping cart state
+let tripSalesCart = [];
+let selectedProduct = null;
+let editingIndex = -1;
+let availableProducts = [];
+
+// Add translations for COGS features
 document.addEventListener('DOMContentLoaded', function() {
-    const translations = {
+    const salesTranslations = {
         en: {
-            // Confirmation messages
-            'cancel_trip_with_cart': 'Cancel trip? This will clear your cart and may delete the trip if no items were previously saved.',
-            'cancel_trip_empty': 'Cancel trip? This will delete the trip if no items were previously saved.',
-            'remove_cart_item': 'Remove this item from the cart?',
-            'complete_trip_confirm': 'Complete trip with {count} items?\n\nTotal Revenue: {revenue} JOD\n\nThis action cannot be undone.',
+            'total_cogs': 'Total COGS',
+            'total_profit': 'Total Profit',
+            'cogs': 'COGS',
+            'profit': 'Profit',
+            'available_products_for': 'Available products for',
+            'product_name': 'Product Name',
+            'product_id': 'Product ID',
+            'stock_available': 'Stock Available',
+            'complete_trip_confirm': 'Complete trip with {count} items?\n\nTotal Revenue: {revenue} JOD\nTotal COGS: {cogs} JOD\nTotal Profit: {profit} JOD\n\nThis action cannot be undone.',
             'add_one_item_first': 'Please add at least one item to complete the trip.',
-            
-            // Alert messages  
             'item_added_success': 'Item added to cart successfully!',
             'item_removed': 'Item removed from cart.',
             'invalid_item_edit': 'Invalid item selected for editing.',
             'error_completing_trip': 'Error completing trip. Please try again.',
-            'error_cancelling_trip': 'Error cancelling trip. Please try again.',
-            'error_loading_cart': 'Error loading cart data. Starting fresh.',
-            
-            // Search and validation
-            'no_products_found': 'No products found with available inventory on this vessel.',
-            'error_searching': 'Error searching products. Please try again.',
-            'select_product_first': 'Select product first',
-            'available_stock': 'Available: {count} units',
-            
-            // Coming soon messages
-            'barcode_coming_soon': '🚀 Barcode scanning feature coming soon!',
-            'export_coming_soon': '📊 Export feature coming soon!',
-            'print_coming_soon': '🖨️ Print feature coming soon!',
-            
-            // Form labels and buttons
-            'add_to_trip': 'Add to Trip',
-            'update_item': 'Update Item',
-            'already_in_cart': 'Already in Cart',
             'completing': 'Completing...',
+            'remove_cart_item': 'Remove this item from the cart?',
             'edit_sales_item': 'Edit Sales Item',
+            'add_sales_item': 'Add Sales Item',
+            'update_item': 'Update Item',
+            'add_to_trip': 'Add to Trip',
+            'already_in_cart': 'Already in Cart',
+            'no_products_found': 'No products found with available inventory on this vessel.',
+            'error_searching_products': 'Error searching products. Please try again.',
+            'calculating_cogs': 'Calculating COGS...',
             'edit_item': 'Edit Item',
             'remove_item': 'Remove Item',
-            'add_sales_item': 'Add Sales Item',
-            'duty_free': 'Duty Free',
-            
-            // Units and currency
-            'units': 'units',
-            'jod': 'JOD'
+            'select_from_available': 'Click on a product from the available products list'
         },
         ar: {
-            // Arabic translations will be added here
-            'cancel_trip_with_cart': 'إلغاء الرحلة؟ سيؤدي هذا إلى مسح سلة التسوق وقد يحذف الرحلة إذا لم يتم حفظ أي عناصر مسبقاً.',
-            'cancel_trip_empty': 'إلغاء الرحلة؟ سيؤدي هذا إلى حذف الرحلة إذا لم يتم حفظ أي عناصر مسبقاً.',
-            'remove_cart_item': 'إزالة هذا العنصر من السلة؟',
-            'complete_trip_confirm': 'إكمال الرحلة مع {count} عنصر؟\n\nإجمالي الإيرادات: {revenue} دينار\n\nلا يمكن التراجع عن هذا الإجراء.',
+            'total_cogs': 'إجمالي تكلفة البضاعة المباعة',
+            'total_profit': 'إجمالي الربح',
+            'cogs': 'تكلفة البضاعة',
+            'profit': 'الربح',
+            'available_products_for': 'المنتجات المتوفرة لـ',
+            'product_name': 'اسم المنتج',
+            'product_id': 'رقم المنتج',
+            'stock_available': 'المخزون المتوفر',
+            'complete_trip_confirm': 'إكمال الرحلة مع {count} عنصر؟\n\nإجمالي الإيرادات: {revenue} دينار\nإجمالي تكلفة البضاعة: {cogs} دينار\nإجمالي الربح: {profit} دينار\n\nلا يمكن التراجع عن هذا الإجراء.',
             'add_one_item_first': 'يرجى إضافة عنصر واحد على الأقل لإكمال الرحلة.',
-            
             'item_added_success': 'تم إضافة العنصر إلى السلة بنجاح!',
             'item_removed': 'تم إزالة العنصر من السلة.',
             'invalid_item_edit': 'عنصر غير صالح تم اختياره للتعديل.',
             'error_completing_trip': 'خطأ في إكمال الرحلة. يرجى المحاولة مرة أخرى.',
-            'error_cancelling_trip': 'خطأ في إلغاء الرحلة. يرجى المحاولة مرة أخرى.',
-            'error_loading_cart': 'خطأ في تحميل بيانات السلة. بدء جديد.',
-            
-            'no_products_found': 'لم يتم العثور على منتجات متوفرة في المخزون على هذه السفينة.',
-            'error_searching': 'خطأ في البحث عن المنتجات. يرجى المحاولة مرة أخرى.',
-            'select_product_first': 'اختر المنتج أولاً',
-            'available_stock': 'المتوفر: {count} وحدة',
-            
-            'barcode_coming_soon': '🚀 ميزة مسح الباركود قريباً!',
-            'export_coming_soon': '📊 ميزة التصدير قريباً!',
-            'print_coming_soon': '🖨️ ميزة الطباعة قريباً!',
-            
-            'add_to_trip': 'أضف للرحلة',
-            'update_item': 'تحديث العنصر',
-            'already_in_cart': 'موجود في السلة',
             'completing': 'جاري الإكمال...',
+            'remove_cart_item': 'إزالة هذا العنصر من السلة؟',
             'edit_sales_item': 'تحرير عنصر البيع',
+            'add_sales_item': 'أضف عنصر بيع',
+            'update_item': 'تحديث العنصر',
+            'add_to_trip': 'أضف للرحلة',
+            'already_in_cart': 'موجود في السلة',
+            'no_products_found': 'لم يتم العثور على منتجات بمخزون متاح في هذه السفينة.',
+            'error_searching_products': 'خطأ في البحث عن المنتجات. يرجى المحاولة مرة أخرى.',
+            'calculating_cogs': 'جاري حساب التكلفة...',
             'edit_item': 'تحرير العنصر',
             'remove_item': 'حذف العنصر',
-            'add_sales_item': 'أضف عنصر بيع',
-            
-            'units': 'وحدة',
-            'jod': 'دينار'
+            'select_from_available': 'انقر على منتج من قائمة المنتجات المتوفرة'
         }
     };
     
-    // MERGE with existing translations instead of overwriting
-    if (window.translator.translations.en) {
-        Object.assign(window.translator.translations.en, translations.en);
-        Object.assign(window.translator.translations.ar, translations.ar);
-    } else {
-        window.translator.setTranslations(translations);
-    }
-
+    // Merge with global translations
+    const currentTranslations = window.translator.translations;
+    Object.keys(salesTranslations).forEach(lang => {
+        if (currentTranslations[lang]) {
+            Object.assign(currentTranslations[lang], salesTranslations[lang]);
+        }
+    });
+    
     // Check if required elements exist and if trip is editable
     const tripIdElement = document.getElementById('tripId');
-    const productSearchElement = document.getElementById('productSearch');
     const canEdit = {{ can_edit|yesno:"true,false" }};
     
     if (!canEdit) {
         console.log('Trip completed - displaying read-only data');
-        // For completed trips, display the completed data
         {% if completed_sales_json %}
         try {
             const completedSales = JSON.parse('{{ completed_sales_json|escapejs }}');
@@ -345,17 +340,20 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('Error parsing completed sales:', e);
         }
         {% endif %}
+        // Still load available products for viewing
+        loadAvailableProducts();
         return;
     }
     
-    if (!tripIdElement || !productSearchElement) {
+    if (!tripIdElement) {
         console.log('Trip elements missing, skipping cart initialization');
         return;
     }
     
-    // Only run cart code if all elements exist and trip is editable
+    // Initialize for editable trips
     try {
         initializeTripCart();
+        loadAvailableProducts();
         updateCartDisplay();
         setupEventListeners();
     } catch (error) {
@@ -364,45 +362,10 @@ document.addEventListener('DOMContentLoaded', function() {
         tripSalesCart = [];
         updateCartDisplay();
     }
+    
+    // Apply translations
+    updatePageTranslations();
 });
-</script>
-<script>
-// Global shopping cart state
-let tripSalesCart = [];
-let selectedProduct = null;
-let editingIndex = -1;
-let currentProductPage = 0;
-let allMatchedProducts = [];
-const PRODUCTS_PER_PAGE = 5;
-
-function setupEventListeners() {
-    // Product search functionality
-    let searchTimeout;
-    document.getElementById('productSearch').addEventListener('input', function() {
-        const searchTerm = this.value.trim();
-        
-        clearTimeout(searchTimeout);
-        
-        if (searchTerm.length >= 2) {
-            searchTimeout = setTimeout(() => {
-                searchProducts(searchTerm);
-            }, 500);
-        } else {
-            clearProductSelection();
-        }
-    });
-
-    document.getElementById('saleQuantity').addEventListener('input', function() {
-        updateTotalAmount();
-        validateForm();
-    });
-
-    // Form submission
-    document.getElementById('addSaleForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        addToCart();
-    });
-}
 
 function initializeTripCart() {
     const tripId = document.getElementById('tripId').value;
@@ -448,127 +411,73 @@ function saveCartToStorage() {
     }
 }
 
-function clearCartStorage() {
-    try {
-        const tripId = document.getElementById('tripId').value;
-        const storageKey = `trip_sales_${tripId}`;
-        localStorage.removeItem(storageKey);
-        console.log('Cart cleared from localStorage:', storageKey);
-    } catch (error) {
-        console.error('Error clearing cart from localStorage:', error);
-    }
-}
-
-function searchProducts(searchTerm) {
-    fetch('/sales/search-products/', {
+function loadAvailableProducts() {
+    fetch('/sales/available-products/', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
         },
         body: JSON.stringify({
-            search: searchTerm,
             vessel_id: {{ trip.vessel.id }}
         })
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success && data.products.length > 0) {
-            showProductSelection(data.products);
+        if (data.success) {
+            availableProducts = data.products;
+            displayAvailableProducts();
         } else {
-            clearProductSelection();
-            showAlert(_('no_products_found'), 'warning');
+            console.error('Error loading available products:', data.error);
         }
     })
     .catch(error => {
-        console.error('Error searching products:', error);
-        showAlert(_('error_searching'), 'danger');
+        console.error('Error loading available products:', error);
     });
 }
 
-function showProductSelection(products) {
-    if (products.length === 1) {
-        // Only 1 match - auto-select
-        selectProduct(products[0]);
-    } else if (products.length > 1) {
-        // Multiple matches - show paginated selection
-        allMatchedProducts = products;
-        currentProductPage = 0;
-        displayProductPage();
+function displayAvailableProducts() {
+    const tbody = document.getElementById('availableProductsList');
+    
+    if (availableProducts.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="3" class="text-center text-muted py-4">
+                    <i class="bi bi-box" style="font-size: 2rem;"></i>
+                    <p class="mt-2 mb-0">${_('no_products_available')}</p>
+                </td>
+            </tr>
+        `;
+        return;
     }
-}
-
-function displayProductPage() {
-    clearProductSelection();
     
-    const startIndex = currentProductPage * PRODUCTS_PER_PAGE;
-    const endIndex = Math.min(startIndex + PRODUCTS_PER_PAGE, allMatchedProducts.length);
-    const currentProducts = allMatchedProducts.slice(startIndex, endIndex);
-    const totalPages = Math.ceil(allMatchedProducts.length / PRODUCTS_PER_PAGE);
-    
-    document.getElementById('productInfo').innerHTML = `
-        <div class="alert alert-warning">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <h6 class="mb-0"><i class="bi bi-list"></i> Multiple products found (${allMatchedProducts.length}). Please select one:</h6>
-                <div class="d-flex align-items-center gap-2">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" 
-                            onclick="navigateProducts(-1)" ${currentProductPage === 0 ? 'disabled' : ''}>
-                        <i class="bi bi-chevron-left"></i>
-                    </button>
-                    <small class="text-muted">Page ${currentProductPage + 1} of ${totalPages}</small>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" 
-                            onclick="navigateProducts(1)" ${currentProductPage === totalPages - 1 ? 'disabled' : ''}>
-                        <i class="bi bi-chevron-right"></i>
-                    </button>
+    tbody.innerHTML = availableProducts.map(product => `
+        <tr class="cursor-pointer" onclick="selectProductFromList(${JSON.stringify(product).replace(/"/g, '&quot;')})">
+            <td>
+                <div>
+                    <strong>${product.name}</strong>
+                    ${product.is_duty_free ? '<span class="badge bg-warning text-dark ms-1">' + _('duty_free') + '</span>' : ''}
                 </div>
-            </div>
-            <div class="list-group">
-                ${currentProducts.map(product => `
-                    <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" 
-                            onclick="selectProduct(${JSON.stringify(product).replace(/"/g, '&quot;')})">
-                        <div>
-                            <strong>${product.name}</strong>
-                            <br><small class="text-muted">ID: ${product.item_id} • Available: ${product.total_quantity} units</small>
-                        </div>
-                        <span class="badge bg-success">${product.selling_price.toFixed(3)} JOD</span>
-                    </button>
-                `).join('')}
-            </div>
-            <small class="text-muted mt-2 d-block">
-                <i class="bi bi-lightbulb"></i> 
-                Use ← → arrows to browse more products, or refine your search for specific results.
-            </small>
-        </div>
-    `;
-    
-    document.getElementById('productInfo').style.display = 'block';
+            </td>
+            <td><code>${product.item_id}</code></td>
+            <td class="text-end">
+                <span class="fw-bold text-success">${translateNumber(product.total_quantity.toString())}</span>
+                <small class="text-muted d-block">${_('units')}</small>
+            </td>
+        </tr>
+    `).join('');
 }
 
-function navigateProducts(direction) {
-    const totalPages = Math.ceil(allMatchedProducts.length / PRODUCTS_PER_PAGE);
-    const newPage = currentProductPage + direction;
-    
-    if (newPage >= 0 && newPage < totalPages) {
-        currentProductPage = newPage;
-        displayProductPage();
-    }
-}
-
-function selectProduct(product) {
+function selectProductFromList(product) {
     selectedProduct = product;
     
-    // Update search field to show selected product
+    // Update search field
     document.getElementById('productSearch').value = product.name;
     
-    // Hide the product selection list
-    document.getElementById('productInfo').style.display = 'none';
-    
-    // Update UI
+    // Update product info
     document.getElementById('productName').textContent = product.name;
     document.getElementById('unitPrice').textContent = product.selling_price.toFixed(3) + ' JOD';
-    // NEW (updates on language change):
-    document.getElementById('availableQty').textContent = product.total_quantity + ' ' + _('units');
-    document.getElementById('availableStock').textContent = _('available_stock', {count: product.total_quantity});
+    document.getElementById('productInfo').style.display = 'block';
     
     // Enable quantity input
     const quantityInput = document.getElementById('saleQuantity');
@@ -576,19 +485,105 @@ function selectProduct(product) {
     quantityInput.max = product.total_quantity;
     quantityInput.focus();
     
-    // Show product info
-    document.getElementById('productInfo').style.display = 'block';
+    // Update available stock display
+    document.getElementById('availableStock').textContent = _('available') + ' ' + translateNumber(product.total_quantity.toString()) + ' ' + _('units');
     
-    updateTotalAmount();
+    // Calculate COGS for current quantity
+    updateCOGSDisplay();
     validateForm();
 }
 
-function updateTotalAmount() {
+function setupEventListeners() {
+    // Product search functionality
+    let searchTimeout;
+    document.getElementById('productSearch').addEventListener('input', function() {
+        const searchTerm = this.value.trim().toLowerCase();
+        
+        clearTimeout(searchTimeout);
+        
+        if (searchTerm.length >= 2) {
+            searchTimeout = setTimeout(() => {
+                // Filter available products
+                const filteredProducts = availableProducts.filter(product => 
+                    product.name.toLowerCase().includes(searchTerm) ||
+                    product.item_id.toLowerCase().includes(searchTerm)
+                );
+                
+                if (filteredProducts.length === 1) {
+                    selectProductFromList(filteredProducts[0]);
+                } else if (filteredProducts.length === 0) {
+                    clearProductSelection();
+                    showAlert(_('no_products_found'), 'warning');
+                }
+            }, 500);
+        } else {
+            clearProductSelection();
+        }
+    });
+
+    document.getElementById('saleQuantity').addEventListener('input', function() {
+        updateCOGSDisplay();
+        validateForm();
+    });
+
+    // Form submission
+    document.getElementById('addSaleForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        addToCart();
+    });
+}
+
+function updateCOGSDisplay() {
     if (!selectedProduct) return;
     
     const quantity = parseInt(document.getElementById('saleQuantity').value) || 0;
-    const total = quantity * selectedProduct.selling_price;
-    document.getElementById('totalAmount').textContent = total.toFixed(3) + ' JOD';
+    
+    if (quantity <= 0) {
+        document.getElementById('cogsCost').textContent = '- JOD';
+        document.getElementById('profitAmount').textContent = '- JOD';
+        return;
+    }
+    
+    // Show loading
+    document.getElementById('cogsCost').textContent = _('calculating_cogs');
+    document.getElementById('profitAmount').textContent = _('calculating_cogs');
+    
+    // Calculate COGS via API
+    fetch('/sales/calculate-cogs/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({
+            vessel_id: {{ trip.vessel.id }},
+            product_id: selectedProduct.id,
+            quantity: quantity
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const cogs = parseFloat(data.total_cogs);
+            const revenue = quantity * selectedProduct.selling_price;
+            const profit = revenue - cogs;
+            
+            document.getElementById('cogsCost').textContent = cogs.toFixed(3) + ' JOD';
+            document.getElementById('profitAmount').textContent = profit.toFixed(3) + ' JOD';
+            
+            // Store for cart item
+            selectedProduct.calculated_cogs = cogs;
+            selectedProduct.calculated_profit = profit;
+        } else {
+            document.getElementById('cogsCost').textContent = 'Error';
+            document.getElementById('profitAmount').textContent = 'Error';
+        }
+    })
+    .catch(error => {
+        console.error('Error calculating COGS:', error);
+        document.getElementById('cogsCost').textContent = 'Error';
+        document.getElementById('profitAmount').textContent = 'Error';
+    });
 }
 
 function validateForm() {
@@ -598,7 +593,7 @@ function validateForm() {
     
     let isValid = selectedProduct && quantity > 0 && quantity <= (selectedProduct?.total_quantity || 0);
     let buttonText = editingIndex >= 0 ? _('update_item') : _('add_to_trip');
-    let buttonClass = 'btn btn-primary flex-grow-1';
+    let buttonClass = 'btn btn-success';
     
     // Check for duplicate product (only when not editing)
     if (selectedProduct && editingIndex === -1) {
@@ -606,13 +601,7 @@ function validateForm() {
         if (existingIndex !== -1) {
             isValid = false;
             buttonText = _('already_in_cart');
-            buttonClass = 'btn btn-warning flex-grow-1';
-            
-            // Highlight existing item in cart
-            highlightCartItem(existingIndex);
-        } else {
-            // Remove any previous highlights
-            removeCartHighlights();
+            buttonClass = 'btn btn-warning';
         }
     }
     
@@ -621,39 +610,6 @@ function validateForm() {
     addBtnText.textContent = buttonText;
 }
 
-function highlightCartItem(index) {
-    // Remove previous highlights
-    removeCartHighlights();
-    
-    // Add highlight to existing item
-    const cartRows = document.querySelectorAll('#salesList tr');
-    if (cartRows[index]) {
-        cartRows[index].classList.add('table-info');
-        cartRows[index].style.border = '2px solid #17a2b8';
-    }
-}
-
-function removeCartHighlights() {
-    const cartRows = document.querySelectorAll('#salesList tr');
-    cartRows.forEach(row => {
-        row.classList.remove('table-info');
-        row.style.border = '';
-    });
-}
-
-function clearProductSelection() {
-    selectedProduct = null;
-    document.getElementById('productInfo').style.display = 'none';
-    document.getElementById('saleQuantity').disabled = true;
-    document.getElementById('saleQuantity').value = '';
-    document.getElementById('availableStock').textContent = _('select_product_first');
-    const addBtn = document.getElementById('addSaleBtn');
-    addBtn.disabled = true;
-    addBtn.className = 'btn btn-primary flex-grow-1';
-    document.getElementById('addBtnText').textContent = _('add_to_trip');
-}
-
-// Shopping cart operations
 function addToCart() {
     if (!selectedProduct) return;
     
@@ -669,6 +625,8 @@ function addToCart() {
         quantity: quantity,
         unit_price: selectedProduct.selling_price,
         total_amount: quantity * selectedProduct.selling_price,
+        total_cogs: selectedProduct.calculated_cogs || 0,
+        total_profit: selectedProduct.calculated_profit || 0,
         notes: notes
     };
     
@@ -691,8 +649,9 @@ function addToCart() {
     document.getElementById('productSearch').focus();
 }
 
-function removeFromCart(index) {
-    if (confirmTranslated('remove_cart_item')) {
+async function removeFromCart(index) {
+    const confirmed = await confirmTranslated('remove_cart_item');
+    if (confirmed) {
         tripSalesCart.splice(index, 1);
         saveCartToStorage();
         updateCartDisplay();
@@ -715,50 +674,69 @@ function editCartItem(index) {
     document.getElementById('formTitle').innerHTML = '<i class="bi bi-pencil"></i> ' + _('edit_sales_item');
     document.getElementById('addBtnText').textContent = _('update_item');
     
-    // Simulate product selection by setting selectedProduct
-    selectedProduct = {
-        id: item.product_id,
-        name: item.product_name,
-        item_id: item.product_item_id,
-        barcode: item.product_barcode,
-        is_duty_free: item.is_duty_free,
-        selling_price: item.unit_price,
-        total_quantity: 999 // We'll assume sufficient stock for editing
-    };
+    // Find the product in available products
+    selectedProduct = availableProducts.find(p => p.id === item.product_id);
     
-    // Populate form fields
-    document.getElementById('productSearch').value = item.product_name;
-    document.getElementById('saleQuantity').value = item.quantity;
-    document.getElementById('saleQuantity').disabled = false;
-    document.getElementById('saleNotes').value = item.notes || '';
-    
-    // Update product info display
-    document.getElementById('productName').textContent = item.product_name;
-    document.getElementById('unitPrice').textContent = item.unit_price.toFixed(3) + ' JOD';
-    document.getElementById('availableQty').textContent = '999 {% trans "units" %}'; // Placeholder
-    document.getElementById('availableStock').textContent = '{% trans "Available:" %} 999 {% trans "units" %}';
-    document.getElementById('totalAmount').textContent = item.total_amount.toFixed(3) + ' JOD';
-    
-    // Show product info
-    document.getElementById('productInfo').style.display = 'block';
-    
-    // Enable add button
-    document.getElementById('addSaleBtn').disabled = false;
-    document.getElementById('addSaleBtn').className = 'btn btn-primary flex-grow-1';
-    
-    // Scroll to form
-    document.getElementById('addSaleForm').scrollIntoView({ behavior: 'smooth' });
+    if (selectedProduct) {
+        // Populate form fields
+        document.getElementById('productSearch').value = item.product_name;
+        document.getElementById('saleQuantity').value = item.quantity;
+        document.getElementById('saleQuantity').disabled = false;
+        document.getElementById('saleNotes').value = item.notes || '';
+        
+        // Update product info display
+        document.getElementById('productName').textContent = item.product_name;
+        document.getElementById('unitPrice').textContent = item.unit_price.toFixed(3) + ' JOD';
+        document.getElementById('cogsCost').textContent = item.total_cogs.toFixed(3) + ' JOD';
+        document.getElementById('profitAmount').textContent = item.total_profit.toFixed(3) + ' JOD';
+        document.getElementById('productInfo').style.display = 'block';
+        document.getElementById('availableStock').textContent = _('available') + ' ' + translateNumber(selectedProduct.total_quantity.toString()) + ' ' + _('units');
+        
+        // Store calculated values
+        selectedProduct.calculated_cogs = item.total_cogs;
+        selectedProduct.calculated_profit = item.total_profit;
+        
+        // Enable form
+        document.getElementById('addSaleBtn').disabled = false;
+        document.getElementById('addSaleBtn').className = 'btn btn-success';
+        
+        // Scroll to form
+        document.getElementById('addSaleForm').scrollIntoView({ behavior: 'smooth' });
+    }
 }
 
-async function cancelEdit() {  // ← Add 'async'
+function clearProductSelection() {
+    selectedProduct = null;
+    document.getElementById('productInfo').style.display = 'none';
+    document.getElementById('saleQuantity').disabled = true;
+    document.getElementById('saleQuantity').value = '';
+    document.getElementById('availableStock').textContent = _('select_product_first');
+    const addBtn = document.getElementById('addSaleBtn');
+    addBtn.disabled = true;
+    addBtn.className = 'btn btn-success';
+    document.getElementById('addBtnText').textContent = _('add_to_trip');
+}
+
+function clearForm() {
+    document.getElementById('addSaleForm').reset();
+    document.getElementById('productSearch').value = '';
+    document.getElementById('saleNotes').value = '';
+    clearProductSelection();
+}
+
+async function cancelEdit() {
     if (editingIndex >= 0) {
         exitEditMode();
-    } else {
-        const messageKey = tripSalesCart.length > 0 ? 'cancel_trip_with_cart' : 'cancel_trip_empty';
+        clearForm();
+        return;
+    }
+    
+    // Ask user if they want to cancel the entire trip
+    const confirmed = await confirmTranslated('cancel_trip_confirm');
+    if (confirmed) {
+        const tripId = document.getElementById('tripId').value;
         
-        const confirmed = await confirmTranslated(messageKey);  // ← Add 'await'
-        if (!confirmed) return;
-        
+        // Call backend to cancel trip
         fetch('/sales/trip/cancel/', {
             method: 'POST',
             headers: {
@@ -766,31 +744,34 @@ async function cancelEdit() {  // ← Add 'async'
                 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
             },
             body: JSON.stringify({
-                trip_id: document.getElementById('tripId').value
+                trip_id: tripId
             })
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                clearCartStorage();
+                // Clear localStorage
+                const storageKey = `trip_sales_${tripId}`;
+                localStorage.removeItem(storageKey);
+                
                 showAlert(data.message, 'success');
                 setTimeout(() => {
                     window.location.href = "{% url 'frontend:sales_entry' %}";
-                }, 2000);
+                }, 1500);
             } else {
-                showAlert(data.error || _('error_cancelling_trip'), 'danger');
+                showAlert(data.error, 'danger');
             }
         })
         .catch(error => {
-            console.error('Error cancelling trip:', error);
-            showAlert(_('error_cancelling_trip'), 'danger');
+            console.error('Error canceling trip:', error);
+            showAlert(_('error_canceling_trip'), 'danger');
         });
     }
 }
 
 function exitEditMode() {
     editingIndex = -1;
-    document.getElementById('formTitle').innerHTML = '<i class="bi bi-plus-circle"></i>' + _('add_sales_item');
+    document.getElementById('formTitle').innerHTML = '<i class="bi bi-plus-circle"></i> ' + _('add_sales_item');
     document.getElementById('addBtnText').textContent = _('add_to_trip');
     clearForm();
 }
@@ -801,14 +782,17 @@ function updateCartDisplay() {
     // For completed trips, use actual transaction data instead of cart
     if (!canEdit) {
         {% if trip.total_revenue %}
-        document.getElementById('tripRevenue').textContent = '{{ trip.total_revenue|floatformat:3 }} JOD';
-        document.getElementById('itemCount').textContent = '{{ trip.transaction_count }}';
-        const revenuePerPassenger = {{ trip.total_revenue }} / {{ trip.passenger_count }};
-        document.getElementById('revenuePerPassenger').textContent = revenuePerPassenger.toFixed(3) + ' JOD';
-        document.getElementById('salesListCount').textContent = '{{ trip.transaction_count }}';
-        if (document.getElementById('itemCountBadge')) {
-            document.getElementById('itemCountBadge').textContent = '{{ trip.transaction_count }}';
+        const revenueElement = document.getElementById('tripRevenue');
+        if (revenueElement) {
+            revenueElement.setAttribute('data-original', '{{ trip.total_revenue|floatformat:3 }}');
+            revenueElement.innerHTML = `<span data-number data-original="{{ trip.total_revenue|floatformat:3 }}">${translateNumber('{{ trip.total_revenue|floatformat:3 }}')}</span> <span data-currency-symbol>JOD</span>`;
         }
+        updateNumberElement('itemCount', {{ trip.transaction_count }});
+        updateNumberElement('salesListCount', {{ trip.transaction_count }});
+        if (document.getElementById('itemCountBadge')) {
+            updateNumberElement('itemCountBadge', {{ trip.transaction_count }});
+        }
+        setTimeout(() => updatePageTranslations(), 0);
         return; // Exit early for completed trips
         {% endif %}
     }
@@ -822,21 +806,39 @@ function updateCartDisplay() {
     
     // Update counts
     const count = tripSalesCart.length;
-    salesListCount.textContent = count;
-    itemCount.textContent = count;
-    if (itemCountBadge) itemCountBadge.textContent = count;
+    updateNumberElement('salesListCount', count);
+    updateNumberElement('itemCount', count);
+    if (itemCountBadge) updateNumberElement('itemCountBadge', count);
     
     // Calculate totals
     let totalRevenue = 0;
+    let totalCOGS = 0;
+    let totalProfit = 0;
+    
     tripSalesCart.forEach(item => {
         totalRevenue += item.total_amount;
+        totalCOGS += item.total_cogs || 0;
+        totalProfit += item.total_profit || 0;
     });
     
-    document.getElementById('tripRevenue').textContent = totalRevenue.toFixed(3) + ' JOD';
+    // Update revenue elements with proper number translation
+    const revenueElement = document.getElementById('tripRevenue');
+    if (revenueElement) {
+        revenueElement.setAttribute('data-original', totalRevenue.toFixed(3));
+        revenueElement.innerHTML = `<span data-number data-original="${totalRevenue.toFixed(3)}">${translateNumber(totalRevenue.toFixed(3))}</span> <span data-currency-symbol>JOD</span>`;
+    }
     
-    const passengerCount = {{ trip.passenger_count }};
-    const revenuePerPassenger = passengerCount > 0 ? totalRevenue / passengerCount : 0;
-    document.getElementById('revenuePerPassenger').textContent = revenuePerPassenger.toFixed(3) + ' JOD';
+    const cogsElement = document.getElementById('totalCOGS');
+    if (cogsElement) {
+        cogsElement.setAttribute('data-original', totalCOGS.toFixed(3));
+        cogsElement.innerHTML = `<span data-number data-original="${totalCOGS.toFixed(3)}">${translateNumber(totalCOGS.toFixed(3))}</span> <span data-currency-symbol>JOD</span>`;
+    }
+    
+    const profitElement = document.getElementById('totalProfit');
+    if (profitElement) {
+        profitElement.setAttribute('data-original', totalProfit.toFixed(3));
+        profitElement.innerHTML = `<span data-number data-original="${totalProfit.toFixed(3)}">${translateNumber(totalProfit.toFixed(3))}</span> <span data-currency-symbol>JOD</span>`;
+    }
     
     // Update table
     if (count === 0) {
@@ -849,28 +851,36 @@ function updateCartDisplay() {
                 <td>
                     <div>
                         <strong>${item.product_name}</strong>
-                        <small class="text-muted d-block">{% trans "ID:" %} ${item.product_item_id}</small>
-                        ${item.is_duty_free ? '<span class="badge bg-warning text-dark">{% trans "Duty-Free" %}</span>' : ''}
+                        <small class="text-muted d-block">${_('id_label')}: <span data-number data-original="${item.product_item_id}">${translateNumber(item.product_item_id)}</span></small>
+                        ${item.is_duty_free ? '<span class="badge bg-warning text-dark">' + _('duty_free') + '</span>' : ''}
                     </div>
                 </td>
                 <td class="text-center">
-                    <span class="fw-bold">${item.quantity}</span>
-                    <small class="text-muted d-block">{% trans "units" %}</small>
+                    <span class="fw-bold" data-number data-original="${item.quantity}">${translateNumber(item.quantity.toString())}</span>
+                    <small class="text-muted d-block">${_('units')}</small>
                 </td>
                 <td class="text-end">
-                    <span class="fw-bold">${item.unit_price.toFixed(3)}</span>
-                    <small class="text-muted d-block">JOD</small>
+                    <span class="fw-bold" data-number data-original="${item.unit_price.toFixed(3)}">${translateNumber(item.unit_price.toFixed(3))}</span>
+                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
                 </td>
                 <td class="text-end">
-                    <span class="fw-bold text-success">${item.total_amount.toFixed(3)}</span>
-                    <small class="text-muted d-block">JOD</small>
+                    <span class="fw-bold text-warning" data-number data-original="${(item.total_cogs || 0).toFixed(3)}">${translateNumber((item.total_cogs || 0).toFixed(3))}</span>
+                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+                </td>
+                <td class="text-end">
+                    <span class="fw-bold text-info" data-number data-original="${(item.total_profit || 0).toFixed(3)}">${translateNumber((item.total_profit || 0).toFixed(3))}</span>
+                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+                </td>
+                <td class="text-end">
+                    <span class="fw-bold text-success" data-number data-original="${item.total_amount.toFixed(3)}">${translateNumber(item.total_amount.toFixed(3))}</span>
+                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
                 </td>
                 <td>
                     <small>${item.notes || '-'}</small>
                 </td>
                 <td class="text-center">
                     <div class="btn-group btn-group-sm">
-                        <button class="btn btn-outline-primary" onclick="editCartItem(${index})" title= "${_('edit_item')}">
+                        <button class="btn btn-outline-primary" onclick="editCartItem(${index})" title="${_('edit_item')}">
                             <i class="bi bi-pencil"></i>
                         </button>
                         <button class="btn btn-outline-danger" onclick="removeFromCart(${index})" title="${_('remove_item')}">
@@ -881,58 +891,77 @@ function updateCartDisplay() {
             </tr>
         `).join('');
     }
+    
+    // Apply translations after DOM update
+    setTimeout(() => {
+        updatePageTranslations();
+    }, 0);
 }
 
-function displayCompletedSales(completedSales) {
-    const salesList = document.getElementById('salesList');
-    const salesListCount = document.getElementById('salesListCount');
-    
-    salesListCount.textContent = completedSales.length;
-    
-    if (completedSales.length === 0) {
-        document.getElementById('emptySalesState').style.display = 'block';
-    } else {
-        salesList.innerHTML = completedSales.map(item => `
-            <tr>
-                <td><small>${item.created_at}</small></td>
-                <td>
-                    <div>
-                        <strong>${item.product_name}</strong>
-                        <small class="text-muted d-block">{% trans "ID:" %} ${item.product_item_id}</small>
-                    </div>
-                </td>
-                <td class="text-center">
-                    <span class="fw-bold">${item.quantity}</span>
-                    <small class="text-muted d-block">{% trans "units" %}</small>
-                </td>
-                <td class="text-end">
-                    <span class="fw-bold">${item.unit_price.toFixed(3)}</span>
-                    <small class="text-muted d-block">JOD</small>
-                </td>
-                <td class="text-end">
-                    <span class="fw-bold text-success">${item.total_amount.toFixed(3)}</span>
-                    <small class="text-muted d-block">JOD</small>
-                </td>
-                <td><small>${item.notes || '-'}</small></td>
-            </tr>
-        `).join('');
+// 🔧 ENHANCED: Helper function for updating number elements
+function updateNumberElement(elementId, value) {
+    const element = document.getElementById(elementId);
+    if (element) {
+        element.setAttribute('data-number', '');
+        element.setAttribute('data-original', value.toString());
+        element.textContent = translateNumber(value.toString());
     }
 }
 
-function completeTripSales() {
+function displayAvailableProducts() {
+    const tbody = document.getElementById('availableProductsList');
+    
+    if (availableProducts.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="3" class="text-center text-muted py-4">
+                    <i class="bi bi-box" style="font-size: 2rem;"></i>
+                    <p class="mt-2 mb-0">${_('no_products_available')}</p>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    tbody.innerHTML = availableProducts.map(product => `
+        <tr class="cursor-pointer" onclick="selectProductFromList(${JSON.stringify(product).replace(/"/g, '&quot;')})">
+            <td>
+                <div>
+                    <strong>${product.name}</strong>
+                    ${product.is_duty_free ? '<span class="badge bg-warning text-dark ms-1">' + _('duty_free') + '</span>' : ''}
+                </div>
+            </td>
+            <td><code data-number data-original="${product.item_id}">${translateNumber(product.item_id)}</code></td>
+            <td class="text-end">
+                <span class="fw-bold text-success" data-number data-original="${product.total_quantity}">${translateNumber(product.total_quantity.toString())}</span>
+                <small class="text-muted d-block">${_('units')}</small>
+            </td>
+        </tr>
+    `).join('');
+    
+    // Apply translations after DOM update
+    setTimeout(() => {
+        updatePageTranslations();
+    }, 0);
+}
+
+async function completeTripSales() {
     if (tripSalesCart.length === 0) {
         showAlert(_('add_one_item_first'), 'warning');
         return;
     }
     
     const totalRevenue = tripSalesCart.reduce((sum, item) => sum + item.total_amount, 0);
+    const totalCOGS = tripSalesCart.reduce((sum, item) => sum + (item.total_cogs || 0), 0);
+    const totalProfit = tripSalesCart.reduce((sum, item) => sum + (item.total_profit || 0), 0);
     
-    const confirmMsg = _('complete_trip_confirm', {
+    const confirmed = await confirmTranslated('complete_trip_confirm', {
         count: tripSalesCart.length,
-        revenue: totalRevenue.toFixed(3)
+        revenue: totalRevenue.toFixed(3),
+        cogs: totalCOGS.toFixed(3),
+        profit: totalProfit.toFixed(3)
     });
-    
-    if (!confirm(confirmMsg)) return;
+    if (!confirmed) return;
     
     const completeTripBtn = document.getElementById('completeTripBtn');
     const originalText = completeTripBtn.innerHTML;
@@ -966,7 +995,9 @@ function completeTripSales() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            clearCartStorage();
+            const tripId = document.getElementById('tripId').value;
+            const storageKey = `trip_sales_${tripId}`;
+            localStorage.removeItem(storageKey);
             showAlert(data.message, 'success');
             setTimeout(() => {
                 window.location.href = "{% url 'frontend:sales_entry' %}";
@@ -985,13 +1016,6 @@ function completeTripSales() {
     });
 }
 
-function clearForm() {
-    document.getElementById('addSaleForm').reset();
-    document.getElementById('productSearch').value = '';
-    document.getElementById('saleNotes').value = '';
-    clearProductSelection();
-}
-
 function exportTripSales() {
     alertTranslated('export_coming_soon');
 }
@@ -1001,7 +1025,6 @@ function printTripSales() {
 }
 
 function showAlert(message, type) {
-    // Find a container to insert the alert
     const container = document.querySelector('.container') || document.querySelector('body');
     const firstRow = container.querySelector('.row');
     
@@ -1012,23 +1035,17 @@ function showAlert(message, type) {
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     `;
     
-    // Insert at the beginning of the container
     if (firstRow) {
         container.insertBefore(alertDiv, firstRow);
     } else {
         container.appendChild(alertDiv);
     }
     
-    // Auto-remove after 5 seconds
     setTimeout(() => {
         if (alertDiv && alertDiv.parentNode) {
             alertDiv.remove();
         }
     }, 5000);
-}
-
-function showComingSoon() {
-    alertTranslated('print_coming_soon');
 }
 </script>
 {% endblock %}

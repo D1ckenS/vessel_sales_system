@@ -68,6 +68,9 @@ class BilingualMessages:
             'error_creating_po': 'Error creating purchase order: {error}',
             'po_number_required': 'Please enter a purchase order number',
             
+            # Transfer messages
+            'transfer_session_created': 'Transfer session created successfully!',
+            
             # General messages
             'invalid_request_method': 'Invalid request method.',
             'back_to_inventory': 'Back to Inventory',
@@ -131,6 +134,8 @@ class BilingualMessages:
             'error_creating_po': 'خطأ في إنشاء أمر الشراء: {error}',
             'po_number_required': 'يرجى إدخال رقم أمر الشراء',
             
+            # Transfer messages (Arabic)
+            'transfer_session_created': 'تمإنشاء جلسة تحويل بنجاح. الآن قم بإضافة عناصر التحويل.',
             # General messages (Arabic)
             'invalid_request_method': 'طريقة طلب غير صالحة.',
             'back_to_inventory': 'العودة للمخزون',

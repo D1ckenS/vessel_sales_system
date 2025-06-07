@@ -114,6 +114,105 @@
         [dir="rtl"] .fw-bold[data-number] {
             font-family: 'Arabic-Indic', 'Tahoma', sans-serif;
         }
+
+        /* 🔧 ENHANCED RTL SUPPORT FOR REPORTS */
+        [dir="rtl"] .card-header .d-flex {
+            flex-direction: row-reverse;
+        }
+
+        [dir="rtl"] .btn-group {
+            flex-direction: row-reverse;
+        }
+
+        [dir="rtl"] .btn-group .btn:first-child {
+            border-top-left-radius: 0;
+            border-bottom-left-radius: 0;
+            border-top-right-radius: .375rem;
+            border-bottom-right-radius: .375rem;
+        }
+
+        [dir="rtl"] .btn-group .btn:last-child {
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
+            border-top-left-radius: .375rem;
+            border-bottom-left-radius: .375rem;
+        }
+
+        [dir="rtl"] .table th {
+            text-align: right;
+        }
+
+        [dir="rtl"] .table .text-end {
+            text-align: left !important;
+        }
+
+        [dir="rtl"] .table .text-center {
+            text-align: center !important;
+        }
+
+        /* Fix filter form in RTL */
+        [dir="rtl"] .row > .col-md-2:last-child .btn {
+            width: 100%;
+        }
+
+        /* Badge RTL fixes */
+        [dir="rtl"] .badge {
+            direction: rtl;
+        }
+
+        /* Stats cards RTL */
+        [dir="rtl"] .stats-card {
+            text-align: right;
+        }
+
+        [dir="rtl"] .stats-number {
+            direction: rtl;
+        }
+
+        /* Page header RTL fixes */
+        [dir="rtl"] .row .d-flex.justify-content-between {
+            flex-direction: row-reverse;
+        }
+
+        [dir="rtl"] .row .d-flex.justify-content-between > div:first-child {
+            text-align: right;
+        }
+
+        /* Table responsive RTL */
+        [dir="rtl"] .table-responsive {
+            direction: rtl;
+        }
+
+        [dir="rtl"] .table-responsive .table {
+            direction: rtl;
+        }
+
+        /* Form RTL improvements */
+        [dir="rtl"] .form-label {
+            text-align: right;
+        }
+
+        [dir="rtl"] .form-select,
+        [dir="rtl"] .form-control {
+            text-align: right;
+        }
+
+        /* Card footer RTL */
+        [dir="rtl"] .card-footer .d-flex {
+            flex-direction: row-reverse;
+        }
+
+        /* Icon spacing in RTL */
+        [dir="rtl"] .bi {
+            margin-left: 0.5rem;
+            margin-right: 0;
+        }
+
+        [dir="rtl"] h2 .bi,
+        [dir="rtl"] h5 .bi {
+            margin-left: 0.5rem;
+            margin-right: 0;
+        }
         
         :root {
             --primary-blue: #0f4c75;
@@ -292,6 +391,110 @@
             margin-top: auto;
         }
 
+        /* 🎯 ENHANCED PRODUCT PANEL IMPROVEMENTS */
+        .available-products-panel {
+            height: 100%;
+            min-height: 400px;
+        }
+
+        /* Dynamic height matching - make panels fill available space */
+        .form-panel,
+        .catalog-panel {
+            min-height: 600px;
+        }
+
+        @media (min-width: 768px) {
+            .form-panel,
+            .catalog-panel {
+                height: calc(100vh - 400px); /* Adjust based on your header/footer height */
+                max-height: 700px;
+            }
+            
+            .form-panel .card-body,
+            .catalog-panel .card-body {
+                height: calc(100% - 60px); /* Subtract header height */
+                display: flex;
+                flex-direction: column;
+            }
+            
+            .scrollable-panel {
+                flex: 1; /* Take up remaining space */
+                min-height: 0; /* Allow flexbox to shrink */
+                max-height: none; /* Remove fixed max-height */
+                overflow-y: auto;
+                border: 1px solid rgba(0, 0, 0, 0.1);
+                border-radius: 8px;
+            }
+        }
+
+        /* Fix horizontal scrollbar issues */
+        .scrollable-panel {
+            overflow-x: hidden; /* Prevent horizontal scroll */
+        }
+
+        .scrollable-panel table {
+            table-layout: fixed; /* Prevent table from expanding */
+            width: 100%;
+        }
+
+        .scrollable-panel th,
+        .scrollable-panel td {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* Specific column widths to prevent overflow */
+        .scrollable-panel th:first-child,
+        .scrollable-panel td:first-child {
+            width: 50%; /* Product name */
+        }
+
+        .scrollable-panel th:nth-child(2),
+        .scrollable-panel td:nth-child(2) {
+            width: 25%; /* Product ID */
+        }
+
+        .scrollable-panel th:last-child,
+        .scrollable-panel td:last-child {
+            width: 25%; /* Price/Stock */
+        }
+
+        /* Enhanced clickable effects for product catalog */
+        .table-hover tbody tr {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .table-hover tbody tr:hover {
+            background-color: rgba(var(--bs-primary-rgb), 0.05) !important;
+            transform: translateX(2px);
+        }
+
+        .cursor-pointer {
+            cursor: pointer;
+        }
+
+        /* Better hover effects without layout shift */
+        .table-hover tbody tr.cursor-pointer:hover {
+            background: linear-gradient(135deg, rgba(15, 76, 117, 0.05) 0%, rgba(50, 130, 184, 0.05) 100%);
+            box-shadow: inset 3px 0 0 var(--primary-blue); /* Use inset shadow instead of border */
+            transform: none; /* Remove transform to prevent horizontal scroll */
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 767px) {
+            .form-panel,
+            .catalog-panel {
+                min-height: auto;
+                height: auto;
+            }
+            
+            .scrollable-panel {
+                max-height: 300px;
+            }
+        }
+
         /* Tablet-friendly touch targets */
         @media (max-width: 768px) {
             .nav-link {
@@ -389,6 +592,101 @@
 
         .rtl-layout .navbar-collapse {
             text-align: right;
+        }
+
+        /* 🔧 MOBILE NAVIGATION RTL FIXES */
+        @media (max-width: 991px) {
+            /* Fix collapsed navbar in RTL */
+            [dir="rtl"] .navbar-collapse {
+                direction: rtl;
+                text-align: right;
+            }
+            
+            /* Fix navbar items alignment in mobile */
+            [dir="rtl"] .navbar-nav {
+                flex-direction: column !important;
+                align-items: flex-end;
+            }
+            
+            /* Fix navbar toggler position */
+            [dir="rtl"] .navbar-toggler {
+                order: -1;
+                margin-left: auto;
+                margin-right: 0;
+            }
+            
+            /* Fix brand position in RTL mobile */
+            [dir="rtl"] .navbar-brand {
+                margin-left: 0;
+                margin-right: auto;
+            }
+            
+            /* Ensure proper collapse behavior */
+            .navbar-collapse.show {
+                display: block !important;
+            }
+            
+            .navbar-collapse.collapsing {
+                height: auto !important;
+            }
+        }
+
+        /* Fix language toggle in mobile */
+        @media (max-width: 991px) {
+            [dir="rtl"] .navbar-nav .nav-item {
+                text-align: right;
+                width: 100%;
+            }
+        }
+
+        /* RTL Fixes for Recent Activity */
+        [dir="rtl"] .list-group-item .d-flex {
+            flex-direction: row-reverse;
+        }
+
+        [dir="rtl"] .list-group-item .flex-grow-1 {
+            text-align: right;
+        }
+
+        [dir="rtl"] .list-group-item .justify-content-between {
+            flex-direction: row-reverse;
+        }
+
+        [dir="rtl"] .list-group-item small.text-muted:last-child {
+            order: -1;
+            margin-left: 0;
+            margin-right: 1rem;
+        }
+
+        [dir="rtl"] .transaction-type {
+            direction: rtl;
+            text-align: right;
+        }
+
+        [dir="rtl"] .list-group-item p.small {
+            direction: rtl;
+            text-align: right;
+        }
+
+        [dir="rtl"] .list-group-item small.text-muted {
+            direction: rtl;
+            text-align: right;
+        }
+
+        /* Fix bullet separator in RTL */
+        [dir="rtl"] .list-group-item small.text-muted {
+            direction: rtl;
+            unicode-bidi: plaintext;
+        }
+
+        [dir="rtl"] .recent-activity-item {
+            direction: rtl;
+            text-align: right;
+        }
+
+        [dir="rtl"] .recent-activity-item .flex-grow-1 {
+            margin-left: 1rem;
+            margin-right: 0;
         }
 </style>
 
@@ -847,21 +1145,81 @@
             }
         });
 
-        // Update numbers and currency displays
-        document.querySelectorAll('.stats-number:not(.text-warning)').forEach(element => {
-            const originalText = element.getAttribute('data-original') || element.textContent;
+        // 🔧 ENHANCED: Re-translate all elements with data-number attribute
+        document.querySelectorAll('[data-number]').forEach(element => {
+            const originalValue = element.getAttribute('data-original') || element.textContent.trim();
             if (!element.getAttribute('data-original')) {
-                element.setAttribute('data-original', originalText);
+                element.setAttribute('data-original', originalValue);
             }
             
-            const numberMatch = originalText.match(/[\d,]+\.?\d*/g);
+            // Clean the original value to extract just the number
+            const numberMatch = originalValue.match(/[\d,]+\.?\d*/);
             if (numberMatch) {
-                let updatedText = originalText;
-                numberMatch.forEach(number => {
-                    const translatedNumber = translateNumber(number.replace(/,/g, ''));
-                    updatedText = updatedText.replace(number, translatedNumber);
+                const translatedNumber = translateNumber(numberMatch[0].replace(/,/g, ''));
+                element.textContent = originalValue.replace(numberMatch[0], translatedNumber);
+            } else {
+                // For simple numbers without additional text
+                element.textContent = translateNumber(originalValue);
+            }
+        });
+
+        // 🔧 NEW: Handle date translation for Trips
+        document.querySelectorAll('[data-trip-date]').forEach(element => {
+            const originalDate = element.getAttribute('data-original') || element.textContent.trim();
+            if (!element.getAttribute('data-original')) {
+                element.setAttribute('data-original', originalDate);
+            }
+            
+            // Translate numbers in date format (DD/MM/YYYY)
+            const currentLang = window.translator.currentLanguage;
+            if (currentLang === 'ar') {
+                const translatedDate = originalDate.replace(/\d/g, (digit) => {
+                    const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                    return arabicNumerals[parseInt(digit)];
                 });
-                element.textContent = updatedText;
+                element.textContent = translatedDate;
+            } else {
+                element.textContent = originalDate;
+            }
+        });
+
+        // 🔧 NEW: Handle date translation for PO
+        document.querySelectorAll('[data-po-date]').forEach(element => {
+            const originalDate = element.getAttribute('data-original') || element.textContent.trim();
+            if (!element.getAttribute('data-original')) {
+                element.setAttribute('data-original', originalDate);
+            }
+            
+            // Translate numbers in date format (DD/MM/YYYY)
+            const currentLang = window.translator.currentLanguage;
+            if (currentLang === 'ar') {
+                const translatedDate = originalDate.replace(/\d/g, (digit) => {
+                    const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                    return arabicNumerals[parseInt(digit)];
+                });
+                element.textContent = translatedDate;
+            } else {
+                element.textContent = originalDate;
+            }
+        });
+
+        // 🔧 NEW: Handle date translation for Transfer
+        document.querySelectorAll('[data-transfer-date]').forEach(element => {
+            const originalDate = element.getAttribute('data-original') || element.textContent.trim();
+            if (!element.getAttribute('data-original')) {
+                element.setAttribute('data-original', originalDate);
+            }
+            
+            // Translate numbers in date format (DD/MM/YYYY)
+            const currentLang = window.translator.currentLanguage;
+            if (currentLang === 'ar') {
+                const translatedDate = originalDate.replace(/\d/g, (digit) => {
+                    const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                    return arabicNumerals[parseInt(digit)];
+                });
+                element.textContent = translatedDate;
+            } else {
+                element.textContent = originalDate;
             }
         });
 
@@ -945,6 +1303,38 @@
                 element.textContent = originalValue;
             }
         });
+
+        // 🔧 NEW: Handle trip number translation
+        document.querySelectorAll('.trip-number').forEach(element => {
+            const originalValue = element.getAttribute('data-original') || element.textContent.trim();
+            if (!element.getAttribute('data-original')) {
+                element.setAttribute('data-original', originalValue);
+            }
+            if (window.translator.currentLanguage === 'ar') {
+                const translatedNumber = window.translateNumber(originalValue);
+                element.textContent = translatedNumber;
+            } else {
+                element.textContent = originalValue;
+            }
+        });
+
+        // 🔧 NEW: Handle title translations (for tooltips and button titles)
+        document.querySelectorAll('[data-translate-title]').forEach(element => {
+            const key = element.getAttribute('data-translate-title');
+            const translatedTitle = window.translator._(key);
+            element.setAttribute('title', translatedTitle);
+        });
+
+        // 🔧 ENHANCED: Update select option text (for dropdowns)
+        document.querySelectorAll('select option span[data-translate]').forEach(element => {
+            const key = element.getAttribute('data-translate');
+            element.textContent = window.translator._(key);
+        });
+
+        // 🔧 NEW: Recalculate revenue per passenger when language changes
+        if (typeof calculateRevenuePerPassenger === 'function') {
+            calculateRevenuePerPassenger();
+        }
         
         // Update modal button text
         const cancelSpan = document.querySelector('#confirmationCancel span');
@@ -1140,6 +1530,12 @@
             // Set up global translations
             const globalTranslations = {
             en: {
+                // Auth translations
+                'superuser_access': 'Superuser Access',
+                'superuser_desc': 'You have full administrative access to all system features.',
+                'manage_users': 'Manage Users',
+                'no_groups_assigned': 'No groups assigned',
+                // Global translations
                 'cancel': 'Cancel',
                 'confirm': 'Confirm', 
                 'ok': 'OK',
@@ -1161,6 +1557,14 @@
                 'export_successful': 'Export successful',
                 'export_to_pdf': 'Export to PDF',
                 'export_to_excel': 'Export to Excel (.xlsx)',
+                'cancel_trip_confirm': 'Cancel this trip?\n\nThis will remove the trip and clear your cart. Any unsaved items will be lost.',
+                'cancel_po_confirm': 'Cancel this purchase order?\n\nThis will remove the PO and clear your cart. Any unsaved items will be lost.',
+                'cancel_transfer_confirm': 'Cancel this transfer?\n\nThis will clear your transfer items and return to the transfer entry page.',
+                'error_canceling_trip': 'Error canceling trip. Please try again.',
+                'error_canceling_po': 'Error canceling purchase order. Please try again.',
+                'transfer_canceled': 'Transfer canceled successfully.',
+                'duty_free_supported': 'Duty-Free Supported',
+                'no_duty_free': 'No Duty-Free',
                 // User Management translations
                 'user_management': 'User Management',
                 'user_management_desc': 'Manage system users, roles, and permissions',
@@ -1302,7 +1706,7 @@
                 'add_sales_item': 'Add Sales Item',
                 'select_product_first': 'Select product first',
                 'units': 'units',
-                'unit_selling_price': 'Unit Price',
+                'unit_selling_price': 'Unit Selling Price',
                 'available': 'Available:',
                 'notes': 'Notes (Optional)',
                 'sales_cart': 'Sales Cart',
@@ -1348,8 +1752,31 @@
                 'purchase_cost': 'Purchase Cost',
                 'avg_cost_per_item': 'Average Cost per Item',
                 'add_supply_item': 'Add Supply Item',
+                'product_catalog': 'Product Catalog',
+                'default_cost': 'Default Cost',
+                'all_products': 'All Products',
+                'general_products_only': 'General Products Only',
+                'duty_free_supported': 'Duty-Free Supported',
+                'no_duty_free': 'No Duty-Free',
+                // Reports Translations
+                'vessel_sales_system': 'Vessel Sales System',
+                'back_to_reports': 'Back to Reports',
+                'all_vessels': 'All Vessels',
+                'all_status': 'All Status',
+                'showing': 'Showing',
+                'filtered': 'filtered',
+                'clear_filters': 'Clear Filters',
+                'view_details': 'View Details',
+                'analytics': 'Analytics',
+                'ago': 'ago',
             },
             ar: {
+                // Auth translations
+                'superuser_access': 'الدخول كمدير',
+                'superuser_desc': 'لديك الصلاحية للدخول كمدير',
+                'manage_users': 'ادارة المستخدمين',
+                'no_groups_assigned': 'لم يتم التعيين لمجموعة',
+                // Global translations
                 'cancel': 'إلغاء',
                 'confirm': 'تأكيد',
                 'ok': 'موافق',
@@ -1371,6 +1798,14 @@
                 'export_successful': 'تم التصدير بنجاح',
                 'export_to_pdf': 'تصدير الى PDF',
                 'export_to_excel': 'تصدير الى Excel (.xlsx)',
+                'cancel_trip_confirm': 'إلغاء هذه الرحلة؟\n\nسيتم حذف الرحلة ومسح السلة. ستفقد أي عناصر غير محفوظة.',
+                'cancel_po_confirm': 'إلغاء أمر الشراء؟\n\nسيتم حذف أمر الشراء ومسح السلة. ستفقد أي عناصر غير محفوظة.',
+                'cancel_transfer_confirm': 'إلغاء التحويل؟\n\nسيتم مسح عناصر التحويل والعودة لصفحة إدخال التحويل.',
+                'error_canceling_trip': 'خطأ في إلغاء الرحلة. يرجى المحاولة مرة أخرى.',
+                'error_canceling_po': 'خطأ في إلغاء أمر الشراء. يرجى المحاولة مرة أخرى.',
+                'transfer_canceled': 'تم إلغاء التحويل بنجاح.',
+                'duty_free_supported': 'السوق الحرة مدعومة',
+                'no_duty_free': 'لا سوق حرة',
                 // User Management translations
                 'user_management': 'ادارة المستخدمين',
                 'user_management_desc': 'ادارة المستخدمين والادوار والصلاحيات',
@@ -1547,7 +1982,7 @@
                 'enter_po_number': 'يرجى إدخال رقم أمر الشراء',
                 'items': 'عناصر',
                 'actions': 'الإجراءات',
-                //PO Supply Transactions
+                //PO Supply translations
                 'back_to_pos': 'العودة لقائمة اوامر الشراء',
                 'po_supply': 'استلام شحنات المخزون',
                 'unit_cost': 'تكلفة الوحدة',
@@ -1557,6 +1992,23 @@
                 'purchase_cost': 'تكلفة الشراء',
                 'avg_cost_per_item': 'متوسط تكلفة الوحدة',
                 'add_supply_item': 'اضافة عنصر شحنات المخزون',
+                'product_catalog': 'كتالوج المنتجات',
+                'default_cost': 'التكلفة الافتراضية',
+                'all_products': 'جميع المنتجات',
+                'general_products_only': 'منتجات عامة فقط',
+                'duty_free_supported': 'السوق الحرة مدعومة',
+                'no_duty_free': 'لا سوق حرة',
+                // Reports translations
+                'vessel_sales_system': 'نظام مبيعات السفن',
+                'back_to_reports': 'العودة للتقارير',
+                'all_vessels': 'جميع السفن',
+                'all_status': 'جميع الحالات',
+                'showing': 'عرض',
+                'filtered': 'مفلتر',
+                'clear_filters': 'مسح التصفيات',
+                'view_details': 'عرض التفاصيل',
+                'analytics': 'التحليلات',
+                'ago': 'مضت',
                 // Inventory Check
                 'show_inventory': 'اظهار المخزون',
             }

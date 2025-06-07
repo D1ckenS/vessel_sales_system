@@ -120,7 +120,7 @@
                         <tbody>
                             {% for transfer in recent_transfers %}
                             <tr>
-                                <td><span data-number data-original="{{ transfer.transaction_date|date:'d/m/Y' }}">{{ transfer.transaction_date|date:"d/m/Y" }}</span></td>
+                                <td>{{ transfer.transaction_date|date:"d/m/Y" }}</td>
                                 <td>
                                     <span class="badge bg-danger me-1">
                                         <span class="vessel-name" data-en="{{ transfer.vessel.name }}" data-ar="{{ transfer.vessel.name_ar }}">{{ transfer.vessel.name }}</span>
@@ -138,7 +138,7 @@
                                 </td>
                                 <td>
                                     <small>{{ transfer.created_by.username|default:"System" }}</small>
-                                    <small class="text-muted d-block transaction-time" data-time="{{ transfer.created_at|timesince }}">{{ transfer.created_at|timesince }} <span data-translate="ago">ago</span></small>
+                                    <small class="text-muted d-block">{{ transfer.created_at|timesince }} <span data-translate="ago">ago</span></small>
                                 </td>
                                 <td>
                                     <button class="btn btn-outline-info btn-sm" onclick="viewTransferDetails('{{ transfer.id }}')" title="View Details">
@@ -174,6 +174,7 @@ document.addEventListener('DOMContentLoaded', function() {
             'transfer_entry': 'Transfer Entry',
             'vessel_sales_system': 'Vessel Sales System',
             'transfer_entry_desc': 'Create new transfer and move inventory between vessels',
+            'back_to_dashboard': 'Back to Dashboard',
             'create_new_transfer': 'Create New Transfer',
             'from_vessel_source': 'From Vessel (Source)',
             'choose_source_vessel': 'Choose source vessel...',
@@ -182,22 +183,28 @@ document.addEventListener('DOMContentLoaded', function() {
             'first_select_source_vessel': 'First select source vessel...',
             'transfer_date': 'Transfer Date',
             'transfer_notes': 'Transfer Notes (Optional)',
+            'clear_form': 'Clear Form',
             'create_transfer_add_items': 'Create Transfer & Add Items',
             'recent_transfers': 'Recent Transfers',
+            'date': 'Date',
             'from_to': 'From → To',
-            'view_transfer_details': 'View transfer details',
+            'items': 'Items',
+            'by': 'By',
+            'actions': 'Actions',
+            'quantity': 'Quantity',
+            'ago': 'ago',
+            'view': 'View',
             'no_transfers_yet': 'No transfers recorded yet',
             'create_first_transfer': 'Create your first transfer using the form above',
             'choose_destination_vessel': 'Choose destination vessel...',
             'duty_free_supported': 'Duty-Free Supported',
-            'no_duty_free': 'No Duty-Free',
-            'ago': 'ago',
-            'by': 'By'
+            'no_duty_free': 'No Duty-Free'
         },
         ar: {
             'transfer_entry': 'إدخال التحويل',
             'vessel_sales_system': 'نظام مبيعات السفن',
             'transfer_entry_desc': 'إنشاء تحويل جديد ونقل المخزون بين السفن',
+            'back_to_dashboard': 'الرجوع للوحة التحكم',
             'create_new_transfer': 'إنشاء تحويل جديد',
             'from_vessel_source': 'من السفينة (المصدر)',
             'choose_source_vessel': 'اختر السفينة المصدر...',
@@ -206,17 +213,22 @@ document.addEventListener('DOMContentLoaded', function() {
             'first_select_source_vessel': 'اختر السفينة المصدر أولاً...',
             'transfer_date': 'تاريخ التحويل',
             'transfer_notes': 'ملاحظات التحويل (اختياري)',
+            'clear_form': 'مسح النموذج',
             'create_transfer_add_items': 'إنشاء التحويل وإضافة العناصر',
             'recent_transfers': 'التحويلات الأخيرة',
+            'date': 'التاريخ',
             'from_to': 'من ← إلى',
-            'view_transfer_details': 'عرض تفاصيل التحويل',
+            'items': 'العناصر',
+            'by': 'بواسطة',
+            'actions': 'الإجراءات',
+            'quantity': 'الكمية',
+            'ago': 'مضت',
+            'view': 'عرض',
             'no_transfers_yet': 'لم يتم تسجيل تحويلات بعد',
             'create_first_transfer': 'أنشئ أول تحويل باستخدام النموذج أعلاه',
             'choose_destination_vessel': 'اختر السفينة المقصودة...',
             'duty_free_supported': 'السوق الحرة مدعومة',
-            'no_duty_free': 'لا توجد سوق حرة',
-            'ago': 'مضت',
-            'by': 'بواسطة'
+            'no_duty_free': 'لا سوق حرة'
         }
     };
     
@@ -258,7 +270,9 @@ document.getElementById('fromVessel').addEventListener('change', function() {
                 // Set option text based on current language
                 const currentLang = window.translator.currentLanguage;
                 const vesselName = (currentLang === 'ar' && option.dataset.nameAr) ? option.dataset.nameAr : option.dataset.name;
-                const dutyFreeText = option.dataset.dutyFree === 'true' ? ` (${_('duty_free_supported')})` : ` (${_('no_duty_free')})`;
+                
+                // 🔧 FIX: Django outputs "True"/"False", not "true"/"false"
+                const dutyFreeText = option.dataset.dutyFree === 'True' ? ` (${_('duty_free_supported')})` : ` (${_('no_duty_free')})`;
                 newOption.textContent = vesselName + dutyFreeText;
                 
                 toVesselSelect.appendChild(newOption);
@@ -278,7 +292,7 @@ function clearForm() {
 }
 
 function viewTransferDetails(transferId) {
-    // Placeholder for future implementation
+    // Implementation for viewing transfer details
     alertTranslated('feature_coming_soon');
 }
 </script>

@@ -14,7 +14,7 @@
                 </h2>
                 <p class="text-muted mb-0">
                     <i class="bi bi-ship"></i> <span class="vessel-name" data-en="{{ po.vessel.name }}" data-ar="{{ po.vessel.name_ar }}">{{ po.vessel.name }}</span> •
-                    <i class="bi bi-calendar"></i> <span class="po-date-display" data-date="{{ po.po_date|date:'d/m/Y' }}">{{ po.po_date|date:"d/m/Y" }}</span>
+                    <i class="bi bi-calendar"></i> <span data-po-date data-original="{{ po.po_date|date:'d/m/Y' }}">{{ po.po_date|date:"d/m/Y" }}</span>
                 </p>
             </div>
             <div class="d-flex gap-2">
@@ -83,11 +83,11 @@
     </div>
 </div>
 
-{% if can_edit %}
-<!-- Add Supply Item Form -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card">
+<div class="row">
+    {% if can_edit %}
+    <!-- LEFT SIDE: Add Supply Item Form -->
+    <div class="col-md-6">
+        <div class="card h-100 form-panel">
             <div class="card-header">
                 <h5 class="mb-0" id="formTitle">
                     <i class="bi bi-plus-circle"></i> <span data-translate="add_supply_item">Add Supply Item</span>
@@ -100,29 +100,26 @@
                     <input type="hidden" id="editIndex" value="-1">
                     
                     <!-- Product Search -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-search"></i> <span data-translate="search_product">Search Product</span>
+                        </label>
+                        <input type="text" class="form-control form-control-lg" id="productSearch" 
+                               data-placeholder-en="Type product name or ID..."
+                               data-placeholder-ar="اكتب اسم المنتج أو الرقم..."
+                               placeholder="Type product name or ID...">
+                    </div>
+                    
+                    <!-- Quantity and Cost -->
                     <div class="row mb-3">
-                        <div class="col-md-4">
-                            <label class="form-label fw-bold">
-                                <i class="bi bi-search"></i> <span data-translate="search_product">Search Product</span>
-                            </label>
-                            <div class="input-group">
-                                <input type="text" class="form-control form-control-lg" id="productSearch" 
-                                       data-placeholder-en="Type product name, ID, or scan barcode..."
-                                       data-placeholder-ar="اكتب اسم المنتج، الرقم، أو امسح الباركود..."
-                                       placeholder="Type product name, ID, or scan barcode...">
-                                <button class="btn btn-outline-secondary" type="button" onclick="showComingSoon()">
-                                    <i class="bi bi-upc-scan"></i> <span data-translate="scan">Scan</span>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
+                        <div class="col-6">
                             <label class="form-label fw-bold">
                                 <i class="bi bi-123"></i> <span data-translate="quantity">Quantity</span>
                             </label>
                             <input type="number" class="form-control form-control-lg" id="supplyQuantity" 
                                    placeholder="0" min="1" step="1" disabled>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-6">
                             <label class="form-label fw-bold">
                                 <i class="bi bi-currency-dollar"></i>
                                 <span data-translate="purchase_cost">Purchase Cost</span>
@@ -138,19 +135,11 @@
                     <div id="productInfo" class="mb-3" style="display: none;">
                         <div class="alert alert-info">
                             <div class="row">
-                                <div class="col-md-3">
+                                <div class="col-md-6">
                                     <strong><span data-translate="product_colon">Product:</span></strong>
                                     <div id="productName">-</div>
                                 </div>
-                                <div class="col-md-3">
-                                    <strong><span data-translate="default_cost_colon">Default Cost:</span></strong>
-                                    <div id="defaultCost">- <span data-currency-symbol>JOD</span></div>
-                                </div>
-                                <div class="col-md-3">
-                                    <strong><span data-translate="duty_free_colon">Duty-Free:</span></strong>
-                                    <div id="dutyFreeStatus">-</div>
-                                </div>
-                                <div class="col-md-3">
+                                <div class="col-md-6">
                                     <strong><span data-translate="total_cost_colon">Total Cost:</span></strong>
                                     <div id="totalCost">0.000 <span data-currency-symbol>JOD</span></div>
                                 </div>
@@ -159,34 +148,66 @@
                     </div>
                     
                     <!-- Notes and Buttons -->
-                    <div class="row">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">
-                                <i class="bi bi-chat-left-text"></i> <span data-translate="po_notes">Notes (Optional)</span>
-                            </label>
-                            <input type="text" class="form-control" id="supplyNotes" 
-                                   data-placeholder-en="Additional notes for this supply..."
-                                   data-placeholder-ar="ملاحظات إضافية لهذا التوريد..."
-                                   placeholder="Additional notes for this supply...">
-                        </div>
-                        <div class="col-md-6 d-flex align-items-end gap-2">
-                            <button type="button" class="btn btn-outline-secondary" onclick="cancelEdit()">
-                                <i class="bi bi-x-circle"></i> <span data-translate="cancel">Cancel</span>
-                            </button>
-                            <button type="submit" class="btn btn-primary flex-grow-1" id="addSupplyBtn" disabled>
-                                <i class="bi bi-plus"></i> <span id="addBtnText" data-translate="add_to_po">Add to PO</span>
-                            </button>
-                        </div>
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-chat-left-text"></i> <span data-translate="po_notes">Notes (Optional)</span>
+                        </label>
+                        <input type="text" class="form-control" id="supplyNotes" 
+                               data-placeholder-en="Additional notes for this supply..."
+                               data-placeholder-ar="ملاحظات إضافية لهذا التوريد..."
+                               placeholder="Additional notes for this supply...">
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-outline-secondary" onclick="cancelEdit()">
+                            <i class="bi bi-x-circle"></i> <span data-translate="cancel">Cancel</span>
+                        </button>
+                        <button type="submit" class="btn btn-primary" id="addSupplyBtn" disabled>
+                            <i class="bi bi-plus"></i> <span id="addBtnText" data-translate="add_to_po">Add to PO</span>
+                        </button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
+    {% endif %}
+    
+    <!-- RIGHT SIDE: Product Catalog -->
+    <div class="col-md-6">
+        <div class="card h-100 catalog-panel">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-search"></i> <span data-translate="product_catalog">Product Catalog</span>
+                    {% if po.vessel.has_duty_free %}
+                        <span class="badge bg-success ms-2"><span data-translate="all_products">All Products</span></span>
+                    {% else %}
+                        <span class="badge bg-warning ms-2"><span data-translate="general_products_only">General Products Only</span></span>
+                    {% endif %}
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="scrollable-panel available-products-panel">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th><span data-translate="product_name">Product Name</span></th>
+                                <th><span data-translate="product_id">Product ID</span></th>
+                                <th class="text-end"><span data-translate="default_cost">Default Cost</span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="availableProductsList">
+                            <!-- Will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
-{% endif %}
 
 <!-- PO Supply List -->
-<div class="row">
+<div class="row mt-4">
     <div class="col-12">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -240,151 +261,81 @@
 {% endblock %}
 
 {% block extra_js %}
-<!-- Enhanced Translation for PO Supply -->
+<!-- Enhanced PO Supply with Product Catalog -->
 <script>
+// Global shopping cart state
+let poSuppliesCart = [];
+let selectedProduct = null;
+let editingIndex = -1;
+let productCatalog = [];
+
+// Enhanced PO Supply translations
 document.addEventListener('DOMContentLoaded', function() {
-    // Translation data specific to PO Supply
     const poSupplyTranslations = {
         en: {
-            // PO Confirmation messages
-            'cancel_po_with_cart': 'Cancel PO? This will clear your cart and may delete the PO if no items were previously saved.',
-            'cancel_po_empty': 'Cancel PO? This will delete the PO if no items were previously saved.',
-            'remove_cart_item': 'Remove this item from the cart?',
+            'product_catalog': 'Product Catalog',
+            'default_cost': 'Default Cost',
             'complete_po_confirm': 'Complete PO with {count} items?\n\nTotal Cost: {cost} JOD\n\nThis action cannot be undone.',
             'add_one_item_first': 'Please add at least one item to complete the PO.',
-            
-            // Alert messages  
             'item_added_success': 'Item added to cart successfully!',
             'item_removed': 'Item removed from cart.',
             'invalid_item_edit': 'Invalid item selected for editing.',
             'error_completing_po': 'Error completing PO. Please try again.',
-            'error_cancelling_po': 'Error cancelling PO. Please try again.',
-            'error_loading_cart': 'Error loading cart data. Starting fresh.',
-            
-            // Search and validation
+            'completing': 'Completing...',
+            'remove_cart_item': 'Remove this item from the cart?',
+            'edit_supply_item': 'Edit Supply Item',
+            'add_supply_item': 'Add Supply Item',
+            'update_item': 'Update Item',
+            'add_to_po': 'Add to PO',
+            'already_in_cart': 'Already in Cart',
+            'duty_free_not_supported': 'Duty-Free Not Supported',
             'no_products_found': 'No products found matching your search.',
             'error_searching': 'Error searching products. Please try again.',
             'select_product_first': 'Select product first',
-            
-            // Coming soon messages
-            'barcode_coming_soon': '🚀 Barcode scanning feature coming soon!',
-            'export_coming_soon': '📊 Export feature coming soon!',
-            'print_coming_soon': '🖨️ Print feature coming soon!',
-            
-            // Form labels and buttons
-            'add_to_po': 'Add to PO',
-            'update_item': 'Update Item',
-            'already_in_cart': 'Already in Cart',
-            'duty_free_not_supported': 'Duty-Free Not Supported',
-            'completing': 'Completing...',
-            'edit_supply_item': 'Edit Supply Item',
-            'yes': 'Yes',
-            'no': 'No',
             'edit_item': 'Edit Item',
             'remove_item': 'Remove Item',
-            'id_colon': 'ID:',
-            
-            // Units and currency
-            'units': 'units',
-            'jod': 'JOD'
+            'select_from_catalog': 'Click on a product from the catalog'
         },
         ar: {
-            // Arabic translations for PO
-            'cancel_po_with_cart': 'إلغاء أمر الشراء؟ سيؤدي هذا إلى مسح سلة التسوق وقد يحذف الأمر إذا لم يتم حفظ أي عناصر مسبقاً.',
-            'cancel_po_empty': 'إلغاء أمر الشراء؟ سيؤدي هذا إلى حذف الأمر إذا لم يتم حفظ أي عناصر مسبقاً.',
-            'remove_cart_item': 'إزالة هذا العنصر من السلة؟',
+            'product_catalog': 'كتالوج المنتجات',
+            'default_cost': 'التكلفة الافتراضية',
             'complete_po_confirm': 'إكمال أمر الشراء مع {count} عنصر؟\n\nإجمالي التكلفة: {cost} دينار\n\nلا يمكن التراجع عن هذا الإجراء.',
             'add_one_item_first': 'يرجى إضافة عنصر واحد على الأقل لإكمال أمر الشراء.',
-            
             'item_added_success': 'تم إضافة العنصر إلى السلة بنجاح!',
             'item_removed': 'تم إزالة العنصر من السلة.',
             'invalid_item_edit': 'عنصر غير صالح تم اختياره للتعديل.',
             'error_completing_po': 'خطأ في إكمال أمر الشراء. يرجى المحاولة مرة أخرى.',
-            'error_cancelling_po': 'خطأ في إلغاء أمر الشراء. يرجى المحاولة مرة أخرى.',
-            'error_loading_cart': 'خطأ في تحميل بيانات السلة. بدء جديد.',
-            
+            'completing': 'جاري الإكمال...',
+            'remove_cart_item': 'إزالة هذا العنصر من السلة؟',
+            'edit_supply_item': 'تعديل عنصر التوريد',
+            'add_supply_item': 'إضافة عنصر التوريد',
+            'update_item': 'تحديث العنصر',
+            'add_to_po': 'إضافة لأمر الشراء',
+            'already_in_cart': 'موجود في السلة',
+            'duty_free_not_supported': 'المعفى من الرسوم غير مدعوم',
             'no_products_found': 'لم يتم العثور على منتجات تطابق بحثك.',
             'error_searching': 'خطأ في البحث عن المنتجات. يرجى المحاولة مرة أخرى.',
             'select_product_first': 'اختر المنتج أولاً',
-            
-            'barcode_coming_soon': '🚀 ميزة مسح الباركود قريباً!',
-            'export_coming_soon': '📊 ميزة التصدير قريباً!',
-            'print_coming_soon': '🖨️ ميزة الطباعة قريباً!',
-            
-            'add_to_po': 'إضافة لأمر الشراء',
-            'update_item': 'تحديث العنصر',
-            'already_in_cart': 'موجود في السلة',
-            'duty_free_not_supported': 'المعفى من الرسوم غير مدعوم',
-            'completing': 'جاري الإكمال...',
-            'edit_supply_item': 'تعديل عنصر التوريد',
-            'yes': 'نعم',
-            'no': 'لا',
             'edit_item': 'تعديل العنصر',
             'remove_item': 'إزالة العنصر',
-            'id_colon': 'رقم:',
-            
-            'units': 'وحدة',
-            'jod': 'دينار'
+            'select_from_catalog': 'انقر على منتج من الكتالوج'
         }
     };
     
-    // Merge translations with global translator
-    if (window.translator && window.translator.translations) {
-        Object.assign(window.translator.translations.en, poSupplyTranslations.en);
-        Object.assign(window.translator.translations.ar, poSupplyTranslations.ar);
-    }
-
-    // Update page elements on language change
-    window.addEventListener('languageChanged', function() {
-        updatePOSupplyTranslations();
+    // Merge with global translations
+    const currentTranslations = window.translator.translations;
+    Object.keys(poSupplyTranslations).forEach(lang => {
+        if (currentTranslations[lang]) {
+            Object.assign(currentTranslations[lang], poSupplyTranslations[lang]);
+        }
     });
     
-    function updatePOSupplyTranslations() {
-        // Update PO number display
-        document.querySelectorAll('.po-number-display').forEach(element => {
-            const originalValue = element.getAttribute('data-original') || element.textContent.trim();
-            if (!element.getAttribute('data-original')) {
-                element.setAttribute('data-original', originalValue);
-            }
-            const translatedNumber = window.translateNumber(originalValue);
-            element.textContent = translatedNumber;
-        });
-        
-        // Update date display
-        document.querySelectorAll('.po-date-display').forEach(element => {
-            const originalDate = element.getAttribute('data-date');
-            if (originalDate && window.translator.currentLanguage === 'ar') {
-                const translatedDate = window.translateNumber(originalDate);
-                element.textContent = translatedDate;
-            } else if (originalDate) {
-                element.textContent = originalDate;
-            }
-        });
-        
-        // Update all numbers
-        document.querySelectorAll('.cost-display, .item-count-display, .avg-cost-display').forEach(element => {
-            const originalValue = element.getAttribute('data-original') || element.textContent.trim();
-            if (!element.getAttribute('data-original')) {
-                element.setAttribute('data-original', originalValue);
-            }
-            const translatedNumber = window.translateNumber(originalValue);
-            element.textContent = translatedNumber;
-        });
-    }
-    
-    // Initial translation update
-    setTimeout(() => {
-        updatePOSupplyTranslations();
-    }, 0);
-
     // Check if required elements exist and if PO is editable
     const poIdElement = document.getElementById('poId');
-    const productSearchElement = document.getElementById('productSearch');
     const canEdit = {{ can_edit|yesno:"true,false" }};
     
     if (!canEdit) {
         console.log('PO completed - displaying read-only data');
-        // For completed POs, display the completed data
         {% if completed_supplies_json %}
         try {
             const completedSupplies = JSON.parse('{{ completed_supplies_json|escapejs }}');
@@ -395,69 +346,32 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('Error parsing completed supplies:', e);
         }
         {% endif %}
+        // Still load product catalog for viewing
+        loadProductCatalog();
         return;
     }
     
-    if (!poIdElement || !productSearchElement) {
+    if (!poIdElement) {
         console.log('PO elements missing, skipping cart initialization');
         return;
     }
     
-    // Only run cart code if all elements exist and PO is editable
+    // Initialize for editable POs
     try {
         initializePOCart();
+        loadProductCatalog();
         updateCartDisplay();
         setupEventListeners();
     } catch (error) {
         console.error('Error initializing PO cart:', error);
-        showAlert(window.translator._('error_loading_cart'), 'warning');
+        showAlert(_('error_loading_cart'), 'warning');
         poSuppliesCart = [];
         updateCartDisplay();
     }
+    
+    // Apply translations
+    updatePageTranslations();
 });
-</script>
-<script>
-// Global shopping cart state
-let poSuppliesCart = [];
-let selectedProduct = null;
-let editingIndex = -1;
-let currentProductPage = 0;
-let allMatchedProducts = [];
-const PRODUCTS_PER_PAGE = 5;
-
-function setupEventListeners() {
-    // Product search functionality
-    let searchTimeout;
-    document.getElementById('productSearch').addEventListener('input', function() {
-        const searchTerm = this.value.trim();
-        
-        clearTimeout(searchTimeout);
-        
-        if (searchTerm.length >= 2) {
-            searchTimeout = setTimeout(() => {
-                searchProducts(searchTerm);
-            }, 500);
-        } else {
-            clearProductSelection();
-        }
-    });
-
-    document.getElementById('supplyQuantity').addEventListener('input', function() {
-        updateTotalCost();
-        validateForm();
-    });
-
-    document.getElementById('purchaseCost').addEventListener('input', function() {
-        updateTotalCost();
-        validateForm();
-    });
-
-    // Form submission
-    document.getElementById('addSupplyForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        addToCart();
-    });
-}
 
 function initializePOCart() {
     const poId = document.getElementById('poId').value;
@@ -503,124 +417,72 @@ function saveCartToStorage() {
     }
 }
 
-function clearCartStorage() {
-    try {
-        const poId = document.getElementById('poId').value;
-        const storageKey = `po_supplies_${poId}`;
-        localStorage.removeItem(storageKey);
-        console.log('Cart cleared from localStorage:', storageKey);
-    } catch (error) {
-        console.error('Error clearing cart from localStorage:', error);
-    }
-}
-
-function searchProducts(searchTerm) {
-    fetch('/supply/search-products/', {
+function loadProductCatalog() {
+    fetch('/supply/product-catalog/', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
         },
         body: JSON.stringify({
-            search: searchTerm
+            vessel_id: {{ po.vessel.id }}  // 🔧 SEND VESSEL ID FOR FILTERING
         })
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success && data.products.length > 0) {
-            showProductSelection(data.products);
+        if (data.success) {
+            productCatalog = data.products;
+            displayProductCatalog();
         } else {
-            clearProductSelection();
-            showAlert(window.translator._('no_products_found'), 'warning');
+            console.error('Error loading product catalog:', data.error);
         }
     })
     .catch(error => {
-        console.error('Error searching products:', error);
-        showAlert(window.translator._('error_searching'), 'danger');
+        console.error('Error loading product catalog:', error);
     });
 }
 
-function showProductSelection(products) {
-    if (products.length === 1) {
-        // Only 1 match - auto-select
-        selectProduct(products[0]);
-    } else if (products.length > 1) {
-        // Multiple matches - show paginated selection
-        allMatchedProducts = products;
-        currentProductPage = 0;
-        displayProductPage();
+function displayProductCatalog() {
+    const tbody = document.getElementById('availableProductsList'); // 🔧 CORRECT TABLE ID
+    
+    if (productCatalog.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="3" class="text-center text-muted py-4">
+                    <i class="bi bi-box" style="font-size: 2rem;"></i>
+                    <p class="mt-2 mb-0">${_('no_products_available')}</p>
+                </td>
+            </tr>
+        `;
+        return;
     }
-}
-
-function displayProductPage() {
-    clearProductSelection();
     
-    const startIndex = currentProductPage * PRODUCTS_PER_PAGE;
-    const endIndex = Math.min(startIndex + PRODUCTS_PER_PAGE, allMatchedProducts.length);
-    const currentProducts = allMatchedProducts.slice(startIndex, endIndex);
-    const totalPages = Math.ceil(allMatchedProducts.length / PRODUCTS_PER_PAGE);
-    
-    document.getElementById('productInfo').innerHTML = `
-        <div class="alert alert-warning">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <h6 class="mb-0"><i class="bi bi-list"></i> ${window.translator._('multiple_products_found', {count: allMatchedProducts.length})}</h6>
-                <div class="d-flex align-items-center gap-2">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" 
-                            onclick="navigateProducts(-1)" ${currentProductPage === 0 ? 'disabled' : ''}>
-                        <i class="bi bi-chevron-left"></i>
-                    </button>
-                    <small class="text-muted">${window.translator._('page_x_of_y', {current: currentProductPage + 1, total: totalPages})}</small>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" 
-                            onclick="navigateProducts(1)" ${currentProductPage === totalPages - 1 ? 'disabled' : ''}>
-                        <i class="bi bi-chevron-right"></i>
-                    </button>
+    tbody.innerHTML = productCatalog.map(product => `
+        <tr class="cursor-pointer" onclick="selectProductFromCatalog(${JSON.stringify(product).replace(/"/g, '&quot;')})">
+            <td>
+                <div>
+                    <strong>${product.name}</strong>
+                    ${product.is_duty_free ? '<span class="badge bg-warning text-dark ms-1">' + _('duty_free') + '</span>' : ''}
                 </div>
-            </div>
-            <div class="list-group">
-                ${currentProducts.map(product => `
-                    <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" 
-                            onclick="selectProduct(${JSON.stringify(product).replace(/"/g, '&quot;')})">
-                        <div>
-                            <strong>${product.name}</strong>
-                            <br><small class="text-muted">${window.translator._('id_colon')} ${product.item_id}</small>
-                        </div>
-                        <span class="badge bg-primary">${window.translateNumber(product.purchase_price.toFixed(3))} ${window.translator._('jod')}</span>
-                    </button>
-                `).join('')}
-            </div>
-            <small class="text-muted mt-2 d-block">
-                <i class="bi bi-lightbulb"></i> 
-                ${window.translator._('browse_products_tip')}
-            </small>
-        </div>
-    `;
-    
-    document.getElementById('productInfo').style.display = 'block';
+            </td>
+            <td><code>${product.item_id}</code></td>
+            <td class="text-end">
+                <span class="fw-bold text-primary">${translateNumber(product.purchase_price.toFixed(3))}</span>
+                <small class="text-muted d-block">JOD</small>
+            </td>
+        </tr>
+    `).join('');
 }
 
-function navigateProducts(direction) {
-    const totalPages = Math.ceil(allMatchedProducts.length / PRODUCTS_PER_PAGE);
-    const newPage = currentProductPage + direction;
-    
-    if (newPage >= 0 && newPage < totalPages) {
-        currentProductPage = newPage;
-        displayProductPage();
-    }
-}
-
-function selectProduct(product) {
+function selectProductFromCatalog(product) {
     selectedProduct = product;
     
-    // Update search field to show selected product
+    // Update search field
     document.getElementById('productSearch').value = product.name;
     
-    // Hide the product selection list
-    document.getElementById('productInfo').style.display = 'none';
-    
-    // Update UI
+    // Update product info
     document.getElementById('productName').textContent = product.name;
-    document.getElementById('defaultCost').textContent = window.translateNumber(product.purchase_price.toFixed(3)) + ' ' + window.translator._('jod');
-    document.getElementById('dutyFreeStatus').textContent = product.is_duty_free ? window.translator._('yes') : window.translator._('no');
+    document.getElementById('productInfo').style.display = 'block';
     
     // Enable inputs
     document.getElementById('supplyQuantity').disabled = false;
@@ -632,11 +494,54 @@ function selectProduct(product) {
     // Focus on quantity
     document.getElementById('supplyQuantity').focus();
     
-    // Show product info
-    document.getElementById('productInfo').style.display = 'block';
-    
+    // Update total cost
     updateTotalCost();
     validateForm();
+}
+
+function setupEventListeners() {
+    // Product search functionality
+    let searchTimeout;
+    document.getElementById('productSearch').addEventListener('input', function() {
+        const searchTerm = this.value.trim().toLowerCase();
+        
+        clearTimeout(searchTimeout);
+        
+        if (searchTerm.length >= 2) {
+            searchTimeout = setTimeout(() => {
+                // Filter product catalog
+                const filteredProducts = productCatalog.filter(product => 
+                    product.name.toLowerCase().includes(searchTerm) ||
+                    product.item_id.toLowerCase().includes(searchTerm)
+                );
+                
+                if (filteredProducts.length === 1) {
+                    selectProductFromCatalog(filteredProducts[0]);
+                } else if (filteredProducts.length === 0) {
+                    clearProductSelection();
+                    showAlert(_('no_products_found'), 'warning');
+                }
+            }, 500);
+        } else {
+            clearProductSelection();
+        }
+    });
+
+    document.getElementById('supplyQuantity').addEventListener('input', function() {
+        updateTotalCost();
+        validateForm();
+    });
+
+    document.getElementById('purchaseCost').addEventListener('input', function() {
+        updateTotalCost();
+        validateForm();
+    });
+
+    // Form submission
+    document.getElementById('addSupplyForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        addToCart();
+    });
 }
 
 function updateTotalCost() {
@@ -645,7 +550,7 @@ function updateTotalCost() {
     const quantity = parseInt(document.getElementById('supplyQuantity').value) || 0;
     const cost = parseFloat(document.getElementById('purchaseCost').value) || 0;
     const total = quantity * cost;
-    document.getElementById('totalCost').textContent = window.translateNumber(total.toFixed(3)) + ' ' + window.translator._('jod');
+    document.getElementById('totalCost').textContent = translateNumber(total.toFixed(3)) + ' ' + _('jod');
 }
 
 function validateForm() {
@@ -655,30 +560,24 @@ function validateForm() {
     const addBtnText = document.getElementById('addBtnText');
     
     let isValid = selectedProduct && quantity > 0 && cost > 0;
-    let buttonText = editingIndex >= 0 ? window.translator._('update_item') : window.translator._('add_to_po');
-    let buttonClass = 'btn btn-primary flex-grow-1';
+    let buttonText = editingIndex >= 0 ? _('update_item') : _('add_to_po');
+    let buttonClass = 'btn btn-primary';
     
     // Check for duplicate product (only when not editing)
     if (selectedProduct && editingIndex === -1) {
         const existingIndex = poSuppliesCart.findIndex(item => item.product_id === selectedProduct.id);
         if (existingIndex !== -1) {
             isValid = false;
-            buttonText = window.translator._('already_in_cart');
-            buttonClass = 'btn btn-warning flex-grow-1';
-            
-            // Highlight existing item in cart
-            highlightCartItem(existingIndex);
-        } else {
-            // Remove any previous highlights
-            removeCartHighlights();
+            buttonText = _('already_in_cart');
+            buttonClass = 'btn btn-warning';
         }
     }
     
     // Check duty-free compatibility
     if (selectedProduct?.is_duty_free && !{{ po.vessel.has_duty_free|yesno:"true,false" }}) {
         isValid = false;
-        buttonText = window.translator._('duty_free_not_supported');
-        buttonClass = 'btn btn-danger flex-grow-1';
+        buttonText = _('duty_free_not_supported');
+        buttonClass = 'btn btn-danger';
     }
     
     addBtn.disabled = !isValid;
@@ -686,40 +585,6 @@ function validateForm() {
     addBtnText.textContent = buttonText;
 }
 
-function highlightCartItem(index) {
-    // Remove previous highlights
-    removeCartHighlights();
-    
-    // Add highlight to existing item
-    const cartRows = document.querySelectorAll('#suppliesList tr');
-    if (cartRows[index]) {
-        cartRows[index].classList.add('table-info');
-        cartRows[index].style.border = '2px solid #17a2b8';
-    }
-}
-
-function removeCartHighlights() {
-    const cartRows = document.querySelectorAll('#suppliesList tr');
-    cartRows.forEach(row => {
-        row.classList.remove('table-info');
-        row.style.border = '';
-    });
-}
-
-function clearProductSelection() {
-    selectedProduct = null;
-    document.getElementById('productInfo').style.display = 'none';
-    document.getElementById('supplyQuantity').disabled = true;
-    document.getElementById('purchaseCost').disabled = true;
-    document.getElementById('supplyQuantity').value = '';
-    document.getElementById('purchaseCost').value = '';
-    const addBtn = document.getElementById('addSupplyBtn');
-    addBtn.disabled = true;
-    addBtn.className = 'btn btn-primary flex-grow-1';
-    document.getElementById('addBtnText').textContent = window.translator._('add_to_po');
-}
-
-// Shopping cart operations
 function addToCart() {
     if (!selectedProduct) return;
     
@@ -752,7 +617,7 @@ function addToCart() {
     saveCartToStorage();
     updateCartDisplay();
     clearForm();
-    showAlert(window.translator._('item_added_success'), 'success');
+    showAlert(_('item_added_success'), 'success');
     
     // Focus back to search field for next item
     document.getElementById('productSearch').focus();
@@ -764,13 +629,13 @@ async function removeFromCart(index) {
         poSuppliesCart.splice(index, 1);
         saveCartToStorage();
         updateCartDisplay();
-        showAlert(window.translator._('item_removed'), 'info');
+        showAlert(_('item_removed'), 'info');
     }
 }
 
 function editCartItem(index) {
     if (index < 0 || index >= poSuppliesCart.length) {
-        showAlert(window.translator._('invalid_item_edit'), 'error');
+        showAlert(_('invalid_item_edit'), 'error');
         return;
     }
     
@@ -780,54 +645,68 @@ function editCartItem(index) {
     editingIndex = index;
     
     // Update UI to edit mode
-    document.getElementById('formTitle').innerHTML = '<i class="bi bi-pencil"></i> ' + window.translator._('edit_supply_item');
-    document.getElementById('addBtnText').textContent = window.translator._('update_item');
+    document.getElementById('formTitle').innerHTML = '<i class="bi bi-pencil"></i> ' + _('edit_supply_item');
+    document.getElementById('addBtnText').textContent = _('update_item');
     
-    // Simulate product selection by setting selectedProduct
-    selectedProduct = {
-        id: item.product_id,
-        name: item.product_name,
-        item_id: item.product_item_id,
-        barcode: item.product_barcode,
-        is_duty_free: item.is_duty_free,
-        purchase_price: item.unit_price
-    };
+    // Find the product in catalog
+    selectedProduct = productCatalog.find(p => p.id === item.product_id);
     
-    // Populate form fields
-    document.getElementById('productSearch').value = item.product_name;
-    document.getElementById('supplyQuantity').value = item.quantity;
-    document.getElementById('supplyQuantity').disabled = false;
-    document.getElementById('purchaseCost').value = item.unit_price.toFixed(3);
-    document.getElementById('purchaseCost').disabled = false;
-    document.getElementById('supplyNotes').value = item.notes || '';
-    
-    // Update product info display
-    document.getElementById('productName').textContent = item.product_name;
-    document.getElementById('defaultCost').textContent = window.translateNumber(item.unit_price.toFixed(3)) + ' ' + window.translator._('jod');
-    document.getElementById('dutyFreeStatus').textContent = item.is_duty_free ? window.translator._('yes') : window.translator._('no');
-    document.getElementById('totalCost').textContent = window.translateNumber(item.total_amount.toFixed(3)) + ' ' + window.translator._('jod');
-    
-    // Show product info
-    document.getElementById('productInfo').style.display = 'block';
-    
-    // Enable add button
-    document.getElementById('addSupplyBtn').disabled = false;
-    document.getElementById('addSupplyBtn').className = 'btn btn-primary flex-grow-1';
-    
-    // Scroll to form
-    document.getElementById('addSupplyForm').scrollIntoView({ behavior: 'smooth' });
+    if (selectedProduct) {
+        // Populate form fields
+        document.getElementById('productSearch').value = item.product_name;
+        document.getElementById('supplyQuantity').value = item.quantity;
+        document.getElementById('supplyQuantity').disabled = false;
+        document.getElementById('purchaseCost').value = item.unit_price.toFixed(3);
+        document.getElementById('purchaseCost').disabled = false;
+        document.getElementById('supplyNotes').value = item.notes || '';
+        
+        // Update product info display
+        document.getElementById('productName').textContent = item.product_name;
+        document.getElementById('totalCost').textContent = translateNumber(item.total_amount.toFixed(3)) + ' ' + _('jod');
+        document.getElementById('productInfo').style.display = 'block';
+        
+        // Enable form
+        document.getElementById('addSupplyBtn').disabled = false;
+        document.getElementById('addSupplyBtn').className = 'btn btn-primary';
+        
+        // Scroll to form
+        document.getElementById('addSupplyForm').scrollIntoView({ behavior: 'smooth' });
+    }
+}
+
+function clearProductSelection() {
+    selectedProduct = null;
+    document.getElementById('productInfo').style.display = 'none';
+    document.getElementById('supplyQuantity').disabled = true;
+    document.getElementById('purchaseCost').disabled = true;
+    document.getElementById('supplyQuantity').value = '';
+    document.getElementById('purchaseCost').value = '';
+    const addBtn = document.getElementById('addSupplyBtn');
+    addBtn.disabled = true;
+    addBtn.className = 'btn btn-primary';
+    document.getElementById('addBtnText').textContent = _('add_to_po');
+}
+
+function clearForm() {
+    document.getElementById('addSupplyForm').reset();
+    document.getElementById('productSearch').value = '';
+    document.getElementById('supplyNotes').value = '';
+    clearProductSelection();
 }
 
 async function cancelEdit() {
     if (editingIndex >= 0) {
         exitEditMode();
-    } else {
-        // Smart cancel - check if PO has items or can be deleted
-        const messageKey = poSuppliesCart.length > 0 ? 'cancel_po_with_cart' : 'cancel_po_empty';
+        clearForm();
+        return;
+    }
+    
+    // Ask user if they want to cancel the entire PO
+    const confirmed = await confirmTranslated('cancel_po_confirm');
+    if (confirmed) {
+        const poId = document.getElementById('poId').value;
         
-        const confirmed = await confirmTranslated(messageKey);
-        if (!confirmed) return;
-        
+        // Call backend to cancel PO
         fetch('/supply/po/cancel/', {
             method: 'POST',
             headers: {
@@ -835,32 +714,35 @@ async function cancelEdit() {
                 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
             },
             body: JSON.stringify({
-                po_id: document.getElementById('poId').value
+                po_id: poId
             })
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                clearCartStorage();
+                // Clear localStorage
+                const storageKey = `po_supplies_${poId}`;
+                localStorage.removeItem(storageKey);
+                
                 showAlert(data.message, 'success');
                 setTimeout(() => {
                     window.location.href = "{% url 'frontend:supply_entry' %}";
-                }, 2000);
+                }, 1500);
             } else {
-                showAlert(data.error || window.translator._('error_cancelling_po'), 'danger');
+                showAlert(data.error, 'danger');
             }
         })
         .catch(error => {
-            console.error('Error cancelling PO:', error);
-            showAlert(window.translator._('error_cancelling_po'), 'danger');
+            console.error('Error canceling PO:', error);
+            showAlert(_('error_canceling_po'), 'danger');
         });
     }
 }
 
 function exitEditMode() {
     editingIndex = -1;
-    document.getElementById('formTitle').innerHTML = '<i class="bi bi-plus-circle"></i> ' + window.translator._('add_supply_item');
-    document.getElementById('addBtnText').textContent = window.translator._('add_to_po');
+    document.getElementById('formTitle').innerHTML = '<i class="bi bi-plus-circle"></i> ' + _('add_supply_item');
+    document.getElementById('addBtnText').textContent = _('add_to_po');
     clearForm();
 }
 
@@ -870,14 +752,23 @@ function updateCartDisplay() {
     // For completed POs, use actual transaction data instead of cart
     if (!canEdit) {
         {% if po.total_cost %}
-        document.getElementById('poTotalCost').innerHTML = window.translateNumber('{{ po.total_cost|floatformat:3 }}') + ' ' + window.translator._('jod');
-        document.getElementById('itemCount').textContent = window.translateNumber('{{ po.transaction_count }}');
-        const avgCost = {{ po.transaction_count }} > 0 ? {{ po.total_cost }} / {{ po.transaction_count }} : 0;
-        document.getElementById('avgCostPerItem').innerHTML = window.translateNumber(avgCost.toFixed(3)) + ' ' + window.translator._('jod');
-        document.getElementById('suppliesListCount').textContent = window.translateNumber('{{ po.transaction_count }}');
-        if (document.getElementById('itemCountBadge')) {
-            document.getElementById('itemCountBadge').textContent = window.translateNumber('{{ po.transaction_count }}');
+        const costElement = document.getElementById('poTotalCost');
+        if (costElement) {
+            costElement.setAttribute('data-original', '{{ po.total_cost|floatformat:3 }}');
+            costElement.innerHTML = `<span data-number data-original="{{ po.total_cost|floatformat:3 }}">${translateNumber('{{ po.total_cost|floatformat:3 }}')}</span> <span data-currency-symbol>JOD</span>`;
         }
+        updateNumberElement('itemCount', {{ po.transaction_count }});
+        const avgCost = {{ po.transaction_count }} > 0 ? {{ po.total_cost }} / {{ po.transaction_count }} : 0;
+        const avgElement = document.getElementById('avgCostPerItem');
+        if (avgElement) {
+            avgElement.setAttribute('data-original', avgCost.toFixed(3));
+            avgElement.innerHTML = `<span data-number data-original="${avgCost.toFixed(3)}">${translateNumber(avgCost.toFixed(3))}</span> <span data-currency-symbol>JOD</span>`;
+        }
+        updateNumberElement('suppliesListCount', {{ po.transaction_count }});
+        if (document.getElementById('itemCountBadge')) {
+            updateNumberElement('itemCountBadge', {{ po.transaction_count }});
+        }
+        setTimeout(() => updatePageTranslations(), 0);
         return; // Exit early for completed POs
         {% endif %}
     }
@@ -891,9 +782,9 @@ function updateCartDisplay() {
     
     // Update counts
     const count = poSuppliesCart.length;
-    suppliesListCount.textContent = window.translateNumber(count.toString());
-    itemCount.textContent = window.translateNumber(count.toString());
-    if (itemCountBadge) itemCountBadge.textContent = window.translateNumber(count.toString());
+    updateNumberElement('suppliesListCount', count);
+    updateNumberElement('itemCount', count);
+    if (itemCountBadge) updateNumberElement('itemCountBadge', count);
     
     // Calculate totals
     let totalCost = 0;
@@ -901,10 +792,19 @@ function updateCartDisplay() {
         totalCost += item.total_amount;
     });
     
-    document.getElementById('poTotalCost').innerHTML = window.translateNumber(totalCost.toFixed(3)) + ' ' + window.translator._('jod');
+    // Update cost elements with proper number translation
+    const costElement = document.getElementById('poTotalCost');
+    if (costElement) {
+        costElement.setAttribute('data-original', totalCost.toFixed(3));
+        costElement.innerHTML = `<span data-number data-original="${totalCost.toFixed(3)}">${translateNumber(totalCost.toFixed(3))}</span> <span data-currency-symbol>JOD</span>`;
+    }
     
     const avgCost = count > 0 ? totalCost / count : 0;
-    document.getElementById('avgCostPerItem').innerHTML = window.translateNumber(avgCost.toFixed(3)) + ' ' + window.translator._('jod');
+    const avgElement = document.getElementById('avgCostPerItem');
+    if (avgElement) {
+        avgElement.setAttribute('data-original', avgCost.toFixed(3));
+        avgElement.innerHTML = `<span data-number data-original="${avgCost.toFixed(3)}">${translateNumber(avgCost.toFixed(3))}</span> <span data-currency-symbol>JOD</span>`;
+    }
     
     // Update table
     if (count === 0) {
@@ -917,31 +817,31 @@ function updateCartDisplay() {
                 <td>
                     <div>
                         <strong>${item.product_name}</strong>
-                        <small class="text-muted d-block">${window.translator._('id_colon')} ${item.product_item_id}</small>
-                        ${item.is_duty_free ? '<span class="badge bg-warning text-dark">' + window.translator._('duty_free') + '</span>' : ''}
+                        <small class="text-muted d-block">${_('id_label')}: <span data-number data-original="${item.product_item_id}">${translateNumber(item.product_item_id)}</span></small>
+                        ${item.is_duty_free ? '<span class="badge bg-warning text-dark">' + _('duty_free') + '</span>' : ''}
                     </div>
                 </td>
                 <td class="text-center">
-                    <span class="fw-bold">${window.translateNumber(item.quantity.toString())}</span>
-                    <small class="text-muted d-block">${window.translator._('units')}</small>
+                    <span class="fw-bold" data-number data-original="${item.quantity}">${translateNumber(item.quantity.toString())}</span>
+                    <small class="text-muted d-block">${_('units')}</small>
                 </td>
                 <td class="text-end">
-                    <span class="fw-bold">${window.translateNumber(item.unit_price.toFixed(3))}</span>
-                    <small class="text-muted d-block">${window.translator._('jod')}</small>
+                    <span class="fw-bold" data-number data-original="${item.unit_price.toFixed(3)}">${translateNumber(item.unit_price.toFixed(3))}</span>
+                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
                 </td>
                 <td class="text-end">
-                    <span class="fw-bold text-primary">${window.translateNumber(item.total_amount.toFixed(3))}</span>
-                    <small class="text-muted d-block">${window.translator._('jod')}</small>
+                    <span class="fw-bold text-primary" data-number data-original="${item.total_amount.toFixed(3)}">${translateNumber(item.total_amount.toFixed(3))}</span>
+                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
                 </td>
                 <td>
                     <small>${item.notes || '-'}</small>
                 </td>
                 <td class="text-center">
                     <div class="btn-group btn-group-sm">
-                        <button class="btn btn-outline-primary" onclick="editCartItem(${index})" title="${window.translator._('edit_item')}">
+                        <button class="btn btn-outline-primary" onclick="editCartItem(${index})" title="${_('edit_item')}">
                             <i class="bi bi-pencil"></i>
                         </button>
-                        <button class="btn btn-outline-danger" onclick="removeFromCart(${index})" title="${window.translator._('remove_item')}">
+                        <button class="btn btn-outline-danger" onclick="removeFromCart(${index})" title="${_('remove_item')}">
                             <i class="bi bi-trash"></i>
                         </button>
                     </div>
@@ -949,47 +849,63 @@ function updateCartDisplay() {
             </tr>
         `).join('');
     }
+    
+    // Apply translations after DOM update
+    setTimeout(() => {
+        updatePageTranslations();
+    }, 0);
 }
 
-function displayCompletedSupplies(completedSupplies) {
-    const suppliesList = document.getElementById('suppliesList');
-    const suppliesListCount = document.getElementById('suppliesListCount');
+function displayProductCatalog() {
+    const tbody = document.getElementById('availableProductsList');
     
-    suppliesListCount.textContent = window.translateNumber(completedSupplies.length.toString());
-    
-    if (completedSupplies.length === 0) {
-        document.getElementById('emptySuppliesState').style.display = 'block';
-    } else {
-        suppliesList.innerHTML = completedSupplies.map(item => `
+    if (productCatalog.length === 0) {
+        tbody.innerHTML = `
             <tr>
-                <td><small>${item.created_at}</small></td>
-                <td>
-                    <div>
-                        <strong>${item.product_name}</strong>
-                        <small class="text-muted d-block">${window.translator._('id_colon')} ${item.product_item_id}</small>
-                    </div>
+                <td colspan="3" class="text-center text-muted py-4">
+                    <i class="bi bi-box" style="font-size: 2rem;"></i>
+                    <p class="mt-2 mb-0">${_('no_products_available')}</p>
                 </td>
-                <td class="text-center">
-                    <span class="fw-bold">${window.translateNumber(item.quantity.toString())}</span>
-                    <small class="text-muted d-block">${window.translator._('units')}</small>
-                </td>
-                <td class="text-end">
-                    <span class="fw-bold">${window.translateNumber(item.unit_price.toFixed(3))}</span>
-                    <small class="text-muted d-block">${window.translator._('jod')}</small>
-                </td>
-                <td class="text-end">
-                    <span class="fw-bold text-primary">${window.translateNumber(item.total_amount.toFixed(3))}</span>
-                    <small class="text-muted d-block">${window.translator._('jod')}</small>
-                </td>
-                <td><small>${item.notes || '-'}</small></td>
             </tr>
-        `).join('');
+        `;
+        return;
+    }
+    
+    tbody.innerHTML = productCatalog.map(product => `
+        <tr class="cursor-pointer" onclick="selectProductFromCatalog(${JSON.stringify(product).replace(/"/g, '&quot;')})">
+            <td>
+                <div>
+                    <strong>${product.name}</strong>
+                    ${product.is_duty_free ? '<span class="badge bg-warning text-dark ms-1">' + _('duty_free') + '</span>' : ''}
+                </div>
+            </td>
+            <td><code data-number data-original="${product.item_id}">${translateNumber(product.item_id)}</code></td>
+            <td class="text-end">
+                <span class="fw-bold text-primary" data-number data-original="${product.purchase_price.toFixed(3)}">${translateNumber(product.purchase_price.toFixed(3))}</span>
+                <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+            </td>
+        </tr>
+    `).join('');
+    
+    // Apply translations after DOM update
+    setTimeout(() => {
+        updatePageTranslations();
+    }, 0);
+}
+
+// 🔧 ENHANCED: Helper function for updating number elements
+function updateNumberElement(elementId, value) {
+    const element = document.getElementById(elementId);
+    if (element) {
+        element.setAttribute('data-number', '');
+        element.setAttribute('data-original', value.toString());
+        element.textContent = translateNumber(value.toString());
     }
 }
 
 async function completePOSupplies() {
     if (poSuppliesCart.length === 0) {
-        showAlert(window.translator._('add_one_item_first'), 'warning');
+        showAlert(_('add_one_item_first'), 'warning');
         return;
     }
     
@@ -1004,7 +920,7 @@ async function completePOSupplies() {
     const completePOBtn = document.getElementById('completePOBtn');
     const originalText = completePOBtn.innerHTML;
     
-    completePOBtn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> ${window.translator._('completing')}`;
+    completePOBtn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> ${_('completing')}`;
     completePOBtn.disabled = true;
     
     // Prepare data - make sure all fields are present
@@ -1038,30 +954,25 @@ async function completePOSupplies() {
     .then(data => {
         console.log('Response data:', data);
         if (data.success) {
-            clearCartStorage();
+            const poId = document.getElementById('poId').value;
+            const storageKey = `po_supplies_${poId}`;
+            localStorage.removeItem(storageKey);
             showAlert(data.message, 'success');
             setTimeout(() => {
                 window.location.href = "{% url 'frontend:supply_entry' %}";
             }, 2000);
         } else {
-            showAlert(data.error || window.translator._('error_completing_po'), 'danger');
+            showAlert(data.error || _('error_completing_po'), 'danger');
             completePOBtn.innerHTML = originalText;
             completePOBtn.disabled = false;
         }
     })
     .catch(error => {
         console.error('Error completing PO:', error);
-        showAlert(window.translator._('error_completing_po'), 'danger');
+        showAlert(_('error_completing_po'), 'danger');
         completePOBtn.innerHTML = originalText;
         completePOBtn.disabled = false;
     });
-}
-
-function clearForm() {
-    document.getElementById('addSupplyForm').reset();
-    document.getElementById('productSearch').value = '';
-    document.getElementById('supplyNotes').value = '';
-    clearProductSelection();
 }
 
 function exportPOSupplies() {
@@ -1073,7 +984,6 @@ function printPOSupplies() {
 }
 
 function showAlert(message, type) {
-    // Find a container to insert the alert
     const container = document.querySelector('.container') || document.querySelector('body');
     const firstRow = container.querySelector('.row');
     
@@ -1084,23 +994,17 @@ function showAlert(message, type) {
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     `;
     
-    // Insert at the beginning of the container
     if (firstRow) {
         container.insertBefore(alertDiv, firstRow);
     } else {
         container.appendChild(alertDiv);
     }
     
-    // Auto-remove after 5 seconds
     setTimeout(() => {
         if (alertDiv && alertDiv.parentNode) {
             alertDiv.remove();
         }
     }, 5000);
-}
-
-function showComingSoon() {
-    alertTranslated('barcode_coming_soon');
 }
 </script>
 {% endblock %}

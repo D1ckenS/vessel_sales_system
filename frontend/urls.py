@@ -1,4 +1,5 @@
 from django.http import HttpResponse
+from django.shortcuts import redirect
 from django.urls import path
 from . import views, auth_views, test_views
 
@@ -36,6 +37,9 @@ urlpatterns = [
     path('sales/trip/<int:trip_id>/', views.trip_sales, name='trip_sales'),  # Step 2: Add items
     path('sales/trip/bulk-complete/', views.trip_bulk_complete, name='trip_bulk_complete'),  # NEW: Bulk save
     path('sales/trip/cancel/', views.trip_cancel, name='trip_cancel'),  # NEW: Cancel trip
+     # Enhanced sales endpoints
+    path('sales/available-products/', views.sales_available_products, name='sales_available_products'),
+    path('sales/calculate-cogs/', views.sales_calculate_cogs, name='sales_calculate_cogs'),
     
     # Keep existing search endpoints (needed for product search)
     path('sales/search-products/', views.sales_search_products, name='sales_search_products'),
@@ -46,6 +50,8 @@ urlpatterns = [
     path('supply/po/<int:po_id>/', views.po_supply, name='po_supply'),  # Step 2: Add items
     path('supply/po/bulk-complete/', views.po_bulk_complete, name='po_bulk_complete'),  # NEW: Bulk save
     path('supply/po/cancel/', views.po_cancel, name='po_cancel'),  # NEW: Cancel PO
+    # Enhanced supply endpoints  
+    path('supply/product-catalog/', views.supply_product_catalog, name='supply_product_catalog'),
     
     # Keep existing search endpoints (needed for product search)
     path('supply/search-products/', views.supply_search_products, name='supply_search_products'),
@@ -59,9 +65,14 @@ urlpatterns = [
     path('products/add/', views.add_product, name='add_product'),
     
     # Transfers
-    path('transfer/', views.transfer_center, name='transfer_center'),
+    path('transfer-center/', lambda request: redirect('frontend:transfer_entry'), name='transfer_center'),
     path('transfer/search-products/', views.transfer_search_products, name='transfer_search_products'),
     path('transfer/execute/', views.transfer_execute, name='transfer_execute'),
+    # Transfer workflows
+    path('transfer/', views.transfer_entry, name='transfer_entry'),  # Step 1: Create transfer
+    path('transfer/items/<str:session_id>/', views.transfer_items, name='transfer_items'),  # Step 2: Add items
+    path('transfer/available-products/', views.transfer_available_products, name='transfer_available_products'),
+    path('transfer/bulk-complete/', views.transfer_bulk_complete, name='transfer_bulk_complete'),
     
     # Reports
     path('reports/', views.reports_dashboard, name='reports_dashboard'),

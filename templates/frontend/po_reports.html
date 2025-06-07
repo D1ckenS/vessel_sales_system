@@ -1,7 +1,6 @@
 {% extends 'frontend/base.html' %}
-{% load i18n %}
 
-{% block title %}{% trans "Purchase Order Reports" %} - {% trans "Vessel Sales System" %}{% endblock %}
+{% block title %}<span data-translate="purchase_order_reports">Purchase Order Reports</span> - <span data-translate="vessel_sales_system">Vessel Sales System</span>{% endblock %}
 
 {% block content %}
 <!-- Page Header -->
@@ -11,12 +10,12 @@
             <div>
                 <h2>
                     <i class="bi bi-receipt text-primary"></i> 
-                    {% trans "Purchase Order Reports" %}
+                    <span data-translate="purchase_order_reports">Purchase Order Reports</span>
                 </h2>
-                <p class="text-muted mb-0">{% trans "Analyze supply chain and inventory procurement" %}</p>
+                <p class="text-muted mb-0"><span data-translate="analyze_supply_chain">Analyze supply chain and inventory procurement</span></p>
             </div>
             <a href="{% url 'frontend:reports_dashboard' %}" class="btn btn-outline-secondary">
-                <i class="bi bi-arrow-left"></i> {% trans "Back to Reports" %}
+                <i class="bi bi-arrow-left"></i> <span data-translate="back_to_reports">Back to Reports</span>
             </a>
         </div>
     </div>
@@ -26,20 +25,20 @@
 <div class="row mb-4">
     <div class="col-md-4 col-sm-6 mb-3">
         <div class="stats-card">
-            <div class="stats-number text-primary">{{ summary.total_pos }}</div>
-            <div class="stats-label">{% trans "Total Purchase Orders" %}</div>
+            <div class="stats-number text-primary" data-number data-original="{{ summary.total_pos }}">{{ summary.total_pos }}</div>
+            <div class="stats-label"><span data-translate="total_purchase_orders">Total Purchase Orders</span></div>
         </div>
     </div>
     <div class="col-md-4 col-sm-6 mb-3">
         <div class="stats-card">
-            <div class="stats-number text-success">{{ summary.total_cost|floatformat:0 }}</div>
-            <div class="stats-label">{% trans "Total Cost (JOD)" %}</div>
+            <div class="stats-number text-success" data-number data-original="{{ summary.total_cost|floatformat:0 }}">{{ summary.total_cost|floatformat:0 }}</div>
+            <div class="stats-label"><span data-translate="total_cost_jod">Total Cost</span> (<span data-currency-symbol>JOD</span>)</div>
         </div>
     </div>
     <div class="col-md-4 col-sm-6 mb-3">
         <div class="stats-card">
-            <div class="stats-number text-info">{{ summary.avg_cost_per_po|floatformat:0 }}</div>
-            <div class="stats-label">{% trans "Avg Cost per PO (JOD)" %}</div>
+            <div class="stats-number text-info" data-number data-original="{{ summary.avg_cost_per_po|floatformat:0 }}">{{ summary.avg_cost_per_po|floatformat:0 }}</div>
+            <div class="stats-label"><span data-translate="avg_cost_per_po">Avg Cost per PO</span> (<span data-currency-symbol>JOD</span>)</div>
         </div>
     </div>
 </div>
@@ -50,16 +49,16 @@
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0">
-                    <i class="bi bi-funnel"></i> {% trans "Filter Purchase Orders" %}
+                    <i class="bi bi-funnel"></i> <span data-translate="filter_purchase_orders">Filter Purchase Orders</span>
                 </h5>
             </div>
             <div class="card-body">
                 <form method="GET">
                     <div class="row">
                         <div class="col-md-3">
-                            <label class="form-label fw-bold">{% trans "Vessel" %}</label>
+                            <label class="form-label fw-bold"><span data-translate="vessel">Vessel</span></label>
                             <select class="form-select" name="vessel">
-                                <option value="">{% trans "All Vessels" %}</option>
+                                <option value=""><span data-translate="all_vessels">All Vessels</span></option>
                                 {% for vessel in vessels %}
                                 <option value="{{ vessel.id }}" {% if filters.vessel == vessel.id|stringformat:"s" %}selected{% endif %}>
                                     <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
@@ -68,24 +67,24 @@
                             </select>
                         </div>
                         <div class="col-md-2">
-                            <label class="form-label fw-bold">{% trans "From Date" %}</label>
+                            <label class="form-label fw-bold"><span data-translate="from_date">From Date</span></label>
                             <input type="date" class="form-control" name="date_from" value="{{ filters.date_from }}">
                         </div>
                         <div class="col-md-2">
-                            <label class="form-label fw-bold">{% trans "To Date" %}</label>
+                            <label class="form-label fw-bold"><span data-translate="to_date">To Date</span></label>
                             <input type="date" class="form-control" name="date_to" value="{{ filters.date_to }}">
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label fw-bold">{% trans "Status" %}</label>
+                            <label class="form-label fw-bold"><span data-translate="status">Status</span></label>
                             <select class="form-select" name="status">
-                                <option value="">{% trans "All Status" %}</option>
-                                <option value="completed" {% if filters.status == 'completed' %}selected{% endif %}>{% trans "Completed" %}</option>
-                                <option value="in_progress" {% if filters.status == 'in_progress' %}selected{% endif %}>{% trans "In Progress" %}</option>
+                                <option value=""><span data-translate="all_status">All Status</span></option>
+                                <option value="completed" {% if filters.status == 'completed' %}selected{% endif %}><span data-translate="completed">Completed</span></option>
+                                <option value="in_progress" {% if filters.status == 'in_progress' %}selected{% endif %}><span data-translate="in_progress">In Progress</span></option>
                             </select>
                         </div>
                         <div class="col-md-2 d-flex align-items-end">
                             <button type="submit" class="btn btn-primary w-100">
-                                <i class="bi bi-funnel"></i> {% trans "Filter" %}
+                                <i class="bi bi-funnel"></i> <span data-translate="filter">Filter</span>
                             </button>
                         </div>
                     </div>
@@ -101,14 +100,14 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
-                    <i class="bi bi-table"></i> {% trans "Purchase Order Details" %} ({{ purchase_orders|length }})
+                    <i class="bi bi-table"></i> <span data-translate="purchase_order_details">Purchase Order Details</span> (<span data-number data-original="{{ purchase_orders|length }}">{{ purchase_orders|length }}</span>)
                 </h5>
                 <div class="d-flex gap-2">
-                    <button class="btn btn-outline-success btn-sm" onclick="exportPOs()">
-                        <i class="bi bi-file-earmark-excel"></i> {% trans "Export" %}
+                    <button class="btn btn-outline-success btn-sm" onclick="exportPOReports()">
+                        <i class="bi bi-file-earmark-excel"></i> <span data-translate="export">Export</span>
                     </button>
                     <button class="btn btn-outline-primary btn-sm" onclick="printPOs()">
-                        <i class="bi bi-printer"></i> {% trans "Print" %}
+                        <i class="bi bi-printer"></i> <span data-translate="print">Print</span>
                     </button>
                 </div>
             </div>
@@ -117,57 +116,59 @@
                     <table class="table table-hover mb-0">
                         <thead class="table-light">
                             <tr>
-                                <th>{% trans "PO #" %}</th>
-                                <th>{% trans "Date" %}</th>
-                                <th>{% trans "Vessel" %}</th>
-                                <th class="text-center">{% trans "Items" %}</th>
-                                <th class="text-end">{% trans "Total Cost" %}</th>
-                                <th class="text-center">{% trans "Status" %}</th>
-                                <th>{% trans "Created By" %}</th>
-                                <th class="text-center">{% trans "Actions" %}</th>
+                                <th><span data-translate="po_hash">PO #</span></th>
+                                <th><span data-translate="date">Date</span></th>
+                                <th><span data-translate="vessel">Vessel</span></th>
+                                <th class="text-center"><span data-translate="items">Items</span></th>
+                                <th class="text-end"><span data-translate="total_cost">Total Cost</span></th>
+                                <th class="text-center"><span data-translate="status">Status</span></th>
+                                <th><span data-translate="created_by">Created By</span></th>
+                                <th class="text-center"><span data-translate="actions">Actions</span></th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for po in purchase_orders %}
                             <tr>
                                 <td>
-                                    <strong>{{ po.po_number }}</strong>
+                                    <strong><span data-number data-original="{{ po.po_number }}" class="po-number">{{ po.po_number }}</span></strong>
                                     {% if po.notes %}
                                         <i class="bi bi-chat-left-text text-muted ms-1" title="{{ po.notes }}"></i>
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <div>{{ po.po_date|date:"d/m/Y" }}</div>
-                                    <small class="text-muted">{{ po.created_at|date:"H:i" }}</small>
+                                    <div><span data-po-date data-original="{{ po.po_date|date:'d/m/Y' }}">{{ po.po_date|date:"d/m/Y" }}</span></div>
+                                    <small class="text-muted"><span data-number data-original="{{ po.created_at|date:'H:i' }}">{{ po.created_at|date:"H:i" }}</span></small>
                                 </td>
                                 <td>
-                                    <span class="badge {% if po.vessel.name|lower == 'amman' %}bg-primary{% elif po.vessel.name|lower == 'aylah' %}bg-danger{% elif po.vessel.name|lower == 'sinaa' %}bg-success{% elif po.vessel.name|lower == 'nefertiti' %}bg-secondary{% elif po.vessel.name|lower == 'babel' %}bg-warning{% elif po.vessel.name|lower == 'dahab' %}bg-info{% else %}bg-primary{% endif %}">{{ po.vessel.name }}</span>
+                                    <span class="badge {% if po.vessel.name|lower == 'amman' %}bg-primary{% elif po.vessel.name|lower == 'aylah' %}bg-danger{% elif po.vessel.name|lower == 'sinaa' %}bg-success{% elif po.vessel.name|lower == 'nefertiti' %}bg-secondary{% elif po.vessel.name|lower == 'babel' %}bg-warning{% elif po.vessel.name|lower == 'dahab' %}bg-info{% else %}bg-primary{% endif %}">
+                                        <span class="vessel-name" data-en="{{ po.vessel.name }}" data-ar="{{ po.vessel.name_ar }}">{{ po.vessel.name }}</span>
+                                    </span>
                                 </td>
                                 <td class="text-center">
-                                    <span class="fw-bold">{{ po.transaction_count }}</span>
-                                    <small class="text-muted d-block">{% trans "items" %}</small>
+                                    <span class="fw-bold" data-number data-original="{{ po.transaction_count }}">{{ po.transaction_count }}</span>
+                                    <small class="text-muted d-block"><span data-translate="items">items</span></small>
                                 </td>
                                 <td class="text-end">
-                                    <span class="fw-bold text-primary">{{ po.total_cost|floatformat:3 }}</span>
-                                    <small class="text-muted d-block">JOD</small>
+                                    <span class="fw-bold text-primary" data-number data-original="{{ po.total_cost|floatformat:3 }}">{{ po.total_cost|floatformat:3 }}</span>
+                                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
                                 </td>
                                 <td class="text-center">
                                     {% if po.is_completed %}
-                                        <span class="badge bg-success">{% trans "Completed" %}</span>
+                                        <span class="badge bg-success"><span data-translate="completed">Completed</span></span>
                                     {% else %}
-                                        <span class="badge bg-warning">{% trans "In Progress" %}</span>
+                                        <span class="badge bg-warning"><span data-translate="in_progress">In Progress</span></span>
                                     {% endif %}
                                 </td>
                                 <td>
                                     <small>{{ po.created_by.username|default:"System" }}</small>
-                                    <small class="text-muted d-block">{{ po.created_at|timesince }} {% trans "ago" %}</small>
+                                    <small class="text-muted d-block transaction-time" data-time="{{ po.created_at|timesince }}">{{ po.created_at|timesince }} <span data-translate="ago">ago</span></small>
                                 </td>
                                 <td class="text-center">
                                     <div class="btn-group btn-group-sm">
-                                        <a href="{% url 'frontend:po_supply' po.id %}" class="btn btn-outline-primary" title="{% trans 'View Details' %}">
+                                        <a href="{% url 'frontend:po_supply' po.id %}" class="btn btn-outline-primary" data-translate-title="view_details">
                                             <i class="bi bi-eye"></i>
                                         </a>
-                                        <button class="btn btn-outline-info" onclick="viewPOAnalytics({{ po.id }})" title="{% trans 'Analytics' %}">
+                                        <button class="btn btn-outline-info" onclick="viewPOAnalytics({{ po.id }})" data-translate-title="analytics">
                                             <i class="bi bi-graph-up"></i>
                                         </button>
                                     </div>
@@ -177,8 +178,8 @@
                             <tr>
                                 <td colspan="8" class="text-center text-muted py-4">
                                     <i class="bi bi-receipt" style="font-size: 2rem;"></i>
-                                    <p class="mt-2 mb-0">{% trans "No purchase orders found" %}</p>
-                                    <small>{% trans "Try adjusting your filter criteria or create new purchase orders" %}</small>
+                                    <p class="mt-2 mb-0"><span data-translate="no_purchase_orders_found">No purchase orders found</span></p>
+                                    <small><span data-translate="try_adjusting_filters_pos">Try adjusting your filter criteria or create new purchase orders</span></small>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -191,16 +192,16 @@
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <small class="text-muted">
-                                {% trans "Showing" %} {{ purchase_orders|length }} {% trans "purchase orders" %}
+                                <span data-translate="showing">Showing</span> <span data-number data-original="{{ purchase_orders|length }}">{{ purchase_orders|length }}</span> <span data-translate="purchase_orders">purchase orders</span>
                                 {% if filters.vessel or filters.date_from or filters.date_to or filters.status %}
-                                ({% trans "filtered" %})
+                                (<span data-translate="filtered">filtered</span>)
                                 {% endif %}
                             </small>
                         </div>
                         {% if filters.vessel or filters.date_from or filters.date_to or filters.status %}
                         <div>
                             <a href="{% url 'frontend:po_reports' %}" class="btn btn-outline-secondary btn-sm">
-                                <i class="bi bi-x-circle"></i> {% trans "Clear Filters" %}
+                                <i class="bi bi-x-circle"></i> <span data-translate="clear_filters">Clear Filters</span>
                             </a>
                         </div>
                         {% endif %}
@@ -215,6 +216,69 @@
 
 {% block extra_js %}
 <script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Add report-specific translations
+    const reportTranslations = {
+        en: {
+            'purchase_order_reports': 'Purchase Order Reports',
+            'vessel_sales_system': 'Vessel Sales System',
+            'analyze_supply_chain': 'Analyze supply chain and inventory procurement',
+            'back_to_reports': 'Back to Reports',
+            'total_purchase_orders': 'Total Purchase Orders',
+            'total_cost_jod': 'Total Cost',
+            'avg_cost_per_po': 'Avg Cost per PO',
+            'filter_purchase_orders': 'Filter Purchase Orders',
+            'all_status': 'All Status',
+            'purchase_order_details': 'Purchase Order Details',
+            'po_hash': 'PO #',
+            'view_details': 'View Details',
+            'analytics': 'Analytics',
+            'no_purchase_orders_found': 'No purchase orders found',
+            'try_adjusting_filters_pos': 'Try adjusting your filter criteria or create new purchase orders',
+            'showing': 'Showing',
+            'purchase_orders': 'purchase orders',
+            'print_feature_coming_soon': 'Print feature coming soon!',
+            'printable_po_report': 'This will generate a printable purchase order report.',
+            'po_analytics_coming_soon': 'PO analytics coming soon!',
+            'detailed_analytics_po': 'This will show detailed analytics for PO ID:'
+        },
+        ar: {
+            'purchase_order_reports': 'تقارير أوامر الشراء',
+            'vessel_sales_system': 'نظام مبيعات السفن',
+            'analyze_supply_chain': 'تحليل سلسلة التوريد واشتراء المخزون',
+            'back_to_reports': 'العودة للتقارير',
+            'total_purchase_orders': 'إجمالي أوامر الشراء',
+            'total_cost_jod': 'التكلفة الإجمالية',
+            'avg_cost_per_po': 'متوسط تكلفة أمر الشراء',
+            'filter_purchase_orders': 'تصفية أوامر الشراء',
+            'all_status': 'جميع الحالات',
+            'purchase_order_details': 'تفاصيل أوامر الشراء',
+            'po_hash': 'رقم أمر الشراء',
+            'view_details': 'عرض التفاصيل',
+            'analytics': 'التحليلات',
+            'no_purchase_orders_found': 'لم يتم العثور على أوامر شراء',
+            'try_adjusting_filters_pos': 'جرب تعديل معايير التصفية أو إنشاء أوامر شراء جديدة',
+            'showing': 'عرض',
+            'purchase_orders': 'أوامر شراء',
+            'print_feature_coming_soon': 'ميزة الطباعة قادمة قريباً!',
+            'printable_po_report': 'سيتم إنشاء تقرير أوامر شراء قابل للطباعة.',
+            'po_analytics_coming_soon': 'تحليلات أوامر الشراء قادمة قريباً!',
+            'detailed_analytics_po': 'سيتم عرض تحليلات مفصلة لأمر الشراء رقم:'
+        }
+    };
+    
+    // Merge with global translations
+    const currentTranslations = window.translator.translations;
+    Object.keys(reportTranslations).forEach(lang => {
+        if (currentTranslations[lang]) {
+            Object.assign(currentTranslations[lang], reportTranslations[lang]);
+        }
+    });
+    
+    // Apply translations
+    updatePageTranslations();
+});
+
 function exportPOReports() {
     const additionalData = {
         vessel_filter: document.querySelector('[name="vessel"]')?.value || '',
@@ -227,11 +291,13 @@ function exportPOReports() {
 }
 
 function printPOs() {
-    alert('🖨️ {% trans "Print feature coming soon!" %}\n\n{% trans "This will generate a printable purchase order report." %}');
+    alertTranslated('print_feature_coming_soon');
+    alertTranslated('printable_po_report');
 }
 
 function viewPOAnalytics(poId) {
-    alert('📈 {% trans "PO analytics coming soon!" %}\n\n{% trans "This will show detailed analytics for PO ID:" %} ' + poId);
+    alertTranslated('po_analytics_coming_soon');
+    alertTranslated('detailed_analytics_po', { id: poId });
 }
 </script>
 {% endblock %}

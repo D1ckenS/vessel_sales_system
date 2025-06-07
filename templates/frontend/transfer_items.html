@@ -1,0 +1,829 @@
+{% extends 'frontend/base.html' %}
+
+{% block title %}<span data-translate="transfer_items">Transfer Items</span> - <span data-translate="vessel_sales_system">Vessel Sales System</span>{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>
+                    <i class="bi bi-arrow-left-right text-warning"></i> 
+                    <span data-translate="transfer_items">Transfer Items</span>
+                </h2>
+                <p class="text-muted mb-0">
+                    <i class="bi bi-ship text-danger"></i> <span class="vessel-name" data-en="{{ transfer_session.from_vessel.name }}" data-ar="{{ transfer_session.from_vessel.name_ar }}">{{ transfer_session.from_vessel.name }}</span>
+                    <i class="bi bi-arrow-right mx-2"></i>
+                    <i class="bi bi-ship text-success"></i> <span class="vessel-name" data-en="{{ transfer_session.to_vessel.name }}" data-ar="{{ transfer_session.to_vessel.name_ar }}">{{ transfer_session.to_vessel.name }}</span>
+                    • <i class="bi bi-calendar"></i> <span data-trip-date data-original="{{ transfer_session.transfer_date|date:'d/m/Y' }}">{{ transfer_session.transfer_date|date:"d/m/Y" }}</span>
+                </p>
+            </div>
+            <div class="d-flex gap-2">
+                <a href="{% url 'frontend:transfer_entry' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> <span data-translate="back_to_transfers">Back to Transfers</span>
+                </a>
+                <button type="button" class="btn btn-warning" id="completeTransferBtn" onclick="completeTransfer()">
+                    <i class="bi bi-check-circle"></i> <span data-translate="complete_transfer">Complete Transfer</span> (<span id="itemCountBadge">0</span>)
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Transfer Summary Card -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card" style="background: linear-gradient(135deg, #fd7e14, #ffc107); color: white;">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <h6 class="mb-1 opacity-75"><span data-translate="items_to_transfer">Items to Transfer</span></h6>
+                        <h3 class="mb-0" id="transferItemCount">0</h3>
+                    </div>
+                    <div class="col-md-4">
+                        <h6 class="mb-1 opacity-75"><span data-translate="total_units">Total Units</span></h6>
+                        <h3 class="mb-0" id="transferTotalUnits">0</h3>
+                    </div>
+                    <div class="col-md-4">
+                        <h6 class="mb-1 opacity-75"><span data-translate="status">Status</span></h6>
+                        <h3 class="mb-0">
+                            <span class="badge bg-light text-dark"><span data-translate="in_progress">In Progress</span></span>
+                        </h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- LEFT SIDE: Transfer Form -->
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0" id="formTitle">
+                    <i class="bi bi-plus-circle"></i> <span data-translate="add_transfer_item">Add Transfer Item</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                <form id="addTransferForm">
+                    {% csrf_token %}
+                    <input type="hidden" id="transferSessionId" value="{{ transfer_session.session_id }}">
+                    <input type="hidden" id="editIndex" value="-1">
+                    
+                    <!-- Product Search -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-search"></i> <span data-translate="search_product">Search Product</span>
+                        </label>
+                        <input type="text" class="form-control form-control-lg" id="productSearch" 
+                               data-placeholder-en="Type product name or ID..."
+                               data-placeholder-ar="اكتب اسم المنتج أو الرقم..."
+                               placeholder="Type product name or ID...">
+                    </div>
+                    
+                    <!-- Product Info (Hidden initially) -->
+                    <div id="productInfo" class="mb-3" style="display: none;">
+                        <div class="alert alert-info">
+                            <div class="row">
+                                <div class="col-12">
+                                    <strong><span data-translate="selected_product">Selected Product:</span></strong>
+                                    <div id="productName">-</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Quantity Input -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-123"></i> <span data-translate="quantity_to_transfer">Quantity to Transfer</span>
+                        </label>
+                        <input type="number" class="form-control form-control-lg" id="transferQuantity" 
+                               placeholder="0" min="1" step="1" disabled>
+                        <small class="text-muted" id="availableStock"><span data-translate="select_product_first">Select product first</span></small>
+                    </div>
+                    
+                    <!-- Notes -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-chat-left-text"></i> <span data-translate="transfer_notes_optional">Transfer Notes (Optional)</span>
+                        </label>
+                        <input type="text" class="form-control" id="transferNotes" 
+                               data-placeholder-en="Additional notes for this transfer..."
+                               data-placeholder-ar="ملاحظات إضافية لهذا التحويل..."
+                               placeholder="Additional notes for this transfer...">
+                    </div>
+                    
+                    <!-- Duty-Free Warning -->
+                    <div id="dutyFreeWarning" class="alert alert-warning" style="display: none;">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <strong><span data-translate="warning">Warning</span>:</strong> <span data-translate="duty_free_warning_text">This is a duty-free product. Make sure the destination vessel supports duty-free items.</span>
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-outline-secondary" onclick="cancelEdit()">
+                            <i class="bi bi-x-circle"></i> <span data-translate="cancel">Cancel</span>
+                        </button>
+                        <button type="submit" class="btn btn-warning" id="addTransferBtn" disabled>
+                            <i class="bi bi-plus"></i> <span id="addBtnText" data-translate="add_to_transfer">Add to Transfer</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- RIGHT SIDE: Available Products -->
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-boxes"></i> <span data-translate="available_products_for">Available products for</span> 
+                    <span class="vessel-name" data-en="{{ transfer_session.from_vessel.name }}" data-ar="{{ transfer_session.from_vessel.name_ar }}">{{ transfer_session.from_vessel.name }}</span>
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <div style="height: 400px; overflow-y: auto;">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th><span data-translate="product_name">Product Name</span></th>
+                                <th><span data-translate="product_id">Product ID</span></th>
+                                <th class="text-end"><span data-translate="stock_available">Stock Available</span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="availableProductsList">
+                            <!-- Will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Transfer Items List -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-list"></i> 
+                    <span data-translate="transfer_cart">Transfer Cart</span> 
+                    (<span id="transferListCount">0</span>)
+                </h5>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-success btn-sm" onclick="exportTransferItems()">
+                        <i class="bi bi-file-earmark-excel"></i> <span data-translate="export">Export</span>
+                    </button>
+                    <button class="btn btn-outline-primary btn-sm" onclick="printTransferItems()">
+                        <i class="bi bi-printer"></i> <span data-translate="print">Print</span>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th><span data-translate="product">Product</span></th>
+                                <th class="text-center"><span data-translate="quantity">Quantity</span></th>
+                                <th><span data-translate="notes">Notes</span></th>
+                                <th class="text-center"><span data-translate="actions">Actions</span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="transferList">
+                            <!-- Will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Empty State -->
+                <div id="emptyTransferState" class="text-center py-5" style="display: none;">
+                    <i class="bi bi-cart-x text-muted" style="font-size: 3rem;"></i>
+                    <h5 class="text-muted mt-3"><span data-translate="no_items_in_transfer">No items in transfer</span></h5>
+                    <p class="text-muted"><span data-translate="use_form_transfer">Use the form on the left to add items to this transfer</span></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Transfer cart state
+let transferCart = [];
+let selectedProduct = null;
+let editingIndex = -1;
+let availableProducts = [];
+
+// Page-specific translations
+document.addEventListener('DOMContentLoaded', function() {
+    const transferTranslations = {
+        en: {
+            'transfer_items': 'Transfer Items',
+            'back_to_transfers': 'Back to Transfers',
+            'complete_transfer': 'Complete Transfer',
+            'items_to_transfer': 'Items to Transfer',
+            'total_units': 'Total Units',
+            'in_progress': 'In Progress',
+            'add_transfer_item': 'Add Transfer Item',
+            'selected_product': 'Selected Product:',
+            'quantity_to_transfer': 'Quantity to Transfer',
+            'transfer_notes_optional': 'Transfer Notes (Optional)',
+            'warning': 'Warning',
+            'duty_free_warning_text': 'This is a duty-free product. Make sure the destination vessel supports duty-free items.',
+            'cancel': 'Cancel',
+            'add_to_transfer': 'Add to Transfer',
+            'available_products_for': 'Available products for',
+            'product_name': 'Product Name',
+            'product_id': 'Product ID',
+            'stock_available': 'Stock Available',
+            'transfer_cart': 'Transfer Cart',
+            'export': 'Export',
+            'print': 'Print',
+            'no_items_in_transfer': 'No items in transfer',
+            'use_form_transfer': 'Use the form on the left to add items to this transfer',
+            'update_item': 'Update Item',
+            'edit_transfer_item': 'Edit Transfer Item',
+            'complete_transfer_confirm': 'Complete transfer with {count} items?\n\nThis will execute the inventory transfer and cannot be undone.',
+            'add_one_item_first': 'Please add at least one item to complete the transfer.',
+            'item_added_success': 'Item added to transfer successfully!',
+            'item_removed': 'Item removed from transfer.',
+            'invalid_item_edit': 'Invalid item selected for editing.',
+            'error_completing_transfer': 'Error completing transfer. Please try again.',
+            'transfer_completed': 'Transfer completed successfully!',
+            'completing': 'Completing...',
+            'remove_transfer_item': 'Remove this item from the transfer?',
+            'select_from_available': 'Click on a product from the available products list',
+            'units_available': 'units available',
+            'insufficient_inventory': 'Insufficient inventory for this quantity!',
+            'cannot_transfer_duty_free': 'Cannot transfer duty-free product to a vessel that does not support duty-free items.',
+            'edit_item': 'Edit Item',
+            'remove_item': 'Remove Item'
+        },
+        ar: {
+            'transfer_items': 'عناصر التحويل',
+            'back_to_transfers': 'الرجوع للتحويلات',
+            'complete_transfer': 'إكمال التحويل',
+            'items_to_transfer': 'العناصر للتحويل',
+            'total_units': 'إجمالي الوحدات',
+            'in_progress': 'قيد التنفيذ',
+            'add_transfer_item': 'إضافة عنصر للتحويل',
+            'selected_product': 'المنتج المختار:',
+            'quantity_to_transfer': 'الكمية للتحويل',
+            'transfer_notes_optional': 'ملاحظات التحويل (اختياري)',
+            'warning': 'تحذير',
+            'duty_free_warning_text': 'هذا منتج سوق حرة. تأكد من أن السفينة المقصودة تدعم منتجات السوق الحرة.',
+            'cancel': 'إلغاء',
+            'add_to_transfer': 'إضافة للتحويل',
+            'available_products_for': 'المنتجات المتوفرة لـ',
+            'product_name': 'اسم المنتج',
+            'product_id': 'رقم المنتج',
+            'stock_available': 'المخزون المتوفر',
+            'transfer_cart': 'سلة التحويل',
+            'export': 'تصدير',
+            'print': 'طباعة',
+            'no_items_in_transfer': 'لا توجد عناصر في التحويل',
+            'use_form_transfer': 'استخدم النموذج على اليسار لإضافة عناصر لهذا التحويل',
+            'update_item': 'تحديث العنصر',
+            'edit_transfer_item': 'تحرير عنصر التحويل',
+            'complete_transfer_confirm': 'إكمال التحويل مع {count} عنصر؟\n\nسيتم تنفيذ تحويل المخزون ولا يمكن التراجع عنه.',
+            'add_one_item_first': 'يرجى إضافة عنصر واحد على الأقل لإكمال التحويل.',
+            'item_added_success': 'تم إضافة العنصر إلى التحويل بنجاح!',
+            'item_removed': 'تم إزالة العنصر من التحويل.',
+            'invalid_item_edit': 'عنصر غير صالح تم اختياره للتعديل.',
+            'error_completing_transfer': 'خطأ في إكمال التحويل. يرجى المحاولة مرة أخرى.',
+            'transfer_completed': 'تم التحويل بنجاح!',
+            'completing': 'جاري الإكمال...',
+            'remove_transfer_item': 'إزالة هذا العنصر من التحويل؟',
+            'select_from_available': 'انقر على منتج من قائمة المنتجات المتوفرة',
+            'units_available': 'وحدة متوفرة',
+            'insufficient_inventory': 'مخزون غير كافٍ لهذه الكمية!',
+            'cannot_transfer_duty_free': 'لا يمكن تحويل منتج السوق الحرة إلى سفينة لا تدعم منتجات السوق الحرة.',
+            'edit_item': 'تحرير العنصر',
+            'remove_item': 'إزالة العنصر'
+        }
+    };
+    
+    // Merge with global translations
+    const currentTranslations = window.translator.translations;
+    Object.keys(transferTranslations).forEach(lang => {
+        if (currentTranslations[lang]) {
+            Object.assign(currentTranslations[lang], transferTranslations[lang]);
+        }
+    });
+    
+    // Initialize transfer system
+    initializeTransferCart();
+    loadAvailableProducts();
+    updateCartDisplay();
+    setupEventListeners();
+    
+    // Apply translations
+    updatePageTranslations();
+});
+
+function initializeTransferCart() {
+    const transferSessionId = document.getElementById('transferSessionId').value;
+    const storageKey = `transfer_session_${transferSessionId}`;
+    
+    // Try to load from localStorage
+    const savedCart = localStorage.getItem(storageKey);
+    if (savedCart) {
+        try {
+            transferCart = JSON.parse(savedCart);
+            console.log('Loaded transfer cart from localStorage:', transferCart);
+        } catch (e) {
+            console.log('Error parsing saved cart, starting fresh');
+            transferCart = [];
+        }
+    }
+}
+
+function saveCartToStorage() {
+    try {
+        const transferSessionId = document.getElementById('transferSessionId').value;
+        const storageKey = `transfer_session_${transferSessionId}`;
+        localStorage.setItem(storageKey, JSON.stringify(transferCart));
+        console.log('Transfer cart saved to localStorage:', storageKey, transferCart);
+    } catch (error) {
+        console.error('Error saving cart to localStorage:', error);
+    }
+}
+
+function loadAvailableProducts() {
+    // Get from vessel ID from the session
+    const fromVesselId = {{ transfer_session.from_vessel.id }};
+    
+    fetch('/transfer/available-products/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({
+            vessel_id: fromVesselId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            availableProducts = data.products;
+            displayAvailableProducts();
+        } else {
+            console.error('Error loading available products:', data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error loading available products:', error);
+    });
+}
+
+function displayAvailableProducts() {
+    const tbody = document.getElementById('availableProductsList');
+    
+    if (availableProducts.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="3" class="text-center text-muted py-4">
+                    <i class="bi bi-box" style="font-size: 2rem;"></i>
+                    <p class="mt-2 mb-0">${_('no_products_available')}</p>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    tbody.innerHTML = availableProducts.map(product => `
+        <tr class="cursor-pointer" onclick="selectProductFromList(${JSON.stringify(product).replace(/"/g, '&quot;')})">
+            <td>
+                <div>
+                    <strong>${product.name}</strong>
+                    ${product.is_duty_free ? '<span class="badge bg-warning text-dark ms-1">' + _('duty_free') + '</span>' : ''}
+                </div>
+            </td>
+            <td><code data-number data-original="${product.item_id}">${translateNumber(product.item_id)}</code></td>
+            <td class="text-end">
+                <span class="fw-bold text-success" data-number data-original="${product.total_quantity}">${translateNumber(product.total_quantity.toString())}</span>
+                <small class="text-muted d-block">${_('units')}</small>
+            </td>
+        </tr>
+    `).join('');
+    
+    // Apply translations after DOM update
+    setTimeout(() => {
+        updatePageTranslations();
+    }, 0);
+}
+
+// 🔧 ENHANCED: Helper function for updating number elements
+function updateNumberElement(elementId, value) {
+    const element = document.getElementById(elementId);
+    if (element) {
+        element.setAttribute('data-number', '');
+        element.setAttribute('data-original', value.toString());
+        element.textContent = translateNumber(value.toString());
+    }
+}
+
+function selectProductFromList(product) {
+    selectedProduct = product;
+    
+    // Update search field
+    document.getElementById('productSearch').value = product.name;
+    
+    // Update product info
+    document.getElementById('productName').textContent = product.name;
+    document.getElementById('productInfo').style.display = 'block';
+    
+    // Enable quantity input
+    const quantityInput = document.getElementById('transferQuantity');
+    quantityInput.disabled = false;
+    quantityInput.max = product.total_quantity;
+    quantityInput.focus();
+    
+    // Update available stock display
+    document.getElementById('availableStock').textContent = _('available') + ' ' + translateNumber(product.total_quantity.toString()) + ' ' + _('units');
+    
+    // Check duty-free compatibility
+    checkDutyFreeCompatibility(product);
+    
+    validateForm();
+}
+
+function setupEventListeners() {
+    // Product search functionality
+    let searchTimeout;
+    document.getElementById('productSearch').addEventListener('input', function() {
+        const searchTerm = this.value.trim().toLowerCase();
+        
+        clearTimeout(searchTimeout);
+        
+        if (searchTerm.length >= 2) {
+            searchTimeout = setTimeout(() => {
+                // Filter available products
+                const filteredProducts = availableProducts.filter(product => 
+                    product.name.toLowerCase().includes(searchTerm) ||
+                    product.item_id.toLowerCase().includes(searchTerm)
+                );
+                
+                if (filteredProducts.length === 1) {
+                    selectProductFromList(filteredProducts[0]);
+                } else if (filteredProducts.length === 0) {
+                    clearProductSelection();
+                    showAlert(_('no_products_found'), 'warning');
+                }
+            }, 500);
+        } else {
+            clearProductSelection();
+        }
+    });
+
+    document.getElementById('transferQuantity').addEventListener('input', function() {
+        validateForm();
+    });
+
+    // Form submission
+    document.getElementById('addTransferForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        addToCart();
+    });
+}
+
+function checkDutyFreeCompatibility(product) {
+    const warning = document.getElementById('dutyFreeWarning');
+    const toVesselSupportsDutyFree = {{ transfer_session.to_vessel.has_duty_free|yesno:"true,false" }};
+    
+    if (product.is_duty_free && !toVesselSupportsDutyFree) {
+        warning.style.display = 'block';
+    } else {
+        warning.style.display = 'none';
+    }
+}
+
+function validateForm() {
+    const quantity = parseInt(document.getElementById('transferQuantity').value) || 0;
+    const addBtn = document.getElementById('addTransferBtn');
+    const addBtnText = document.getElementById('addBtnText');
+    
+    let isValid = selectedProduct && quantity > 0 && quantity <= (selectedProduct?.total_quantity || 0);
+    let buttonText = editingIndex >= 0 ? _('update_item') : _('add_to_transfer');
+    let buttonClass = 'btn btn-warning';
+    
+    // Check for duty-free compatibility
+    const toVesselSupportsDutyFree = {{ transfer_session.to_vessel.has_duty_free|yesno:"true,false" }};
+    if (selectedProduct?.is_duty_free && !toVesselSupportsDutyFree) {
+        isValid = false;
+        buttonText = _('cannot_transfer_duty_free');
+        buttonClass = 'btn btn-danger';
+    }
+    
+    // Check for duplicate product (only when not editing)
+    if (selectedProduct && editingIndex === -1) {
+        const existingIndex = transferCart.findIndex(item => item.product_id === selectedProduct.id);
+        if (existingIndex !== -1) {
+            isValid = false;
+            buttonText = _('already_in_cart');
+            buttonClass = 'btn btn-warning';
+        }
+    }
+    
+    addBtn.disabled = !isValid;
+    addBtn.className = buttonClass;
+    addBtnText.textContent = buttonText;
+}
+
+function addToCart() {
+    if (!selectedProduct) return;
+    
+    const quantity = parseInt(document.getElementById('transferQuantity').value);
+    const notes = document.getElementById('transferNotes').value.trim();
+    
+    const cartItem = {
+        product_id: selectedProduct.id,
+        product_name: selectedProduct.name,
+        product_item_id: selectedProduct.item_id,
+        is_duty_free: selectedProduct.is_duty_free,
+        quantity: quantity,
+        notes: notes
+    };
+    
+    if (editingIndex >= 0) {
+        // Update existing item
+        transferCart[editingIndex] = cartItem;
+        editingIndex = -1;
+        exitEditMode();
+    } else {
+        // Add new item
+        transferCart.push(cartItem);
+    }
+    
+    saveCartToStorage();
+    updateCartDisplay();
+    clearForm();
+    showAlert(_('item_added_success'), 'success');
+    
+    // Focus back to search field
+    document.getElementById('productSearch').focus();
+}
+
+async function removeFromCart(index) {
+    const confirmed = await confirmTranslated('remove_transfer_item');
+    if (confirmed) {
+        transferCart.splice(index, 1);
+        saveCartToStorage();
+        updateCartDisplay();
+        showAlert(_('item_removed'), 'info');
+    }
+}
+
+function editCartItem(index) {
+    if (index < 0 || index >= transferCart.length) {
+        showAlert(_('invalid_item_edit'), 'error');
+        return;
+    }
+    
+    const item = transferCart[index];
+    
+    // Set edit mode
+    editingIndex = index;
+    
+    // Update UI to edit mode
+    document.getElementById('formTitle').innerHTML = '<i class="bi bi-pencil"></i> ' + _('edit_transfer_item');
+    document.getElementById('addBtnText').textContent = _('update_item');
+    
+    // Find the product in available products
+    selectedProduct = availableProducts.find(p => p.id === item.product_id);
+    
+    if (selectedProduct) {
+        // Populate form fields
+        document.getElementById('productSearch').value = item.product_name;
+        document.getElementById('transferQuantity').value = item.quantity;
+        document.getElementById('transferQuantity').disabled = false;
+        document.getElementById('transferNotes').value = item.notes || '';
+        
+        // Update product info display
+        document.getElementById('productName').textContent = item.product_name;
+        document.getElementById('productInfo').style.display = 'block';
+        document.getElementById('availableStock').textContent = _('available') + ' ' + translateNumber(selectedProduct.total_quantity.toString()) + ' ' + _('units');
+        
+        // Check duty-free compatibility
+        checkDutyFreeCompatibility(selectedProduct);
+        
+        // Enable form
+        document.getElementById('addTransferBtn').disabled = false;
+        document.getElementById('addTransferBtn').className = 'btn btn-warning';
+        
+        // Scroll to form
+        document.getElementById('addTransferForm').scrollIntoView({ behavior: 'smooth' });
+    }
+}
+
+function clearProductSelection() {
+    selectedProduct = null;
+    document.getElementById('productInfo').style.display = 'none';
+    document.getElementById('transferQuantity').disabled = true;
+    document.getElementById('transferQuantity').value = '';
+    document.getElementById('availableStock').textContent = _('select_product_first');
+    document.getElementById('dutyFreeWarning').style.display = 'none';
+    const addBtn = document.getElementById('addTransferBtn');
+    addBtn.disabled = true;
+    addBtn.className = 'btn btn-warning';
+    document.getElementById('addBtnText').textContent = _('add_to_transfer');
+}
+
+function clearForm() {
+    document.getElementById('addTransferForm').reset();
+    document.getElementById('productSearch').value = '';
+    document.getElementById('transferNotes').value = '';
+    clearProductSelection();
+}
+
+async function cancelEdit() {
+    if (editingIndex >= 0) {
+        exitEditMode();
+        clearForm();
+        return;
+    }
+    
+    // Ask user if they want to cancel the entire transfer
+    const confirmed = await confirmTranslated('cancel_transfer_confirm');
+    if (confirmed) {
+        const transferSessionId = document.getElementById('transferSessionId').value;
+        
+        // Clear localStorage
+        const storageKey = `transfer_session_${transferSessionId}`;
+        localStorage.removeItem(storageKey);
+        
+        showAlert(_('transfer_canceled'), 'info');
+        setTimeout(() => {
+            window.location.href = "{% url 'frontend:transfer_entry' %}";
+        }, 1500);
+    }
+}
+
+function exitEditMode() {
+    editingIndex = -1;
+    document.getElementById('formTitle').innerHTML = '<i class="bi bi-plus-circle"></i> ' + _('add_transfer_item');
+    document.getElementById('addBtnText').textContent = _('add_to_transfer');
+}
+
+function updateCartDisplay() {
+    const transferList = document.getElementById('transferList');
+    const emptyState = document.getElementById('emptyTransferState');
+    const transferListCount = document.getElementById('transferListCount');
+    const itemCountBadge = document.getElementById('itemCountBadge');
+    const transferItemCount = document.getElementById('transferItemCount');
+    const transferTotalUnits = document.getElementById('transferTotalUnits');
+    
+    // Update counts
+    const count = transferCart.length;
+    const totalUnits = transferCart.reduce((sum, item) => sum + item.quantity, 0);
+    
+    updateNumberElement('transferListCount', count);
+    if (itemCountBadge) updateNumberElement('itemCountBadge', count);
+    updateNumberElement('transferItemCount', count);
+    updateNumberElement('transferTotalUnits', totalUnits);
+    
+    // Update table
+    if (count === 0) {
+        transferList.innerHTML = '';
+        emptyState.style.display = 'block';
+    } else {
+        emptyState.style.display = 'none';
+        transferList.innerHTML = transferCart.map((item, index) => `
+            <tr>
+                <td>
+                    <div>
+                        <strong>${item.product_name}</strong>
+                        <small class="text-muted d-block">${_('id_label')}: <span data-number data-original="${item.product_item_id}">${translateNumber(item.product_item_id)}</span></small>
+                        ${item.is_duty_free ? '<span class="badge bg-warning text-dark">' + _('duty_free') + '</span>' : ''}
+                    </div>
+                </td>
+                <td class="text-center">
+                    <span class="fw-bold" data-number data-original="${item.quantity}">${translateNumber(item.quantity.toString())}</span>
+                    <small class="text-muted d-block">${_('units')}</small>
+                </td>
+                <td>
+                    <small>${item.notes || '-'}</small>
+                </td>
+                <td class="text-center">
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-primary" onclick="editCartItem(${index})" title="${_('edit_item')}">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-outline-danger" onclick="removeFromCart(${index})" title="${_('remove_item')}">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+    }
+    
+    // Apply translations after DOM update
+    setTimeout(() => {
+        updatePageTranslations();
+    }, 0);
+}
+
+async function completeTransfer() {
+    if (transferCart.length === 0) {
+        showAlert(_('add_one_item_first'), 'warning');
+        return;
+    }
+    
+    const confirmed = await confirmTranslated('complete_transfer_confirm', {
+        count: transferCart.length
+    });
+    if (!confirmed) return;
+    
+    const completeTransferBtn = document.getElementById('completeTransferBtn');
+    const originalText = completeTransferBtn.innerHTML;
+    
+    completeTransferBtn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> ${_('completing')}`;
+    completeTransferBtn.disabled = true;
+    
+    // Prepare data
+    const transferData = {
+        transfer_session_id: document.getElementById('transferSessionId').value,
+        items: transferCart.map(item => ({
+            product_id: item.product_id,
+            quantity: item.quantity,
+            notes: item.notes || ''
+        }))
+    };
+    
+    fetch('/transfer/bulk-complete/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify(transferData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Clear cart from storage
+            const transferSessionId = document.getElementById('transferSessionId').value;
+            const storageKey = `transfer_session_${transferSessionId}`;
+            localStorage.removeItem(storageKey);
+            
+            showAlert(_('transfer_completed'), 'success');
+            setTimeout(() => {
+                window.location.href = "{% url 'frontend:transfer_entry' %}";
+            }, 2000);
+        } else {
+            showAlert(data.error || _('error_completing_transfer'), 'danger');
+            completeTransferBtn.innerHTML = originalText;
+            completeTransferBtn.disabled = false;
+        }
+    })
+    .catch(error => {
+        console.error('Error completing transfer:', error);
+        showAlert(_('error_completing_transfer'), 'danger');
+        completeTransferBtn.innerHTML = originalText;
+        completeTransferBtn.disabled = false;
+    });
+}
+
+function exportTransferItems() {
+    alertTranslated('export_coming_soon');
+}
+
+function printTransferItems() {
+    alertTranslated('print_coming_soon');
+}
+
+function showAlert(message, type) {
+    const container = document.querySelector('.container') || document.querySelector('body');
+    const firstRow = container.querySelector('.row');
+    
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    if (firstRow) {
+        container.insertBefore(alertDiv, firstRow);
+    } else {
+        container.appendChild(alertDiv);
+    }
+    
+    setTimeout(() => {
+        if (alertDiv && alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
+</script>
+{% endblock %}
