@@ -42,9 +42,9 @@
                         <h6 class="mb-1 opacity-75"><span data-translate="trip_revenue">Trip Revenue</span></h6>
                         <h3 class="mb-0" id="tripRevenue">
                             {% if trip.is_completed %}
-                                {{ trip.total_revenue|floatformat:3 }} JOD
+                                <span data-number data-original="{{ trip.total_revenue|floatformat:3 }}">{{ trip.total_revenue|floatformat:3 }}</span> <span data-currency-symbol>JOD</span>
                             {% else %}
-                                0.000 JOD
+                                <span data-number data-original="0.000">0.000</span> <span data-currency-symbol>JOD</span>
                             {% endif %}
                         </h3>
                     </div>
@@ -52,19 +52,23 @@
                         <h6 class="mb-1 opacity-75"><span data-translate="items_in_cart">Items In Cart</span></h6>
                         <h3 class="mb-0" id="itemCount">
                             {% if trip.is_completed %}
-                                {{ trip.transaction_count }}
+                                <span data-number data-original="{{ trip.transaction_count }}">{{ trip.transaction_count }}</span>
                             {% else %}
-                                0
+                                <span data-number data-original="0">0</span>
                             {% endif %}
                         </h3>
                     </div>
                     <div class="col-md-3">
                         <h6 class="mb-1 opacity-75"><span data-translate="total_cogs">Total COGS</span></h6>
-                        <h3 class="mb-0" id="totalCOGS">0.000 JOD</h3>
+                        <h3 class="mb-0" id="totalCOGS">
+                            <span data-number data-original="0.000">0.000</span> <span data-currency-symbol>JOD</span>
+                        </h3>
                     </div>
                     <div class="col-md-3">
                         <h6 class="mb-1 opacity-75"><span data-translate="total_profit">Total Profit</span></h6>
-                        <h3 class="mb-0" id="totalProfit">0.000 JOD</h3>
+                        <h3 class="mb-0" id="totalProfit">
+                            <span data-number data-original="0.000">0.000</span> <span data-currency-symbol>JOD</span>
+                        </h3>
                     </div>
                 </div>
             </div>
@@ -74,7 +78,7 @@
 
 <div class="row">
     {% if can_edit %}
-    <!-- LEFT SIDE: Add Sales Item Form -->
+    <!-- LEFT SIDE: Add Sales Item Form (only for editable trips) -->
     <div class="col-md-6">
         <div class="card h-100">
             <div class="card-header">
@@ -157,10 +161,9 @@
             </div>
         </div>
     </div>
-    {% endif %}
     
-    <!-- RIGHT SIDE: Available Products -->
-    <div class="col-md-{% if can_edit %}6{% else %}12{% endif %}">
+    <!-- RIGHT SIDE: Available Products (only for editable trips) -->
+    <div class="col-md-6">
         <div class="card h-100">
             <div class="card-header">
                 <h5 class="mb-0">
@@ -186,6 +189,27 @@
             </div>
         </div>
     </div>
+    {% else %}
+    <!-- For completed trips: Show summary information instead of forms -->
+    <div class="col-12">
+        <div class="alert alert-success">
+            <div class="row">
+                <div class="col-md-8">
+                    <h5 class="alert-heading">
+                        <i class="bi bi-check-circle"></i> <span data-translate="trip_completed">Trip Completed</span>
+                    </h5>
+                    <p class="mb-0">
+                        <span data-translate="trip_completed_desc">This trip has been completed and is now read-only. All sales have been finalized and inventory has been updated.</span>
+                    </p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <strong><span data-translate="completion_date">Completed:</span></strong><br>
+                    <span data-trip-date data-original="{{ trip.updated_at|date:'d/m/Y H:i' }}">{{ trip.updated_at|date:"d/m/Y H:i" }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 <!-- Trip Sales List -->
@@ -283,7 +307,10 @@ document.addEventListener('DOMContentLoaded', function() {
             'calculating_cogs': 'Calculating COGS...',
             'edit_item': 'Edit Item',
             'remove_item': 'Remove Item',
-            'select_from_available': 'Click on a product from the available products list'
+            'select_from_available': 'Click on a product from the available products list',
+            'trip_completed': 'Trip Completed',
+            'trip_completed_desc': 'This trip has been completed and is now read-only. All sales have been finalized and inventory has been updated.',
+            'completion_date': 'Completed:'
         },
         ar: {
             'total_cogs': 'إجمالي تكلفة البضاعة المباعة',
@@ -312,7 +339,10 @@ document.addEventListener('DOMContentLoaded', function() {
             'calculating_cogs': 'جاري حساب التكلفة...',
             'edit_item': 'تحرير العنصر',
             'remove_item': 'حذف العنصر',
-            'select_from_available': 'انقر على منتج من قائمة المنتجات المتوفرة'
+            'select_from_available': 'انقر على منتج من قائمة المنتجات المتوفرة',
+            'trip_completed': 'تم إكمال الرحلة',
+            'trip_completed_desc': 'تم إكمال هذه الرحلة وهي الآن للقراءة فقط. تم الانتهاء من جميع المبيعات وتحديث المخزون.',
+            'completion_date': 'تاريخ الإكمال:'
         }
     };
     
@@ -335,13 +365,14 @@ document.addEventListener('DOMContentLoaded', function() {
             const completedSales = JSON.parse('{{ completed_sales_json|escapejs }}');
             if (completedSales && completedSales.length > 0) {
                 displayCompletedSales(completedSales);
+                updateCompletedTripTotals(completedSales);
             }
         } catch (e) {
             console.log('Error parsing completed sales:', e);
         }
         {% endif %}
-        // Still load available products for viewing
-        loadAvailableProducts();
+        // No need to load available products for completed trips
+        updatePageTranslations();
         return;
     }
     
@@ -459,13 +490,100 @@ function displayAvailableProducts() {
                     ${product.is_duty_free ? '<span class="badge bg-warning text-dark ms-1">' + _('duty_free') + '</span>' : ''}
                 </div>
             </td>
-            <td><code>${product.item_id}</code></td>
+            <td><code data-number data-original="${product.item_id}">${translateNumber(product.item_id)}</code></td>
             <td class="text-end">
-                <span class="fw-bold text-success">${translateNumber(product.total_quantity.toString())}</span>
+                <span class="fw-bold text-success" data-number data-original="${product.total_quantity}">${translateNumber(product.total_quantity.toString())}</span>
                 <small class="text-muted d-block">${_('units')}</small>
             </td>
         </tr>
     `).join('');
+    
+    // Apply translations after DOM update
+    setTimeout(() => {
+        updatePageTranslations();
+    }, 0);
+}
+
+function displayCompletedSales(completedSales) {
+    const salesList = document.getElementById('salesList');
+    const emptyState = document.getElementById('emptySalesState');
+    
+    // Update count with number translation
+    updateNumberElement('salesListCount', completedSales.length);
+    
+    if (completedSales.length === 0) {
+        salesList.innerHTML = '';
+        emptyState.style.display = 'block';
+    } else {
+        emptyState.style.display = 'none';
+        salesList.innerHTML = completedSales.map(item => `
+            <tr>
+                <td><small data-number data-original="${item.created_at}">${translateNumber(item.created_at)}</small></td>
+                <td>
+                    <div>
+                        <strong>${item.product_name}</strong>
+                        <small class="text-muted d-block">${_('id_label')}: <span data-number data-original="${item.product_item_id}">${translateNumber(item.product_item_id)}</span></small>
+                        ${item.is_duty_free ? '<span class="badge bg-warning text-dark">' + _('duty_free') + '</span>' : ''}
+                    </div>
+                </td>
+                <td class="text-center">
+                    <span class="fw-bold" data-number data-original="${item.quantity}">${translateNumber(item.quantity.toString())}</span>
+                    <small class="text-muted d-block">${_('units')}</small>
+                </td>
+                <td class="text-end">
+                    <span class="fw-bold" data-number data-original="${item.unit_price.toFixed(3)}">${translateNumber(item.unit_price.toFixed(3))}</span>
+                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+                </td>
+                <td class="text-end">
+                    <span class="fw-bold text-warning" data-number data-original="${(item.total_cogs || 0).toFixed(3)}">${translateNumber((item.total_cogs || 0).toFixed(3))}</span>
+                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+                </td>
+                <td class="text-end">
+                    <span class="fw-bold text-info" data-number data-original="${(item.total_profit || 0).toFixed(3)}">${translateNumber((item.total_profit || 0).toFixed(3))}</span>
+                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+                </td>
+                <td class="text-end">
+                    <span class="fw-bold text-success" data-number data-original="${item.total_amount.toFixed(3)}">${translateNumber(item.total_amount.toFixed(3))}</span>
+                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+                </td>
+                <td><small>${item.notes || '-'}</small></td>
+            </tr>
+        `).join('');
+        
+        // Apply translations after DOM update
+        setTimeout(() => {
+            updatePageTranslations();
+        }, 0);
+    }
+}
+
+function updateCompletedTripTotals(completedSales) {
+    // Calculate totals from completed sales data
+    let totalCOGS = 0;
+    let totalProfit = 0;
+    
+    completedSales.forEach(item => {
+        totalCOGS += item.total_cogs || 0;
+        totalProfit += item.total_profit || 0;
+    });
+    
+    // Update the summary card
+    const cogsElement = document.getElementById('totalCOGS');
+    if (cogsElement) {
+        cogsElement.setAttribute('data-original', totalCOGS.toFixed(3));
+        cogsElement.innerHTML = `<span data-number data-original="${totalCOGS.toFixed(3)}">${translateNumber(totalCOGS.toFixed(3))}</span> <span data-currency-symbol>JOD</span>`;
+    }
+    
+    const profitElement = document.getElementById('totalProfit');
+    if (profitElement) {
+        profitElement.setAttribute('data-original', totalProfit.toFixed(3));
+        profitElement.innerHTML = `<span data-number data-original="${totalProfit.toFixed(3)}">${translateNumber(totalProfit.toFixed(3))}</span> <span data-currency-symbol>JOD</span>`;
+    }
+    
+    // Apply translations to the updated elements
+    setTimeout(() => {
+        updatePageTranslations();
+    }, 0);
 }
 
 function selectProductFromList(product) {
@@ -779,22 +897,9 @@ function exitEditMode() {
 function updateCartDisplay() {
     const canEdit = {{ can_edit|yesno:"true,false" }};
     
-    // For completed trips, use actual transaction data instead of cart
+    // For completed trips, the totals are already calculated in updateCompletedTripTotals
     if (!canEdit) {
-        {% if trip.total_revenue %}
-        const revenueElement = document.getElementById('tripRevenue');
-        if (revenueElement) {
-            revenueElement.setAttribute('data-original', '{{ trip.total_revenue|floatformat:3 }}');
-            revenueElement.innerHTML = `<span data-number data-original="{{ trip.total_revenue|floatformat:3 }}">${translateNumber('{{ trip.total_revenue|floatformat:3 }}')}</span> <span data-currency-symbol>JOD</span>`;
-        }
-        updateNumberElement('itemCount', {{ trip.transaction_count }});
-        updateNumberElement('salesListCount', {{ trip.transaction_count }});
-        if (document.getElementById('itemCountBadge')) {
-            updateNumberElement('itemCountBadge', {{ trip.transaction_count }});
-        }
-        setTimeout(() => updatePageTranslations(), 0);
         return; // Exit early for completed trips
-        {% endif %}
     }
     
     // Rest of the function for editable trips (cart functionality)
@@ -898,7 +1003,7 @@ function updateCartDisplay() {
     }, 0);
 }
 
-// 🔧 ENHANCED: Helper function for updating number elements
+// Helper function for updating number elements
 function updateNumberElement(elementId, value) {
     const element = document.getElementById(elementId);
     if (element) {
@@ -906,43 +1011,6 @@ function updateNumberElement(elementId, value) {
         element.setAttribute('data-original', value.toString());
         element.textContent = translateNumber(value.toString());
     }
-}
-
-function displayAvailableProducts() {
-    const tbody = document.getElementById('availableProductsList');
-    
-    if (availableProducts.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="3" class="text-center text-muted py-4">
-                    <i class="bi bi-box" style="font-size: 2rem;"></i>
-                    <p class="mt-2 mb-0">${_('no_products_available')}</p>
-                </td>
-            </tr>
-        `;
-        return;
-    }
-    
-    tbody.innerHTML = availableProducts.map(product => `
-        <tr class="cursor-pointer" onclick="selectProductFromList(${JSON.stringify(product).replace(/"/g, '&quot;')})">
-            <td>
-                <div>
-                    <strong>${product.name}</strong>
-                    ${product.is_duty_free ? '<span class="badge bg-warning text-dark ms-1">' + _('duty_free') + '</span>' : ''}
-                </div>
-            </td>
-            <td><code data-number data-original="${product.item_id}">${translateNumber(product.item_id)}</code></td>
-            <td class="text-end">
-                <span class="fw-bold text-success" data-number data-original="${product.total_quantity}">${translateNumber(product.total_quantity.toString())}</span>
-                <small class="text-muted d-block">${_('units')}</small>
-            </td>
-        </tr>
-    `).join('');
-    
-    // Apply translations after DOM update
-    setTimeout(() => {
-        updatePageTranslations();
-    }, 0);
 }
 
 async function completeTripSales() {

@@ -3,7 +3,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.db.models import Sum, Count, Q, F, Case, When, Avg
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse
 from datetime import date, timedelta, datetime
 from decimal import Decimal
 import decimal
@@ -15,6 +15,16 @@ from django.utils import timezone
 from django.db import models
 from .utils.exports import ExcelExporter, PDFExporter
 from products.models import Product, Category
+from django.contrib.auth.models import User, Group
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.admin.views.decorators import staff_member_required
+from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import csrf_exempt
+from django.core.exceptions import ValidationError
+from django.contrib.auth.password_validation import validate_password
+import json
+import secrets
+import string
 
 def is_admin_or_manager(user):
     """Check if user is superuser or in admin/manager groups"""
@@ -191,13 +201,13 @@ def po_supply(request, po_id):
                 'product_item_id': supply.product.item_id,
                 'quantity': int(supply.quantity),
                 'unit_price': float(supply.unit_price),
-                'total_amount': float(supply.total_amount),
+                'total_amount': float(supply.total_amount),  # This is the cost for supplies
+                'is_duty_free': supply.product.is_duty_free,  # ✅ Added
                 'notes': supply.notes or '',
                 'created_at': supply.created_at.strftime('%H:%M')
             })
     
     # Convert to JSON strings for safe template rendering
-    import json
     existing_supplies_json = json.dumps(existing_supplies)
     completed_supplies_json = json.dumps(completed_supplies)
     
@@ -934,12 +944,55 @@ def trip_sales(request, trip_id):
         ).select_related('product').order_by('created_at')
         
         for sale in trip_transactions:
+            # Calculate COGS from FIFO consumption (parse from notes or recalculate)
+            total_cogs = 0
+            total_profit = 0
+            
+            try:
+                # Try to parse COGS from notes if it was logged during sale
+                if sale.notes and 'FIFO consumption:' in sale.notes:
+                    # Parse the FIFO breakdown from notes
+                    # Example: "FIFO consumption: 50 units @ 1.200 JOD; 50 units @ 1.150 JOD"
+                    import re
+                    fifo_pattern = r'(\d+(?:\.\d+)?)\s+units\s+@\s+(\d+(?:\.\d+)?)\s+JOD'
+                    matches = re.findall(fifo_pattern, sale.notes)
+                    
+                    for qty_str, cost_str in matches:
+                        consumed_qty = float(qty_str)
+                        unit_cost = float(cost_str)
+                        total_cogs += consumed_qty * unit_cost
+                else:
+                    # Fallback: estimate COGS using current available lots (not perfect but better than 0)
+                    from transactions.models import get_available_inventory
+                    _, lots = get_available_inventory(sale.vessel, sale.product)
+                    
+                    if lots:
+                        # Use average cost of current lots as estimate
+                        avg_cost = sum(lot.purchase_price * lot.remaining_quantity for lot in lots) / sum(lot.remaining_quantity for lot in lots) if lots else 0
+                        total_cogs = float(sale.quantity) * float(avg_cost)
+                    else:
+                        # Last resort: use product's default purchase price
+                        total_cogs = float(sale.quantity) * float(sale.product.purchase_price)
+                
+                # Calculate profit
+                total_revenue = float(sale.total_amount)
+                total_profit = total_revenue - total_cogs
+                
+            except Exception as e:
+                print(f"Error calculating COGS for sale {sale.id}: {e}")
+                # Fallback to default purchase price
+                total_cogs = float(sale.quantity) * float(sale.product.purchase_price)
+                total_profit = float(sale.total_amount) - total_cogs
+            
             completed_sales.append({
                 'product_name': sale.product.name,
                 'product_item_id': sale.product.item_id,
                 'quantity': int(sale.quantity),
                 'unit_price': float(sale.unit_price),
                 'total_amount': float(sale.total_amount),
+                'total_cogs': total_cogs,  # ✅ Added
+                'total_profit': total_profit,  # ✅ Added
+                'is_duty_free': sale.product.is_duty_free,  # ✅ Added
                 'notes': sale.notes or '',
                 'created_at': sale.created_at.strftime('%H:%M')
             })
@@ -2744,7 +2797,20 @@ def monthly_report(request):
     SYSTEM_START_YEAR = 2023  # Change this to when your system started
     current_year = timezone.now().year
     year_range = range(SYSTEM_START_YEAR, current_year + 1)  # From start year to current+2
-    
+    months ={
+        1:'January',
+        2:'February',
+        3:'March',
+        4:'April',
+        5:'May',
+        6:'June',
+        7:'July',
+        8:'August',
+        9:'September',
+        10:'October',
+        11:'November',
+        12:'December',
+    }
     # Calculate month date range
     first_day = date(year, month, 1)
     if month == 12:
@@ -2954,6 +3020,7 @@ def monthly_report(request):
         'vessels': vessels,
         'profit_margin': profit_margin,
         'year_range': year_range,  # Added this line
+        'months': months
     }
     
     return render(request, 'frontend/monthly_report.html', context)

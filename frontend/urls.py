@@ -107,4 +107,20 @@ urlpatterns = [
     
     # Suppress Chrome DevTools requests
     path('.well-known/appspecific/com.chrome.devtools.json', lambda r: HttpResponse('{}', content_type='application/json')),
+    
+    # Vessel Management
+    path('vessels/', auth_views.vessel_management, name='vessel_management'),
+    path('vessels/create/', auth_views.create_vessel, name='create_vessel'),
+    path('vessels/<int:vessel_id>/edit/', auth_views.edit_vessel, name='edit_vessel'),
+    path('vessels/<int:vessel_id>/toggle-status/', auth_views.toggle_vessel_status, name='toggle_vessel_status'),
+    path('vessels/<int:vessel_id>/statistics/', auth_views.vessel_statistics, name='vessel_statistics'),
+    
+    # Trip Management (5% of remaining work)  
+    path('trips/manage/', auth_views.trip_management, name='trip_management'),
+    path('trips/<int:trip_id>/details/', auth_views.trip_details, name='trip_details'),
+    
+    # PO Management (5% of remaining work)
+    path('purchase-orders/manage/', auth_views.po_management, name='po_management'), 
+    path('purchase-orders/<int:po_id>/details/', auth_views.po_details, name='po_details'),
+
 ]

@@ -60,11 +60,7 @@
                     <div class="col-md-3">
                         <h6 class="mb-1 opacity-75"><span data-translate="avg_cost_per_item">Avg Cost per Item</span></h6>
                         <h3 class="mb-0" id="avgCostPerItem">
-                            {% if po.is_completed and po.transaction_count > 0 %}
-                                <span class="avg-cost-display" data-number data-original="{% widthratio po.total_cost po.transaction_count 1 %}">{% widthratio po.total_cost po.transaction_count 1 %}</span> <span data-currency-symbol>JOD</span>
-                            {% else %}
-                                <span class="avg-cost-display" data-number data-original="0.000">0.000</span> <span data-currency-symbol>JOD</span>
-                            {% endif %}
+                            <span class="avg-cost-display" data-number data-original="0.000">0.000</span> <span data-currency-symbol>JOD</span>
                         </h3>
                     </div>
                     <div class="col-md-3">
@@ -85,7 +81,7 @@
 
 <div class="row">
     {% if can_edit %}
-    <!-- LEFT SIDE: Add Supply Item Form -->
+    <!-- LEFT SIDE: Add Supply Item Form (only for editable POs) -->
     <div class="col-md-6">
         <div class="card h-100 form-panel">
             <div class="card-header">
@@ -171,9 +167,8 @@
             </div>
         </div>
     </div>
-    {% endif %}
     
-    <!-- RIGHT SIDE: Product Catalog -->
+    <!-- RIGHT SIDE: Product Catalog (only for editable POs) -->
     <div class="col-md-6">
         <div class="card h-100 catalog-panel">
             <div class="card-header">
@@ -204,6 +199,27 @@
             </div>
         </div>
     </div>
+    {% else %}
+    <!-- For completed POs: Show summary information instead of forms -->
+    <div class="col-12">
+        <div class="alert alert-success">
+            <div class="row">
+                <div class="col-md-8">
+                    <h5 class="alert-heading">
+                        <i class="bi bi-check-circle"></i> <span data-translate="po_completed">PO Completed</span>
+                    </h5>
+                    <p class="mb-0">
+                        <span data-translate="po_completed_desc">This purchase order has been completed and is now read-only. All items have been received and inventory has been updated.</span>
+                    </p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <strong><span data-translate="completion_date">Completed:</span></strong><br>
+                    <span data-po-date data-original="{{ po.updated_at|date:'d/m/Y H:i' }}">{{ po.updated_at|date:"d/m/Y H:i" }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 <!-- PO Supply List -->
@@ -294,7 +310,10 @@ document.addEventListener('DOMContentLoaded', function() {
             'select_product_first': 'Select product first',
             'edit_item': 'Edit Item',
             'remove_item': 'Remove Item',
-            'select_from_catalog': 'Click on a product from the catalog'
+            'select_from_catalog': 'Click on a product from the catalog',
+            'po_completed': 'PO Completed',
+            'po_completed_desc': 'This purchase order has been completed and is now read-only. All items have been received and inventory has been updated.',
+            'completion_date': 'Completed:'
         },
         ar: {
             'product_catalog': 'كتالوج المنتجات',
@@ -318,7 +337,10 @@ document.addEventListener('DOMContentLoaded', function() {
             'select_product_first': 'اختر المنتج أولاً',
             'edit_item': 'تعديل العنصر',
             'remove_item': 'إزالة العنصر',
-            'select_from_catalog': 'انقر على منتج من الكتالوج'
+            'select_from_catalog': 'انقر على منتج من الكتالوج',
+            'po_completed': 'تم إكمال أمر الشراء',
+            'po_completed_desc': 'تم إكمال أمر الشراء هذا وهو الآن للقراءة فقط. تم استلام جميع العناصر وتحديث المخزون.',
+            'completion_date': 'تاريخ الإكمال:'
         }
     };
     
@@ -341,13 +363,14 @@ document.addEventListener('DOMContentLoaded', function() {
             const completedSupplies = JSON.parse('{{ completed_supplies_json|escapejs }}');
             if (completedSupplies && completedSupplies.length > 0) {
                 displayCompletedSupplies(completedSupplies);
+                updateCompletedPOTotals(completedSupplies);
             }
         } catch (e) {
             console.log('Error parsing completed supplies:', e);
         }
         {% endif %}
-        // Still load product catalog for viewing
-        loadProductCatalog();
+        // No need to load product catalog for completed POs
+        updatePageTranslations();
         return;
     }
     
@@ -425,7 +448,7 @@ function loadProductCatalog() {
             'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
         },
         body: JSON.stringify({
-            vessel_id: {{ po.vessel.id }}  // 🔧 SEND VESSEL ID FOR FILTERING
+            vessel_id: {{ po.vessel.id }}
         })
     })
     .then(response => response.json())
@@ -443,7 +466,7 @@ function loadProductCatalog() {
 }
 
 function displayProductCatalog() {
-    const tbody = document.getElementById('availableProductsList'); // 🔧 CORRECT TABLE ID
+    const tbody = document.getElementById('availableProductsList');
     
     if (productCatalog.length === 0) {
         tbody.innerHTML = `
@@ -465,13 +488,93 @@ function displayProductCatalog() {
                     ${product.is_duty_free ? '<span class="badge bg-warning text-dark ms-1">' + _('duty_free') + '</span>' : ''}
                 </div>
             </td>
-            <td><code>${product.item_id}</code></td>
+            <td><code data-number data-original="${product.item_id}">${translateNumber(product.item_id)}</code></td>
             <td class="text-end">
-                <span class="fw-bold text-primary">${translateNumber(product.purchase_price.toFixed(3))}</span>
-                <small class="text-muted d-block">JOD</small>
+                <span class="fw-bold text-primary" data-number data-original="${product.purchase_price.toFixed(3)}">${translateNumber(product.purchase_price.toFixed(3))}</span>
+                <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
             </td>
         </tr>
     `).join('');
+    
+    // Apply translations after DOM update
+    setTimeout(() => {
+        updatePageTranslations();
+    }, 0);
+}
+
+function displayCompletedSupplies(completedSupplies) {
+    const suppliesList = document.getElementById('suppliesList');
+    const emptyState = document.getElementById('emptySuppliesState');
+    
+    // Update count with number translation
+    updateNumberElement('suppliesListCount', completedSupplies.length);
+    
+    if (completedSupplies.length === 0) {
+        suppliesList.innerHTML = '';
+        emptyState.style.display = 'block';
+    } else {
+        emptyState.style.display = 'none';
+        suppliesList.innerHTML = completedSupplies.map(item => `
+            <tr>
+                <td><small data-number data-original="${item.created_at}">${translateNumber(item.created_at)}</small></td>
+                <td>
+                    <div>
+                        <strong>${item.product_name}</strong>
+                        <small class="text-muted d-block">${_('id_label')}: <span data-number data-original="${item.product_item_id}">${translateNumber(item.product_item_id)}</span></small>
+                        ${item.is_duty_free ? '<span class="badge bg-warning text-dark">' + _('duty_free') + '</span>' : ''}
+                    </div>
+                </td>
+                <td class="text-center">
+                    <span class="fw-bold" data-number data-original="${item.quantity}">${translateNumber(item.quantity.toString())}</span>
+                    <small class="text-muted d-block">${_('units')}</small>
+                </td>
+                <td class="text-end">
+                    <span class="fw-bold" data-number data-original="${item.unit_price.toFixed(3)}">${translateNumber(item.unit_price.toFixed(3))}</span>
+                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+                </td>
+                <td class="text-end">
+                    <span class="fw-bold text-primary" data-number data-original="${item.total_amount.toFixed(3)}">${translateNumber(item.total_amount.toFixed(3))}</span>
+                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+                </td>
+                <td><small>${item.notes || '-'}</small></td>
+            </tr>
+        `).join('');
+        
+        // Apply translations after DOM update
+        setTimeout(() => {
+            updatePageTranslations();
+        }, 0);
+    }
+}
+
+function updateCompletedPOTotals(completedSupplies) {
+    // Calculate totals from completed supplies data
+    let totalCost = 0;
+    
+    completedSupplies.forEach(item => {
+        totalCost += item.total_amount || 0;
+    });
+    
+    const itemCount = completedSupplies.length;
+    const avgCost = itemCount > 0 ? totalCost / itemCount : 0;
+    
+    // Update the summary card
+    const costElement = document.getElementById('poTotalCost');
+    if (costElement) {
+        costElement.setAttribute('data-original', totalCost.toFixed(3));
+        costElement.innerHTML = `<span data-number data-original="${totalCost.toFixed(3)}">${translateNumber(totalCost.toFixed(3))}</span> <span data-currency-symbol>JOD</span>`;
+    }
+    
+    const avgElement = document.getElementById('avgCostPerItem');
+    if (avgElement) {
+        avgElement.setAttribute('data-original', avgCost.toFixed(3));
+        avgElement.innerHTML = `<span data-number data-original="${avgCost.toFixed(3)}">${translateNumber(avgCost.toFixed(3))}</span> <span data-currency-symbol>JOD</span>`;
+    }
+    
+    // Apply translations to the updated elements
+    setTimeout(() => {
+        updatePageTranslations();
+    }, 0);
 }
 
 function selectProductFromCatalog(product) {
@@ -550,7 +653,7 @@ function updateTotalCost() {
     const quantity = parseInt(document.getElementById('supplyQuantity').value) || 0;
     const cost = parseFloat(document.getElementById('purchaseCost').value) || 0;
     const total = quantity * cost;
-    document.getElementById('totalCost').textContent = translateNumber(total.toFixed(3)) + ' ' + _('jod');
+    document.getElementById('totalCost').innerHTML = `<span data-number data-original="${total.toFixed(3)}">${translateNumber(total.toFixed(3))}</span> <span data-currency-symbol>JOD</span>`;
 }
 
 function validateForm() {
@@ -662,7 +765,7 @@ function editCartItem(index) {
         
         // Update product info display
         document.getElementById('productName').textContent = item.product_name;
-        document.getElementById('totalCost').textContent = translateNumber(item.total_amount.toFixed(3)) + ' ' + _('jod');
+        document.getElementById('totalCost').innerHTML = `<span data-number data-original="${item.total_amount.toFixed(3)}">${translateNumber(item.total_amount.toFixed(3))}</span> <span data-currency-symbol>JOD</span>`;
         document.getElementById('productInfo').style.display = 'block';
         
         // Enable form
@@ -749,28 +852,9 @@ function exitEditMode() {
 function updateCartDisplay() {
     const canEdit = {{ can_edit|yesno:"true,false" }};
     
-    // For completed POs, use actual transaction data instead of cart
+    // For completed POs, the totals are already calculated in updateCompletedPOTotals
     if (!canEdit) {
-        {% if po.total_cost %}
-        const costElement = document.getElementById('poTotalCost');
-        if (costElement) {
-            costElement.setAttribute('data-original', '{{ po.total_cost|floatformat:3 }}');
-            costElement.innerHTML = `<span data-number data-original="{{ po.total_cost|floatformat:3 }}">${translateNumber('{{ po.total_cost|floatformat:3 }}')}</span> <span data-currency-symbol>JOD</span>`;
-        }
-        updateNumberElement('itemCount', {{ po.transaction_count }});
-        const avgCost = {{ po.transaction_count }} > 0 ? {{ po.total_cost }} / {{ po.transaction_count }} : 0;
-        const avgElement = document.getElementById('avgCostPerItem');
-        if (avgElement) {
-            avgElement.setAttribute('data-original', avgCost.toFixed(3));
-            avgElement.innerHTML = `<span data-number data-original="${avgCost.toFixed(3)}">${translateNumber(avgCost.toFixed(3))}</span> <span data-currency-symbol>JOD</span>`;
-        }
-        updateNumberElement('suppliesListCount', {{ po.transaction_count }});
-        if (document.getElementById('itemCountBadge')) {
-            updateNumberElement('itemCountBadge', {{ po.transaction_count }});
-        }
-        setTimeout(() => updatePageTranslations(), 0);
         return; // Exit early for completed POs
-        {% endif %}
     }
     
     // Rest of the function for editable POs (cart functionality)
@@ -856,44 +940,7 @@ function updateCartDisplay() {
     }, 0);
 }
 
-function displayProductCatalog() {
-    const tbody = document.getElementById('availableProductsList');
-    
-    if (productCatalog.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="3" class="text-center text-muted py-4">
-                    <i class="bi bi-box" style="font-size: 2rem;"></i>
-                    <p class="mt-2 mb-0">${_('no_products_available')}</p>
-                </td>
-            </tr>
-        `;
-        return;
-    }
-    
-    tbody.innerHTML = productCatalog.map(product => `
-        <tr class="cursor-pointer" onclick="selectProductFromCatalog(${JSON.stringify(product).replace(/"/g, '&quot;')})">
-            <td>
-                <div>
-                    <strong>${product.name}</strong>
-                    ${product.is_duty_free ? '<span class="badge bg-warning text-dark ms-1">' + _('duty_free') + '</span>' : ''}
-                </div>
-            </td>
-            <td><code data-number data-original="${product.item_id}">${translateNumber(product.item_id)}</code></td>
-            <td class="text-end">
-                <span class="fw-bold text-primary" data-number data-original="${product.purchase_price.toFixed(3)}">${translateNumber(product.purchase_price.toFixed(3))}</span>
-                <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
-            </td>
-        </tr>
-    `).join('');
-    
-    // Apply translations after DOM update
-    setTimeout(() => {
-        updatePageTranslations();
-    }, 0);
-}
-
-// 🔧 ENHANCED: Helper function for updating number elements
+// Helper function for updating number elements
 function updateNumberElement(elementId, value) {
     const element = document.getElementById(elementId);
     if (element) {

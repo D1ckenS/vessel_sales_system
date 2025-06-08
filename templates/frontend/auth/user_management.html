@@ -1,7 +1,7 @@
 {% extends 'frontend/base.html' %}
 
 {% block title %}
-    User Management
+    <span data-translate="user_management">User Management</span> - <span data-translate="vessel_sales_system">Vessel Sales System</span>
 {% endblock %}
 
 {% block content %}
@@ -28,6 +28,10 @@
                         <i class="bi bi-gear me-2"></i>
                         <span data-translate="setup_groups">Setup Groups</span>
                     </button>
+                    <a href="{% url 'frontend:dashboard' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left me-2"></i>
+                        <span data-translate="back_to_dashboard">Back to Dashboard</span>
+                    </a>
                 </div>
             </div>
         </div>
@@ -39,7 +43,7 @@
             <div class="stats-card" style="background: linear-gradient(135deg, var(--secondary-blue) 0%, var(--primary-blue) 100%); color: white;">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <div class="stats-number">{{ users|length }}</div>
+                        <div class="stats-number" data-number data-original="{{ users|length }}">{{ users|length }}</div>
                         <div class="stats-label text-white" data-translate="total_users">Total Users</div>
                     </div>
                     <i class="bi bi-people" style="font-size: 2.5rem; opacity: 0.8;"></i>
@@ -50,7 +54,7 @@
             <div class="stats-card" style="background: linear-gradient(135deg, var(--success-green) 0%, #20c997 100%); color: white;">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <div class="stats-number">{{ users|length }}</div>
+                        <div class="stats-number" data-number data-original="{{ active_users_count }}">{{ active_users_count }}</div>
                         <div class="stats-label text-white" data-translate="active_users">Active Users</div>
                     </div>
                     <i class="bi bi-person-check" style="font-size: 2.5rem; opacity: 0.8;"></i>
@@ -61,7 +65,7 @@
             <div class="stats-card" style="background: linear-gradient(135deg, var(--warning-orange) 0%, #ffc107 100%); color: white;">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <div class="stats-number">{{ groups|length }}</div>
+                        <div class="stats-number" data-number data-original="{{ groups|length }}">{{ groups|length }}</div>
                         <div class="stats-label text-white" data-translate="user_groups">User Groups</div>
                     </div>
                     <i class="bi bi-collection" style="font-size: 2.5rem; opacity: 0.8;"></i>
@@ -72,7 +76,7 @@
             <div class="stats-card" style="background: linear-gradient(135deg, var(--accent-blue) 0%, #87ceeb 100%); color: var(--primary-blue);">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <div class="stats-number">{{ users|length }}</div>
+                        <div class="stats-number" data-number data-original="{{ staff_users_count }}">{{ staff_users_count }}</div>
                         <div class="stats-label" data-translate="staff_members" style="color: var(--primary-blue);">Staff Members</div>
                     </div>
                     <i class="bi bi-person-badge" style="font-size: 2.5rem; opacity: 0.8;"></i>
@@ -159,15 +163,23 @@
                                     </td>
                                     <td>
                                         <div class="btn-group">
-                                            <button type="button" class="btn btn-sm btn-outline-primary">
+                                            <button type="button" class="btn btn-sm btn-outline-primary" 
+                                                    onclick="editUser({{ user.id }}, '{{ user.username|escapejs }}', '{{ user.first_name|escapejs }}', '{{ user.last_name|escapejs }}', '{{ user.email|escapejs }}', {{ user.is_active|yesno:'true,false' }}, {{ user.is_staff|yesno:'true,false' }})"
+                                                    data-translate-title="edit_user">
                                                 <i class="bi bi-pencil"></i>
                                             </button>
-                                            <button type="button" class="btn btn-sm btn-outline-warning">
+                                            <button type="button" class="btn btn-sm btn-outline-warning"
+                                                    onclick="resetPassword({{ user.id }}, '{{ user.username|escapejs }}')"
+                                                    data-translate-title="reset_password">
                                                 <i class="bi bi-key"></i>
                                             </button>
-                                            <button type="button" class="btn btn-sm btn-outline-danger">
-                                                <i class="bi bi-x-circle"></i>
+                                            {% if user.id != request.user.id %}
+                                            <button type="button" class="btn btn-sm {% if user.is_active %}btn-outline-danger{% else %}btn-outline-success{% endif %}"
+                                                    onclick="toggleUserStatus({{ user.id }}, '{{ user.username|escapejs }}', {{ user.is_active|yesno:'true,false' }})"
+                                                    data-translate-title="{% if user.is_active %}deactivate_user{% else %}activate_user{% endif %}">
+                                                <i class="bi bi-{% if user.is_active %}x-circle{% else %}check-circle{% endif %}"></i>
                                             </button>
+                                            {% endif %}
                                         </div>
                                     </td>
                                 </tr>
@@ -188,6 +200,200 @@
     </div>
 </div>
 
+<!-- Create User Modal -->
+<div class="modal fade" id="createUserModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-person-plus me-2"></i>
+                    <span data-translate="add_new_user">Add New User</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="createUserForm" method="POST" action="{% url 'frontend:create_user' %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-person me-1"></i>
+                                <span data-translate="username">Username</span> *
+                            </label>
+                            <input type="text" class="form-control" name="username" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-envelope me-1"></i>
+                                <span data-translate="email">Email</span>
+                            </label>
+                            <input type="email" class="form-control" name="email">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-person-badge me-1"></i>
+                                <span data-translate="first_name">First Name</span>
+                            </label>
+                            <input type="text" class="form-control" name="first_name">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-person-badge me-1"></i>
+                                <span data-translate="last_name">Last Name</span>
+                            </label>
+                            <input type="text" class="form-control" name="last_name">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-lock me-1"></i>
+                                <span data-translate="password">Password</span> *
+                            </label>
+                            <input type="password" class="form-control" name="password" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-lock-fill me-1"></i>
+                                <span data-translate="confirm_password">Confirm Password</span> *
+                            </label>
+                            <input type="password" class="form-control" name="password_confirm" required>
+                        </div>
+                        <div class="col-12 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-collection me-1"></i>
+                                <span data-translate="user_groups">User Groups</span>
+                            </label>
+                            {% for group in groups %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="groups" value="{{ group.id }}" id="group_{{ group.id }}">
+                                <label class="form-check-label" for="group_{{ group.id }}">
+                                    {{ group.name }}
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="col-12">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" name="is_active" id="createIsActive" checked>
+                                        <label class="form-check-label fw-bold" for="createIsActive">
+                                            <i class="bi bi-check-circle me-1"></i>
+                                            <span data-translate="active_user">Active User</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" name="is_staff" id="createIsStaff">
+                                        <label class="form-check-label fw-bold" for="createIsStaff">
+                                            <i class="bi bi-shield-check me-1"></i>
+                                            <span data-translate="staff_access">Staff Access</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <span data-translate="cancel">Cancel</span>
+                    </button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-person-plus me-1"></i>
+                        <span data-translate="create_user">Create User</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit User Modal -->
+<div class="modal fade" id="editUserModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-pencil me-2"></i>
+                    <span data-translate="edit_user">Edit User</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="editUserForm" method="POST">
+                {% csrf_token %}
+                <input type="hidden" id="editUserId" name="user_id">
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-person me-1"></i>
+                                <span data-translate="username">Username</span> *
+                            </label>
+                            <input type="text" class="form-control" id="editUsername" name="username" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-envelope me-1"></i>
+                                <span data-translate="email">Email</span>
+                            </label>
+                            <input type="email" class="form-control" id="editEmail" name="email">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-person-badge me-1"></i>
+                                <span data-translate="first_name">First Name</span>
+                            </label>
+                            <input type="text" class="form-control" id="editFirstName" name="first_name">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-person-badge me-1"></i>
+                                <span data-translate="last_name">Last Name</span>
+                            </label>
+                            <input type="text" class="form-control" id="editLastName" name="last_name">
+                        </div>
+                        <div class="col-12">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" name="is_active" id="editIsActive">
+                                        <label class="form-check-label fw-bold" for="editIsActive">
+                                            <i class="bi bi-check-circle me-1"></i>
+                                            <span data-translate="active_user">Active User</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" name="is_staff" id="editIsStaff">
+                                        <label class="form-check-label fw-bold" for="editIsStaff">
+                                            <i class="bi bi-shield-check me-1"></i>
+                                            <span data-translate="staff_access">Staff Access</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <span data-translate="cancel">Cancel</span>
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle me-1"></i>
+                        <span data-translate="update_user">Update User</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_css %}
 <style>
 .avatar-circle {
     width: 32px;
@@ -214,12 +420,261 @@
 .badge {
     font-size: 0.75rem;
 }
-</style>
 
+/* Fix hover scroll for this table too */
+.table-hover tbody tr:hover {
+    transform: none !important;
+    background: linear-gradient(135deg, rgba(15, 76, 117, 0.05) 0%, rgba(50, 130, 184, 0.05) 100%) !important;
+    border-left: 3px solid var(--primary-blue) !important;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
 <script>
-// Dummy functions for testing
+document.addEventListener('DOMContentLoaded', function() {
+    // Add translations for user management
+    const pageTranslations = {
+        en: {
+            'user_management': 'User Management',
+            'user_management_desc': 'Manage system users, roles, and permissions',
+            'add_user': 'Add User',
+            'setup_groups': 'Setup Groups',
+            'back_to_dashboard': 'Back to Dashboard',
+            'total_users': 'Total Users',
+            'active_users': 'Active Users',
+            'user_groups': 'User Groups',
+            'staff_members': 'Staff Members',
+            'system_users': 'System Users',
+            'username': 'Username',
+            'full_name': 'Full Name',
+            'email': 'Email',
+            'groups': 'Groups',
+            'status': 'Status',
+            'last_login': 'Last Login',
+            'actions': 'Actions',
+            'no_groups': 'No groups',
+            'active': 'Active',
+            'inactive': 'Inactive',
+            'staff': 'Staff',
+            'admin': 'Admin',
+            'never': 'Never',
+            'no_users_found': 'No users found',
+            'add_new_user': 'Add New User',
+            'edit_user': 'Edit User',
+            'first_name': 'First Name',
+            'last_name': 'Last Name',
+            'password': 'Password',
+            'confirm_password': 'Confirm Password',
+            'active_user': 'Active User',
+            'staff_access': 'Staff Access',
+            'cancel': 'Cancel',
+            'create_user': 'Create User',
+            'update_user': 'Update User',
+            'reset_password': 'Reset Password',
+            'deactivate_user': 'Deactivate User',
+            'activate_user': 'Activate User',
+            'confirm_reset_password': 'Reset password for user "{username}"?\n\nA new temporary password will be generated.',
+            'confirm_deactivate_user': 'Deactivate user "{username}"?\n\nThis will prevent the user from logging in.',
+            'confirm_activate_user': 'Activate user "{username}"?\n\nThis will allow the user to log in.',
+            'groups_setup_success': 'User groups have been set up successfully!',
+            'vessel_sales_system': 'Vessel Sales System'
+        },
+        ar: {
+            'user_management': 'إدارة المستخدمين',
+            'user_management_desc': 'إدارة مستخدمي النظام والأدوار والصلاحيات',
+            'add_user': 'إضافة مستخدم',
+            'setup_groups': 'إعداد المجموعات',
+            'back_to_dashboard': 'الرجوع للوحة التحكم',
+            'total_users': 'إجمالي المستخدمين',
+            'active_users': 'المستخدمين النشطين',
+            'user_groups': 'مجموعات المستخدمين',
+            'staff_members': 'أعضاء الطاقم',
+            'system_users': 'مستخدمي النظام',
+            'username': 'اسم المستخدم',
+            'full_name': 'الاسم الكامل',
+            'email': 'البريد الإلكتروني',
+            'groups': 'المجموعات',
+            'status': 'الحالة',
+            'last_login': 'آخر تسجيل دخول',
+            'actions': 'الإجراءات',
+            'no_groups': 'لا توجد مجموعات',
+            'active': 'نشط',
+            'inactive': 'غير نشط',
+            'staff': 'طاقم',
+            'admin': 'مدير',
+            'never': 'أبداً',
+            'no_users_found': 'لم يتم العثور على مستخدمين',
+            'add_new_user': 'إضافة مستخدم جديد',
+            'edit_user': 'تحرير المستخدم',
+            'first_name': 'الاسم الأول',
+            'last_name': 'اسم العائلة',
+            'password': 'كلمة المرور',
+            'confirm_password': 'تأكيد كلمة المرور',
+            'active_user': 'مستخدم نشط',
+            'staff_access': 'صلاحية الطاقم',
+            'cancel': 'إلغاء',
+            'create_user': 'إنشاء مستخدم',
+            'update_user': 'تحديث المستخدم',
+            'reset_password': 'إعادة تعيين كلمة المرور',
+            'deactivate_user': 'إلغاء تفعيل المستخدم',
+            'activate_user': 'تفعيل المستخدم',
+            'confirm_reset_password': 'إعادة تعيين كلمة المرور للمستخدم "{username}"؟\n\nسيتم إنشاء كلمة مرور مؤقتة جديدة.',
+            'confirm_deactivate_user': 'إلغاء تفعيل المستخدم "{username}"؟\n\nسيمنع هذا المستخدم من تسجيل الدخول.',
+            'confirm_activate_user': 'تفعيل المستخدم "{username}"؟\n\nسيسمح هذا للمستخدم بتسجيل الدخول.',
+            'groups_setup_success': 'تم إعداد مجموعات المستخدمين بنجاح!',
+            'vessel_sales_system': 'نظام مبيعات السفن'
+        }
+    };
+    
+    // Merge with existing translations
+    Object.assign(window.translator.translations.en, pageTranslations.en);
+    Object.assign(window.translator.translations.ar, pageTranslations.ar);
+    
+    // Update page translations
+    updatePageTranslations();
+});
+
 function setupGroups() {
-    alert('Setup Groups clicked - this would create default user groups');
+    confirmTranslated('Are you sure you want to set up default user groups?\n\nThis will create: Administrators, Managers, Vessel Operators, Inventory Staff, and Viewers.').then(confirmed => {
+        if (confirmed) {
+            console.log('User confirmed, making fetch request');
+            
+            // Show loading state (optional - add loading button effect)
+            const button = event.target;
+            const originalText = button.innerHTML;
+            button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Setting up...';
+            button.disabled = true;
+            
+            fetch('{% url "frontend:setup_groups" %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => {
+                console.log('Response received:', response.status);
+                
+                // Reset button state
+                button.innerHTML = originalText;
+                button.disabled = false;
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Data received:', data);
+                
+                if (data.success) {
+                    // Check what actually happened and show appropriate message
+                    let message = '';
+                    
+                    if (data.created_groups.length > 0 && data.existing_groups.length > 0) {
+                        // Some created, some already existed
+                        message = `Groups setup complete!\n\n✅ Created: ${data.created_groups.join(', ')}\n\nℹ️ Already existed: ${data.existing_groups.join(', ')}`;
+                    } else if (data.created_groups.length > 0) {
+                        // All groups were newly created
+                        message = `All user groups created successfully!\n\n✅ Created: ${data.created_groups.join(', ')}`;
+                    } else if (data.existing_groups.length > 0) {
+                        // All groups already existed
+                        message = `All user groups already exist!\n\nℹ️ Existing groups: ${data.existing_groups.join(', ')}\n\nNo changes were made.`;
+                    } else {
+                        // Fallback
+                        message = 'Groups setup completed successfully!';
+                    }
+                    
+                    alertTranslated(message).then(() => {
+                        location.reload();
+                    });
+                } else {
+                    alertTranslated('Error: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Setup groups error:', error);
+                
+                // Reset button state
+                button.innerHTML = originalText;
+                button.disabled = false;
+                
+                alertTranslated('Error setting up groups: ' + error.message);
+            });
+        } else {
+            console.log('User cancelled setup');
+        }
+    });
+}
+
+function editUser(userId, username, firstName, lastName, email, isActive, isStaff) {
+    document.getElementById('editUserId').value = userId;
+    document.getElementById('editUsername').value = username;
+    document.getElementById('editFirstName').value = firstName;
+    document.getElementById('editLastName').value = lastName;
+    document.getElementById('editEmail').value = email;
+    document.getElementById('editIsActive').checked = isActive;
+    document.getElementById('editIsStaff').checked = isStaff;
+    
+    document.getElementById('editUserForm').action = `/users/${userId}/edit/`;
+    
+    new bootstrap.Modal(document.getElementById('editUserModal')).show();
+}
+
+function resetPassword(userId, username) {
+    confirmTranslated('confirm_reset_password', { username: username }).then(confirmed => {
+        if (confirmed) {
+            fetch(`/users/${userId}/reset-password/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`Password reset successful!\nNew password: ${data.new_password}`);
+                } else {
+                    alert('Error: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error resetting password');
+            });
+        }
+    });
+}
+
+function toggleUserStatus(userId, username, isActive) {
+    const action = isActive ? 'deactivate' : 'activate';
+    const confirmKey = isActive ? 'confirm_deactivate_user' : 'confirm_activate_user';
+    
+    confirmTranslated(confirmKey, { username: username }).then(confirmed => {
+        if (confirmed) {
+            fetch(`/users/${userId}/toggle-status/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('Error: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error updating user status');
+            });
+        }
+    });
 }
 </script>
 {% endblock %}

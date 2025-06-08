@@ -1,0 +1,900 @@
+{% extends 'frontend/base.html' %}
+
+{% block title %}
+    <span data-translate="vessel_management">Vessel Management</span> - <span data-translate="vessel_sales_system">Vessel Sales System</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Match your existing product management styling */
+.stats-card {
+    background: white;
+    border: 1px solid #e0e6ed;
+    border-radius: 8px;
+    padding: 1.5rem;
+    text-align: center;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.stats-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.vessel-status-badge {
+    font-size: 0.8rem;
+    padding: 0.25rem 0.75rem;
+}
+
+.vessel-card {
+    transition: all 0.3s ease;
+    border: 1px solid rgba(0,0,0,.125);
+}
+
+.vessel-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.duty-free-indicator {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: linear-gradient(135deg, #ffc107, #ff8c00);
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 15px;
+    font-size: 0.7rem;
+    font-weight: bold;
+}
+
+[dir="rtl"] .duty-free-indicator {
+    right: auto;
+    left: 10px;
+}
+
+.vessel-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    background: linear-gradient(135deg, var(--secondary-blue), var(--primary-blue));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-0">
+                        <i class="bi bi-ship me-2" style="color: var(--secondary-blue);"></i>
+                        <span data-translate="vessel_management">Vessel Management</span>
+                    </h2>
+                    <p class="text-muted mb-0" data-translate="vessel_management_desc">
+                        Manage vessel fleet, configurations, and operational status
+                    </p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#createVesselModal">
+                        <i class="bi bi-ship me-2"></i>
+                        <span data-translate="add_vessel">Add Vessel</span>
+                    </button>
+                    <a href="{% url 'frontend:dashboard' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left me-2"></i>
+                        <span data-translate="back_to_dashboard">Back to Dashboard</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="stats-card" style="background: linear-gradient(135deg, var(--secondary-blue) 0%, var(--primary-blue) 100%); color: white;">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="stats-number" data-number data-original="6">6</div>
+                        <div class="stats-label text-white" data-translate="total_vessels">Total Vessels</div>
+                    </div>
+                    <i class="bi bi-ship" style="font-size: 2.5rem; opacity: 0.8;"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card" style="background: linear-gradient(135deg, var(--success-green) 0%, #20c997 100%); color: white;">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="stats-number" data-number data-original="6">6</div>
+                        <div class="stats-label text-white" data-translate="active_vessels">Active Vessels</div>
+                    </div>
+                    <i class="bi bi-check-circle" style="font-size: 2.5rem; opacity: 0.8;"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card" style="background: linear-gradient(135deg, var(--warning-orange) 0%, #ffc107 100%); color: white;">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="stats-number" data-number data-original="3">3</div>
+                        <div class="stats-label text-white" data-translate="duty_free_vessels">Duty-Free Vessels</div>
+                    </div>
+                    <i class="bi bi-star" style="font-size: 2.5rem; opacity: 0.8;"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card" style="background: linear-gradient(135deg, var(--accent-blue) 0%, #87ceeb 100%); color: var(--primary-blue);">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="stats-number" data-number data-original="0">0</div>
+                        <div class="stats-label" data-translate="inactive_vessels" style="color: var(--primary-blue);">Inactive Vessels</div>
+                    </div>
+                    <i class="bi bi-pause-circle" style="font-size: 2.5rem; opacity: 0.8;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Vessel Fleet Grid -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-grid-3x3 me-2"></i>
+                        <span data-translate="vessel_fleet">Vessel Fleet</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <!-- Amman -->
+                        <div class="col-lg-4 col-md-6 mb-4">
+                            <div class="vessel-card card h-100 position-relative">
+                                <div class="duty-free-indicator">
+                                    <i class="bi bi-star"></i> <span data-translate="duty_free">Duty-Free</span>
+                                </div>
+                                <div class="card-body text-center">
+                                    <div class="vessel-icon">
+                                        <i class="bi bi-ship"></i>
+                                    </div>
+                                    <h5 class="card-title">
+                                        <span class="vessel-name" data-en="Amman" data-ar="عمان">Amman</span>
+                                    </h5>
+                                    <div class="mb-3">
+                                        <span class="badge vessel-status-badge" style="background: var(--success-green); color: white;">
+                                            <i class="bi bi-check-circle me-1"></i>
+                                            <span data-translate="active">Active</span>
+                                        </span>
+                                        <span class="badge vessel-status-badge ms-2" style="background: var(--warning-orange); color: white;">
+                                            <i class="bi bi-star me-1"></i>
+                                            <span data-translate="duty_free">Duty-Free</span>
+                                        </span>
+                                    </div>
+                                    <div class="row text-center mb-3">
+                                        <div class="col-6">
+                                            <small class="text-muted d-block" data-translate="total_trips">Total Trips</small>
+                                            <strong data-number data-original="45">45</strong>
+                                        </div>
+                                        <div class="col-6">
+                                            <small class="text-muted d-block" data-translate="revenue_30d">Revenue (30d)</small>
+                                            <strong><span data-number data-original="2,450.500">2,450.500</span> <span data-currency-symbol>JOD</span></strong>
+                                        </div>
+                                    </div>
+                                    <div class="btn-group w-100">
+                                        <button class="btn btn-outline-primary btn-sm" onclick="editVessel(1, 'Amman', 'عمان', true, true)">
+                                            <i class="bi bi-pencil"></i> <span data-translate="edit">Edit</span>
+                                        </button>
+                                        <button class="btn btn-outline-info btn-sm" onclick="viewVesselStats(1, 'Amman')">
+                                            <i class="bi bi-graph-up"></i> <span data-translate="stats">Stats</span>
+                                        </button>
+                                        <button class="btn btn-outline-warning btn-sm" onclick="toggleVesselStatus(1, 'Amman', true)">
+                                            <i class="bi bi-pause"></i> <span data-translate="deactivate">Deactivate</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Aylah -->
+                        <div class="col-lg-4 col-md-6 mb-4">
+                            <div class="vessel-card card h-100 position-relative">
+                                <div class="card-body text-center">
+                                    <div class="vessel-icon">
+                                        <i class="bi bi-ship"></i>
+                                    </div>
+                                    <h5 class="card-title">
+                                        <span class="vessel-name" data-en="Aylah" data-ar="أيلة">Aylah</span>
+                                    </h5>
+                                    <div class="mb-3">
+                                        <span class="badge vessel-status-badge" style="background: var(--success-green); color: white;">
+                                            <i class="bi bi-check-circle me-1"></i>
+                                            <span data-translate="active">Active</span>
+                                        </span>
+                                        <span class="badge vessel-status-badge ms-2" style="background: var(--dark-gray); color: white;">
+                                            <i class="bi bi-x-circle me-1"></i>
+                                            <span data-translate="no_duty_free">No Duty-Free</span>
+                                        </span>
+                                    </div>
+                                    <div class="row text-center mb-3">
+                                        <div class="col-6">
+                                            <small class="text-muted d-block" data-translate="total_trips">Total Trips</small>
+                                            <strong data-number data-original="38">38</strong>
+                                        </div>
+                                        <div class="col-6">
+                                            <small class="text-muted d-block" data-translate="revenue_30d">Revenue (30d)</small>
+                                            <strong><span data-number data-original="1,890.250">1,890.250</span> <span data-currency-symbol>JOD</span></strong>
+                                        </div>
+                                    </div>
+                                    <div class="btn-group w-100">
+                                        <button class="btn btn-outline-primary btn-sm" onclick="editVessel(2, 'Aylah', 'أيلة', false, true)">
+                                            <i class="bi bi-pencil"></i> <span data-translate="edit">Edit</span>
+                                        </button>
+                                        <button class="btn btn-outline-info btn-sm" onclick="viewVesselStats(2, 'Aylah')">
+                                            <i class="bi bi-graph-up"></i> <span data-translate="stats">Stats</span>
+                                        </button>
+                                        <button class="btn btn-outline-warning btn-sm" onclick="toggleVesselStatus(2, 'Aylah', true)">
+                                            <i class="bi bi-pause"></i> <span data-translate="deactivate">Deactivate</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sinaa -->
+                        <div class="col-lg-4 col-md-6 mb-4">
+                            <div class="vessel-card card h-100 position-relative">
+                                <div class="duty-free-indicator">
+                                    <i class="bi bi-star"></i> <span data-translate="duty_free">Duty-Free</span>
+                                </div>
+                                <div class="card-body text-center">
+                                    <div class="vessel-icon">
+                                        <i class="bi bi-ship"></i>
+                                    </div>
+                                    <h5 class="card-title">
+                                        <span class="vessel-name" data-en="Sinaa" data-ar="سيناء">Sinaa</span>
+                                    </h5>
+                                    <div class="mb-3">
+                                        <span class="badge vessel-status-badge" style="background: var(--success-green); color: white;">
+                                            <i class="bi bi-check-circle me-1"></i>
+                                            <span data-translate="active">Active</span>
+                                        </span>
+                                        <span class="badge vessel-status-badge ms-2" style="background: var(--warning-orange); color: white;">
+                                            <i class="bi bi-star me-1"></i>
+                                            <span data-translate="duty_free">Duty-Free</span>
+                                        </span>
+                                    </div>
+                                    <div class="row text-center mb-3">
+                                        <div class="col-6">
+                                            <small class="text-muted d-block" data-translate="total_trips">Total Trips</small>
+                                            <strong data-number data-original="52">52</strong>
+                                        </div>
+                                        <div class="col-6">
+                                            <small class="text-muted d-block" data-translate="revenue_30d">Revenue (30d)</small>
+                                            <strong><span data-number data-original="3,120.750">3,120.750</span> <span data-currency-symbol>JOD</span></strong>
+                                        </div>
+                                    </div>
+                                    <div class="btn-group w-100">
+                                        <button class="btn btn-outline-primary btn-sm" onclick="editVessel(3, 'Sinaa', 'سيناء', true, true)">
+                                            <i class="bi bi-pencil"></i> <span data-translate="edit">Edit</span>
+                                        </button>
+                                        <button class="btn btn-outline-info btn-sm" onclick="viewVesselStats(3, 'Sinaa')">
+                                            <i class="bi bi-graph-up"></i> <span data-translate="stats">Stats</span>
+                                        </button>
+                                        <button class="btn btn-outline-warning btn-sm" onclick="toggleVesselStatus(3, 'Sinaa', true)">
+                                            <i class="bi bi-pause"></i> <span data-translate="deactivate">Deactivate</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Nefertiti -->
+                        <div class="col-lg-4 col-md-6 mb-4">
+                            <div class="vessel-card card h-100 position-relative">
+                                <div class="card-body text-center">
+                                    <div class="vessel-icon">
+                                        <i class="bi bi-ship"></i>
+                                    </div>
+                                    <h5 class="card-title">
+                                        <span class="vessel-name" data-en="Nefertiti" data-ar="نفرتيتي">Nefertiti</span>
+                                    </h5>
+                                    <div class="mb-3">
+                                        <span class="badge vessel-status-badge" style="background: var(--success-green); color: white;">
+                                            <i class="bi bi-check-circle me-1"></i>
+                                            <span data-translate="active">Active</span>
+                                        </span>
+                                        <span class="badge vessel-status-badge ms-2" style="background: var(--dark-gray); color: white;">
+                                            <i class="bi bi-x-circle me-1"></i>
+                                            <span data-translate="no_duty_free">No Duty-Free</span>
+                                        </span>
+                                    </div>
+                                    <div class="row text-center mb-3">
+                                        <div class="col-6">
+                                            <small class="text-muted d-block" data-translate="total_trips">Total Trips</small>
+                                            <strong data-number data-original="29">29</strong>
+                                        </div>
+                                        <div class="col-6">
+                                            <small class="text-muted d-block" data-translate="revenue_30d">Revenue (30d)</small>
+                                            <strong><span data-number data-original="1,650.300">1,650.300</span> <span data-currency-symbol>JOD</span></strong>
+                                        </div>
+                                    </div>
+                                    <div class="btn-group w-100">
+                                        <button class="btn btn-outline-primary btn-sm" onclick="editVessel(4, 'Nefertiti', 'نفرتيتي', false, true)">
+                                            <i class="bi bi-pencil"></i> <span data-translate="edit">Edit</span>
+                                        </button>
+                                        <button class="btn btn-outline-info btn-sm" onclick="viewVesselStats(4, 'Nefertiti')">
+                                            <i class="bi bi-graph-up"></i> <span data-translate="stats">Stats</span>
+                                        </button>
+                                        <button class="btn btn-outline-warning btn-sm" onclick="toggleVesselStatus(4, 'Nefertiti', true)">
+                                            <i class="bi bi-pause"></i> <span data-translate="deactivate">Deactivate</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Babel -->
+                        <div class="col-lg-4 col-md-6 mb-4">
+                            <div class="vessel-card card h-100 position-relative">
+                                <div class="duty-free-indicator">
+                                    <i class="bi bi-star"></i> <span data-translate="duty_free">Duty-Free</span>
+                                </div>
+                                <div class="card-body text-center">
+                                    <div class="vessel-icon">
+                                        <i class="bi bi-ship"></i>
+                                    </div>
+                                    <h5 class="card-title">
+                                        <span class="vessel-name" data-en="Babel" data-ar="بابل">Babel</span>
+                                    </h5>
+                                    <div class="mb-3">
+                                        <span class="badge vessel-status-badge" style="background: var(--success-green); color: white;">
+                                            <i class="bi bi-check-circle me-1"></i>
+                                            <span data-translate="active">Active</span>
+                                        </span>
+                                        <span class="badge vessel-status-badge ms-2" style="background: var(--warning-orange); color: white;">
+                                            <i class="bi bi-star me-1"></i>
+                                            <span data-translate="duty_free">Duty-Free</span>
+                                        </span>
+                                    </div>
+                                    <div class="row text-center mb-3">
+                                        <div class="col-6">
+                                            <small class="text-muted d-block" data-translate="total_trips">Total Trips</small>
+                                            <strong data-number data-original="41">41</strong>
+                                        </div>
+                                        <div class="col-6">
+                                            <small class="text-muted d-block" data-translate="revenue_30d">Revenue (30d)</small>
+                                            <strong><span data-number data-original="2,780.150">2,780.150</span> <span data-currency-symbol>JOD</span></strong>
+                                        </div>
+                                    </div>
+                                    <div class="btn-group w-100">
+                                        <button class="btn btn-outline-primary btn-sm" onclick="editVessel(5, 'Babel', 'بابل', true, true)">
+                                            <i class="bi bi-pencil"></i> <span data-translate="edit">Edit</span>
+                                        </button>
+                                        <button class="btn btn-outline-info btn-sm" onclick="viewVesselStats(5, 'Babel')">
+                                            <i class="bi bi-graph-up"></i> <span data-translate="stats">Stats</span>
+                                        </button>
+                                        <button class="btn btn-outline-warning btn-sm" onclick="toggleVesselStatus(5, 'Babel', true)">
+                                            <i class="bi bi-pause"></i> <span data-translate="deactivate">Deactivate</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Dahab -->
+                        <div class="col-lg-4 col-md-6 mb-4">
+                            <div class="vessel-card card h-100 position-relative">
+                                <div class="card-body text-center">
+                                    <div class="vessel-icon">
+                                        <i class="bi bi-ship"></i>
+                                    </div>
+                                    <h5 class="card-title">
+                                        <span class="vessel-name" data-en="Dahab" data-ar="دهب">Dahab</span>
+                                    </h5>
+                                    <div class="mb-3">
+                                        <span class="badge vessel-status-badge" style="background: var(--success-green); color: white;">
+                                            <i class="bi bi-check-circle me-1"></i>
+                                            <span data-translate="active">Active</span>
+                                        </span>
+                                        <span class="badge vessel-status-badge ms-2" style="background: var(--dark-gray); color: white;">
+                                            <i class="bi bi-x-circle me-1"></i>
+                                            <span data-translate="no_duty_free">No Duty-Free</span>
+                                        </span>
+                                    </div>
+                                    <div class="row text-center mb-3">
+                                        <div class="col-6">
+                                            <small class="text-muted d-block" data-translate="total_trips">Total Trips</small>
+                                            <strong data-number data-original="33">33</strong>
+                                        </div>
+                                        <div class="col-6">
+                                            <small class="text-muted d-block" data-translate="revenue_30d">Revenue (30d)</small>
+                                            <strong><span data-number data-original="1,920.800">1,920.800</span> <span data-currency-symbol>JOD</span></strong>
+                                        </div>
+                                    </div>
+                                    <div class="btn-group w-100">
+                                        <button class="btn btn-outline-primary btn-sm" onclick="editVessel(6, 'Dahab', 'دهب', false, true)">
+                                            <i class="bi bi-pencil"></i> <span data-translate="edit">Edit</span>
+                                        </button>
+                                        <button class="btn btn-outline-info btn-sm" onclick="viewVesselStats(6, 'Dahab')">
+                                            <i class="bi bi-graph-up"></i> <span data-translate="stats">Stats</span>
+                                        </button>
+                                        <button class="btn btn-outline-warning btn-sm" onclick="toggleVesselStatus(6, 'Dahab', true)">
+                                            <i class="bi bi-pause"></i> <span data-translate="deactivate">Deactivate</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Vessel Modal -->
+<div class="modal fade" id="createVesselModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-ship me-2"></i>
+                    <span data-translate="add_new_vessel">Add New Vessel</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="createVesselForm" method="POST" action="/vessels/create/">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-ship me-1"></i>
+                                <span data-translate="vessel_name_english">Vessel Name (English)</span> *
+                            </label>
+                            <input type="text" class="form-control" name="name" required 
+                                   placeholder="e.g., Amman, Aylah, Sinaa"
+                                   data-placeholder-en="e.g., Amman, Aylah, Sinaa"
+                                   data-placeholder-ar="مثال: Amman, Aylah, Sinaa">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-translate me-1"></i>
+                                <span data-translate="vessel_name_arabic">Vessel Name (Arabic)</span>
+                            </label>
+                            <input type="text" class="form-control" name="name_ar" 
+                                   placeholder="e.g., عمان، أيلة، سيناء"
+                                   data-placeholder-en="e.g., عمان، أيلة، سيناء"
+                                   data-placeholder-ar="مثال: عمان، أيلة، سيناء">
+                        </div>
+                        <div class="col-12 mb-3">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" name="has_duty_free" id="createHasDutyFree">
+                                        <label class="form-check-label fw-bold" for="createHasDutyFree">
+                                            <i class="bi bi-star me-1"></i>
+                                            <span data-translate="duty_free_enabled">Duty-Free Enabled</span>
+                                        </label>
+                                        <small class="text-muted d-block"><span data-translate="vessel_can_sell_duty_free">Vessel can sell duty-free products</span></small>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" name="active" id="createActive" checked>
+                                        <label class="form-check-label fw-bold" for="createActive">
+                                            <i class="bi bi-check-circle me-1"></i>
+                                            <span data-translate="active_vessel">Active Vessel</span>
+                                        </label>
+                                        <small class="text-muted d-block"><span data-translate="vessel_available_operations">Vessel available for operations</span></small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <span data-translate="cancel">Cancel</span>
+                    </button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-ship me-1"></i>
+                        <span data-translate="create_vessel">Create Vessel</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Vessel Modal -->
+<div class="modal fade" id="editVesselModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-pencil me-2"></i>
+                    <span data-translate="edit_vessel">Edit Vessel</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="editVesselForm" method="POST">
+                {% csrf_token %}
+                <input type="hidden" id="editVesselId" name="vessel_id">
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-ship me-1"></i>
+                                <span data-translate="vessel_name_english">Vessel Name (English)</span> *
+                            </label>
+                            <input type="text" class="form-control" id="editName" name="name" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-translate me-1"></i>
+                                <span data-translate="vessel_name_arabic">Vessel Name (Arabic)</span>
+                            </label>
+                            <input type="text" class="form-control" id="editNameAr" name="name_ar">
+                        </div>
+                        <div class="col-12 mb-3">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" name="has_duty_free" id="editHasDutyFree">
+                                        <label class="form-check-label fw-bold" for="editHasDutyFree">
+                                            <i class="bi bi-star me-1"></i>
+                                            <span data-translate="duty_free_enabled">Duty-Free Enabled</span>
+                                        </label>
+                                        <small class="text-muted d-block"><span data-translate="vessel_can_sell_duty_free">Vessel can sell duty-free products</span></small>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" name="active" id="editActive">
+                                        <label class="form-check-label fw-bold" for="editActive">
+                                            <i class="bi bi-check-circle me-1"></i>
+                                            <span data-translate="active_vessel">Active Vessel</span>
+                                        </label>
+                                        <small class="text-muted d-block"><span data-translate="vessel_available_operations">Vessel available for operations</span></small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <span data-translate="cancel">Cancel</span>
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle me-1"></i>
+                        <span data-translate="update_vessel">Update Vessel</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Vessel Stats Modal -->
+<div class="modal fade" id="vesselStatsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-graph-up me-2"></i>
+                    <span id="statsVesselName">Vessel</span> <span data-translate="statistics">Statistics</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="stats-card">
+                            <div class="stats-number text-primary" data-number data-original="45">45</div>
+                            <div class="stats-label" data-translate="total_trips">Total Trips</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stats-card">
+                            <div class="stats-number text-success">
+                                <span data-number data-original="12,450.500">12,450.500</span> <span data-currency-symbol>JOD</span>
+                            </div>
+                            <div class="stats-label" data-translate="total_revenue">Total Revenue</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stats-card">
+                            <div class="stats-number text-info" data-number data-original="1,247">1,247</div>
+                            <div class="stats-label" data-translate="total_passengers">Total Passengers</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stats-card">
+                            <div class="stats-number text-warning">
+                                <span data-number data-original="9.980">9.980</span> <span data-currency-symbol>JOD</span>
+                            </div>
+                            <div class="stats-label" data-translate="avg_revenue_per_passenger">Avg Revenue/Passenger</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0" data-translate="recent_performance">Recent Performance</h6>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="vesselPerformanceChart" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0" data-translate="top_products">Top Products</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="list-group list-group-flush">
+                                    <div class="list-group-item d-flex justify-content-between">
+                                        <span>Pepsi 250ml</span>
+                                        <strong><span data-number data-original="156">156</span> <span data-translate="units">units</span></strong>
+                                    </div>
+                                    <div class="list-group-item d-flex justify-content-between">
+                                        <span>Water 500ml</span>
+                                        <strong><span data-number data-original="142">142</span> <span data-translate="units">units</span></strong>
+                                    </div>
+                                    <div class="list-group-item d-flex justify-content-between">
+                                        <span>Chips</span>
+                                        <strong><span data-number data-original="98">98</span> <span data-translate="units">units</span></strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <span data-translate="close">Close</span>
+                </button>
+                <button type="button" class="btn btn-primary" onclick="showExportModal('vessel_stats', {vessel_id: currentStatsVesselId})">
+                    <i class="bi bi-download me-1"></i>
+                    <span data-translate="export_stats">Export Stats</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Add translations for vessel management
+    const pageTranslations = {
+        en: {
+            'vessel_management': 'Vessel Management',
+            'vessel_management_desc': 'Manage vessel fleet, configurations, and operational status',
+            'add_vessel': 'Add Vessel',
+            'total_vessels': 'Total Vessels',
+            'active_vessels': 'Active Vessels',
+            'duty_free_vessels': 'Duty-Free Vessels',
+            'inactive_vessels': 'Inactive Vessels',
+            'vessel_fleet': 'Vessel Fleet',
+            'total_trips': 'Total Trips',
+            'revenue_30d': 'Revenue (30d)',
+            'edit': 'Edit',
+            'stats': 'Stats',
+            'deactivate': 'Deactivate',
+            'activate': 'Activate',
+            'no_duty_free': 'No Duty-Free',
+            'add_new_vessel': 'Add New Vessel',
+            'vessel_name_english': 'Vessel Name (English)',
+            'vessel_name_arabic': 'Vessel Name (Arabic)',
+            'duty_free_enabled': 'Duty-Free Enabled',
+            'vessel_can_sell_duty_free': 'Vessel can sell duty-free products',
+            'active_vessel': 'Active Vessel',
+            'vessel_available_operations': 'Vessel available for operations',
+            'create_vessel': 'Create Vessel',
+            'edit_vessel': 'Edit Vessel',
+            'update_vessel': 'Update Vessel',
+            'statistics': 'Statistics',
+            'total_revenue': 'Total Revenue',
+            'total_passengers': 'Total Passengers',
+            'avg_revenue_per_passenger': 'Avg Revenue/Passenger',
+            'recent_performance': 'Recent Performance',
+            'top_products': 'Top Products',
+            'close': 'Close',
+            'export_stats': 'Export Stats',
+            'confirm_deactivate_vessel': 'Deactivate vessel "{name}"?\n\nThis will prevent the vessel from being used in new transactions.',
+            'confirm_activate_vessel': 'Activate vessel "{name}"?\n\nThis will make the vessel available for operations.',
+            'vessel_deactivated': 'Vessel "{name}" has been deactivated successfully.',
+            'vessel_activated': 'Vessel "{name}" has been activated successfully.',
+            'vessel_created': 'Vessel "{name}" has been created successfully.',
+            'vessel_updated': 'Vessel "{name}" has been updated successfully.',
+            'vessel_sales_system': 'Vessel Sales System'
+        },
+        ar: {
+            'vessel_management': 'إدارة السفن',
+            'vessel_management_desc': 'إدارة أسطول السفن والتكوينات والحالة التشغيلية',
+            'add_vessel': 'إضافة سفينة',
+            'total_vessels': 'إجمالي السفن',
+            'active_vessels': 'السفن النشطة',
+            'duty_free_vessels': 'سفن السوق الحرة',
+            'inactive_vessels': 'السفن غير النشطة',
+            'vessel_fleet': 'أسطول السفن',
+            'total_trips': 'إجمالي الرحلات',
+            'revenue_30d': 'الإيرادات (٣٠ يوم)',
+            'edit': 'تحرير',
+            'stats': 'إحصائيات',
+            'deactivate': 'إلغاء التفعيل',
+            'activate': 'تفعيل',
+            'no_duty_free': 'لا سوق حرة',
+            'add_new_vessel': 'إضافة سفينة جديدة',
+            'vessel_name_english': 'اسم السفينة (إنجليزي)',
+            'vessel_name_arabic': 'اسم السفينة (عربي)',
+            'duty_free_enabled': 'السوق الحرة مفعلة',
+            'vessel_can_sell_duty_free': 'يمكن للسفينة بيع منتجات السوق الحرة',
+            'active_vessel': 'سفينة نشطة',
+            'vessel_available_operations': 'السفينة متاحة للعمليات',
+            'create_vessel': 'إنشاء سفينة',
+            'edit_vessel': 'تحرير السفينة',
+            'update_vessel': 'تحديث السفينة',
+            'statistics': 'الإحصائيات',
+            'total_revenue': 'إجمالي الإيرادات',
+            'total_passengers': 'إجمالي الركاب',
+            'avg_revenue_per_passenger': 'متوسط الإيراد/راكب',
+            'recent_performance': 'الأداء الحديث',
+            'top_products': 'أهم المنتجات',
+            'close': 'إغلاق',
+            'export_stats': 'تصدير الإحصائيات',
+            'confirm_deactivate_vessel': 'إلغاء تفعيل السفينة "{name}"؟\n\nسيمنع هذا استخدام السفينة في المعاملات الجديدة.',
+            'confirm_activate_vessel': 'تفعيل السفينة "{name}"؟\n\nسيجعل هذا السفينة متاحة للعمليات.',
+            'vessel_deactivated': 'تم إلغاء تفعيل السفينة "{name}" بنجاح.',
+            'vessel_activated': 'تم تفعيل السفينة "{name}" بنجاح.',
+            'vessel_created': 'تم إنشاء السفينة "{name}" بنجاح.',
+            'vessel_updated': 'تم تحديث السفينة "{name}" بنجاح.',
+            'vessel_sales_system': 'نظام مبيعات السفن'
+        }
+    };
+    
+    // Merge with existing translations
+    Object.assign(window.translator.translations.en, pageTranslations.en);
+    Object.assign(window.translator.translations.ar, pageTranslations.ar);
+    
+    // Update page translations
+    updatePageTranslations();
+});
+
+let currentStatsVesselId = null;
+
+function editVessel(vesselId, name, nameAr, hasDutyFree, active) {
+    document.getElementById('editVesselId').value = vesselId;
+    document.getElementById('editName').value = name;
+    document.getElementById('editNameAr').value = nameAr || '';
+    document.getElementById('editHasDutyFree').checked = hasDutyFree;
+    document.getElementById('editActive').checked = active;
+    
+    document.getElementById('editVesselForm').action = `/vessels/${vesselId}/edit/`;
+    
+    new bootstrap.Modal(document.getElementById('editVesselModal')).show();
+}
+
+function toggleVesselStatus(vesselId, vesselName, isActive) {
+    const action = isActive ? 'deactivate' : 'activate';
+    const confirmKey = isActive ? 'confirm_deactivate_vessel' : 'confirm_activate_vessel';
+    
+    confirmTranslated(confirmKey, { name: vesselName }).then(confirmed => {
+        if (confirmed) {
+            fetch(`/vessels/${vesselId}/toggle-status/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                },
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const successKey = isActive ? 'vessel_deactivated' : 'vessel_activated';
+                    alertTranslated(successKey, { name: vesselName }).then(() => {
+                        location.reload();
+                    });
+                } else {
+                    alertTranslated('Error: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alertTranslated('Error updating vessel status');
+            });
+        }
+    });
+}
+
+function viewVesselStats(vesselId, vesselName) {
+    currentStatsVesselId = vesselId;
+    document.getElementById('statsVesselName').textContent = vesselName;
+    
+    // Here you would fetch real stats from the server
+    // For now, showing the modal with sample data
+    new bootstrap.Modal(document.getElementById('vesselStatsModal')).show();
+    
+    // Apply translations after modal is shown
+    setTimeout(() => {
+        updatePageTranslations();
+    }, 100);
+}
+
+// Form submission handlers
+document.getElementById('createVesselForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    
+    fetch('/vessels/create/', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('createVesselModal')).hide();
+            alertTranslated('vessel_created', { name: data.vessel_name }).then(() => {
+                location.reload();
+            });
+        } else {
+            alertTranslated('Error: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alertTranslated('Error creating vessel');
+    });
+});
+
+document.getElementById('editVesselForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const vesselId = document.getElementById('editVesselId').value;
+    
+    fetch(`/vessels/${vesselId}/edit/`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('editVesselModal')).hide();
+            alertTranslated('vessel_updated', { name: data.vessel_name }).then(() => {
+                location.reload();
+            });
+        } else {
+            alertTranslated('Error: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alertTranslated('Error updating vessel');
+    });
+});
+</script>
+{% endblock %}

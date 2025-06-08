@@ -40,7 +40,7 @@
                 <form method="GET" class="d-flex align-items-center gap-3">
                     <label class="form-label fw-bold mb-0" data-translate="select_month">Select Month:</label>
                     <select class="form-control" name="month" style="max-width: 150px;">
-                        <option value="1" {% if selected_month == 1 %}selected{% endif %}>January</option>
+                        {% comment %} <option value="1" {% if selected_month == 1 %}selected{% endif %}>January</option>
                         <option value="2" {% if selected_month == 2 %}selected{% endif %}>February</option>
                         <option value="3" {% if selected_month == 3 %}selected{% endif %}>March</option>
                         <option value="4" {% if selected_month == 4 %}selected{% endif %}>April</option>
@@ -51,7 +51,13 @@
                         <option value="9" {% if selected_month == 9 %}selected{% endif %}>September</option>
                         <option value="10" {% if selected_month == 10 %}selected{% endif %}>October</option>
                         <option value="11" {% if selected_month == 11 %}selected{% endif %}>November</option>
-                        <option value="12" {% if selected_month == 12 %}selected{% endif %}>December</option>
+                        <option value="12" {% if selected_month == 12 %}selected{% endif %}>December</option> {% endcomment %}
+
+                        
+                        {% for month, value in months.items %}
+                            <option value="{{ month }}" {% if selected_month == month %} selected {% endif %}> {{ value }} </option>
+                        {% endfor %}
+                            
                     </select>
                     <select class="form-control" name="year" style="max-width: 100px;">
                         {% for year in year_range %}

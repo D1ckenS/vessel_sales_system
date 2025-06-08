@@ -12,6 +12,23 @@
     
 
 <style>
+        .dropdown-menu {
+            z-index: 1060 !important;
+        }
+
+        .navbar .dropdown-menu {
+            z-index: 1070 !important;
+        }
+
+        /* Ensure all sticky elements are below dropdowns */
+        .sticky-top {
+            z-index: 1020 !important;
+        }
+
+        .table-responsive {
+            z-index: 1010;
+        }
+        
         /* Enhanced RTL Support */
         [dir="rtl"] {
             text-align: right;
@@ -577,7 +594,7 @@
                             {% if user.is_superuser %}
                             <li><h6 class="dropdown-header"><span data-translate="system_management">System Management</span></h6></li>
                             <li><a class="dropdown-item" href="{% url 'frontend:user_management' %}"><i class="bi bi-people"></i> <span data-translate="user_management">User Management</span></a></li>
-                            <li><a class="dropdown-item" href="#" onclick="showComingSoon('vessel_management')"><i class="bi bi-ship"></i> <span data-translate="vessel_management">Vessel Management</span></a></li>
+                            <li><a class="dropdown-item" href="{% url 'frontend:vessel_management' %}"><i class="bi bi-ship"></i> <span data-translate="vessel_management">Vessel Management</span></a></li>
                             <li><a class="dropdown-item" href="{% url 'frontend:add_product' %}"><i class="bi bi-box"></i> <span data-translate="product_management">Product Management</span></a></li>
                             <li><hr class="dropdown-divider"></li>
                             {% endif %}
@@ -585,8 +602,8 @@
                             <!-- Operations Management (Administrators & Managers) -->
                             {% if user.is_superuser or user.groups.all|length > 0 %}
                             <li><h6 class="dropdown-header"><span data-translate="operations_management">Operations Management</span></h6></li>
-                            <li><a class="dropdown-item" href="#" onclick="showComingSoon('trip_management')"><i class="bi bi-calendar-check"></i> <span data-translate="trip_management">Trip Management</span></a></li>
-                            <li><a class="dropdown-item" href="#" onclick="showComingSoon('po_management')"><i class="bi bi-receipt"></i> <span data-translate="po_management">PO Management</span></a></li>
+                            <li><a class="dropdown-item" href="{% url 'frontend:trip_management' %}"><i class="bi bi-calendar-check"></i> <span data-translate="trip_management">Trip Management</span></a></li>
+                            <li><a class="dropdown-item" href="{% url 'frontend:po_management' %}"><i class="bi bi-receipt"></i> <span data-translate="po_management">PO Management</span></a></li>
                             <li><hr class="dropdown-divider"></li>
                             {% endif %}
                             
