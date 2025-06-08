@@ -1,28 +1,339 @@
 {% extends 'frontend/base.html' %}
-{% load i18n %}
 
-{% block title %}<span data-translate="add_new_product">Add New Product</span> - <span data-translate="vessel_sales_system">Vessel Sales System</span>{% endblock %}
+{% block title %}
+    {% if mode == 'edit' %}
+        <span data-translate="edit_product">Edit Product</span> - {{ product.name }}
+    {% elif mode == 'create' %}
+        <span data-translate="add_new_product">Add New Product</span>
+    {% else %}
+        <span data-translate="product_management">Product Management</span>
+    {% endif %} - <span data-translate="vessel_sales_system">Vessel Sales System</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+#productTabs .nav-link {
+    color: #0f4c75 !important; /* Your primary blue color */
+    font-weight: 600 !important;
+}
+
+#productTabs .nav-link:hover {
+    color: #0a3a5c !important; /* Darker blue on hover */
+}
+
+#productTabs .nav-link.active {
+    color: #ffffff !important; /* White text on active tab */
+    background-color: #0f4c75 !important; /* Blue background for active */
+}
+
+/* Fix horizontal scroll by ensuring table responsiveness */
+.table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Prevent table from expanding beyond container */
+.table {
+    width: 100%;
+    max-width: 100%;
+    margin-bottom: 0;
+}
+
+/* Ensure action buttons don't cause overflow */
+.btn-group-sm .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+/* Fix white div visibility issues */
+.card {
+    border: 1px solid rgba(0,0,0,.125);
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,.075);
+}
+
+.stats-card {
+    background: white;
+    border: 1px solid #e0e6ed;
+    border-radius: 8px;
+    padding: 1.5rem;
+    text-align: center;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.stats-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+/* Responsive table adjustments */
+@media (max-width: 768px) {
+    .table-responsive {
+        border: none;
+    }
+    
+    .btn-group-sm {
+        flex-direction: column;
+    }
+    
+    .btn-group-sm .btn {
+        margin-bottom: 2px;
+        border-radius: 4px !important;
+    }
+}
+
+/* Category management section styling */
+.category-management-alert {
+    background: linear-gradient(135deg, #17a2b8, #138496);
+    color: white;
+    border: none;
+}
+</style>
+{% endblock %}
 
 {% block content %}
-<!-- Page Header -->
+<!-- Product Management Tabs -->
 <div class="row mb-4">
     <div class="col-12">
         <div class="d-flex justify-content-between align-items-center">
             <div>
                 <h2>
-                    <i class="bi bi-plus-circle text-success"></i> 
-                    <span data-translate="add_new_product">Add New Product</span>
+                    <i class="bi bi-box text-primary"></i> 
+                    <span data-translate="product_management">Product Management</span>
                 </h2>
-                <p class="text-muted mb-0" data-translate="create_product_desc">Create new product and optionally add initial stock to vessels</p>
+                <p class="text-muted mb-0"><span data-translate="manage_products_desc">Manage products, categories, and inventory</span></p>
             </div>
-            <a href="{% url 'frontend:inventory_check' %}" class="btn btn-outline-secondary">
-                <i class="bi bi-arrow-left"></i> <span data-translate="back_to_inventory">Back to Inventory</span>
-            </a>
+            <div class="d-flex gap-2">
+                {% if mode == 'list' %}
+                <a href="{% url 'frontend:category_management' %}" class="btn btn-info">
+                    <i class="bi bi-collection"></i> <span data-translate="manage_categories">Manage Categories</span>
+                </a>
+                <a href="{% url 'frontend:add_product_form' %}" class="btn btn-success">
+                    <i class="bi bi-plus-circle"></i> <span data-translate="add_new_product">Add New Product</span>
+                </a>
+                {% else %}
+                <a href="{% url 'frontend:product_management' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> <span data-translate="back_to_products">Back to Products</span>
+                </a>
+                {% endif %}
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Add Product Form -->
+<!-- Category Management Info Removed - Using only top button -->
+
+<!-- Navigation Tabs -->
+<div class="row mb-4">
+    <div class="col-12">
+        <ul class="nav nav-tabs nav-fill" id="productTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <a class="nav-link {% if mode == 'list' %}active{% endif %}" 
+                   href="{% url 'frontend:product_management' %}" role="tab">
+                    <i class="bi bi-list"></i> <span data-translate="product_list">Product List</span>
+                    {% if stats.total_products %}
+                    <span class="badge bg-primary ms-2" data-number data-original="{{ stats.total_products }}">{{ stats.total_products }}</span>
+                    {% endif %}
+                </a>
+            </li>
+            <li class="nav-item" role="presentation">
+                <a class="nav-link {% if mode == 'create' %}active{% endif %}" 
+                   href="{% url 'frontend:add_product_form' %}" role="tab">
+                    <i class="bi bi-plus-circle"></i> <span data-translate="add_product">Add Product</span>
+                </a>
+            </li>
+            {% if mode == 'edit' %}
+            <li class="nav-item" role="presentation">
+                <a class="nav-link active" href="#" role="tab">
+                    <i class="bi bi-pencil"></i> <span data-translate="edit_product">Edit Product</span>
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </div>
+</div>
+
+{% if mode == 'list' %}
+<!-- ===================== PRODUCT LIST VIEW ===================== -->
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="stats-card">
+            <div class="stats-number text-primary" data-number data-original="{{ stats.total_products }}">{{ stats.total_products }}</div>
+            <div class="stats-label"><span data-translate="total_products">Total Products</span></div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="stats-card">
+            <div class="stats-number text-success" data-number data-original="{{ stats.active_products }}">{{ stats.active_products }}</div>
+            <div class="stats-label"><span data-translate="active_products">Active Products</span></div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="stats-card">
+            <div class="stats-number text-warning" data-number data-original="{{ stats.inactive_products }}">{{ stats.inactive_products }}</div>
+            <div class="stats-label"><span data-translate="inactive_products">Inactive Products</span></div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="stats-card">
+            <div class="stats-number text-info" data-number data-original="{{ stats.total_categories }}">{{ stats.total_categories }}</div>
+            <div class="stats-label"><span data-translate="total_categories">Total Categories</span></div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-funnel"></i> <span data-translate="filter_products">Filter Products</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="GET">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold"><span data-translate="search_products">Search Products</span></label>
+                            <input type="text" class="form-control" name="search" value="{{ filters.search }}" 
+                                   placeholder="Name, Item ID, or Barcode..."
+                                   data-placeholder-en="Name, Item ID, or Barcode..."
+                                   data-placeholder-ar="الاسم، رقم الصنف، أو الباركود...">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold"><span data-translate="category">Category</span></label>
+                            <select class="form-select" name="category">
+                                <option value=""><span data-translate="all_categories">All Categories</span></option>
+                                {% for category in categories %}
+                                <option value="{{ category.id }}" {% if filters.category == category.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ category.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold"><span data-translate="status">Status</span></label>
+                            <select class="form-select" name="status">
+                                <option value=""><span data-translate="all_status">All Status</span></option>
+                                <option value="active" {% if filters.status == 'active' %}selected{% endif %}><span data-translate="active">Active</span></option>
+                                <option value="inactive" {% if filters.status == 'inactive' %}selected{% endif %}><span data-translate="inactive">Inactive</span></option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="bi bi-funnel"></i> <span data-translate="filter">Filter</span>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Products Table - FIXED RESPONSIVE CONTAINER -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-table"></i> <span data-translate="products">Products</span> 
+                    (<span data-number data-original="{{ products|length }}">{{ products|length }}</span>)
+                </h5>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-success btn-sm" onclick="exportProducts()">
+                        <i class="bi bi-file-earmark-excel"></i> <span data-translate="export">Export</span>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <!-- FIXED: Better responsive table wrapper -->
+                <div class="table-responsive" style="max-width: 100%; overflow-x: auto;">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th><span data-translate="product">Product</span></th>
+                                <th><span data-translate="item_id">Item ID</span></th>
+                                <th><span data-translate="category">Category</span></th>
+                                <th class="text-end"><span data-translate="unit_cost">Unit Cost</span></th>
+                                <th class="text-end"><span data-translate="unit_selling_price">Unit Selling Price</span></th>
+                                <th class="text-center"><span data-translate="total_stock">Total Stock</span></th>
+                                <th class="text-center"><span data-translate="status">Status</span></th>
+                                <th class="text-center"><span data-translate="actions">Actions</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for product in products %}
+                            <tr>
+                                <td>
+                                    <div>
+                                        <strong>{{ product.name }}</strong>
+                                        {% if product.is_duty_free %}
+                                        <span class="badge bg-warning text-dark ms-1"><span data-translate="duty_free">Duty-Free</span></span>
+                                        {% endif %}
+                                    </div>
+                                    {% if product.barcode %}
+                                    <small class="text-muted">{{ product.barcode }}</small>
+                                    {% endif %}
+                                </td>
+                                <td><code data-number data-original="{{ product.item_id }}">{{ product.item_id }}</code></td>
+                                <td>{{ product.category.name }}</td>
+                                <td class="text-end">
+                                    <span data-number data-original="{{ product.purchase_price|floatformat:3 }}">{{ product.purchase_price|floatformat:3 }}</span>
+                                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+                                </td>
+                                <td class="text-end">
+                                    <span data-number data-original="{{ product.selling_price|floatformat:3 }}">{{ product.selling_price|floatformat:3 }}</span>
+                                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge {% if product.total_inventory > 10 %}bg-success{% elif product.total_inventory > 0 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                          data-number data-original="{{ product.total_inventory }}">{{ product.total_inventory }}</span>
+                                    <small class="text-muted d-block"><span data-translate="units">units</span></small>
+                                </td>
+                                <td class="text-center">
+                                    {% if product.active %}
+                                    <span class="badge bg-success"><span data-translate="active">Active</span></span>
+                                    {% else %}
+                                    <span class="badge bg-secondary"><span data-translate="inactive">Inactive</span></span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{% url 'frontend:edit_product' product.id %}" class="btn btn-outline-primary" 
+                                           data-translate-title="edit_product">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <button class="btn btn-outline-danger" onclick="deleteProduct({{ product.id }}, '{{ product.name|escapejs }}')" 
+                                                data-translate-title="delete_product">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="8" class="text-center text-muted py-4">
+                                    <i class="bi bi-box" style="font-size: 2rem;"></i>
+                                    <p class="mt-2 mb-0"><span data-translate="no_products_found">No products found</span></p>
+                                    <small><span data-translate="try_adjusting_filters">Try adjusting your filter criteria</span></small>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% else %}
+<!-- ===================== CREATE/EDIT FORM VIEW ===================== -->
+
 <div class="row">
     <div class="col-lg-10 mx-auto">
         <form method="POST" id="addProductForm">
@@ -43,11 +354,12 @@
                                 <i class="bi bi-tag"></i> <span data-translate="product_name">Product Name</span> *
                             </label>
                             <input type="text" class="form-control form-control-lg" name="name" 
+                                   value="{% if product %}{{ product.name }}{% endif %}"
                                    placeholder="e.g., بيبسي 250 ملل or Pepsi 250ml"
                                    data-placeholder-en="e.g., بيبسي 250 ملل or Pepsi 250ml"
                                    data-placeholder-ar="مثال: بيبسي 250 ملل او Pepsi 250ml"
                                    required>
-                            <small class="text-muted" data-translate="arabic_english_name">Arabic or English name</small>
+                            <small class="text-muted"><span data-translate="arabic_english_name">Arabic or English name</span></small>
                         </div>
 
                         <!-- Item ID -->
@@ -56,11 +368,12 @@
                                 <i class="bi bi-hash"></i> <span data-translate="item_id">Item ID</span> *
                             </label>
                             <input type="text" class="form-control form-control-lg" name="item_id" 
+                                   value="{% if product %}{{ product.item_id }}{% endif %}"
                                    placeholder="e.g., 105, PEPSI250, etc."
                                    data-placeholder-en="e.g., 105, PEPSI250, etc."
                                    data-placeholder-ar="مثال: 105, PEPSI250, الخ"
                                    required>
-                            <small class="text-muted" data-translate="unique_identifier_manual">Unique identifier - enter manually</small>
+                            <small class="text-muted"><span data-translate="unique_identifier_manual">Unique identifier - enter manually</span></small>
                         </div>
 
                         <!-- Barcode -->
@@ -70,6 +383,7 @@
                             </label>
                             <div class="input-group">
                                 <input type="text" class="form-control form-control-lg" name="barcode" 
+                                       value="{% if product %}{{ product.barcode|default:'' }}{% endif %}"
                                        placeholder="Optional barcode"
                                        data-placeholder-en="Optional barcode"
                                        data-placeholder-ar="باركود اختياري">
@@ -77,7 +391,7 @@
                                     <i class="bi bi-upc-scan"></i> <span data-translate="scan">Scan</span>
                                 </button>
                             </div>
-                            <small class="text-muted" data-translate="optional_leave_empty">Optional - leave empty if not available</small>
+                            <small class="text-muted"><span data-translate="optional_leave_empty">Optional - leave empty if not available</span></small>
                         </div>
 
                         <!-- Category -->
@@ -86,12 +400,17 @@
                                 <i class="bi bi-collection"></i> <span data-translate="category">Category</span> *
                             </label>
                             <select class="form-select form-select-lg" name="category" required>
-                                <option value="" data-translate="select_category">Select category...</option>
+                                <option value=""><span data-translate="select_category">Select category...</span></option>
                                 {% for category in categories %}
-                                <option value="{{ category.id }}">{{ category.name }}</option>
+                                <option value="{{ category.id }}" {% if product and product.category.id == category.id %}selected{% endif %}>
+                                    {{ category.name }}
+                                </option>
                                 {% endfor %}
                             </select>
-                            <small class="text-muted" data-translate="choose_appropriate_category">Choose appropriate product category</small>
+                            <small class="text-muted">
+                                <span data-translate="choose_appropriate_category">Choose appropriate product category</span> - 
+                                <a href="{% url 'frontend:category_management' %}" target="_blank"><span data-translate="create_new_category">Create new category</span></a>
+                            </small>
                         </div>
 
                         <!-- Purchase Price -->
@@ -100,8 +419,9 @@
                                 <i class="bi bi-currency-dollar"></i> <span data-translate="purchase_price_jod">Purchase Price (JOD)</span> *
                             </label>
                             <input type="number" class="form-control form-control-lg" name="purchase_price" 
+                                   value="{% if product %}{{ product.purchase_price }}{% endif %}"
                                    placeholder="0.000" min="0.001" step="0.001" required>
-                            <small class="text-muted" data-translate="cost_price_3_decimal">Cost price - 3 decimal places</small>
+                            <small class="text-muted"><span data-translate="cost_price_3_decimal">Cost price - 3 decimal places</span></small>
                         </div>
 
                         <!-- Selling Price -->
@@ -110,8 +430,9 @@
                                 <i class="bi bi-cash"></i> <span data-translate="selling_price_jod">Selling Price (JOD)</span> *
                             </label>
                             <input type="number" class="form-control form-control-lg" name="selling_price" 
+                                   value="{% if product %}{{ product.selling_price }}{% endif %}"
                                    placeholder="0.000" min="0.001" step="0.001" required>
-                            <small class="text-muted" data-translate="customer_price_3_decimal">Customer price - 3 decimal places</small>
+                            <small class="text-muted"><span data-translate="customer_price_3_decimal">Customer price - 3 decimal places</span></small>
                         </div>
 
                         <!-- Product Options -->
@@ -119,20 +440,22 @@
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="form-check form-switch">
-                                        <input class="form-check-input" type="checkbox" name="is_duty_free" id="dutyFreeSwitch">
+                                        <input class="form-check-input" type="checkbox" name="is_duty_free" id="dutyFreeSwitch"
+                                               {% if product and product.is_duty_free %}checked{% endif %}>
                                         <label class="form-check-label fw-bold" for="dutyFreeSwitch">
                                             <i class="bi bi-star"></i> <span data-translate="duty_free_product">Duty-Free Product</span>
                                         </label>
-                                        <small class="text-muted d-block" data-translate="only_duty_free_vessels">Only available on duty-free vessels</small>
+                                        <small class="text-muted d-block"><span data-translate="only_duty_free_vessels">Only available on duty-free vessels</span></small>
                                     </div>
                                 </div>
                                 <div class="col-md-6">
                                     <div class="form-check form-switch">
-                                        <input class="form-check-input" type="checkbox" name="active" id="activeSwitch" checked>
+                                        <input class="form-check-input" type="checkbox" name="active" id="activeSwitch" 
+                                               {% if not product or product.active %}checked{% endif %}>
                                         <label class="form-check-label fw-bold" for="activeSwitch">
                                             <i class="bi bi-check-circle"></i> <span data-translate="active_product">Active Product</span>
                                         </label>
-                                        <small class="text-muted d-block" data-translate="available_for_transactions">Product available for transactions</small>
+                                        <small class="text-muted d-block"><span data-translate="available_for_transactions">Product available for transactions</span></small>
                                     </div>
                                 </div>
                             </div>
@@ -141,7 +464,8 @@
                 </div>
             </div>
 
-            <!-- Step 2: Initial Stock (Optional) -->
+            {% if mode == 'create' %}
+            <!-- Step 2: Initial Stock (Only for new products) -->
             <div class="card mb-4">
                 <div class="card-header">
                     <div class="d-flex justify-content-between align-items-center">
@@ -159,7 +483,7 @@
                 <div class="card-body" id="initialStockSection" style="display: none;">
                     <div class="alert alert-info mb-4">
                         <i class="bi bi-info-circle"></i>
-                        <strong data-translate="optional">Optional:</strong> <span data-translate="add_initial_stock_desc">Add initial stock to vessels. This will create SUPPLY transactions and inventory lots.</span>
+                        <strong><span data-translate="optional">Optional:</span></strong> <span data-translate="add_initial_stock_desc">Add initial stock to vessels. This will create SUPPLY transactions and inventory lots.</span>
                     </div>
 
                     <!-- Purchase Date -->
@@ -169,7 +493,7 @@
                                 <i class="bi bi-calendar"></i> <span data-translate="purchase_date">Purchase Date</span>
                             </label>
                             <input type="date" class="form-control form-control-lg" name="purchase_date" value="{{ today|date:'Y-m-d' }}">
-                            <small class="text-muted" data-translate="date_stock_received">Date when stock was received</small>
+                            <small class="text-muted"><span data-translate="date_stock_received">Date when stock was received</span></small>
                         </div>
                     </div>
 
@@ -211,7 +535,7 @@
                                                 <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
                                             </strong>
                                             {% if vessel.has_duty_free %}
-                                            <span class="badge bg-warning ms-2" data-translate="duty_free">Duty-Free</span>
+                                            <span class="badge bg-warning ms-2"><span data-translate="duty_free">Duty-Free</span></span>
                                             {% endif %}
                                         </div>
                                     </td>
@@ -231,16 +555,16 @@
                                     </td>
                                     <td>
                                         <span class="fw-bold total-value" data-vessel-id="{{ vessel.id }}">0.000</span>
-                                        <small class="text-muted">JOD</small>
+                                        <small class="text-muted"><span data-currency-symbol>JOD</span></small>
                                     </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
                             <tfoot class="table-light">
                                 <tr>
-                                    <td colspan="4" class="text-end fw-bold" data-translate="total_initial_investment">Total Initial Investment:</td>
+                                    <td colspan="4" class="text-end fw-bold"><span data-translate="total_initial_investment">Total Initial Investment:</span></td>
                                     <td class="fw-bold text-primary">
-                                        <span id="grandTotal">0.000</span> JOD
+                                        <span id="grandTotal">0.000</span> <span data-currency-symbol>JOD</span>
                                     </td>
                                 </tr>
                             </tfoot>
@@ -250,24 +574,31 @@
                     <!-- Duty-Free Warning -->
                     <div id="dutyFreeWarning" class="alert alert-warning" style="display: none;">
                         <i class="bi bi-exclamation-triangle"></i>
-                        <strong data-translate="duty_free_product_warning">Duty-Free Product Warning:</strong> <span data-translate="duty_free_vessel_only">This product can only be added to duty-free vessels. Regular vessels are disabled.</span>
+                        <strong><span data-translate="duty_free_product_warning">Duty-Free Product Warning:</span></strong> <span data-translate="duty_free_vessel_only">This product can only be added to duty-free vessels. Regular vessels are disabled.</span>
                     </div>
                 </div>
             </div>
+            {% endif %}
 
             <!-- Action Buttons -->
             <div class="row">
                 <div class="col-12">
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                        <a href="{% url 'frontend:inventory_check' %}" class="btn btn-outline-secondary btn-lg me-md-2">
-                            <i class="bi bi-arrow-left"></i> <span data-translate="back_to_inventory">Back to Inventory</span>
+                        <a href="{% url 'frontend:product_management' %}" class="btn btn-outline-secondary btn-lg me-md-2">
+                            <i class="bi bi-arrow-left"></i> <span data-translate="back_to_products">Back to Products</span>
                         </a>
+                        {% if mode == 'edit' %}
+                        <button type="submit" name="action" value="edit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-check-circle"></i> <span data-translate="update_product">Update Product</span>
+                        </button>
+                        {% else %}
                         <button type="submit" name="action" value="product_only" class="btn btn-primary btn-lg me-md-2">
                             <i class="bi bi-box"></i> <span data-translate="save_product_only">Save Product Only</span>
                         </button>
                         <button type="submit" name="action" value="with_stock" class="btn btn-success btn-lg" id="saveWithStockBtn" disabled>
                             <i class="bi bi-plus-circle"></i> <span data-translate="save_with_initial_stock">Save with Initial Stock</span>
                         </button>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -275,14 +606,41 @@
     </div>
 </div>
 
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
 <script>
-// Add page-specific translations
+// Enhanced translations for product management
 document.addEventListener('DOMContentLoaded', function() {
     const pageTranslations = {
         en: {
+            'product_management': 'Product Management',
+            'manage_products_desc': 'Manage products, categories, and inventory',
+            'manage_categories': 'Manage Categories',
+            'create_new_category': 'Create new category',
+            'back_to_products': 'Back to Products',
+            'product_list': 'Product List',
+            'add_product': 'Add Product',
+            'edit_product': 'Edit Product',
+            'total_stock': 'Total Stock',
+            'units': 'units',
+            'active_products': 'Active Products',
+            'inactive_products': 'Inactive Products',
+            'total_categories': 'Total Categories',
+            'filter_products': 'Filter Products',
+            'search_products': 'Search Products',
+            'all_categories': 'All Categories',
+            'all_status': 'All Status',
+            'products': 'Products',
+            'update_product': 'Update Product',
+            'delete_product': 'Delete Product',
+            'confirm_delete_product': 'Delete product "{name}"?\n\nIf this product has transaction history, it will be deactivated instead of deleted.',
+            'no_products_found': 'No products found',
+            'try_adjusting_filters': 'Try adjusting your filter criteria',
+            'export_products': 'Export feature coming soon!',
+            
+            // Existing translations
             'add_new_product': 'Add New Product',
             'vessel_sales_system': 'Vessel Sales System',
             'create_product_desc': 'Create new product and optionally add initial stock to vessels',
@@ -325,6 +683,32 @@ document.addEventListener('DOMContentLoaded', function() {
             'barcode_coming_soon': '🚀 Barcode scanning feature coming soon!'
         },
         ar: {
+            'product_management': 'إدارة المنتجات',
+            'manage_products_desc': 'إدارة المنتجات والفئات والمخزون',
+            'manage_categories': 'إدارة الفئات',
+            'create_new_category': 'إنشاء فئة جديدة',
+            'back_to_products': 'العودة للمنتجات',
+            'product_list': 'قائمة المنتجات',
+            'add_product': 'إضافة منتج',
+            'edit_product': 'تحرير المنتج',
+            'total_stock': 'إجمالي المخزون',
+            'units': 'وحدات',
+            'active_products': 'المنتجات النشطة',
+            'inactive_products': 'المنتجات غير النشطة',
+            'total_categories': 'إجمالي الفئات',
+            'filter_products': 'تصفية المنتجات',
+            'search_products': 'البحث في المنتجات',
+            'all_categories': 'جميع الفئات',
+            'all_status': 'جميع الحالات',
+            'products': 'المنتجات',
+            'update_product': 'تحديث المنتج',
+            'delete_product': 'حذف المنتج',
+            'confirm_delete_product': 'حذف المنتج "{name}"؟\n\nإذا كان لهذا المنتج تاريخ معاملات، سيتم إلغاء تفعيله بدلاً من حذفه.',
+            'no_products_found': 'لم يتم العثور على منتجات',
+            'try_adjusting_filters': 'جرب تعديل معايير التصفية',
+            'export_products': 'ميزة التصدير قريباً!',
+            
+            // Arabic translations for existing keys
             'add_new_product': 'إضافة منتج جديد',
             'vessel_sales_system': 'نظام مبيعات السفن',
             'create_product_desc': 'إنشاء منتج جديد واختياريا إضافة مخزون أولي للسفن',
@@ -364,6 +748,7 @@ document.addEventListener('DOMContentLoaded', function() {
             'duty_free_vessel_only': 'يمكن إضافة هذا المنتج فقط للسفن المعفاة من الرسوم. السفن العادية معطلة.',
             'save_product_only': 'حفظ المنتج فقط',
             'save_with_initial_stock': 'حفظ مع المخزون الأولي',
+            'update_product': 'تحديث المنتج',
             'barcode_coming_soon': '🚀 ميزة مسح الباركود قريباً!'
         }
     };
@@ -374,10 +759,207 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Update page translations
     updatePageTranslations();
+    
+    // Initialize page-specific functionality
+    {% if mode == 'create' %}
+    initializeInitialStockFunctionality();
+    {% endif %}
 });
 
-// Rest of the existing JavaScript code...
-[Keep all the existing JavaScript functions unchanged]
+{% if mode == 'create' %}
+// Initialize Initial Stock Distribution functionality (only for create mode)
+function initializeInitialStockFunctionality() {
+    const enableInitialStock = document.getElementById('enableInitialStock');
+    const initialStockSection = document.getElementById('initialStockSection');
+    const saveWithStockBtn = document.getElementById('saveWithStockBtn');
+    const dutyFreeSwitch = document.getElementById('dutyFreeSwitch');
+    const dutyFreeWarning = document.getElementById('dutyFreeWarning');
+    
+    // Toggle initial stock section
+    enableInitialStock.addEventListener('change', function() {
+        if (this.checked) {
+            initialStockSection.style.display = 'block';
+            updateVesselAvailability();
+        } else {
+            initialStockSection.style.display = 'none';
+            clearAllVessels();
+            updateSaveButton();
+        }
+    });
+    
+    // Handle duty-free toggle
+    dutyFreeSwitch.addEventListener('change', function() {
+        if (enableInitialStock.checked) {
+            updateVesselAvailability();
+        }
+    });
+    
+    // Handle vessel checkbox changes
+    document.querySelectorAll('.vessel-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const vesselId = this.dataset.vesselId;
+            const quantityInput = document.querySelector(`input[name="vessel_${vesselId}_quantity"]`);
+            const costInput = document.querySelector(`input[name="vessel_${vesselId}_cost"]`);
+            
+            if (this.checked) {
+                quantityInput.readOnly = false;
+                quantityInput.style.backgroundColor = 'white';
+                costInput.readOnly = false;
+                costInput.style.backgroundColor = 'white';
+                quantityInput.focus();
+            } else {
+                quantityInput.readOnly = true;
+                quantityInput.style.backgroundColor = '#f8f9fa';
+                quantityInput.value = '';
+                costInput.readOnly = true;
+                costInput.style.backgroundColor = '#f8f9fa';
+                costInput.value = '';
+                updateVesselTotal(vesselId);
+            }
+            updateSaveButton();
+        });
+    });
+    
+    // Handle quantity and cost changes
+    document.querySelectorAll('.quantity-input, .cost-input').forEach(input => {
+        input.addEventListener('input', function() {
+            const vesselId = this.dataset.vesselId;
+            updateVesselTotal(vesselId);
+            updateSaveButton();
+        });
+    });
+    
+    function updateVesselAvailability() {
+        const isDutyFree = dutyFreeSwitch.checked;
+        
+        document.querySelectorAll('.vessel-checkbox').forEach(checkbox => {
+            const row = checkbox.closest('tr');
+            const vesselId = checkbox.dataset.vesselId;
+            const vesselHasDutyFree = row.querySelector('.badge') !== null;
+            
+            if (isDutyFree && !vesselHasDutyFree) {
+                // Duty-free product, non-duty-free vessel - disable
+                checkbox.disabled = true;
+                checkbox.checked = false;
+                row.style.opacity = '0.5';
+                clearVesselInputs(vesselId);
+            } else {
+                // Enable vessel
+                checkbox.disabled = false;
+                row.style.opacity = '1';
+            }
+        });
+        
+        // Show/hide duty-free warning
+        if (isDutyFree) {
+            dutyFreeWarning.style.display = 'block';
+        } else {
+            dutyFreeWarning.style.display = 'none';
+        }
+        
+        updateSaveButton();
+    }
+    
+    function clearVesselInputs(vesselId) {
+        const quantityInput = document.querySelector(`input[name="vessel_${vesselId}_quantity"]`);
+        const costInput = document.querySelector(`input[name="vessel_${vesselId}_cost"]`);
+        
+        quantityInput.value = '';
+        quantityInput.readOnly = true;
+        quantityInput.style.backgroundColor = '#f8f9fa';
+        costInput.value = '';
+        costInput.readOnly = true;
+        costInput.style.backgroundColor = '#f8f9fa';
+        
+        updateVesselTotal(vesselId);
+    }
+    
+    function clearAllVessels() {
+        document.querySelectorAll('.vessel-checkbox').forEach(checkbox => {
+            checkbox.checked = false;
+            checkbox.disabled = false;
+            const vesselId = checkbox.dataset.vesselId;
+            clearVesselInputs(vesselId);
+            checkbox.closest('tr').style.opacity = '1';
+        });
+        dutyFreeWarning.style.display = 'none';
+        updateGrandTotal();
+    }
+    
+    function updateVesselTotal(vesselId) {
+        const quantityInput = document.querySelector(`input[name="vessel_${vesselId}_quantity"]`);
+        const costInput = document.querySelector(`input[name="vessel_${vesselId}_cost"]`);
+        const totalElement = document.querySelector(`.total-value[data-vessel-id="${vesselId}"]`);
+        
+        const quantity = parseFloat(quantityInput.value) || 0;
+        const cost = parseFloat(costInput.value) || 0;
+        const total = quantity * cost;
+        
+        totalElement.textContent = total.toFixed(3);
+        updateGrandTotal();
+    }
+    
+    function updateGrandTotal() {
+        let grandTotal = 0;
+        document.querySelectorAll('.total-value').forEach(element => {
+            const value = parseFloat(element.textContent) || 0;
+            grandTotal += value;
+        });
+        
+        document.getElementById('grandTotal').textContent = grandTotal.toFixed(3);
+    }
+    
+    function updateSaveButton() {
+        if (!enableInitialStock.checked) {
+            saveWithStockBtn.disabled = true;
+            return;
+        }
+        
+        let hasValidVessel = false;
+        document.querySelectorAll('.vessel-checkbox').forEach(checkbox => {
+            if (checkbox.checked) {
+                const vesselId = checkbox.dataset.vesselId;
+                const quantity = document.querySelector(`input[name="vessel_${vesselId}_quantity"]`).value;
+                const cost = document.querySelector(`input[name="vessel_${vesselId}_cost"]`).value;
+                
+                if (quantity && cost && parseFloat(quantity) > 0 && parseFloat(cost) > 0) {
+                    hasValidVessel = true;
+                }
+            }
+        });
+        
+        saveWithStockBtn.disabled = !hasValidVessel;
+    }
+}
+{% endif %}
+
+// Product list functionality
+{% if mode == 'list' %}
+function deleteProduct(productId, productName) {
+    confirmTranslated('confirm_delete_product', { name: productName }).then(confirmed => {
+        if (confirmed) {
+            // Create form and submit
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = `/products/manage/${productId}/delete/`;
+            
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrfmiddlewaretoken';
+            csrfInput.value = csrfToken;
+            form.appendChild(csrfInput);
+            
+            document.body.appendChild(form);
+            form.submit();
+        }
+    });
+}
+
+function exportProducts() {
+    alertTranslated('export_products');
+}
+{% endif %}
 
 function showComingSoon() {
     alertTranslated('barcode_coming_soon');

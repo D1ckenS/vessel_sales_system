@@ -1,6 +1,6 @@
 from django.forms import ValidationError
-from django.shortcuts import render, redirect
-from django.contrib.auth.decorators import login_required
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.db.models import Sum, Count, Q, F, Case, When, Avg
 from django.http import JsonResponse, HttpResponse
@@ -14,6 +14,71 @@ from .utils import BilingualMessages
 from django.utils import timezone
 from django.db import models
 from .utils.exports import ExcelExporter, PDFExporter
+from products.models import Product, Category
+
+def is_admin_or_manager(user):
+    """Check if user is superuser or in admin/manager groups"""
+    if user.is_superuser:
+        return True
+    user_groups = [group.name.lower() for group in user.groups.all()]
+    return 'administrators' in user_groups or 'managers' in user_groups
+
+@login_required
+@user_passes_test(is_admin_or_manager)
+def product_management(request):
+    """Product and Category management interface"""
+    
+    # Get all products with category info
+    products = Product.objects.select_related('category', 'created_by').order_by('item_id')
+    
+    # Get all categories
+    categories = Category.objects.annotate(
+        product_count=Count('products')
+    ).order_by('name')
+    
+    # Get search/filter parameters
+    search_query = request.GET.get('search', '')
+    category_filter = request.GET.get('category', '')
+    status_filter = request.GET.get('status', '')
+    
+    # Apply filters
+    if search_query:
+        products = products.filter(
+            Q(name__icontains=search_query) |
+            Q(item_id__icontains=search_query) |
+            Q(barcode__icontains=search_query)
+        )
+    
+    if category_filter:
+        products = products.filter(category_id=category_filter)
+    
+    if status_filter == 'active':
+        products = products.filter(active=True)
+    elif status_filter == 'inactive':
+        products = products.filter(active=False)
+    
+    # Calculate summary stats
+    total_products = Product.objects.count()
+    active_products = Product.objects.filter(active=True).count()
+    total_categories = categories.count()
+    
+    context = {
+        'products': products,
+        'categories': categories,
+        'filters': {
+            'search': search_query,
+            'category': category_filter,
+            'status': status_filter,
+        },
+        'stats': {
+            'total_products': total_products,
+            'active_products': active_products,
+            'inactive_products': total_products - active_products,
+            'total_categories': total_categories,
+        }
+    }
+    
+    return render(request, 'frontend/admin/product_management.html', context)
 
 @login_required
 def supply_entry(request):
@@ -295,24 +360,126 @@ def supply_execute(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': f'Supply failed: {str(e)}'})
 
+# REPLACE YOUR ENTIRE add_product function with this (around line 391 in views.py):
+
 @login_required
-def add_product(request):
-    """Add new product with optional initial stock distribution"""
+@user_passes_test(is_admin_or_manager)
+def add_product(request, product_id=None):
+    """Enhanced product management: list, create, edit products with initial stock"""
+    
+    # FIXED: Import at function level - MOVED TO TOP OF FUNCTION
+    from products.models import Category, Product
+    from vessels.models import Vessel
+    from transactions.models import Transaction
+    from decimal import Decimal
+    from datetime import date
+    from django.db.models import Q
+    from django.shortcuts import get_object_or_404
+    import decimal
+    
+    # Determine operation mode with enhanced detection
+    if product_id:
+        mode = 'edit'
+        product = get_object_or_404(Product, id=product_id)
+    else:
+        # Check URL name to determine mode explicitly
+        resolver_match = request.resolver_match
+        url_name = resolver_match.url_name if resolver_match else None
+        
+        if url_name == 'add_product_form':
+            # Explicit create mode from /products/create/
+            mode = 'create'
+        elif url_name == 'product_management':
+            # Explicit list mode from /products/manage/
+            mode = 'list'
+        else:
+            # Legacy /products/add/ - check mode parameter or default to list
+            mode = request.GET.get('mode', 'list')
+        
+        product = None
     
     if request.method == 'GET':
-        # Display the add product form
-        from products.models import Category
-        
-        categories = Category.objects.filter(active=True).order_by('name')
-        vessels = Vessel.objects.filter(active=True).order_by('name')
-        
-        context = {
-            'categories': categories,
-            'vessels': vessels,
-            'today': date.today(),
-        }
-        
-        return render(request, 'frontend/add_product.html', context)
+            # Get all data needed for the interface
+            categories = Category.objects.filter(active=True).order_by('name')
+            vessels = Vessel.objects.filter(active=True).order_by('name')
+            
+            # FIXED: Initialize context with common data first
+            context = {
+                'mode': mode,
+                'categories': categories,
+                'vessels': vessels,
+                'today': date.today(),
+            }
+            
+            # For list mode, get products with filtering
+            if mode == 'list':
+                # ENHANCED: Calculate total inventory for each product
+                from django.db.models import Sum, F
+                from transactions.models import InventoryLot
+                
+                products = Product.objects.select_related('category', 'created_by').order_by('item_id')
+                
+                # Apply filters
+                search_query = request.GET.get('search', '')
+                category_filter = request.GET.get('category', '')
+                status_filter = request.GET.get('status', '')
+                
+                if search_query:
+                    products = products.filter(
+                        Q(name__icontains=search_query) |
+                        Q(item_id__icontains=search_query) |
+                        Q(barcode__icontains=search_query)
+                    )
+                
+                if category_filter:
+                    products = products.filter(category_id=category_filter)
+                
+                if status_filter == 'active':
+                    products = products.filter(active=True)
+                elif status_filter == 'inactive':
+                    products = products.filter(active=False)
+                
+                # NEW: Calculate total inventory for each product
+                products_with_inventory = []
+                for product in products:
+                    # Calculate total inventory across all vessels using InventoryLot
+                    total_inventory = InventoryLot.objects.filter(
+                        product=product,
+                        remaining_quantity__gt=0
+                    ).aggregate(
+                        total=Sum('remaining_quantity')
+                    )['total'] or 0
+                    
+                    # Add total_inventory as an attribute to the product
+                    product.total_inventory = total_inventory
+                    products_with_inventory.append(product)
+                
+                # Calculate stats
+                total_products = Product.objects.count()
+                active_products = Product.objects.filter(active=True).count()
+                
+                # FIXED: Update context instead of creating new one
+                context.update({
+                    'products': products_with_inventory,
+                    'filters': {
+                        'search': search_query,
+                        'category': category_filter,
+                        'status': status_filter,
+                    },
+                    'stats': {
+                        'total_products': total_products,
+                        'active_products': active_products,
+                        'inactive_products': total_products - active_products,
+                        'total_categories': categories.count(),
+                    }
+                })
+            else:
+                # Create or edit mode - FIXED: Update context instead of creating new one
+                context.update({
+                    'product': product,
+                })
+            
+            return render(request, 'frontend/add_product.html', context)
     
     elif request.method == 'POST':
         try:
@@ -332,42 +499,69 @@ def add_product(request):
             # Basic validation
             if not all([name, item_id, category_id, purchase_price, selling_price]):
                 BilingualMessages.error(request, 'required_fields_missing')
-                return redirect('frontend:add_product')
+                if mode == 'edit':
+                    return redirect('frontend:edit_product', product_id=product.id)
+                else:
+                    return redirect('frontend:add_product_form')
             
             # Validate unique item_id
-            if Product.objects.filter(item_id=item_id).exists():
-                BilingualMessages.error(request, 'product_already_exists', item_id=item_id)
-                return redirect('frontend:add_product')
+            existing_product = Product.objects.filter(item_id=item_id)
+            if mode == 'edit':
+                existing_product = existing_product.exclude(id=product.id)
             
-            # Get category
-            from products.models import Category
+            if existing_product.exists():
+                BilingualMessages.error(request, 'product_already_exists', item_id=item_id)
+                if mode == 'edit':
+                    return redirect('frontend:edit_product', product_id=product.id)
+                else:
+                    return redirect('frontend:add_product_form')
+            
+            # Get category - REMOVED the redundant import since it's at the top
             try:
                 category = Category.objects.get(id=category_id, active=True)
             except Category.DoesNotExist:
                 BilingualMessages.error(request, 'invalid_category')
-                return redirect('frontend:add_product')
+                if mode == 'edit':
+                    return redirect('frontend:edit_product', product_id=product.id)
+                else:
+                    return redirect('frontend:add_product_form')
             
-            # Create the product
-            from decimal import Decimal
-            product = Product.objects.create(
-                name=name,
-                item_id=item_id,
-                barcode=barcode,
-                category=category,
-                purchase_price=Decimal(purchase_price),
-                selling_price=Decimal(selling_price),
-                is_duty_free=is_duty_free,
-                active=active,
-                created_by=request.user
-            )
+            # Create or update the product
+            if mode == 'edit':
+                # Update existing product
+                product.name = name
+                product.item_id = item_id
+                product.barcode = barcode
+                product.category = category
+                product.purchase_price = Decimal(purchase_price)
+                product.selling_price = Decimal(selling_price)
+                product.is_duty_free = is_duty_free
+                product.active = active
+                product.save()
+                
+                BilingualMessages.success(request, 'product_updated_success', name=product.name)
+                return redirect('frontend:product_management')
+            else:
+                # Create new product
+                product = Product.objects.create(
+                    name=name,
+                    item_id=item_id,
+                    barcode=barcode,
+                    category=category,
+                    purchase_price=Decimal(purchase_price),
+                    selling_price=Decimal(selling_price),
+                    is_duty_free=is_duty_free,
+                    active=active,
+                    created_by=request.user
+                )
             
-            # Handle initial stock
-            if action == 'with_stock':
+            # Handle initial stock (only for new products)
+            if mode == 'create' and action == 'with_stock':
                 purchase_date_str = request.POST.get('purchase_date')
                 if not purchase_date_str:
                     BilingualMessages.error(request, 'purchase_date_required')
                     product.delete()
-                    return redirect('frontend:add_product')
+                    return redirect('frontend:add_product_form')
                 
                 from datetime import datetime
                 purchase_date = datetime.strptime(purchase_date_str, '%Y-%m-%d').date()
@@ -394,7 +588,7 @@ def add_product(request):
                                         BilingualMessages.error(request, 'cannot_add_duty_free', 
                                                               vessel_name=get_vessel_display_name(vessel, BilingualMessages.get_user_language(request)))
                                         product.delete()
-                                        return redirect('frontend:add_product')
+                                        return redirect('frontend:add_product_form')
                                     
                                     # Create SUPPLY transaction
                                     supply_transaction = Transaction.objects.create(
@@ -418,7 +612,7 @@ def add_product(request):
                                 BilingualMessages.error(request, 'invalid_vessel_data', 
                                                       vessel_name=get_vessel_display_name(vessel, BilingualMessages.get_user_language(request)))
                                 product.delete()
-                                return redirect('frontend:add_product')
+                                return redirect('frontend:add_product_form')
                 
                 if vessels_processed:
                     # Format vessel list for message
@@ -432,21 +626,166 @@ def add_product(request):
                 else:
                     BilingualMessages.error(request, 'no_valid_stock_data')
                     product.delete()
-                    return redirect('frontend:add_product')
+                    return redirect('frontend:add_product_form')
                     
             else:
                 BilingualMessages.success(request, 'product_created_success', 
                                         name=product.name, item_id=product.item_id)
             
-            return redirect('frontend:inventory_check')
+            return redirect('frontend:product_management')
             
         except Exception as e:
             BilingualMessages.error(request, 'error_creating_product', error=str(e))
-            return redirect('frontend:add_product')
+            if mode == 'edit':
+                return redirect('frontend:edit_product', product_id=product.id)
+            else:
+                return redirect('frontend:add_product_form')
     
     else:
         BilingualMessages.error(request, 'invalid_request_method')
-        return redirect('frontend:inventory_check')
+        return redirect('frontend:product_management')
+
+@login_required
+@user_passes_test(is_admin_or_manager)
+def delete_product(request, product_id):
+    """Delete or deactivate product"""
+    
+    if request.method == 'POST':
+        try:
+            product = get_object_or_404(Product, id=product_id)
+            
+            # Check if product has any transactions
+            if product.transactions.exists():
+                # Soft delete - set inactive
+                product.active = False
+                product.save()
+                BilingualMessages.success(request, 'product_deactivated', name=product.name)
+            else:
+                # Hard delete if no transactions
+                product_name = product.name
+                product.delete()
+                BilingualMessages.success(request, 'product_deleted', name=product_name)
+            
+            return redirect('frontend:product_management')
+            
+        except Exception as e:
+            BilingualMessages.error(request, 'error_deleting_product', error=str(e))
+            return redirect('frontend:product_management')
+    
+    return redirect('frontend:product_management')
+
+@login_required
+@user_passes_test(is_admin_or_manager) 
+def category_management(request):
+    """Category management interface"""
+    
+    categories = Category.objects.annotate(
+        product_count=Count('product'),
+        active_product_count=Count('product', filter=Q(product__active=True))
+    ).order_by('name')
+    
+    context = {
+        'categories': categories,
+    }
+    
+    return render(request, 'frontend/category_management.html', context)
+
+@login_required
+@user_passes_test(is_admin_or_manager)
+def create_category(request):
+    """Create new category"""
+    
+    if request.method == 'POST':
+        try:
+            name = request.POST.get('name', '').strip()
+            description = request.POST.get('description', '').strip()
+            active = request.POST.get('active') == 'on'
+            
+            if not name:
+                BilingualMessages.error(request, 'category_name_required')
+                return redirect('frontend:category_management')
+            
+            # Check if category exists
+            if Category.objects.filter(name=name).exists():
+                BilingualMessages.error(request, 'category_exists', name=name)
+                return redirect('frontend:category_management')
+            
+            category = Category.objects.create(
+                name=name,
+                description=description,
+                active=active,
+                created_by=request.user
+            )
+            
+            BilingualMessages.success(request, 'category_created_success', name=category.name)
+            return redirect('frontend:category_management')
+            
+        except Exception as e:
+            BilingualMessages.error(request, 'error_creating_category', error=str(e))
+            return redirect('frontend:category_management')
+    
+    return redirect('frontend:category_management')
+
+@login_required
+@user_passes_test(is_admin_or_manager)
+def edit_category(request, category_id):
+    """Edit existing category"""
+    
+    if request.method == 'POST':
+        try:
+            category = get_object_or_404(Category, id=category_id)
+            
+            name = request.POST.get('name', '').strip()
+            description = request.POST.get('description', '').strip()
+            active = request.POST.get('active') == 'on'
+            
+            if not name:
+                BilingualMessages.error(request, 'category_name_required')
+                return redirect('frontend:category_management')
+            
+            # Check if category name exists (exclude current)
+            if Category.objects.filter(name=name).exclude(id=category.id).exists():
+                BilingualMessages.error(request, 'category_exists', name=name)
+                return redirect('frontend:category_management')
+            
+            category.name = name
+            category.description = description
+            category.active = active
+            category.save()
+            
+            BilingualMessages.success(request, 'category_updated_success', name=category.name)
+            return redirect('frontend:category_management')
+            
+        except Exception as e:
+            BilingualMessages.error(request, 'error_updating_category', error=str(e))
+            return redirect('frontend:category_management')
+    
+    return redirect('frontend:category_management')
+
+@login_required
+@user_passes_test(is_admin_or_manager)
+def delete_category(request, category_id):
+    """Delete category (if no products associated)"""
+    
+    if request.method == 'POST':
+        try:
+            category = get_object_or_404(Category, id=category_id)
+            
+            # Check if category has products
+            if category.products.exists():
+                BilingualMessages.error(request, 'category_has_products', name=category.name)
+            else:
+                category_name = category.name
+                category.delete()
+                BilingualMessages.success(request, 'category_deleted_success', name=category_name)
+            
+            return redirect('frontend:category_management')
+            
+        except Exception as e:
+            BilingualMessages.error(request, 'error_deleting_category', error=str(e))
+            return redirect('frontend:category_management')
+    
+    return redirect('frontend:category_management')
 
 @login_required
 def dashboard(request):

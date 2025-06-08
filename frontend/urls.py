@@ -26,6 +26,19 @@ urlpatterns = [
     path('profile/', auth_views.user_profile, name='user_profile'),
     path('change-password/', auth_views.change_password, name='change_password'),
     
+    # Product Management - FIXED ORDER AND MISSING URL
+    path('products/manage/<int:product_id>/delete/', views.delete_product, name='delete_product'),
+    path('products/add/', views.add_product, name='add_product'),  # Legacy - List mode by default
+    path('products/create/', views.add_product, name='add_product_form'),  # NEW - Create mode explicitly
+    path('products/manage/', views.add_product, name='product_management'),  # List mode
+    path('products/edit/<int:product_id>/', views.add_product, name='edit_product'),  # Edit mode
+    
+    # Category Management
+    path('categories/manage/', views.category_management, name='category_management'),
+    path('categories/manage/create/', views.create_category, name='create_category'),
+    path('categories/manage/<int:category_id>/edit/', views.edit_category, name='edit_category'),
+    path('categories/manage/<int:category_id>/delete/', views.delete_category, name='delete_category'),
+    
     # Main Dashboard
     path('', views.dashboard, name='dashboard'),
     
@@ -60,9 +73,6 @@ urlpatterns = [
     path('inventory/', views.inventory_check, name='inventory_check'),
     path('inventory/data/', views.inventory_data_ajax, name='inventory_data_ajax'),
     path('inventory/details/<int:product_id>/<int:vessel_id>/', views.inventory_details_ajax, name='inventory_details_ajax'),
-    
-    # Products
-    path('products/add/', views.add_product, name='add_product'),
     
     # Transfers
     path('transfer-center/', lambda request: redirect('frontend:transfer_entry'), name='transfer_center'),

@@ -1,0 +1,298 @@
+{% extends 'frontend/base.html' %}
+
+{% block title %}<span data-translate="category_management">Category Management</span> - <span data-translate="vessel_sales_system">Vessel Sales System</span>{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>
+                    <i class="bi bi-collection text-primary"></i> 
+                    <span data-translate="category_management">Category Management</span>
+                </h2>
+                <p class="text-muted mb-0"><span data-translate="manage_product_categories">Manage product categories and organization</span></p>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-success" onclick="showCreateCategoryModal()">
+                    <i class="bi bi-plus-circle"></i> <span data-translate="add_new_category">Add New Category</span>
+                </button>
+                <a href="{% url 'frontend:product_management' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> <span data-translate="back_to_products">Back to Products</span>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Categories Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-table"></i> <span data-translate="categories">Categories</span> 
+                    (<span data-number data-original="{{ categories|length }}">{{ categories|length }}</span>)
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th><span data-translate="category_name">Category Name</span></th>
+                                <th><span data-translate="description">Description</span></th>
+                                <th class="text-center"><span data-translate="products_count">Products</span></th>
+                                <th class="text-center"><span data-translate="active_products">Active Products</span></th>
+                                <th class="text-center"><span data-translate="status">Status</span></th>
+                                <th class="text-center"><span data-translate="actions">Actions</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for category in categories %}
+                            <tr>
+                                <td>
+                                    <strong>{{ category.name }}</strong>
+                                </td>
+                                <td>
+                                    {% if category.description %}
+                                        {{ category.description|truncatechars:50 }}
+                                    {% else %}
+                                        <span class="text-muted"><span data-translate="no_description">No description</span></span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-info" data-number data-original="{{ category.product_count }}">{{ category.product_count }}</span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-success" data-number data-original="{{ category.active_product_count }}">{{ category.active_product_count }}</span>
+                                </td>
+                                <td class="text-center">
+                                    {% if category.active %}
+                                    <span class="badge bg-success"><span data-translate="active">Active</span></span>
+                                    {% else %}
+                                    <span class="badge bg-secondary"><span data-translate="inactive">Inactive</span></span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-primary" onclick="editCategory({{ category.id }}, '{{ category.name|escapejs }}', '{{ category.description|escapejs }}', {{ category.active|yesno:'true,false' }})" 
+                                                data-translate-title="edit_category">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        {% if category.product_count == 0 %}
+                                        <button class="btn btn-outline-danger" onclick="deleteCategory({{ category.id }}, '{{ category.name|escapejs }}')" 
+                                                data-translate-title="delete_category">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                        {% else %}
+                                        <button class="btn btn-outline-secondary" disabled title="Cannot delete category with products">
+                                            <i class="bi bi-shield-x"></i>
+                                        </button>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-4">
+                                    <i class="bi bi-collection" style="font-size: 2rem;"></i>
+                                    <p class="mt-2 mb-0"><span data-translate="no_categories_found">No categories found</span></p>
+                                    <small><span data-translate="create_first_category">Create your first category to organize products</span></small>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create/Edit Category Modal -->
+<div class="modal fade" id="categoryModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTitle">
+                    <i class="bi bi-collection"></i> <span data-translate="add_new_category">Add New Category</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="categoryForm" method="POST">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <input type="hidden" id="categoryId" name="category_id">
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-tag"></i> <span data-translate="category_name">Category Name</span> *
+                        </label>
+                        <input type="text" class="form-control" id="categoryName" name="name" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-file-text"></i> <span data-translate="description">Description</span>
+                        </label>
+                        <textarea class="form-control" id="categoryDescription" name="description" rows="3"></textarea>
+                        <small class="text-muted"><span data-translate="optional_description">Optional description for this category</span></small>
+                    </div>
+                    
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="categoryActive" name="active" checked>
+                        <label class="form-check-label fw-bold" for="categoryActive">
+                            <i class="bi bi-check-circle"></i> <span data-translate="active_category">Active Category</span>
+                        </label>
+                        <small class="text-muted d-block"><span data-translate="category_available_products">Category available for products</span></small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <span data-translate="cancel">Cancel</span>
+                    </button>
+                    <button type="submit" class="btn btn-primary" id="submitBtn">
+                        <i class="bi bi-check-circle"></i> <span data-translate="save_category">Save Category</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Add page-specific translations
+    const pageTranslations = {
+        en: {
+            'category_management': 'Category Management',
+            'manage_product_categories': 'Manage product categories and organization',
+            'add_new_category': 'Add New Category',
+            'back_to_products': 'Back to Products',
+            'categories': 'Categories',
+            'category_name': 'Category Name',
+            'description': 'Description',
+            'products_count': 'Products',
+            'active_products': 'Active Products',
+            'status': 'Status',
+            'actions': 'Actions',
+            'no_description': 'No description',
+            'active': 'Active',
+            'inactive': 'Inactive',
+            'edit_category': 'Edit Category',
+            'delete_category': 'Delete Category',
+            'no_categories_found': 'No categories found',
+            'create_first_category': 'Create your first category to organize products',
+            'optional_description': 'Optional description for this category',
+            'active_category': 'Active Category',
+            'category_available_products': 'Category available for products',
+            'cancel': 'Cancel',
+            'save_category': 'Save Category',
+            'edit_category_title': 'Edit Category',
+            'confirm_delete_category': 'Delete category "{name}"?\n\nThis category has no products associated with it.',
+            'cannot_delete_category': 'Cannot delete category "{name}" because it has {count} products associated with it.',
+            'vessel_sales_system': 'Vessel Sales System'
+        },
+        ar: {
+            'category_management': 'إدارة الفئات',
+            'manage_product_categories': 'إدارة فئات المنتجات والتنظيم',
+            'add_new_category': 'إضافة فئة جديدة',
+            'back_to_products': 'العودة للمنتجات',
+            'categories': 'الفئات',
+            'category_name': 'اسم الفئة',
+            'description': 'الوصف',
+            'products_count': 'المنتجات',
+            'active_products': 'المنتجات النشطة',
+            'status': 'الحالة',
+            'actions': 'الإجراءات',
+            'no_description': 'لا يوجد وصف',
+            'active': 'نشط',
+            'inactive': 'غير نشط',
+            'edit_category': 'تحرير الفئة',
+            'delete_category': 'حذف الفئة',
+            'no_categories_found': 'لم يتم العثور على فئات',
+            'create_first_category': 'أنشئ فئتك الأولى لتنظيم المنتجات',
+            'optional_description': 'وصف اختياري لهذه الفئة',
+            'active_category': 'فئة نشطة',
+            'category_available_products': 'الفئة متاحة للمنتجات',
+            'cancel': 'إلغاء',
+            'save_category': 'حفظ الفئة',
+            'edit_category_title': 'تحرير الفئة',
+            'confirm_delete_category': 'حذف الفئة "{name}"؟\n\nهذه الفئة لا تحتوي على منتجات مرتبطة بها.',
+            'cannot_delete_category': 'لا يمكن حذف الفئة "{name}" لأنها تحتوي على {count} منتجات مرتبطة بها.',
+            'vessel_sales_system': 'نظام مبيعات السفن'
+        }
+    };
+    
+    // Merge with existing translations
+    Object.assign(window.translator.translations.en, pageTranslations.en);
+    Object.assign(window.translator.translations.ar, pageTranslations.ar);
+    
+    // Update page translations
+    updatePageTranslations();
+});
+
+function showCreateCategoryModal() {
+    // Reset form for create mode
+    document.getElementById('categoryForm').action = '{% url "frontend:create_category" %}';
+    document.getElementById('categoryId').value = '';
+    document.getElementById('categoryName').value = '';
+    document.getElementById('categoryDescription').value = '';
+    document.getElementById('categoryActive').checked = true;
+    
+    // Update modal title
+    document.getElementById('modalTitle').innerHTML = '<i class="bi bi-collection"></i> <span data-translate="add_new_category">Add New Category</span>';
+    document.getElementById('submitBtn').innerHTML = '<i class="bi bi-check-circle"></i> <span data-translate="save_category">Save Category</span>';
+    
+    // Apply translations to modal content
+    updatePageTranslations();
+    
+    // Show modal
+    new bootstrap.Modal(document.getElementById('categoryModal')).show();
+}
+
+function editCategory(id, name, description, active) {
+    // Set form for edit mode
+    document.getElementById('categoryForm').action = `/categories/manage/${id}/edit/`;
+    document.getElementById('categoryId').value = id;
+    document.getElementById('categoryName').value = name;
+    document.getElementById('categoryDescription').value = description;
+    document.getElementById('categoryActive').checked = active;
+    
+    // Update modal title
+    document.getElementById('modalTitle').innerHTML = '<i class="bi bi-pencil"></i> <span data-translate="edit_category_title">Edit Category</span>';
+    document.getElementById('submitBtn').innerHTML = '<i class="bi bi-check-circle"></i> <span data-translate="save_category">Save Category</span>';
+    
+    // Apply translations to modal content
+    updatePageTranslations();
+    
+    // Show modal
+    new bootstrap.Modal(document.getElementById('categoryModal')).show();
+}
+
+function deleteCategory(id, name) {
+    confirmTranslated('confirm_delete_category', { name: name }).then(confirmed => {
+        if (confirmed) {
+            // Create form and submit
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = `/categories/manage/${id}/delete/`;
+            
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrfmiddlewaretoken';
+            csrfInput.value = csrfToken;
+            form.appendChild(csrfInput);
+            
+            document.body.appendChild(form);
+            form.submit();
+        }
+    });
+}
+</script>
+{% endblock %}

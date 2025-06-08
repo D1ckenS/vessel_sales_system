@@ -10,6 +10,7 @@
     <!-- Bootstrap Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
     
+
 <style>
         /* Enhanced RTL Support */
         [dir="rtl"] {
@@ -113,105 +114,6 @@
         [dir="rtl"] .stats-number,
         [dir="rtl"] .fw-bold[data-number] {
             font-family: 'Arabic-Indic', 'Tahoma', sans-serif;
-        }
-
-        /* 🔧 ENHANCED RTL SUPPORT FOR REPORTS */
-        [dir="rtl"] .card-header .d-flex {
-            flex-direction: row-reverse;
-        }
-
-        [dir="rtl"] .btn-group {
-            flex-direction: row-reverse;
-        }
-
-        [dir="rtl"] .btn-group .btn:first-child {
-            border-top-left-radius: 0;
-            border-bottom-left-radius: 0;
-            border-top-right-radius: .375rem;
-            border-bottom-right-radius: .375rem;
-        }
-
-        [dir="rtl"] .btn-group .btn:last-child {
-            border-top-right-radius: 0;
-            border-bottom-right-radius: 0;
-            border-top-left-radius: .375rem;
-            border-bottom-left-radius: .375rem;
-        }
-
-        [dir="rtl"] .table th {
-            text-align: right;
-        }
-
-        [dir="rtl"] .table .text-end {
-            text-align: left !important;
-        }
-
-        [dir="rtl"] .table .text-center {
-            text-align: center !important;
-        }
-
-        /* Fix filter form in RTL */
-        [dir="rtl"] .row > .col-md-2:last-child .btn {
-            width: 100%;
-        }
-
-        /* Badge RTL fixes */
-        [dir="rtl"] .badge {
-            direction: rtl;
-        }
-
-        /* Stats cards RTL */
-        [dir="rtl"] .stats-card {
-            text-align: right;
-        }
-
-        [dir="rtl"] .stats-number {
-            direction: rtl;
-        }
-
-        /* Page header RTL fixes */
-        [dir="rtl"] .row .d-flex.justify-content-between {
-            flex-direction: row-reverse;
-        }
-
-        [dir="rtl"] .row .d-flex.justify-content-between > div:first-child {
-            text-align: right;
-        }
-
-        /* Table responsive RTL */
-        [dir="rtl"] .table-responsive {
-            direction: rtl;
-        }
-
-        [dir="rtl"] .table-responsive .table {
-            direction: rtl;
-        }
-
-        /* Form RTL improvements */
-        [dir="rtl"] .form-label {
-            text-align: right;
-        }
-
-        [dir="rtl"] .form-select,
-        [dir="rtl"] .form-control {
-            text-align: right;
-        }
-
-        /* Card footer RTL */
-        [dir="rtl"] .card-footer .d-flex {
-            flex-direction: row-reverse;
-        }
-
-        /* Icon spacing in RTL */
-        [dir="rtl"] .bi {
-            margin-left: 0.5rem;
-            margin-right: 0;
-        }
-
-        [dir="rtl"] h2 .bi,
-        [dir="rtl"] h5 .bi {
-            margin-left: 0.5rem;
-            margin-right: 0;
         }
         
         :root {
@@ -468,7 +370,8 @@
 
         .table-hover tbody tr:hover {
             background-color: rgba(var(--bs-primary-rgb), 0.05) !important;
-            transform: translateX(2px);
+            transform: none !important;
+            border-left: 3px solid var(--primary-blue) !important; /* ✅ Visual effect without overflow */
         }
 
         .cursor-pointer {
@@ -593,101 +496,6 @@
         .rtl-layout .navbar-collapse {
             text-align: right;
         }
-
-        /* 🔧 MOBILE NAVIGATION RTL FIXES */
-        @media (max-width: 991px) {
-            /* Fix collapsed navbar in RTL */
-            [dir="rtl"] .navbar-collapse {
-                direction: rtl;
-                text-align: right;
-            }
-            
-            /* Fix navbar items alignment in mobile */
-            [dir="rtl"] .navbar-nav {
-                flex-direction: column !important;
-                align-items: flex-end;
-            }
-            
-            /* Fix navbar toggler position */
-            [dir="rtl"] .navbar-toggler {
-                order: -1;
-                margin-left: auto;
-                margin-right: 0;
-            }
-            
-            /* Fix brand position in RTL mobile */
-            [dir="rtl"] .navbar-brand {
-                margin-left: 0;
-                margin-right: auto;
-            }
-            
-            /* Ensure proper collapse behavior */
-            .navbar-collapse.show {
-                display: block !important;
-            }
-            
-            .navbar-collapse.collapsing {
-                height: auto !important;
-            }
-        }
-
-        /* Fix language toggle in mobile */
-        @media (max-width: 991px) {
-            [dir="rtl"] .navbar-nav .nav-item {
-                text-align: right;
-                width: 100%;
-            }
-        }
-
-        /* RTL Fixes for Recent Activity */
-        [dir="rtl"] .list-group-item .d-flex {
-            flex-direction: row-reverse;
-        }
-
-        [dir="rtl"] .list-group-item .flex-grow-1 {
-            text-align: right;
-        }
-
-        [dir="rtl"] .list-group-item .justify-content-between {
-            flex-direction: row-reverse;
-        }
-
-        [dir="rtl"] .list-group-item small.text-muted:last-child {
-            order: -1;
-            margin-left: 0;
-            margin-right: 1rem;
-        }
-
-        [dir="rtl"] .transaction-type {
-            direction: rtl;
-            text-align: right;
-        }
-
-        [dir="rtl"] .list-group-item p.small {
-            direction: rtl;
-            text-align: right;
-        }
-
-        [dir="rtl"] .list-group-item small.text-muted {
-            direction: rtl;
-            text-align: right;
-        }
-
-        /* Fix bullet separator in RTL */
-        [dir="rtl"] .list-group-item small.text-muted {
-            direction: rtl;
-            unicode-bidi: plaintext;
-        }
-
-        [dir="rtl"] .recent-activity-item {
-            direction: rtl;
-            text-align: right;
-        }
-
-        [dir="rtl"] .recent-activity-item .flex-grow-1 {
-            margin-left: 1rem;
-            margin-right: 0;
-        }
 </style>
 
     {% block extra_css %}{% endblock %}
@@ -770,7 +578,7 @@
                             <li><h6 class="dropdown-header"><span data-translate="system_management">System Management</span></h6></li>
                             <li><a class="dropdown-item" href="{% url 'frontend:user_management' %}"><i class="bi bi-people"></i> <span data-translate="user_management">User Management</span></a></li>
                             <li><a class="dropdown-item" href="#" onclick="showComingSoon('vessel_management')"><i class="bi bi-ship"></i> <span data-translate="vessel_management">Vessel Management</span></a></li>
-                            <li><a class="dropdown-item" href="#" onclick="showComingSoon('product_management')"><i class="bi bi-box"></i> <span data-translate="product_management">Product Management</span></a></li>
+                            <li><a class="dropdown-item" href="{% url 'frontend:add_product' %}"><i class="bi bi-box"></i> <span data-translate="product_management">Product Management</span></a></li>
                             <li><hr class="dropdown-divider"></li>
                             {% endif %}
                             
@@ -1343,6 +1151,19 @@
                 element.textContent = originalValue;
             }
         });
+
+        document.querySelectorAll('.count').forEach(element => {
+            const originalValue = element.getAttribute('data-original') || element.textContent.trim();
+            if (!element.getAttribute('data-original')) {
+                element.setAttribute('data-original', originalValue);
+            }
+            if (window.translator.currentLanguage === 'ar') {
+                const translatedNumber = window.translateNumber(originalValue);
+                element.textContent = translatedNumber;
+            } else {
+                element.textContent = originalValue;
+            }
+        });        
 
         // 🔧 NEW: Handle title translations (for tooltips and button titles)
         document.querySelectorAll('[data-translate-title]').forEach(element => {
