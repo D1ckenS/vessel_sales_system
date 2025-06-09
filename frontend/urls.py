@@ -1,7 +1,7 @@
 from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.urls import path
-from . import views, auth_views, test_views
+from . import views, auth_views, test_views, reports_views, export_views, product_views, category_views, supply_views, transfer_views, sales_views, inventory_views
 
 app_name = 'frontend'
 
@@ -27,17 +27,17 @@ urlpatterns = [
     path('change-password/', auth_views.change_password, name='change_password'),
     
     # Product Management - FIXED ORDER AND MISSING URL
-    path('products/manage/<int:product_id>/delete/', views.delete_product, name='delete_product'),
-    path('products/add/', views.add_product, name='add_product'),  # Legacy - List mode by default
-    path('products/create/', views.add_product, name='add_product_form'),  # NEW - Create mode explicitly
-    path('products/manage/', views.add_product, name='product_management'),  # List mode
-    path('products/edit/<int:product_id>/', views.add_product, name='edit_product'),  # Edit mode
+    path('products/manage/<int:product_id>/delete/', product_views.delete_product, name='delete_product'),
+    path('products/add/', product_views.add_product, name='add_product'),  # Legacy - List mode by default
+    path('products/create/', product_views.add_product, name='add_product_form'),  # NEW - Create mode explicitly
+    path('products/manage/', product_views.add_product, name='product_management'),  # List mode
+    path('products/edit/<int:product_id>/', product_views.add_product, name='edit_product'),  # Edit mode
     
     # Category Management
-    path('categories/manage/', views.category_management, name='category_management'),
-    path('categories/manage/create/', views.create_category, name='create_category'),
-    path('categories/manage/<int:category_id>/edit/', views.edit_category, name='edit_category'),
-    path('categories/manage/<int:category_id>/delete/', views.delete_category, name='delete_category'),
+    path('categories/manage/', category_views.category_management, name='category_management'),
+    path('categories/manage/create/', category_views.create_category, name='create_category'),
+    path('categories/manage/<int:category_id>/edit/', category_views.edit_category, name='edit_category'),
+    path('categories/manage/<int:category_id>/delete/', category_views.delete_category, name='delete_category'),
     
     # Main Dashboard
     path('', views.dashboard, name='dashboard'),
@@ -46,64 +46,64 @@ urlpatterns = [
     path('set-language/', views.set_language, name='set_language'),
     
     # Sales - Two-step workflow
-    path('sales/', views.sales_entry, name='sales_entry'),  # Step 1: Create trip
-    path('sales/trip/<int:trip_id>/', views.trip_sales, name='trip_sales'),  # Step 2: Add items
-    path('sales/trip/bulk-complete/', views.trip_bulk_complete, name='trip_bulk_complete'),  # NEW: Bulk save
-    path('sales/trip/cancel/', views.trip_cancel, name='trip_cancel'),  # NEW: Cancel trip
+    path('sales/', sales_views.sales_entry, name='sales_entry'),  # Step 1: Create trip
+    path('sales/trip/<int:trip_id>/', sales_views.trip_sales, name='trip_sales'),  # Step 2: Add items
+    path('sales/trip/bulk-complete/', sales_views.trip_bulk_complete, name='trip_bulk_complete'),  # NEW: Bulk save
+    path('sales/trip/cancel/', sales_views.trip_cancel, name='trip_cancel'),  # NEW: Cancel trip
      # Enhanced sales endpoints
-    path('sales/available-products/', views.sales_available_products, name='sales_available_products'),
-    path('sales/calculate-cogs/', views.sales_calculate_cogs, name='sales_calculate_cogs'),
+    path('sales/available-products/', sales_views.sales_available_products, name='sales_available_products'),
+    path('sales/calculate-cogs/', sales_views.sales_calculate_cogs, name='sales_calculate_cogs'),
     
     # Keep existing search endpoints (needed for product search)
-    path('sales/search-products/', views.sales_search_products, name='sales_search_products'),
-    path('sales/validate-inventory/', views.sales_validate_inventory, name='sales_validate_inventory'),
+    path('sales/search-products/', sales_views.sales_search_products, name='sales_search_products'),
+    path('sales/validate-inventory/', sales_views.sales_validate_inventory, name='sales_validate_inventory'),
     
     # Supply - Two-step workflow  
-    path('supply/', views.supply_entry, name='supply_entry'),  # Step 1: Create PO
-    path('supply/po/<int:po_id>/', views.po_supply, name='po_supply'),  # Step 2: Add items
-    path('supply/po/bulk-complete/', views.po_bulk_complete, name='po_bulk_complete'),  # NEW: Bulk save
-    path('supply/po/cancel/', views.po_cancel, name='po_cancel'),  # NEW: Cancel PO
+    path('supply/', supply_views.supply_entry, name='supply_entry'),  # Step 1: Create PO
+    path('supply/po/<int:po_id>/', supply_views.po_supply, name='po_supply'),  # Step 2: Add items
+    path('supply/po/bulk-complete/', supply_views.po_bulk_complete, name='po_bulk_complete'),  # NEW: Bulk save
+    path('supply/po/cancel/', supply_views.po_cancel, name='po_cancel'),  # NEW: Cancel PO
     # Enhanced supply endpoints  
-    path('supply/product-catalog/', views.supply_product_catalog, name='supply_product_catalog'),
+    path('supply/product-catalog/', supply_views.supply_product_catalog, name='supply_product_catalog'),
     
     # Keep existing search endpoints (needed for product search)
-    path('supply/search-products/', views.supply_search_products, name='supply_search_products'),
+    path('supply/search-products/', supply_views.supply_search_products, name='supply_search_products'),
     
     # Inventory
-    path('inventory/', views.inventory_check, name='inventory_check'),
-    path('inventory/data/', views.inventory_data_ajax, name='inventory_data_ajax'),
-    path('inventory/details/<int:product_id>/<int:vessel_id>/', views.inventory_details_ajax, name='inventory_details_ajax'),
+    path('inventory/', inventory_views.inventory_check, name='inventory_check'),
+    path('inventory/data/', inventory_views.inventory_data_ajax, name='inventory_data_ajax'),
+    path('inventory/details/<int:product_id>/<int:vessel_id>/', inventory_views.inventory_details_ajax, name='inventory_details_ajax'),
     
     # Transfers
     path('transfer-center/', lambda request: redirect('frontend:transfer_entry'), name='transfer_center'),
-    path('transfer/search-products/', views.transfer_search_products, name='transfer_search_products'),
-    path('transfer/execute/', views.transfer_execute, name='transfer_execute'),
+    path('transfer/search-products/', transfer_views.transfer_search_products, name='transfer_search_products'),
+    path('transfer/execute/', transfer_views.transfer_execute, name='transfer_execute'),
     # Transfer workflows
-    path('transfer/', views.transfer_entry, name='transfer_entry'),  # Step 1: Create transfer
-    path('transfer/items/<str:session_id>/', views.transfer_items, name='transfer_items'),  # Step 2: Add items
-    path('transfer/available-products/', views.transfer_available_products, name='transfer_available_products'),
-    path('transfer/bulk-complete/', views.transfer_bulk_complete, name='transfer_bulk_complete'),
+    path('transfer/', transfer_views.transfer_entry, name='transfer_entry'),  # Step 1: Create transfer
+    path('transfer/items/<str:session_id>/', transfer_views.transfer_items, name='transfer_items'),  # Step 2: Add items
+    path('transfer/available-products/', transfer_views.transfer_available_products, name='transfer_available_products'),
+    path('transfer/bulk-complete/', transfer_views.transfer_bulk_complete, name='transfer_bulk_complete'),
     
     # Reports
-    path('reports/', views.reports_dashboard, name='reports_dashboard'),
-    path('reports/daily/', views.daily_report, name='daily_report'),
-    path('reports/monthly/', views.monthly_report, name='monthly_report'),
-    path('reports/analytics/', views.analytics_report, name='analytics_report'),
-    path('reports/trips/', views.trip_reports, name='trip_reports'),  # NEW
-    path('reports/purchase-orders/', views.po_reports, name='po_reports'),  # NEW
-    path('reports/comprehensive/', views.comprehensive_report, name='comprehensive_report'),
+    path('reports/', reports_views.reports_dashboard, name='reports_dashboard'),
+    path('reports/daily/', reports_views.daily_report, name='daily_report'),
+    path('reports/monthly/', reports_views.monthly_report, name='monthly_report'),
+    path('reports/analytics/', reports_views.analytics_report, name='analytics_report'),
+    path('reports/trips/', reports_views.trip_reports, name='trip_reports'),  # NEW
+    path('reports/purchase-orders/', reports_views.po_reports, name='po_reports'),  # NEW
+    path('reports/comprehensive/', reports_views.comprehensive_report, name='comprehensive_report'),
     
     # Exports
-    path('export/inventory/', views.export_inventory, name='export_inventory'),
-    path('export/transactions/', views.export_transactions, name='export_transactions'),
-    path('export/trips/', views.export_trips, name='export_trips'),
-    path('export/purchase-orders/', views.export_purchase_orders, name='export_purchase_orders'),
-    path('export/monthly-report/', views.export_monthly_report, name='export_monthly_report'),
-    path('export/daily-report/', views.export_daily_report, name='export_daily_report'),
-    path('export/analytics/', views.export_analytics_report, name='export_analytics_report'),
+    path('export/inventory/', export_views.export_inventory, name='export_inventory'),
+    path('export/transactions/', export_views.export_transactions, name='export_transactions'),
+    path('export/trips/', export_views.export_trips, name='export_trips'),
+    path('export/purchase-orders/', export_views.export_purchase_orders, name='export_purchase_orders'),
+    path('export/monthly-report/', export_views.export_monthly_report, name='export_monthly_report'),
+    path('export/daily-report/', export_views.export_daily_report, name='export_daily_report'),
+    path('export/analytics/', export_views.export_analytics_report, name='export_analytics_report'),
     
     # Transactions
-    path('transactions/', views.transactions_list, name='transactions_list'),  # NEW
+    path('transactions/', reports_views.transactions_list, name='transactions_list'),  # NEW
     
     # Suppress Chrome DevTools requests
     path('.well-known/appspecific/com.chrome.devtools.json', lambda r: HttpResponse('{}', content_type='application/json')),
