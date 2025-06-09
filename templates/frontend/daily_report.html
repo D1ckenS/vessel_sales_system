@@ -55,8 +55,8 @@
 </div>
 
 <!-- Summary Statistics -->
-<div class="row mb-4">
-    <div class="col-md-3 col-sm-6 mb-3">
+<div class="row mb-4 justify-content-center">
+    <div class="col-lg col-md-4 col-sm-6 mb-3" style="min-width: 200px; max-width: 250px;">
         <div class="stats-card">
             <div class="stats-number text-success" data-number data-original="{{ daily_stats.total_revenue|default:0|floatformat:0 }}">
                 {{ daily_stats.total_revenue|default:0|floatformat:0 }}
@@ -72,7 +72,21 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3 col-sm-6 mb-3">
+    <div class="col-lg col-md-4 col-sm-6 mb-3" style="min-width: 200px; max-width: 250px;">
+        <div class="stats-card">
+            <div class="stats-number text-warning" data-number data-original="{{ daily_stats.total_purchase_cost|default:0|floatformat:0 }}">
+                {{ daily_stats.total_purchase_cost|default:0|floatformat:0 }}
+            </div>
+            <div class="stats-label">
+                <span data-translate="daily_cost">Daily Cost</span> 
+                (<span data-currency-symbol>JOD</span>)
+                <small class="d-block text-muted">
+                    <span data-translate="supply_purchases">Supply Purchases</span>
+                </small>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg col-md-4 col-sm-6 mb-3" style="min-width: 200px; max-width: 250px;">
         <div class="stats-card">
             <div class="stats-number text-primary" data-number data-original="{{ daily_stats.total_transactions|default:0 }}">
                 {{ daily_stats.total_transactions|default:0 }}
@@ -87,7 +101,7 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3 col-sm-6 mb-3">
+    <div class="col-lg col-md-4 col-sm-6 mb-3" style="min-width: 200px; max-width: 250px;">
         <div class="stats-card">
             <div class="stats-number {% if daily_profit > 0 %}text-success{% elif daily_profit < 0 %}text-danger{% else %}text-muted{% endif %}" 
                  data-number data-original="{{ daily_profit|floatformat:0 }}">
@@ -102,7 +116,7 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3 col-sm-6 mb-3">
+    <div class="col-lg col-md-4 col-sm-6 mb-3" style="min-width: 200px; max-width: 250px;">
         <div class="stats-card">
             <div class="stats-number text-info" data-number data-original="{{ daily_stats.total_quantity|default:0|floatformat:0 }}">
                 {{ daily_stats.total_quantity|default:0|floatformat:0 }}
@@ -527,6 +541,8 @@ document.addEventListener('DOMContentLoaded', function() {
             'view_report': 'View Report',
             'today': 'Today',
             'daily_revenue': 'Daily Revenue',
+            'daily_cost': 'Daily Cost',
+            'supply_purchases': 'Supply Purchases',
             'total_transactions': 'Total Transactions',
             'daily_profit': 'Daily Profit',
             'margin': 'margin',
@@ -581,6 +597,8 @@ document.addEventListener('DOMContentLoaded', function() {
             'view_report': 'عرض التقرير',
             'today': 'اليوم',
             'daily_revenue': 'الإيرادات اليومية',
+            'daily_cost': 'التكلفة اليومية',
+            'supply_purchases': 'مشتريات التوريد',
             'total_transactions': 'إجمالي الحركات',
             'daily_profit': 'الربح اليومي',
             'margin': 'هامش',

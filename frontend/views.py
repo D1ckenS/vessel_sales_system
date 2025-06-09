@@ -2366,6 +2366,8 @@ def set_language(request):
 def reports_dashboard(request):
     """Reports hub with statistics and report options"""
     from django.utils import timezone
+    from django.db import models  # Import models for DecimalField
+    
     today = timezone.now().date()
     
     # Today's revenue from sales using F() expressions
@@ -2374,6 +2376,15 @@ def reports_dashboard(request):
         transaction_type='SALE'
     ).aggregate(
         total_revenue=Sum(F('unit_price') * F('quantity'), output_field=models.DecimalField()),
+        count=Count('id')
+    )
+    
+    # Today's costs from supplies using F() expressions
+    today_supplies = Transaction.objects.filter(
+        transaction_date=today,
+        transaction_type='SUPPLY'
+    ).aggregate(
+        total_cost=Sum(F('unit_price') * F('quantity'), output_field=models.DecimalField()),
         count=Count('id')
     )
     
@@ -2395,6 +2406,7 @@ def reports_dashboard(request):
     context = {
         'today_stats': {
             'revenue': today_sales['total_revenue'] or 0,
+            'cost': today_supplies['total_cost'] or 0,  # Added cost
             'transactions': today_transactions,
             'trips': today_trips,
             'purchase_orders': today_pos,

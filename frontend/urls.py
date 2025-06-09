@@ -115,12 +115,17 @@ urlpatterns = [
     path('vessels/<int:vessel_id>/toggle-status/', auth_views.toggle_vessel_status, name='toggle_vessel_status'),
     path('vessels/<int:vessel_id>/statistics/', auth_views.vessel_statistics, name='vessel_statistics'),
     
-    # Trip Management (5% of remaining work)  
+     # Trip Management (COMPLETE DJANGO ADMIN REPLACEMENT)
     path('trips/manage/', auth_views.trip_management, name='trip_management'),
+    path('trips/manage/<int:trip_id>/edit/', auth_views.edit_trip, name='edit_trip'),
+    path('trips/manage/<int:trip_id>/delete/', auth_views.delete_trip, name='delete_trip'),
+    path('trips/manage/<int:trip_id>/toggle-status/', auth_views.toggle_trip_status, name='toggle_trip_status'),
     path('trips/<int:trip_id>/details/', auth_views.trip_details, name='trip_details'),
     
-    # PO Management (5% of remaining work)
-    path('purchase-orders/manage/', auth_views.po_management, name='po_management'), 
-    path('purchase-orders/<int:po_id>/details/', auth_views.po_details, name='po_details'),
+    # PO Management (COMPLETE DJANGO ADMIN REPLACEMENT)
+    path('purchase-orders/manage/', auth_views.po_management, name='po_management'),
+    path('purchase-orders/manage/<int:po_id>/edit/', auth_views.edit_po, name='edit_po'),
+    path('purchase-orders/manage/<int:po_id>/delete/', auth_views.delete_po, name='delete_po'),
+    path('purchase-orders/manage/<int:po_id>/toggle-status/', auth_views.toggle_po_status, name='toggle_po_status'),
 
 ]

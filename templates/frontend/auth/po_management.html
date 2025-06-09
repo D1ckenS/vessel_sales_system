@@ -25,10 +25,6 @@
     border-left-color: var(--warning-orange);
 }
 
-.po-card.pending {
-    border-left-color: var(--accent-blue);
-}
-
 .po-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 8px rgba(0,0,0,0.15);
@@ -51,73 +47,28 @@
     color: var(--success-green);
 }
 
-/* Approval workflow styling */
-.approval-flow {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin: 1rem 0;
+/* Fix table hover to prevent horizontal scroll */
+.table-hover tbody tr:hover {
+    transform: none !important;
+    background: linear-gradient(135deg, rgba(15, 76, 117, 0.05) 0%, rgba(50, 130, 184, 0.05) 100%) !important;
+    border-left: 3px solid var(--primary-blue) !important;
 }
 
-.approval-step {
-    flex: 1;
-    text-align: center;
-    position: relative;
+.progress-sm {
+    height: 0.5rem;
 }
 
-.approval-step::after {
-    content: '';
-    position: absolute;
-    top: 15px;
-    right: -50%;
-    width: 100%;
-    height: 2px;
-    background: #e0e6ed;
-    z-index: 1;
+/* Fix dropdown z-index issues */
+.dropdown-menu {
+    z-index: 1060 !important;
 }
 
-.approval-step:last-child::after {
-    display: none;
+.navbar .dropdown-menu {
+    z-index: 1070 !important;
 }
 
-.approval-step.completed::after {
-    background: var(--success-green);
-}
-
-.approval-icon {
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    background: #e0e6ed;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-    z-index: 2;
-}
-
-.approval-step.completed .approval-icon {
-    background: var(--success-green);
-    color: white;
-}
-
-.approval-step.active .approval-icon {
-    background: var(--primary-blue);
-    color: white;
-}
-
-/* Supplier management */
-.supplier-card {
-    border: 1px solid #e0e6ed;
-    border-radius: 8px;
-    padding: 1rem;
-    margin-bottom: 0.5rem;
-    transition: all 0.3s ease;
-}
-
-.supplier-card:hover {
-    border-color: var(--primary-blue);
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+.table thead.sticky-top {
+    z-index: 1020;
 }
 </style>
 {% endblock %}
@@ -146,10 +97,6 @@
                         <i class="bi bi-download me-2"></i>
                         <span data-translate="export_pos">Export POs</span>
                     </button>
-                    <button class="btn btn-outline-info" data-bs-toggle="modal" data-bs-target="#supplierModal">
-                        <i class="bi bi-building me-2"></i>
-                        <span data-translate="manage_suppliers">Manage Suppliers</span>
-                    </button>
                     <a href="{% url 'frontend:dashboard' %}" class="btn btn-outline-secondary">
                         <i class="bi bi-arrow-left me-2"></i>
                         <span data-translate="back_to_dashboard">Back to Dashboard</span>
@@ -165,7 +112,7 @@
             <div class="stats-card" style="background: linear-gradient(135deg, var(--secondary-blue) 0%, var(--primary-blue) 100%); color: white;">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <div class="stats-number" data-number data-original="452">452</div>
+                        <div class="stats-number" data-number data-original="{{ stats.total_pos }}">{{ stats.total_pos }}</div>
                         <div class="stats-label text-white" data-translate="total_pos">Total POs</div>
                     </div>
                     <i class="bi bi-receipt" style="font-size: 2.5rem; opacity: 0.8;"></i>
@@ -176,7 +123,7 @@
             <div class="stats-card" style="background: linear-gradient(135deg, var(--success-green) 0%, #20c997 100%); color: white;">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <div class="stats-number" data-number data-original="389">389</div>
+                        <div class="stats-number" data-number data-original="{{ stats.completed_pos }}">{{ stats.completed_pos }}</div>
                         <div class="stats-label text-white" data-translate="completed_pos">Completed POs</div>
                     </div>
                     <i class="bi bi-check-circle" style="font-size: 2.5rem; opacity: 0.8;"></i>
@@ -187,7 +134,7 @@
             <div class="stats-card" style="background: linear-gradient(135deg, var(--warning-orange) 0%, #ffc107 100%); color: white;">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <div class="stats-number" data-number data-original="43">43</div>
+                        <div class="stats-number" data-number data-original="{{ stats.pending_pos }}">{{ stats.pending_pos }}</div>
                         <div class="stats-label text-white" data-translate="pending_approval">Pending Approval</div>
                     </div>
                     <i class="bi bi-clock" style="font-size: 2.5rem; opacity: 0.8;"></i>
@@ -199,7 +146,7 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <div class="stats-number">
-                            <span data-number data-original="89,450.75">89,450.75</span> <span data-currency-symbol>JOD</span>
+                            <span data-number data-original="{{ stats.total_procurement_value|floatformat:2 }}">{{ stats.total_procurement_value|floatformat:2 }}</span> <span data-currency-symbol>JOD</span>
                         </div>
                         <div class="stats-label" style="color: var(--primary-blue);" data-translate="total_procurement_value">Total Procurement</div>
                     </div>
@@ -224,7 +171,7 @@
                         <div class="col-md-4">
                             <div class="d-flex justify-content-between align-items-center mb-1">
                                 <span data-translate="avg_po_value">Avg PO Value</span>
-                                <strong><span data-number data-original="197.8">197.8</span> <span data-currency-symbol>JOD</span></strong>
+                                <strong><span data-number data-original="{{ stats.avg_po_value }}">{{ stats.avg_po_value }}</span> <span data-currency-symbol>JOD</span></strong>
                             </div>
                             <div class="progress progress-sm">
                                 <div class="progress-bar bg-primary" style="width: 75%"></div>
@@ -232,8 +179,8 @@
                         </div>
                         <div class="col-md-4">
                             <div class="d-flex justify-content-between align-items-center mb-1">
-                                <span data-translate="approval_time">Avg Approval Time</span>
-                                <strong><span data-number data-original="2.3">2.3</span> <span data-translate="days">days</span></strong>
+                                <span data-translate="monthly_average">Monthly Average</span>
+                                <strong><span data-number data-original="{{ stats.monthly_average }}">{{ stats.monthly_average }}</span> <span data-translate="pos">POs</span></strong>
                             </div>
                             <div class="progress progress-sm">
                                 <div class="progress-bar bg-success" style="width: 90%"></div>
@@ -242,10 +189,10 @@
                         <div class="col-md-4">
                             <div class="d-flex justify-content-between align-items-center mb-1">
                                 <span data-translate="completion_rate">Completion Rate</span>
-                                <strong data-number data-original="86.1">86.1</strong>%
+                                <strong data-number data-original="{{ stats.completion_rate }}">{{ stats.completion_rate }}</strong>%
                             </div>
                             <div class="progress progress-sm">
-                                <div class="progress-bar bg-warning" style="width: 86%"></div>
+                                <div class="progress-bar bg-warning" style="width: {{ stats.completion_rate }}%"></div>
                             </div>
                         </div>
                     </div>
@@ -257,48 +204,28 @@
             <div class="card">
                 <div class="card-header">
                     <h5 class="mb-0">
-                        <i class="bi bi-building me-2"></i>
-                        <span data-translate="top_suppliers">Top Suppliers</span>
+                        <i class="bi bi-ship me-2"></i>
+                        <span data-translate="top_procurement_vessels">Top Procurement Vessels</span>
                     </h5>
                 </div>
                 <div class="card-body">
                     <div class="list-group list-group-flush">
+                        {% for supplier in top_suppliers %}
                         <div class="list-group-item d-flex justify-content-between align-items-center">
                             <div>
-                                <strong>Marina Supply Co.</strong>
-                                <div class="cost-indicator high">
-                                    <i class="bi bi-arrow-up"></i> <span data-number data-original="24,550">24,550</span> <span data-currency-symbol>JOD</span> <span data-translate="total">total</span>
+                                <strong class="vessel-name" data-en="{{ supplier.vessel__name }}" data-ar="{{ supplier.vessel__name_ar }}">{{ supplier.vessel__name }}</strong>
+                                <div class="cost-indicator {{ supplier.performance_class }}">
+                                    <i class="bi bi-{{ supplier.performance_icon }}"></i> 
+                                    <span data-number data-original="{{ supplier.total_value|floatformat:0 }}">{{ supplier.total_value|floatformat:0 }}</span> <span data-currency-symbol>JOD</span> <span data-translate="total">total</span>
                                 </div>
                             </div>
-                            <span class="badge bg-primary" data-number data-original="67">67</span>
+                            <span class="badge {{ supplier.badge_class }}" data-number data-original="{{ supplier.po_count }}">{{ supplier.po_count }}</span>
                         </div>
-                        <div class="list-group-item d-flex justify-content-between align-items-center">
-                            <div>
-                                <strong>Red Sea Trading</strong>
-                                <div class="cost-indicator medium">
-                                    <i class="bi bi-dash"></i> <span data-number data-original="18,920">18,920</span> <span data-currency-symbol>JOD</span> <span data-translate="total">total</span>
-                                </div>
-                            </div>
-                            <span class="badge bg-success" data-number data-original="52">52</span>
+                        {% empty %}
+                        <div class="list-group-item text-center text-muted">
+                            <span data-translate="no_procurement_data">No procurement data available</span>
                         </div>
-                        <div class="list-group-item d-flex justify-content-between align-items-center">
-                            <div>
-                                <strong>Gulf Beverages Ltd</strong>
-                                <div class="cost-indicator medium">
-                                    <i class="bi bi-dash"></i> <span data-number data-original="15,780">15,780</span> <span data-currency-symbol>JOD</span> <span data-translate="total">total</span>
-                                </div>
-                            </div>
-                            <span class="badge bg-warning" data-number data-original="41">41</span>
-                        </div>
-                        <div class="list-group-item d-flex justify-content-between align-items-center">
-                            <div>
-                                <strong>Aqaba Food Supplies</strong>
-                                <div class="cost-indicator low">
-                                    <i class="bi bi-arrow-down"></i> <span data-number data-original="12,340">12,340</span> <span data-currency-symbol>JOD</span> <span data-translate="total">total</span>
-                                </div>
-                            </div>
-                            <span class="badge bg-info" data-number data-original="38">38</span>
-                        </div>
+                        {% endfor %}
                     </div>
                 </div>
             </div>
@@ -316,60 +243,48 @@
                     </h5>
                 </div>
                 <div class="card-body">
-                    <form id="poFilters">
+                    <form id="poFilters" method="GET">
                         <div class="row">
                             <div class="col-lg-2 col-md-4 mb-3">
                                 <label class="form-label fw-bold"><span data-translate="vessel">Vessel</span></label>
                                 <select class="form-select" name="vessel" id="vesselFilter">
                                     <option value=""><span data-translate="all_vessels">All Vessels</span></option>
-                                    <option value="1">Amman (عمان)</option>
-                                    <option value="2">Aylah (أيلة)</option>
-                                    <option value="3">Sinaa (سيناء)</option>
-                                    <option value="4">Nefertiti (نفرتيتي)</option>
-                                    <option value="5">Babel (بابل)</option>
-                                    <option value="6">Dahab (دهب)</option>
+                                    {% for vessel in vessels %}
+                                    <option value="{{ vessel.id }}" {% if filters.vessel == vessel.id|stringformat:"s" %}selected{% endif %}>
+                                        <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
+                                    </option>
+                                    {% endfor %}
                                 </select>
                             </div>
                             <div class="col-lg-2 col-md-4 mb-3">
                                 <label class="form-label fw-bold"><span data-translate="status">Status</span></label>
                                 <select class="form-select" name="status" id="statusFilter">
                                     <option value=""><span data-translate="all_status">All Status</span></option>
-                                    <option value="completed"><span data-translate="completed">Completed</span></option>
-                                    <option value="pending"><span data-translate="pending_approval">Pending Approval</span></option>
-                                    <option value="in_progress"><span data-translate="in_progress">In Progress</span></option>
-                                </select>
-                            </div>
-                            <div class="col-lg-2 col-md-4 mb-3">
-                                <label class="form-label fw-bold"><span data-translate="supplier">Supplier</span></label>
-                                <select class="form-select" name="supplier" id="supplierFilter">
-                                    <option value=""><span data-translate="all_suppliers">All Suppliers</span></option>
-                                    <option value="marina">Marina Supply Co.</option>
-                                    <option value="redsea">Red Sea Trading</option>
-                                    <option value="gulf">Gulf Beverages Ltd</option>
-                                    <option value="aqaba">Aqaba Food Supplies</option>
+                                    <option value="completed" {% if filters.status == 'completed' %}selected{% endif %}><span data-translate="completed">Completed</span></option>
+                                    <option value="in_progress" {% if filters.status == 'in_progress' %}selected{% endif %}><span data-translate="in_progress">In Progress</span></option>
                                 </select>
                             </div>
                             <div class="col-lg-2 col-md-4 mb-3">
                                 <label class="form-label fw-bold"><span data-translate="date_from">Date From</span></label>
-                                <input type="date" class="form-control" name="date_from" id="dateFromFilter">
+                                <input type="date" class="form-control" name="date_from" id="dateFromFilter" value="{{ filters.date_from }}">
                             </div>
                             <div class="col-lg-2 col-md-4 mb-3">
                                 <label class="form-label fw-bold"><span data-translate="date_to">Date To</span></label>
-                                <input type="date" class="form-control" name="date_to" id="dateToFilter">
+                                <input type="date" class="form-control" name="date_to" id="dateToFilter" value="{{ filters.date_to }}">
                             </div>
                             <div class="col-lg-2 col-md-4 mb-3 d-flex align-items-end">
-                                <button type="button" class="btn btn-primary w-100" onclick="applyFilters()">
+                                <button type="submit" class="btn btn-primary w-100">
                                     <i class="bi bi-funnel"></i> <span data-translate="apply_filters">Apply Filters</span>
                                 </button>
                             </div>
                         </div>
                         <div class="row">
                             <div class="col-12">
-                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="clearFilters()">
+                                <a href="{% url 'frontend:po_management' %}" class="btn btn-outline-secondary btn-sm">
                                     <i class="bi bi-x-circle"></i> <span data-translate="clear_filters">Clear Filters</span>
-                                </button>
+                                </a>
                                 <span class="text-muted ms-3">
-                                    <span data-translate="showing">Showing</span> <strong id="resultCount" data-number data-original="25">25</strong> <span data-translate="of">of</span> <strong id="totalCount" data-number data-original="452">452</strong> <span data-translate="purchase_orders">purchase orders</span>
+                                    <span data-translate="showing">Showing</span> <strong id="resultCount" data-number data-original="{{ purchase_orders|length }}">{{ purchase_orders|length }}</strong> <span data-translate="of">of</span> <strong id="totalCount" data-number data-original="{{ stats.total_pos }}">{{ stats.total_pos }}</strong> <span data-translate="purchase_orders">purchase orders</span>
                                 </span>
                             </div>
                         </div>
@@ -389,7 +304,7 @@
                         <span data-translate="purchase_order_overview">Purchase Order Overview</span>
                     </h5>
                     <div class="d-flex gap-2">
-                        <button class="btn btn-outline-primary btn-sm" onclick="refreshData()">
+                        <button class="btn btn-outline-primary btn-sm" onclick="location.reload()">
                             <i class="bi bi-arrow-clockwise"></i> <span data-translate="refresh">Refresh</span>
                         </button>
                         <div class="dropdown">
@@ -397,13 +312,10 @@
                                 <i class="bi bi-gear"></i> <span data-translate="view_options">View Options</span>
                             </button>
                             <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="#" onclick="toggleColumn('supplier')">
-                                    <i class="bi bi-building"></i> <span data-translate="show_supplier">Show Supplier</span>
-                                </a></li>
-                                <li><a class="dropdown-item" href="#" onclick="toggleColumn('items_count')">
+                                <li><a class="dropdown-item" href="#" onclick="toggleColumn('items')">
                                     <i class="bi bi-box"></i> <span data-translate="show_items">Show Items</span>
                                 </a></li>
-                                <li><a class="dropdown-item" href="#" onclick="toggleColumn('created_by')">
+                                <li><a class="dropdown-item" href="#" onclick="toggleColumn('created-by')">
                                     <i class="bi bi-person"></i> <span data-translate="show_created_by">Show Created By</span>
                                 </a></li>
                             </ul>
@@ -415,169 +327,94 @@
                         <table class="table table-hover mb-0" id="posTable">
                             <thead class="table-light">
                                 <tr>
-                                    <th>
-                                        <a href="#" onclick="sortTable('po_number')" class="text-decoration-none">
-                                            <span data-translate="po_number">PO Number</span>
-                                            <i class="bi bi-arrow-down-up ms-1"></i>
-                                        </a>
-                                    </th>
-                                    <th>
-                                        <a href="#" onclick="sortTable('vessel')" class="text-decoration-none">
-                                            <span data-translate="vessel">Vessel</span>
-                                            <i class="bi bi-arrow-down-up ms-1"></i>
-                                        </a>
-                                    </th>
-                                    <th class="supplier-column">
-                                        <a href="#" onclick="sortTable('supplier')" class="text-decoration-none">
-                                            <span data-translate="supplier">Supplier</span>
-                                            <i class="bi bi-arrow-down-up ms-1"></i>
-                                        </a>
-                                    </th>
-                                    <th>
-                                        <a href="#" onclick="sortTable('po_date')" class="text-decoration-none">
-                                            <span data-translate="po_date">PO Date</span>
-                                            <i class="bi bi-arrow-down-up ms-1"></i>
-                                        </a>
-                                    </th>
-                                    <th>
-                                        <a href="#" onclick="sortTable('total_cost')" class="text-decoration-none">
-                                            <span data-translate="total_cost">Total Cost</span>
-                                            <i class="bi bi-arrow-down-up ms-1"></i>
-                                        </a>
-                                    </th>
-                                    <th class="items-column">
-                                        <span data-translate="items_count">Items</span>
-                                    </th>
-                                    <th>
-                                        <span data-translate="approval_status">Approval Status</span>
-                                    </th>
-                                    <th class="created-by-column">
-                                        <span data-translate="created_by">Created By</span>
-                                    </th>
-                                    <th class="text-center">
-                                        <span data-translate="actions">Actions</span>
-                                    </th>
+                                    <th><span data-translate="po_number">PO Number</span></th>
+                                    <th><span data-translate="vessel">Vessel</span></th>
+                                    <th><span data-translate="po_date">PO Date</span></th>
+                                    <th><span data-translate="total_cost">Total Cost</span></th>
+                                    <th class="items-column"><span data-translate="items_count">Items</span></th>
+                                    <th><span data-translate="status">Status</span></th>
+                                    <th class="created-by-column"><span data-translate="created_by">Created By</span></th>
+                                    <th class="text-center"><span data-translate="actions">Actions</span></th>
                                 </tr>
                             </thead>
                             <tbody id="posTableBody">
-                                <!-- Sample rows -->
-                                <tr class="po-row completed" data-po-id="1">
+                                {% for po in purchase_orders %}
+                                <tr class="po-row {% if po.is_completed %}completed{% else %}pending{% endif %}" data-po-id="{{ po.id }}">
                                     <td>
-                                        <strong class="po-number" data-original="PO-2025-001">PO-2025-001</strong>
+                                        <strong class="po-number" data-original="{{ po.po_number }}">{{ po.po_number }}</strong>
+                                        {% if po.notes %}
+                                            <i class="bi bi-chat-left-text text-muted ms-1" title="{{ po.notes }}"></i>
+                                        {% endif %}
                                     </td>
                                     <td>
                                         <div class="d-flex align-items-center">
                                             <i class="bi bi-ship text-primary me-2"></i>
                                             <div>
-                                                <strong class="vessel-name" data-en="Amman" data-ar="عمان">Amman</strong>
-                                                <span class="badge bg-warning ms-2"><span data-translate="duty_free">Duty-Free</span></span>
+                                                <strong class="vessel-name" data-en="{{ po.vessel.name }}" data-ar="{{ po.vessel.name_ar }}">{{ po.vessel.name }}</strong>
+                                                {% if po.vessel.has_duty_free %}
+                                                    <span class="badge bg-warning ms-2"><span data-translate="duty_free">Duty-Free</span></span>
+                                                {% endif %}
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="supplier-column">Marina Supply Co.</td>
-                                    <td data-po-date data-original="10/06/2025">10/06/2025</td>
+                                    <td data-po-date data-original="{{ po.po_date|date:'d/m/Y' }}">{{ po.po_date|date:"d/m/Y" }}</td>
                                     <td>
-                                        <strong class="text-success">
-                                            <span data-number data-original="3,450.750">3,450.750</span> <span data-currency-symbol>JOD</span>
+                                        <strong class="{% if po.annotated_total_cost %}text-success{% else %}text-muted{% endif %}">
+                                            <span data-number data-original="{{ po.annotated_total_cost|floatformat:3|default:'0.000' }}">{{ po.annotated_total_cost|floatformat:3|default:"0.000" }}</span> <span data-currency-symbol>JOD</span>
                                         </strong>
-                                        <div class="cost-indicator high">
-                                            <span data-number data-original="115.0">115.0</span> <span data-currency-symbol>JOD</span>/item
+                                        {% if po.avg_cost_per_item %}
+                                        <div class="cost-indicator {{ po.cost_performance_class }}">
+                                            <span data-number data-original="{{ po.avg_cost_per_item }}">{{ po.avg_cost_per_item }}</span> <span data-currency-symbol>JOD</span>/item
                                         </div>
+                                        {% endif %}
                                     </td>
                                     <td class="items-column">
-                                        <span data-number data-original="30">30</span> <span data-translate="items">items</span>
+                                        <span data-number data-original="{{ po.annotated_transaction_count }}">{{ po.annotated_transaction_count }}</span> <span data-translate="items">items</span>
                                     </td>
                                     <td>
-                                        <div class="approval-flow">
-                                            <div class="approval-step completed">
-                                                <div class="approval-icon">
-                                                    <i class="bi bi-check"></i>
-                                                </div>
-                                                <small data-translate="approved">Approved</small>
-                                            </div>
-                                        </div>
-                                        <span class="badge bg-success">
-                                            <i class="bi bi-check-circle me-1"></i>
-                                            <span data-translate="completed">Completed</span>
-                                        </span>
+                                        {% if po.is_completed %}
+                                            <span class="badge bg-success">
+                                                <i class="bi bi-check-circle me-1"></i>
+                                                <span data-translate="completed">Completed</span>
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-warning">
+                                                <i class="bi bi-clock me-1"></i>
+                                                <span data-translate="in_progress">In Progress</span>
+                                            </span>
+                                        {% endif %}
                                     </td>
                                     <td class="created-by-column">
-                                        <small class="text-muted">admin</small>
+                                        <small class="text-muted">{{ po.created_by.username|default:"System" }}</small>
                                     </td>
                                     <td class="text-center">
                                         <div class="btn-group btn-group-sm">
-                                            <button class="btn btn-outline-info" onclick="viewPODetails(1)" data-translate-title="view_details">
+                                            <a href="{% url 'frontend:po_supply' po.id %}" class="btn btn-outline-info" data-translate-title="view_details">
                                                 <i class="bi bi-eye"></i>
-                                            </button>
-                                            <button class="btn btn-outline-primary" onclick="editPO(1)" data-translate-title="edit_po">
+                                            </a>
+                                            <button class="btn btn-outline-primary" onclick="editPO({{ po.id }})" data-translate-title="edit_po">
                                                 <i class="bi bi-pencil"></i>
                                             </button>
-                                            <button class="btn btn-outline-success" onclick="duplicatePO(1)" data-translate-title="duplicate_po">
-                                                <i class="bi bi-files"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-
-                                <tr class="po-row pending" data-po-id="2">
-                                    <td>
-                                        <strong class="po-number" data-original="PO-2025-002">PO-2025-002</strong>
-                                    </td>
-                                    <td>
-                                        <div class="d-flex align-items-center">
-                                            <i class="bi bi-ship text-primary me-2"></i>
-                                            <div>
-                                                <strong class="vessel-name" data-en="Sinaa" data-ar="سيناء">Sinaa</strong>
-                                                <span class="badge bg-warning ms-2"><span data-translate="duty_free">Duty-Free</span></span>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td class="supplier-column">Red Sea Trading</td>
-                                    <td data-po-date data-original="14/06/2025">14/06/2025</td>
-                                    <td>
-                                        <strong class="text-warning">
-                                            <span data-number data-original="2,190.500">2,190.500</span> <span data-currency-symbol>JOD</span>
-                                        </strong>
-                                        <div class="cost-indicator medium">
-                                            <span data-number data-original="87.6">87.6</span> <span data-currency-symbol>JOD</span>/item
-                                        </div>
-                                    </td>
-                                    <td class="items-column">
-                                        <span data-number data-original="25">25</span> <span data-translate="items">items</span>
-                                    </td>
-                                    <td>
-                                        <div class="approval-flow">
-                                            <div class="approval-step active">
-                                                <div class="approval-icon">
-                                                    <i class="bi bi-clock"></i>
-                                                </div>
-                                                <small data-translate="pending">Pending</small>
-                                            </div>
-                                        </div>
-                                        <span class="badge bg-warning">
-                                            <i class="bi bi-clock me-1"></i>
-                                            <span data-translate="pending_approval">Pending Approval</span>
-                                        </span>
-                                    </td>
-                                    <td class="created-by-column">
-                                        <small class="text-muted">operator2</small>
-                                    </td>
-                                    <td class="text-center">
-                                        <div class="btn-group btn-group-sm">
-                                            <button class="btn btn-outline-info" onclick="viewPODetails(2)" data-translate-title="view_details">
-                                                <i class="bi bi-eye"></i>
-                                            </button>
-                                            <button class="btn btn-outline-success" onclick="approvePO(2)" data-translate-title="approve_po">
+                                            {% if not po.is_completed %}
+                                            <button class="btn btn-outline-success" onclick="togglePOStatus({{ po.id }})" data-translate-title="mark_complete">
                                                 <i class="bi bi-check-circle"></i>
                                             </button>
-                                            <a href="/supply/po/2/" class="btn btn-outline-primary" data-translate-title="continue_receiving">
-                                                <i class="bi bi-box-seam"></i>
-                                            </a>
+                                            {% endif %}
+                                            <button class="btn btn-outline-danger" onclick="deletePO({{ po.id }})" data-translate-title="delete_po">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
-
-                                <!-- More sample rows would be loaded dynamically -->
+                                {% empty %}
+                                <tr>
+                                    <td colspan="8" class="text-center text-muted py-4">
+                                        <i class="bi bi-receipt" style="font-size: 2rem;"></i>
+                                        <p class="mt-2 mb-0"><span data-translate="no_pos_found">No purchase orders found</span></p>
+                                        <small><span data-translate="try_creating_pos">Try creating new purchase orders or adjusting your filters</span></small>
+                                    </td>
+                                </tr>
+                                {% endfor %}
                             </tbody>
                         </table>
                     </div>
@@ -585,21 +422,18 @@
                 <div class="card-footer">
                     <div class="d-flex justify-content-between align-items-center">
                         <div class="text-muted">
-                            <span data-translate="showing_entries">Showing 1 to 25 of 452 entries</span>
+                            <span data-translate="showing_entries">Showing {{ purchase_orders|length }} of {{ stats.total_pos }} purchase orders</span>
+                            {% if filters.vessel or filters.status or filters.date_from or filters.date_to %}
+                            (<span data-translate="filtered">filtered</span>)
+                            {% endif %}
                         </div>
-                        <nav>
-                            <ul class="pagination pagination-sm mb-0">
-                                <li class="page-item disabled">
-                                    <a class="page-link" href="#"><span data-translate="previous">Previous</span></a>
-                                </li>
-                                <li class="page-item active"><a class="page-link" href="#" data-number data-original="1">1</a></li>
-                                <li class="page-item"><a class="page-link" href="#" data-number data-original="2">2</a></li>
-                                <li class="page-item"><a class="page-link" href="#" data-number data-original="3">3</a></li>
-                                <li class="page-item">
-                                    <a class="page-link" href="#"><span data-translate="next">Next</span></a>
-                                </li>
-                            </ul>
-                        </nav>
+                        {% if filters.vessel or filters.status or filters.date_from or filters.date_to %}
+                        <div>
+                            <a href="{% url 'frontend:po_management' %}" class="btn btn-outline-secondary btn-sm">
+                                <i class="bi bi-x-circle"></i> <span data-translate="clear_filters">Clear Filters</span>
+                            </a>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -607,205 +441,44 @@
     </div>
 </div>
 
-<!-- PO Details Modal -->
-<div class="modal fade" id="poDetailsModal" tabindex="-1">
-    <div class="modal-dialog modal-xl">
+<!-- PO Edit Modal -->
+<div class="modal fade" id="editPOModal" tabindex="-1">
+    <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
-                    <i class="bi bi-receipt me-2"></i>
-                    <span data-translate="po_details">PO Details</span> - <span id="modalPONumber">PO-2025-001</span>
+                    <i class="bi bi-pencil me-2"></i>
+                    <span data-translate="edit_po">Edit Purchase Order</span>
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <div class="row mb-4">
-                    <div class="col-md-3">
-                        <div class="stats-card text-center">
-                            <div class="stats-number text-primary" data-number data-original="30">30</div>
-                            <div class="stats-label" data-translate="items_ordered">Items Ordered</div>
-                        </div>
+                <form id="editPOForm">
+                    {% csrf_token %}
+                    <input type="hidden" id="editPOId" name="po_id">
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold"><span data-translate="po_number">PO Number</span></label>
+                        <input type="text" class="form-control" id="editPONumber" readonly>
                     </div>
-                    <div class="col-md-3">
-                        <div class="stats-card text-center">
-                            <div class="stats-number text-success">
-                                <span data-number data-original="3,450.750">3,450.750</span> <span data-currency-symbol>JOD</span>
-                            </div>
-                            <div class="stats-label" data-translate="total_cost">Total Cost</div>
-                        </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold"><span data-translate="po_date">PO Date</span></label>
+                        <input type="date" class="form-control" id="editPODate" name="po_date" required>
                     </div>
-                    <div class="col-md-3">
-                        <div class="stats-card text-center">
-                            <div class="stats-number text-info" data-number data-original="30">30</div>
-                            <div class="stats-label" data-translate="items_received">Items Received</div>
-                        </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold"><span data-translate="notes">Notes</span></label>
+                        <textarea class="form-control" id="editPONotes" name="notes" rows="3"></textarea>
                     </div>
-                    <div class="col-md-3">
-                        <div class="stats-card text-center">
-                            <div class="stats-number text-warning">
-                                <span data-number data-original="115.0">115.0</span> <span data-currency-symbol>JOD</span>
-                            </div>
-                            <div class="stats-label" data-translate="avg_cost_per_item">Avg Cost/Item</div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="row">
-                    <div class="col-md-8">
-                        <div class="card">
-                            <div class="card-header">
-                                <h6 class="mb-0" data-translate="items_breakdown">Items Breakdown</h6>
-                            </div>
-                            <div class="card-body">
-                                <div class="table-responsive">
-                                    <table class="table table-sm">
-                                        <thead>
-                                            <tr>
-                                                <th data-translate="product">Product</th>
-                                                <th data-translate="quantity_ordered">Qty Ordered</th>
-                                                <th data-translate="quantity_received">Qty Received</th>
-                                                <th data-translate="unit_cost">Unit Cost</th>
-                                                <th data-translate="total">Total</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <tr>
-                                                <td>Pepsi 250ml</td>
-                                                <td data-number data-original="120">120</td>
-                                                <td data-number data-original="120">120</td>
-                                                <td><span data-number data-original="1.200">1.200</span> <span data-currency-symbol>JOD</span></td>
-                                                <td><span data-number data-original="144.000">144.000</span> <span data-currency-symbol>JOD</span></td>
-                                            </tr>
-                                            <tr>
-                                                <td>Water 500ml</td>
-                                                <td data-number data-original="200">200</td>
-                                                <td data-number data-original="200">200</td>
-                                                <td><span data-number data-original="0.500">0.500</span> <span data-currency-symbol>JOD</span></td>
-                                                <td><span data-number data-original="100.000">100.000</span> <span data-currency-symbol>JOD</span></td>
-                                            </tr>
-                                            <!-- More items would be loaded dynamically -->
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="card">
-                            <div class="card-header">
-                                <h6 class="mb-0" data-translate="po_information">PO Information</h6>
-                            </div>
-                            <div class="card-body">
-                                <dl class="row">
-                                    <dt class="col-sm-6" data-translate="vessel">Vessel:</dt>
-                                    <dd class="col-sm-6">
-                                        <span class="vessel-name" data-en="Amman" data-ar="عمان">Amman</span>
-                                    </dd>
-                                    
-                                    <dt class="col-sm-6" data-translate="supplier">Supplier:</dt>
-                                    <dd class="col-sm-6">Marina Supply Co.</dd>
-                                    
-                                    <dt class="col-sm-6" data-translate="po_date">PO Date:</dt>
-                                    <dd class="col-sm-6" data-po-date data-original="10/06/2025">10/06/2025</dd>
-                                    
-                                    <dt class="col-sm-6" data-translate="created_by">Created By:</dt>
-                                    <dd class="col-sm-6">admin</dd>
-                                    
-                                    <dt class="col-sm-6" data-translate="status">Status:</dt>
-                                    <dd class="col-sm-6">
-                                        <span class="badge bg-success">
-                                            <span data-translate="completed">Completed</span>
-                                        </span>
-                                    </dd>
-                                </dl>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                </form>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    <span data-translate="close">Close</span>
+                    <span data-translate="cancel">Cancel</span>
                 </button>
-                <button type="button" class="btn btn-primary" onclick="showExportModal('po_details', {po_id: currentPOId})">
-                    <i class="bi bi-download me-1"></i>
-                    <span data-translate="export_po">Export PO</span>
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Supplier Management Modal -->
-<div class="modal fade" id="supplierModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="bi bi-building me-2"></i>
-                    <span data-translate="supplier_management">Supplier Management</span>
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h6 data-translate="active_suppliers">Active Suppliers</h6>
-                    <button class="btn btn-success btn-sm" onclick="addSupplier()">
-                        <i class="bi bi-plus-circle"></i> <span data-translate="add_supplier">Add Supplier</span>
-                    </button>
-                </div>
-                
-                <div class="supplier-card">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <strong>Marina Supply Co.</strong>
-                            <div class="text-muted small">
-                                <span data-translate="contact">Contact:</span> +962 3 201 4567 | marina@supply.jo
-                            </div>
-                        </div>
-                        <div class="btn-group btn-group-sm">
-                            <button class="btn btn-outline-primary" onclick="editSupplier(1)">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                            <button class="btn btn-outline-danger" onclick="deactivateSupplier(1)">
-                                <i class="bi bi-x-circle"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="mt-2">
-                        <span class="badge bg-primary me-2" data-number data-original="67">67</span> <span data-translate="total_pos">Total POs</span>
-                        <span class="badge bg-success ms-3" data-number data-original="24,550">24,550</span> <span data-currency-symbol>JOD</span> <span data-translate="total_value">Total Value</span>
-                    </div>
-                </div>
-
-                <div class="supplier-card">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <strong>Red Sea Trading</strong>
-                            <div class="text-muted small">
-                                <span data-translate="contact">Contact:</span> +962 3 202 8901 | info@redseatrading.com
-                            </div>
-                        </div>
-                        <div class="btn-group btn-group-sm">
-                            <button class="btn btn-outline-primary" onclick="editSupplier(2)">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                            <button class="btn btn-outline-danger" onclick="deactivateSupplier(2)">
-                                <i class="bi bi-x-circle"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="mt-2">
-                        <span class="badge bg-primary me-2" data-number data-original="52">52</span> <span data-translate="total_pos">Total POs</span>
-                        <span class="badge bg-success ms-3" data-number data-original="18,920">18,920</span> <span data-currency-symbol>JOD</span> <span data-translate="total_value">Total Value</span>
-                    </div>
-                </div>
-
-                <!-- More suppliers would be loaded dynamically -->
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    <span data-translate="close">Close</span>
+                <button type="button" class="btn btn-primary" onclick="savePO()">
+                    <span data-translate="save_changes">Save Changes</span>
                 </button>
             </div>
         </div>
@@ -824,47 +497,45 @@ document.addEventListener('DOMContentLoaded', function() {
             'po_management_desc': 'Comprehensive purchase order oversight, approval workflow, and supplier management',
             'create_new_po': 'Create New PO',
             'export_pos': 'Export POs',
-            'manage_suppliers': 'Manage Suppliers',
             'total_pos': 'Total POs',
             'completed_pos': 'Completed POs',
             'pending_approval': 'Pending Approval',
             'total_procurement_value': 'Total Procurement',
             'procurement_analytics': 'Procurement Analytics',
             'avg_po_value': 'Avg PO Value',
-            'approval_time': 'Avg Approval Time',
-            'days': 'days',
+            'monthly_average': 'Monthly Average',
+            'pos': 'POs',
             'completion_rate': 'Completion Rate',
-            'top_suppliers': 'Top Suppliers',
+            'top_procurement_vessels': 'Top Procurement Vessels',
             'total': 'total',
-            'supplier': 'Supplier',
-            'all_suppliers': 'All Suppliers',
+            'advanced_filters': 'Advanced Filters',
+            'apply_filters': 'Apply Filters',
+            'clear_filters': 'Clear Filters',
+            'showing': 'Showing',
+            'of': 'of',
             'purchase_order_overview': 'Purchase Order Overview',
-            'show_supplier': 'Show Supplier',
+            'refresh': 'Refresh',
+            'view_options': 'View Options',
+            'show_items': 'Show Items',
+            'show_created_by': 'Show Created By',
             'po_number': 'PO Number',
             'po_date': 'PO Date',
-            'approval_status': 'Approval Status',
-            'approved': 'Approved',
-            'pending': 'Pending',
+            'total_cost': 'Total Cost',
+            'items_count': 'Items',
+            'items': 'items',
             'view_details': 'View Details',
-            'edit_po': 'Edit PO',
-            'duplicate_po': 'Duplicate PO',
-            'approve_po': 'Approve PO',
-            'continue_receiving': 'Continue Receiving',
-            'po_details': 'PO Details',
-            'items_ordered': 'Items Ordered',
-            'items_received': 'Items Received',
-            'avg_cost_per_item': 'Avg Cost/Item',
-            'items_breakdown': 'Items Breakdown',
-            'quantity_ordered': 'Qty Ordered',
-            'quantity_received': 'Qty Received',
-            'unit_cost': 'Unit Cost',
-            'po_information': 'PO Information',
-            'export_po': 'Export PO',
-            'supplier_management': 'Supplier Management',
-            'active_suppliers': 'Active Suppliers',
-            'add_supplier': 'Add Supplier',
-            'contact': 'Contact',
-            'total_value': 'Total Value',
+            'edit_po': 'Edit Purchase Order',
+            'mark_complete': 'Mark Complete',
+            'delete_po': 'Delete PO',
+            'showing_entries': 'Showing entries',
+            'filtered': 'filtered',
+            'no_pos_found': 'No purchase orders found',
+            'try_creating_pos': 'Try creating new purchase orders or adjusting your filters',
+            'delete_po_confirm': 'Are you sure you want to delete this purchase order?\n\nThis action cannot be undone.',
+            'no_procurement_data': 'No procurement data available',
+            'notes': 'Notes',
+            'save_changes': 'Save Changes',
+            'cancel': 'Cancel',
             'purchase_orders': 'purchase orders',
             'vessel_sales_system': 'Vessel Sales System'
         },
@@ -873,48 +544,46 @@ document.addEventListener('DOMContentLoaded', function() {
             'po_management_desc': 'إشراف شامل على أوامر الشراء وسير العمل والموردين',
             'create_new_po': 'إنشاء أمر شراء جديد',
             'export_pos': 'تصدير أوامر الشراء',
-            'manage_suppliers': 'إدارة الموردين',
             'total_pos': 'إجمالي أوامر الشراء',
             'completed_pos': 'أوامر الشراء المكتملة',
             'pending_approval': 'في انتظار الموافقة',
             'total_procurement_value': 'إجمالي المشتريات',
             'procurement_analytics': 'تحليلات المشتريات',
             'avg_po_value': 'متوسط قيمة أمر الشراء',
-            'approval_time': 'متوسط وقت الموافقة',
-            'days': 'أيام',
+            'monthly_average': 'المتوسط الشهري',
+            'pos': 'أوامر',
             'completion_rate': 'معدل الإنجاز',
-            'top_suppliers': 'أهم الموردين',
+            'top_procurement_vessels': 'أهم سفن المشتريات',
             'total': 'الإجمالي',
-            'supplier': 'المورد',
-            'all_suppliers': 'جميع الموردين',
+            'advanced_filters': 'تصفيات متقدمة',
+            'apply_filters': 'تطبيق التصفيات',
+            'clear_filters': 'مسح التصفيات',
+            'showing': 'عرض',
+            'of': 'من',
             'purchase_order_overview': 'نظرة عامة على أوامر الشراء',
-            'show_supplier': 'إظهار المورد',
+            'refresh': 'تحديث',
+            'view_options': 'خيارات العرض',
+            'show_items': 'إظهار العناصر',
+            'show_created_by': 'إظهار منشئ بواسطة',
             'po_number': 'رقم أمر الشراء',
             'po_date': 'تاريخ أمر الشراء',
-            'approval_status': 'حالة الموافقة',
-            'approved': 'تمت الموافقة',
-            'pending': 'في الانتظار',
+            'total_cost': 'التكلفة الإجمالية',
+            'items_count': 'العناصر',
+            'items': 'عناصر',
             'view_details': 'عرض التفاصيل',
             'edit_po': 'تحرير أمر الشراء',
-            'duplicate_po': 'تكرار أمر الشراء',
-            'approve_po': 'الموافقة على أمر الشراء',
-            'continue_receiving': 'متابعة الاستلام',
-            'po_details': 'تفاصيل أمر الشراء',
-            'items_ordered': 'العناصر المطلوبة',
-            'items_received': 'العناصر المستلمة',
-            'avg_cost_per_item': 'متوسط التكلفة/عنصر',
-            'items_breakdown': 'تفصيل العناصر',
-            'quantity_ordered': 'الكمية المطلوبة',
-            'quantity_received': 'الكمية المستلمة',
-            'unit_cost': 'تكلفة الوحدة',
-            'po_information': 'معلومات أمر الشراء',
-            'export_po': 'تصدير أمر الشراء',
-            'supplier_management': 'إدارة الموردين',
-            'active_suppliers': 'الموردون النشطون',
-            'add_supplier': 'إضافة مورد',
-            'contact': 'الاتصال',
-            'total_value': 'القيمة الإجمالية',
-            'purchase_orders': 'أوامر الشراء',
+            'mark_complete': 'وضع علامة مكتمل',
+            'delete_po': 'حذف أمر الشراء',
+            'showing_entries': 'عرض الإدخالات',
+            'filtered': 'تمت تصفيتها',
+            'no_pos_found': 'لم يتم العثور على أوامر شراء',
+            'try_creating_pos': 'جرب إنشاء أوامر شراء جديدة أو تعديل المرشحات',
+            'delete_po_confirm': 'هل أنت متأكد من أنك تريد حذف أمر الشراء هذا؟\n\nلا يمكن التراجع عن هذا الإجراء.',
+            'no_procurement_data': 'لا توجد بيانات مشتريات متاحة',
+            'notes': 'الملاحظات',
+            'save_changes': 'حفظ التغييرات',
+            'cancel': 'إلغاء',
+            'purchase_orders': 'أوامر شراء',
             'vessel_sales_system': 'نظام مبيعات السفن'
         }
     };
@@ -927,81 +596,6 @@ document.addEventListener('DOMContentLoaded', function() {
     updatePageTranslations();
 });
 
-let currentPOId = null;
-let currentSortColumn = null;
-let currentSortDirection = 'asc';
-
-function applyFilters() {
-    // Collect filter data
-    const filters = {
-        vessel: document.getElementById('vesselFilter').value,
-        status: document.getElementById('statusFilter').value,
-        supplier: document.getElementById('supplierFilter').value,
-        date_from: document.getElementById('dateFromFilter').value,
-        date_to: document.getElementById('dateToFilter').value,
-    };
-    
-    // Here you would make an AJAX call to fetch filtered data
-    console.log('Applying filters:', filters);
-    
-    // Update result count (mock)
-    document.getElementById('resultCount').textContent = '18';
-    updatePageTranslations(); // Re-translate numbers
-}
-
-function clearFilters() {
-    document.getElementById('poFilters').reset();
-    document.getElementById('resultCount').textContent = '25';
-    updatePageTranslations();
-}
-
-function refreshData() {
-    // Here you would reload the PO data
-    console.log('Refreshing PO data...');
-    
-    // Show loading state temporarily
-    const btn = event.target.closest('button');
-    const originalHtml = btn.innerHTML;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-    
-    setTimeout(() => {
-        btn.innerHTML = originalHtml;
-        updatePageTranslations();
-    }, 1000);
-}
-
-function sortTable(column) {
-    // Toggle sort direction if same column
-    if (currentSortColumn === column) {
-        currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
-    } else {
-        currentSortColumn = column;
-        currentSortDirection = 'asc';
-    }
-    
-    console.log(`Sorting by ${column} (${currentSortDirection})`);
-    
-    // Here you would implement actual sorting logic
-    // Update sort indicators in headers
-    updateSortIndicators();
-}
-
-function updateSortIndicators() {
-    // Reset all sort indicators
-    document.querySelectorAll('th i.bi-arrow-down-up').forEach(icon => {
-        icon.className = 'bi bi-arrow-down-up ms-1';
-    });
-    
-    // Set active sort indicator
-    if (currentSortColumn) {
-        const header = document.querySelector(`th a[onclick*="${currentSortColumn}"] i`);
-        if (header) {
-            header.className = currentSortDirection === 'asc' ? 
-                'bi bi-arrow-up ms-1' : 'bi bi-arrow-down ms-1';
-        }
-    }
-}
-
 function toggleColumn(columnClass) {
     const columns = document.querySelectorAll(`.${columnClass}-column`);
     const isVisible = columns[0].style.display !== 'none';
@@ -1011,71 +605,129 @@ function toggleColumn(columnClass) {
     });
 }
 
-function viewPODetails(poId) {
-    currentPOId = poId;
-    
-    // Here you would fetch real PO details
-    // For now, showing modal with sample data
-    new bootstrap.Modal(document.getElementById('poDetailsModal')).show();
-    
-    // Apply translations after modal is shown
-    setTimeout(() => {
-        updatePageTranslations();
-    }, 100);
-}
-
-function editPO(poId) {
-    console.log(`Editing PO ${poId}`);
-    
-    // Here you would open an edit modal or redirect to edit page
-    alertTranslated('PO editing functionality coming soon!');
-}
-
-function duplicatePO(poId) {
-    confirmTranslated('Create a copy of this purchase order?\n\nThis will create a new PO with the same items and supplier.').then(confirmed => {
-        if (confirmed) {
-            console.log(`Duplicating PO ${poId}`);
-            alertTranslated('PO duplication functionality coming soon!');
-        }
-    });
-}
-
-function approvePO(poId) {
-    confirmTranslated('Approve this purchase order?\n\nThis will mark the PO as approved and ready for receiving.').then(confirmed => {
-        if (confirmed) {
-            console.log(`Approving PO ${poId}`);
-            alertTranslated('PO approval functionality coming soon!');
-        }
-    });
-}
-
-function addSupplier() {
-    console.log('Adding new supplier');
-    alertTranslated('Supplier management functionality coming soon!');
-}
-
-function editSupplier(supplierId) {
-    console.log(`Editing supplier ${supplierId}`);
-    alertTranslated('Supplier editing functionality coming soon!');
-}
-
-function deactivateSupplier(supplierId) {
-    confirmTranslated('Deactivate this supplier?\n\nThis will prevent the supplier from being used in new purchase orders.').then(confirmed => {
-        if (confirmed) {
-            console.log(`Deactivating supplier ${supplierId}`);
-            alertTranslated('Supplier deactivation functionality coming soon!');
-        }
-    });
-}
-
 function getFilterData() {
     return {
         vessel: document.getElementById('vesselFilter').value,
         status: document.getElementById('statusFilter').value,
-        supplier: document.getElementById('supplierFilter').value,
         date_from: document.getElementById('dateFromFilter').value,
         date_to: document.getElementById('dateToFilter').value,
     };
+}
+
+// Helper function to get CSRF token
+function getCsrfToken() {
+    return document.querySelector('[name=csrfmiddlewaretoken]').value;
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.insertBefore(alertDiv, document.body.firstChild);
+    setTimeout(() => alertDiv.remove(), 5000);
+}
+
+function editPO(poId) {
+    fetch(`/purchase-orders/manage/${poId}/edit/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('editPOId').value = data.po.id;
+                document.getElementById('editPONumber').value = data.po.po_number;
+                document.getElementById('editPODate').value = data.po.po_date;
+                document.getElementById('editPONotes').value = data.po.notes;
+                
+                new bootstrap.Modal(document.getElementById('editPOModal')).show();
+            } else {
+                showAlert(data.error, 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('Error loading PO data', 'danger');
+        });
+}
+
+function savePO() {
+    const poId = document.getElementById('editPOId').value;
+    const formData = {
+        po_date: document.getElementById('editPODate').value,
+        notes: document.getElementById('editPONotes').value
+    };
+    
+    fetch(`/purchase-orders/manage/${poId}/edit/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken()
+        },
+        body: JSON.stringify(formData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            bootstrap.Modal.getInstance(document.getElementById('editPOModal')).hide();
+            location.reload();
+        } else {
+            showAlert(data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Error saving PO', 'danger');
+    });
+}
+
+function deletePO(poId) {
+    confirmTranslated('delete_po_confirm').then(confirmed => {
+        if (confirmed) {
+            fetch(`/purchase-orders/manage/${poId}/delete/`, {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRFToken': getCsrfToken()
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert(data.message, 'success');
+                    location.reload();
+                } else {
+                    showAlert(data.error, 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showAlert('Error deleting PO', 'danger');
+            });
+        }
+    });
+}
+
+function togglePOStatus(poId) {
+    fetch(`/purchase-orders/manage/${poId}/toggle-status/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCsrfToken()
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            location.reload();
+        } else {
+            showAlert(data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Error updating PO status', 'danger');
+    });
 }
 </script>
 {% endblock %}

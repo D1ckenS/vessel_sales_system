@@ -57,6 +57,19 @@
 .progress-sm {
     height: 0.5rem;
 }
+
+/* Fix dropdown z-index issues */
+.dropdown-menu {
+    z-index: 1060 !important;
+}
+
+.navbar .dropdown-menu {
+    z-index: 1070 !important;
+}
+
+.table thead.sticky-top {
+    z-index: 1020;
+}
 </style>
 {% endblock %}
 
@@ -99,7 +112,7 @@
             <div class="stats-card" style="background: linear-gradient(135deg, var(--secondary-blue) 0%, var(--primary-blue) 100%); color: white;">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <div class="stats-number" data-number data-original="847">847</div>
+                        <div class="stats-number" data-number data-original="{{ stats.total_trips }}">{{ stats.total_trips }}</div>
                         <div class="stats-label text-white" data-translate="total_trips">Total Trips</div>
                     </div>
                     <i class="bi bi-calendar-check" style="font-size: 2.5rem; opacity: 0.8;"></i>
@@ -110,7 +123,7 @@
             <div class="stats-card" style="background: linear-gradient(135deg, var(--success-green) 0%, #20c997 100%); color: white;">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <div class="stats-number" data-number data-original="798">798</div>
+                        <div class="stats-number" data-number data-original="{{ stats.completed_trips }}">{{ stats.completed_trips }}</div>
                         <div class="stats-label text-white" data-translate="completed_trips">Completed Trips</div>
                     </div>
                     <i class="bi bi-check-circle" style="font-size: 2.5rem; opacity: 0.8;"></i>
@@ -121,7 +134,7 @@
             <div class="stats-card" style="background: linear-gradient(135deg, var(--warning-orange) 0%, #ffc107 100%); color: white;">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <div class="stats-number" data-number data-original="49">49</div>
+                        <div class="stats-number" data-number data-original="{{ stats.in_progress_trips }}">{{ stats.in_progress_trips }}</div>
                         <div class="stats-label text-white" data-translate="in_progress_trips">In Progress</div>
                     </div>
                     <i class="bi bi-clock" style="font-size: 2.5rem; opacity: 0.8;"></i>
@@ -133,7 +146,7 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <div class="stats-number">
-                            <span data-number data-original="156,890.50">156,890.50</span> <span data-currency-symbol>JOD</span>
+                            <span data-number data-original="{{ stats.total_revenue|floatformat:2 }}">{{ stats.total_revenue|floatformat:2 }}</span> <span data-currency-symbol>JOD</span>
                         </div>
                         <div class="stats-label" style="color: var(--primary-blue);" data-translate="total_revenue">Total Revenue</div>
                     </div>
@@ -158,7 +171,7 @@
                         <div class="col-md-6">
                             <div class="d-flex justify-content-between align-items-center mb-1">
                                 <span data-translate="daily_average">Daily Average</span>
-                                <strong><span data-number data-original="12.5">12.5</span> <span data-translate="trips">trips</span></strong>
+                                <strong><span data-number data-original="{{ stats.daily_average }}">{{ stats.daily_average }}</span> <span data-translate="trips">trips</span></strong>
                             </div>
                             <div class="progress progress-sm">
                                 <div class="progress-bar bg-primary" style="width: 85%"></div>
@@ -167,10 +180,10 @@
                         <div class="col-md-6">
                             <div class="d-flex justify-content-between align-items-center mb-1">
                                 <span data-translate="completion_rate">Completion Rate</span>
-                                <strong data-number data-original="94.2">94.2</strong>%
+                                <strong data-number data-original="{{ stats.completion_rate }}">{{ stats.completion_rate }}</strong>%
                             </div>
                             <div class="progress progress-sm">
-                                <div class="progress-bar bg-success" style="width: 94%"></div>
+                                <div class="progress-bar bg-success" style="width: {{ stats.completion_rate }}%"></div>
                             </div>
                         </div>
                     </div>
@@ -188,60 +201,22 @@
                 </div>
                 <div class="card-body">
                     <div class="list-group list-group-flush">
+                        {% for vessel_perf in vessel_performance %}
                         <div class="list-group-item d-flex justify-content-between align-items-center">
                             <div>
-                                <strong class="vessel-name" data-en="Sinaa" data-ar="سيناء">Sinaa</strong>
-                                <div class="performance-indicator high">
-                                    <i class="bi bi-arrow-up"></i> <span data-number data-original="18.5">18.5</span> <span data-translate="avg_trips_month">avg/month</span>
+                                <strong class="vessel-name" data-en="{{ vessel_perf.vessel__name }}" data-ar="{{ vessel_perf.vessel__name_ar }}">{{ vessel_perf.vessel__name }}</strong>
+                                <div class="performance-indicator {{ vessel_perf.performance_class }}">
+                                    <i class="bi bi-{{ vessel_perf.performance_icon }}"></i> 
+                                    <span data-number data-original="{{ vessel_perf.avg_monthly }}">{{ vessel_perf.avg_monthly }}</span> <span data-translate="avg_trips_month">avg/month</span>
                                 </div>
                             </div>
-                            <span class="badge bg-success" data-number data-original="152">152</span>
+                            <span class="badge {{ vessel_perf.badge_class }}" data-number data-original="{{ vessel_perf.trip_count }}">{{ vessel_perf.trip_count }}</span>
                         </div>
-                        <div class="list-group-item d-flex justify-content-between align-items-center">
-                            <div>
-                                <strong class="vessel-name" data-en="Amman" data-ar="عمان">Amman</strong>
-                                <div class="performance-indicator high">
-                                    <i class="bi bi-arrow-up"></i> <span data-number data-original="16.2">16.2</span> <span data-translate="avg_trips_month">avg/month</span>
-                                </div>
-                            </div>
-                            <span class="badge bg-success" data-number data-original="143">143</span>
+                        {% empty %}
+                        <div class="list-group-item text-center text-muted">
+                            <span data-translate="no_vessel_data">No vessel performance data available</span>
                         </div>
-                        <div class="list-group-item d-flex justify-content-between align-items-center">
-                            <div>
-                                <strong class="vessel-name" data-en="Babel" data-ar="بابل">Babel</strong>
-                                <div class="performance-indicator medium">
-                                    <i class="bi bi-dash"></i> <span data-number data-original="14.8">14.8</span> <span data-translate="avg_trips_month">avg/month</span>
-                                </div>
-                            </div>
-                            <span class="badge bg-warning" data-number data-original="139">139</span>
-                        </div>
-                        <div class="list-group-item d-flex justify-content-between align-items-center">
-                            <div>
-                                <strong class="vessel-name" data-en="Aylah" data-ar="أيلة">Aylah</strong>
-                                <div class="performance-indicator medium">
-                                    <i class="bi bi-dash"></i> <span data-number data-original="13.1">13.1</span> <span data-translate="avg_trips_month">avg/month</span>
-                                </div>
-                            </div>
-                            <span class="badge bg-warning" data-number data-original="128">128</span>
-                        </div>
-                        <div class="list-group-item d-flex justify-content-between align-items-center">
-                            <div>
-                                <strong class="vessel-name" data-en="Nefertiti" data-ar="نفرتيتي">Nefertiti</strong>
-                                <div class="performance-indicator low">
-                                    <i class="bi bi-arrow-down"></i> <span data-number data-original="9.7">9.7</span> <span data-translate="avg_trips_month">avg/month</span>
-                                </div>
-                            </div>
-                            <span class="badge bg-danger" data-number data-original="95">95</span>
-                        </div>
-                        <div class="list-group-item d-flex justify-content-between align-items-center">
-                            <div>
-                                <strong class="vessel-name" data-en="Dahab" data-ar="دهب">Dahab</strong>
-                                <div class="performance-indicator medium">
-                                    <i class="bi bi-dash"></i> <span data-number data-original="11.4">11.4</span> <span data-translate="avg_trips_month">avg/month</span>
-                                </div>
-                            </div>
-                            <span class="badge bg-warning" data-number data-original="112">112</span>
-                        </div>
+                        {% endfor %}
                     </div>
                 </div>
             </div>
@@ -259,53 +234,52 @@
                     </h5>
                 </div>
                 <div class="card-body">
-                    <form id="tripFilters">
+                    <form id="tripFilters" method="GET">
                         <div class="row">
                             <div class="col-lg-2 col-md-4 mb-3">
                                 <label class="form-label fw-bold"><span data-translate="vessel">Vessel</span></label>
                                 <select class="form-select" name="vessel" id="vesselFilter">
                                     <option value=""><span data-translate="all_vessels">All Vessels</span></option>
-                                    <option value="1">Amman (عمان)</option>
-                                    <option value="2">Aylah (أيلة)</option>
-                                    <option value="3">Sinaa (سيناء)</option>
-                                    <option value="4">Nefertiti (نفرتيتي)</option>
-                                    <option value="5">Babel (بابل)</option>
-                                    <option value="6">Dahab (دهب)</option>
+                                    {% for vessel in vessels %}
+                                    <option value="{{ vessel.id }}" {% if filters.vessel == vessel.id|stringformat:"s" %}selected{% endif %}>
+                                        <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
+                                    </option>
+                                    {% endfor %}
                                 </select>
                             </div>
                             <div class="col-lg-2 col-md-4 mb-3">
                                 <label class="form-label fw-bold"><span data-translate="status">Status</span></label>
                                 <select class="form-select" name="status" id="statusFilter">
                                     <option value=""><span data-translate="all_status">All Status</span></option>
-                                    <option value="completed"><span data-translate="completed">Completed</span></option>
-                                    <option value="in_progress"><span data-translate="in_progress">In Progress</span></option>
+                                    <option value="completed" {% if filters.status == 'completed' %}selected{% endif %}><span data-translate="completed">Completed</span></option>
+                                    <option value="in_progress" {% if filters.status == 'in_progress' %}selected{% endif %}><span data-translate="in_progress">In Progress</span></option>
                                 </select>
                             </div>
                             <div class="col-lg-2 col-md-4 mb-3">
                                 <label class="form-label fw-bold"><span data-translate="date_from">Date From</span></label>
-                                <input type="date" class="form-control" name="date_from" id="dateFromFilter">
+                                <input type="date" class="form-control" name="date_from" id="dateFromFilter" value="{{ filters.date_from }}">
                             </div>
                             <div class="col-lg-2 col-md-4 mb-3">
                                 <label class="form-label fw-bold"><span data-translate="date_to">Date To</span></label>
-                                <input type="date" class="form-control" name="date_to" id="dateToFilter">
+                                <input type="date" class="form-control" name="date_to" id="dateToFilter" value="{{ filters.date_to }}">
                             </div>
                             <div class="col-lg-2 col-md-4 mb-3">
                                 <label class="form-label fw-bold"><span data-translate="min_revenue">Min Revenue</span></label>
-                                <input type="number" class="form-control" name="min_revenue" placeholder="0.000" step="0.001">
+                                <input type="number" class="form-control" name="min_revenue" placeholder="0.000" step="0.001" value="{{ filters.min_revenue }}">
                             </div>
                             <div class="col-lg-2 col-md-4 mb-3 d-flex align-items-end">
-                                <button type="button" class="btn btn-primary w-100" onclick="applyFilters()">
+                                <button type="submit" class="btn btn-primary w-100">
                                     <i class="bi bi-funnel"></i> <span data-translate="apply_filters">Apply Filters</span>
                                 </button>
                             </div>
                         </div>
                         <div class="row">
                             <div class="col-12">
-                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="clearFilters()">
+                                <a href="{% url 'frontend:trip_management' %}" class="btn btn-outline-secondary btn-sm">
                                     <i class="bi bi-x-circle"></i> <span data-translate="clear_filters">Clear Filters</span>
-                                </button>
+                                </a>
                                 <span class="text-muted ms-3">
-                                    <span data-translate="showing">Showing</span> <strong id="resultCount" data-number data-original="25">25</strong> <span data-translate="of">of</span> <strong id="totalCount" data-number data-original="847">847</strong> <span data-translate="trips">trips</span>
+                                    <span data-translate="showing">Showing</span> <strong id="resultCount" data-number data-original="{{ trips|length }}">{{ trips|length }}</strong> <span data-translate="of">of</span> <strong id="totalCount" data-number data-original="{{ stats.total_trips }}">{{ stats.total_trips }}</strong> <span data-translate="trips">trips</span>
                                 </span>
                             </div>
                         </div>
@@ -325,7 +299,7 @@
                         <span data-translate="trip_overview">Trip Overview</span>
                     </h5>
                     <div class="d-flex gap-2">
-                        <button class="btn btn-outline-primary btn-sm" onclick="refreshData()">
+                        <button class="btn btn-outline-primary btn-sm" onclick="location.reload()">
                             <i class="bi bi-arrow-clockwise"></i> <span data-translate="refresh">Refresh</span>
                         </button>
                         <div class="dropdown">
@@ -333,13 +307,13 @@
                                 <i class="bi bi-gear"></i> <span data-translate="view_options">View Options</span>
                             </button>
                             <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="#" onclick="toggleColumn('passenger_count')">
+                                <li><a class="dropdown-item" href="#" onclick="toggleColumn('passenger')">
                                     <i class="bi bi-people"></i> <span data-translate="show_passengers">Show Passengers</span>
                                 </a></li>
-                                <li><a class="dropdown-item" href="#" onclick="toggleColumn('items_count')">
+                                <li><a class="dropdown-item" href="#" onclick="toggleColumn('items')">
                                     <i class="bi bi-box"></i> <span data-translate="show_items">Show Items</span>
                                 </a></li>
-                                <li><a class="dropdown-item" href="#" onclick="toggleColumn('created_by')">
+                                <li><a class="dropdown-item" href="#" onclick="toggleColumn('created-by')">
                                     <i class="bi bi-person"></i> <span data-translate="show_created_by">Show Created By</span>
                                 </a></li>
                             </ul>
@@ -351,157 +325,98 @@
                         <table class="table table-hover mb-0" id="tripsTable">
                             <thead class="table-light">
                                 <tr>
-                                    <th>
-                                        <a href="#" onclick="sortTable('trip_number')" class="text-decoration-none">
-                                            <span data-translate="trip_number">Trip Number</span>
-                                            <i class="bi bi-arrow-down-up ms-1"></i>
-                                        </a>
-                                    </th>
-                                    <th>
-                                        <a href="#" onclick="sortTable('vessel')" class="text-decoration-none">
-                                            <span data-translate="vessel">Vessel</span>
-                                            <i class="bi bi-arrow-down-up ms-1"></i>
-                                        </a>
-                                    </th>
-                                    <th>
-                                        <a href="#" onclick="sortTable('trip_date')" class="text-decoration-none">
-                                            <span data-translate="trip_date">Trip Date</span>
-                                            <i class="bi bi-arrow-down-up ms-1"></i>
-                                        </a>
-                                    </th>
-                                    <th class="passenger-column">
-                                        <a href="#" onclick="sortTable('passenger_count')" class="text-decoration-none">
-                                            <span data-translate="passengers">Passengers</span>
-                                            <i class="bi bi-arrow-down-up ms-1"></i>
-                                        </a>
-                                    </th>
-                                    <th>
-                                        <a href="#" onclick="sortTable('revenue')" class="text-decoration-none">
-                                            <span data-translate="revenue">Revenue</span>
-                                            <i class="bi bi-arrow-down-up ms-1"></i>
-                                        </a>
-                                    </th>
-                                    <th class="items-column">
-                                        <span data-translate="items_sold">Items Sold</span>
-                                    </th>
-                                    <th>
-                                        <span data-translate="status">Status</span>
-                                    </th>
-                                    <th class="created-by-column">
-                                        <span data-translate="created_by">Created By</span>
-                                    </th>
-                                    <th class="text-center">
-                                        <span data-translate="actions">Actions</span>
-                                    </th>
+                                    <th><span data-translate="trip_number">Trip Number</span></th>
+                                    <th><span data-translate="vessel">Vessel</span></th>
+                                    <th><span data-translate="trip_date">Trip Date</span></th>
+                                    <th class="passenger-column"><span data-translate="passengers">Passengers</span></th>
+                                    <th><span data-translate="revenue">Revenue</span></th>
+                                    <th class="items-column"><span data-translate="items_sold">Items Sold</span></th>
+                                    <th><span data-translate="status">Status</span></th>
+                                    <th class="created-by-column"><span data-translate="created_by">Created By</span></th>
+                                    <th class="text-center"><span data-translate="actions">Actions</span></th>
                                 </tr>
                             </thead>
                             <tbody id="tripsTableBody">
-                                <!-- Sample rows -->
-                                <tr class="trip-row completed" data-trip-id="1">
+                                {% for trip in trips %}
+                                <tr class="trip-row {% if trip.is_completed %}completed{% else %}in-progress{% endif %}" data-trip-id="{{ trip.id }}">
                                     <td>
-                                        <strong class="trip-number" data-original="TR-2025-001">TR-2025-001</strong>
-                                    </td>
-                                    <td>
-                                        <div class="d-flex align-items-center">
-                                            <i class="bi bi-ship text-primary me-2"></i>
-                                            <div>
-                                                <strong class="vessel-name" data-en="Amman" data-ar="عمان">Amman</strong>
-                                                <span class="badge bg-warning ms-2"><span data-translate="duty_free">Duty-Free</span></span>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td data-trip-date data-original="15/06/2025">15/06/2025</td>
-                                    <td class="passenger-column">
-                                        <span data-number data-original="145">145</span> <span data-translate="passengers_short">passengers</span>
-                                    </td>
-                                    <td>
-                                        <strong class="text-success">
-                                            <span data-number data-original="2,450.750">2,450.750</span> <span data-currency-symbol>JOD</span>
-                                        </strong>
-                                        <div class="performance-indicator high">
-                                            <span data-number data-original="16.9">16.9</span> <span data-currency-symbol>JOD</span>/passenger
-                                        </div>
-                                    </td>
-                                    <td class="items-column">
-                                        <span data-number data-original="287">287</span> <span data-translate="items">items</span>
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-success">
-                                            <i class="bi bi-check-circle me-1"></i>
-                                            <span data-translate="completed">Completed</span>
-                                        </span>
-                                    </td>
-                                    <td class="created-by-column">
-                                        <small class="text-muted">admin</small>
-                                    </td>
-                                    <td class="text-center">
-                                        <div class="btn-group btn-group-sm">
-                                            <button class="btn btn-outline-info" onclick="viewTripDetails(1)" data-translate-title="view_details">
-                                                <i class="bi bi-eye"></i>
-                                            </button>
-                                            <button class="btn btn-outline-primary" onclick="editTrip(1)" data-translate-title="edit_trip">
-                                                <i class="bi bi-pencil"></i>
-                                            </button>
-                                            <button class="btn btn-outline-success" onclick="addMoreSales(1)" data-translate-title="add_more_sales">
-                                                <i class="bi bi-plus-circle"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-
-                                <tr class="trip-row in-progress" data-trip-id="2">
-                                    <td>
-                                        <strong class="trip-number" data-original="TR-2025-002">TR-2025-002</strong>
+                                        <strong class="trip-number" data-original="{{ trip.trip_number }}">{{ trip.trip_number }}</strong>
+                                        {% if trip.notes %}
+                                            <i class="bi bi-chat-left-text text-muted ms-1" title="{{ trip.notes }}"></i>
+                                        {% endif %}
                                     </td>
                                     <td>
                                         <div class="d-flex align-items-center">
                                             <i class="bi bi-ship text-primary me-2"></i>
                                             <div>
-                                                <strong class="vessel-name" data-en="Sinaa" data-ar="سيناء">Sinaa</strong>
-                                                <span class="badge bg-warning ms-2"><span data-translate="duty_free">Duty-Free</span></span>
+                                                <strong class="vessel-name" data-en="{{ trip.vessel.name }}" data-ar="{{ trip.vessel.name_ar }}">{{ trip.vessel.name }}</strong>
+                                                {% if trip.vessel.has_duty_free %}
+                                                    <span class="badge bg-warning ms-2"><span data-translate="duty_free">Duty-Free</span></span>
+                                                {% endif %}
                                             </div>
                                         </div>
                                     </td>
-                                    <td data-trip-date data-original="16/06/2025">16/06/2025</td>
+                                    <td data-trip-date data-original="{{ trip.trip_date|date:'d/m/Y' }}">{{ trip.trip_date|date:"d/m/Y" }}</td>
                                     <td class="passenger-column">
-                                        <span data-number data-original="189">189</span> <span data-translate="passengers_short">passengers</span>
+                                        <span data-number data-original="{{ trip.passenger_count }}">{{ trip.passenger_count }}</span> <span data-translate="passengers_short">passengers</span>
                                     </td>
                                     <td>
-                                        <strong class="text-warning">
-                                            <span data-number data-original="1,890.250">1,890.250</span> <span data-currency-symbol>JOD</span>
+                                        <strong class="{% if trip.annotated_total_revenue %}text-success{% else %}text-muted{% endif %}">
+                                            <span data-number data-original="{{ trip.annotated_total_revenue|floatformat:3|default:'0.000' }}">{{ trip.annotated_total_revenue|floatformat:3|default:"0.000" }}</span> <span data-currency-symbol>JOD</span>
                                         </strong>
-                                        <div class="performance-indicator medium">
-                                            <span data-number data-original="10.0">10.0</span> <span data-currency-symbol>JOD</span>/passenger
+                                        {% if trip.revenue_per_passenger %}
+                                        <div class="performance-indicator {{ trip.revenue_performance_class }}">
+                                            <span data-number data-original="{{ trip.revenue_per_passenger }}">{{ trip.revenue_per_passenger }}</span> <span data-currency-symbol>JOD</span>/passenger
                                         </div>
+                                        {% endif %}
                                     </td>
                                     <td class="items-column">
-                                        <span data-number data-original="156">156</span> <span data-translate="items">items</span>
+                                        <span data-number data-original="{{ trip.annotated_transaction_count }}">{{ trip.annotated_transaction_count }}</span> <span data-translate="items">items</span>
                                     </td>
                                     <td>
-                                        <span class="badge bg-warning">
-                                            <i class="bi bi-clock me-1"></i>
-                                            <span data-translate="in_progress">In Progress</span>
-                                        </span>
+                                        {% if trip.is_completed %}
+                                            <span class="badge bg-success">
+                                                <i class="bi bi-check-circle me-1"></i>
+                                                <span data-translate="completed">Completed</span>
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-warning">
+                                                <i class="bi bi-clock me-1"></i>
+                                                <span data-translate="in_progress">In Progress</span>
+                                            </span>
+                                        {% endif %}
                                     </td>
                                     <td class="created-by-column">
-                                        <small class="text-muted">operator1</small>
+                                        <small class="text-muted">{{ trip.created_by.username|default:"System" }}</small>
                                     </td>
                                     <td class="text-center">
                                         <div class="btn-group btn-group-sm">
-                                            <button class="btn btn-outline-info" onclick="viewTripDetails(2)" data-translate-title="view_details">
+                                            <a href="{% url 'frontend:trip_sales' trip.id %}" class="btn btn-outline-info" data-translate-title="view_details">
                                                 <i class="bi bi-eye"></i>
-                                            </button>
-                                            <button class="btn btn-outline-primary" onclick="editTrip(2)" data-translate-title="edit_trip">
-                                                <i class="bi bi-pencil"></i>
-                                            </button>
-                                            <a href="/sales/trip/2/" class="btn btn-outline-success" data-translate-title="continue_sales">
-                                                <i class="bi bi-cart-plus"></i>
                                             </a>
+                                            <button class="btn btn-outline-primary" onclick="editTrip({{ trip.id }})" data-translate-title="edit_trip">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            {% if not trip.is_completed %}
+                                            <button class="btn btn-outline-success" onclick="toggleTripStatus({{ trip.id }})" data-translate-title="mark_complete">
+                                                <i class="bi bi-check-circle"></i>
+                                            </button>
+                                            {% endif %}
+                                            <button class="btn btn-outline-danger" onclick="deleteTrip({{ trip.id }})" data-translate-title="delete_trip">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
-
-                                <!-- More sample rows would be loaded dynamically -->
+                                {% empty %}
+                                <tr>
+                                    <td colspan="9" class="text-center text-muted py-4">
+                                        <i class="bi bi-calendar-check" style="font-size: 2rem;"></i>
+                                        <p class="mt-2 mb-0"><span data-translate="no_trips_found">No trips found</span></p>
+                                        <small><span data-translate="try_creating_trips">Try creating new trips or adjusting your filters</span></small>
+                                    </td>
+                                </tr>
+                                {% endfor %}
                             </tbody>
                         </table>
                     </div>
@@ -509,21 +424,18 @@
                 <div class="card-footer">
                     <div class="d-flex justify-content-between align-items-center">
                         <div class="text-muted">
-                            <span data-translate="showing_entries">Showing 1 to 25 of 847 entries</span>
+                            <span data-translate="showing_entries">Showing {{ trips|length }} of {{ stats.total_trips }} trips</span>
+                            {% if filters.vessel or filters.status or filters.date_from or filters.date_to or filters.min_revenue %}
+                            (<span data-translate="filtered">filtered</span>)
+                            {% endif %}
                         </div>
-                        <nav>
-                            <ul class="pagination pagination-sm mb-0">
-                                <li class="page-item disabled">
-                                    <a class="page-link" href="#"><span data-translate="previous">Previous</span></a>
-                                </li>
-                                <li class="page-item active"><a class="page-link" href="#" data-number data-original="1">1</a></li>
-                                <li class="page-item"><a class="page-link" href="#" data-number data-original="2">2</a></li>
-                                <li class="page-item"><a class="page-link" href="#" data-number data-original="3">3</a></li>
-                                <li class="page-item">
-                                    <a class="page-link" href="#"><span data-translate="next">Next</span></a>
-                                </li>
-                            </ul>
-                        </nav>
+                        {% if filters.vessel or filters.status or filters.date_from or filters.date_to or filters.min_revenue %}
+                        <div>
+                            <a href="{% url 'frontend:trip_management' %}" class="btn btn-outline-secondary btn-sm">
+                                <i class="bi bi-x-circle"></i> <span data-translate="clear_filters">Clear Filters</span>
+                            </a>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -531,123 +443,49 @@
     </div>
 </div>
 
-<!-- Trip Details Modal -->
-<div class="modal fade" id="tripDetailsModal" tabindex="-1">
-    <div class="modal-dialog modal-xl">
+<!-- Trip Edit Modal -->
+<div class="modal fade" id="editTripModal" tabindex="-1">
+    <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
-                    <i class="bi bi-calendar-check me-2"></i>
-                    <span data-translate="trip_details">Trip Details</span> - <span id="modalTripNumber">TR-2025-001</span>
+                    <i class="bi bi-pencil me-2"></i>
+                    <span data-translate="edit_trip">Edit Trip</span>
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <div class="row mb-4">
-                    <div class="col-md-3">
-                        <div class="stats-card text-center">
-                            <div class="stats-number text-primary" data-number data-original="145">145</div>
-                            <div class="stats-label" data-translate="passengers">Passengers</div>
-                        </div>
+                <form id="editTripForm">
+                    {% csrf_token %}
+                    <input type="hidden" id="editTripId" name="trip_id">
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold"><span data-translate="trip_number">Trip Number</span></label>
+                        <input type="text" class="form-control" id="editTripNumber" readonly>
                     </div>
-                    <div class="col-md-3">
-                        <div class="stats-card text-center">
-                            <div class="stats-number text-success">
-                                <span data-number data-original="2,450.750">2,450.750</span> <span data-currency-symbol>JOD</span>
-                            </div>
-                            <div class="stats-label" data-translate="total_revenue">Total Revenue</div>
-                        </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold"><span data-translate="passenger_count">Passenger Count</span></label>
+                        <input type="number" class="form-control" id="editPassengerCount" name="passenger_count" min="1" required>
                     </div>
-                    <div class="col-md-3">
-                        <div class="stats-card text-center">
-                            <div class="stats-number text-info" data-number data-original="287">287</div>
-                            <div class="stats-label" data-translate="items_sold">Items Sold</div>
-                        </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold"><span data-translate="trip_date">Trip Date</span></label>
+                        <input type="date" class="form-control" id="editTripDate" name="trip_date" required>
                     </div>
-                    <div class="col-md-3">
-                        <div class="stats-card text-center">
-                            <div class="stats-number text-warning">
-                                <span data-number data-original="16.9">16.9</span> <span data-currency-symbol>JOD</span>
-                            </div>
-                            <div class="stats-label" data-translate="revenue_per_passenger">Revenue/Passenger</div>
-                        </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold"><span data-translate="notes">Notes</span></label>
+                        <textarea class="form-control" id="editTripNotes" name="notes" rows="3"></textarea>
                     </div>
-                </div>
-                
-                <div class="row">
-                    <div class="col-md-8">
-                        <div class="card">
-                            <div class="card-header">
-                                <h6 class="mb-0" data-translate="sales_breakdown">Sales Breakdown</h6>
-                            </div>
-                            <div class="card-body">
-                                <div class="table-responsive">
-                                    <table class="table table-sm">
-                                        <thead>
-                                            <tr>
-                                                <th data-translate="product">Product</th>
-                                                <th data-translate="quantity">Quantity</th>
-                                                <th data-translate="unit_price">Unit Price</th>
-                                                <th data-translate="total">Total</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <tr>
-                                                <td>Pepsi 250ml</td>
-                                                <td data-number data-original="45">45</td>
-                                                <td><span data-number data-original="1.500">1.500</span> <span data-currency-symbol>JOD</span></td>
-                                                <td><span data-number data-original="67.500">67.500</span> <span data-currency-symbol>JOD</span></td>
-                                            </tr>
-                                            <tr>
-                                                <td>Water 500ml</td>
-                                                <td data-number data-original="78">78</td>
-                                                <td><span data-number data-original="0.750">0.750</span> <span data-currency-symbol>JOD</span></td>
-                                                <td><span data-number data-original="58.500">58.500</span> <span data-currency-symbol>JOD</span></td>
-                                            </tr>
-                                            <!-- More items would be loaded dynamically -->
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="card">
-                            <div class="card-header">
-                                <h6 class="mb-0" data-translate="trip_information">Trip Information</h6>
-                            </div>
-                            <div class="card-body">
-                                <dl class="row">
-                                    <dt class="col-sm-6" data-translate="vessel">Vessel:</dt>
-                                    <dd class="col-sm-6">
-                                        <span class="vessel-name" data-en="Amman" data-ar="عمان">Amman</span>
-                                    </dd>
-                                    
-                                    <dt class="col-sm-6" data-translate="trip_date">Trip Date:</dt>
-                                    <dd class="col-sm-6" data-trip-date data-original="15/06/2025">15/06/2025</dd>
-                                    
-                                    <dt class="col-sm-6" data-translate="created_by">Created By:</dt>
-                                    <dd class="col-sm-6">admin</dd>
-                                    
-                                    <dt class="col-sm-6" data-translate="status">Status:</dt>
-                                    <dd class="col-sm-6">
-                                        <span class="badge bg-success">
-                                            <span data-translate="completed">Completed</span>
-                                        </span>
-                                    </dd>
-                                </dl>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                </form>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    <span data-translate="close">Close</span>
+                    <span data-translate="cancel">Cancel</span>
                 </button>
-                <button type="button" class="btn btn-primary" onclick="showExportModal('trip_details', {trip_id: currentTripId})">
-                    <i class="bi bi-download me-1"></i>
-                    <span data-translate="export_trip">Export Trip</span>
+                <button type="button" class="btn btn-primary" onclick="saveTrip()">
+                    <span data-translate="save_changes">Save Changes</span>
                 </button>
             </div>
         </div>
@@ -697,17 +535,18 @@ document.addEventListener('DOMContentLoaded', function() {
             'items': 'items',
             'view_details': 'View Details',
             'edit_trip': 'Edit Trip',
-            'add_more_sales': 'Add More Sales',
-            'continue_sales': 'Continue Sales',
-            'showing_entries': 'Showing 1 to 25 of 847 entries',
-            'previous': 'Previous',
-            'next': 'Next',
-            'trip_details': 'Trip Details',
-            'revenue_per_passenger': 'Revenue/Passenger',
-            'sales_breakdown': 'Sales Breakdown',
-            'unit_price': 'Unit Price',
-            'trip_information': 'Trip Information',
-            'export_trip': 'Export Trip',
+            'mark_complete': 'Mark Complete',
+            'delete_trip': 'Delete Trip',
+            'showing_entries': 'Showing entries',
+            'filtered': 'filtered',
+            'no_trips_found': 'No trips found',
+            'try_creating_trips': 'Try creating new trips or adjusting your filters',
+            'delete_trip_confirm': 'Are you sure you want to delete this trip?\n\nThis action cannot be undone.',
+            'no_vessel_data': 'No vessel performance data available',
+            'passenger_count': 'Passenger Count',
+            'notes': 'Notes',
+            'save_changes': 'Save Changes',
+            'cancel': 'Cancel',
             'vessel_sales_system': 'Vessel Sales System'
         },
         ar: {
@@ -746,17 +585,18 @@ document.addEventListener('DOMContentLoaded', function() {
             'items': 'عنصر',
             'view_details': 'عرض التفاصيل',
             'edit_trip': 'تحرير الرحلة',
-            'add_more_sales': 'إضافة مبيعات أخرى',
-            'continue_sales': 'متابعة المبيعات',
-            'showing_entries': 'عرض 1 إلى 25 من 847 إدخال',
-            'previous': 'السابق',
-            'next': 'التالي',
-            'trip_details': 'تفاصيل الرحلة',
-            'revenue_per_passenger': 'الإيراد/راكب',
-            'sales_breakdown': 'تفصيل المبيعات',
-            'unit_price': 'سعر الوحدة',
-            'trip_information': 'معلومات الرحلة',
-            'export_trip': 'تصدير الرحلة',
+            'mark_complete': 'وضع علامة مكتمل',
+            'delete_trip': 'حذف الرحلة',
+            'showing_entries': 'عرض الإدخالات',
+            'filtered': 'تمت تصفيتها',
+            'no_trips_found': 'لم يتم العثور على رحلات',
+            'try_creating_trips': 'جرب إنشاء رحلات جديدة أو تعديل المرشحات',
+            'delete_trip_confirm': 'هل أنت متأكد من أنك تريد حذف هذه الرحلة؟\n\nلا يمكن التراجع عن هذا الإجراء.',
+            'no_vessel_data': 'لا توجد بيانات أداء السفن متاحة',
+            'passenger_count': 'عدد الركاب',
+            'notes': 'الملاحظات',
+            'save_changes': 'حفظ التغييرات',
+            'cancel': 'إلغاء',
             'vessel_sales_system': 'نظام مبيعات السفن'
         }
     };
@@ -769,81 +609,6 @@ document.addEventListener('DOMContentLoaded', function() {
     updatePageTranslations();
 });
 
-let currentTripId = null;
-let currentSortColumn = null;
-let currentSortDirection = 'asc';
-
-function applyFilters() {
-    // Collect filter data
-    const filters = {
-        vessel: document.getElementById('vesselFilter').value,
-        status: document.getElementById('statusFilter').value,
-        date_from: document.getElementById('dateFromFilter').value,
-        date_to: document.getElementById('dateToFilter').value,
-        min_revenue: document.querySelector('input[name="min_revenue"]').value,
-    };
-    
-    // Here you would make an AJAX call to fetch filtered data
-    console.log('Applying filters:', filters);
-    
-    // Update result count (mock)
-    document.getElementById('resultCount').textContent = '18';
-    updatePageTranslations(); // Re-translate numbers
-}
-
-function clearFilters() {
-    document.getElementById('tripFilters').reset();
-    document.getElementById('resultCount').textContent = '25';
-    updatePageTranslations();
-}
-
-function refreshData() {
-    // Here you would reload the trip data
-    console.log('Refreshing trip data...');
-    
-    // Show loading state temporarily
-    const btn = event.target.closest('button');
-    const originalHtml = btn.innerHTML;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-    
-    setTimeout(() => {
-        btn.innerHTML = originalHtml;
-        updatePageTranslations();
-    }, 1000);
-}
-
-function sortTable(column) {
-    // Toggle sort direction if same column
-    if (currentSortColumn === column) {
-        currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
-    } else {
-        currentSortColumn = column;
-        currentSortDirection = 'asc';
-    }
-    
-    console.log(`Sorting by ${column} (${currentSortDirection})`);
-    
-    // Here you would implement actual sorting logic
-    // Update sort indicators in headers
-    updateSortIndicators();
-}
-
-function updateSortIndicators() {
-    // Reset all sort indicators
-    document.querySelectorAll('th i.bi-arrow-down-up').forEach(icon => {
-        icon.className = 'bi bi-arrow-down-up ms-1';
-    });
-    
-    // Set active sort indicator
-    if (currentSortColumn) {
-        const header = document.querySelector(`th a[onclick*="${currentSortColumn}"] i`);
-        if (header) {
-            header.className = currentSortDirection === 'asc' ? 
-                'bi bi-arrow-up ms-1' : 'bi bi-arrow-down ms-1';
-        }
-    }
-}
-
 function toggleColumn(columnClass) {
     const columns = document.querySelectorAll(`.${columnClass}-column`);
     const isVisible = columns[0].style.display !== 'none';
@@ -851,31 +616,6 @@ function toggleColumn(columnClass) {
     columns.forEach(col => {
         col.style.display = isVisible ? 'none' : '';
     });
-}
-
-function viewTripDetails(tripId) {
-    currentTripId = tripId;
-    
-    // Here you would fetch real trip details
-    // For now, showing modal with sample data
-    new bootstrap.Modal(document.getElementById('tripDetailsModal')).show();
-    
-    // Apply translations after modal is shown
-    setTimeout(() => {
-        updatePageTranslations();
-    }, 100);
-}
-
-function editTrip(tripId) {
-    console.log(`Editing trip ${tripId}`);
-    
-    // Here you would open an edit modal or redirect to edit page
-    alertTranslated('Trip editing functionality coming soon!');
-}
-
-function addMoreSales(tripId) {
-    // Redirect to trip sales page
-    window.location.href = `/sales/trip/${tripId}/`;
 }
 
 function getFilterData() {
@@ -886,6 +626,124 @@ function getFilterData() {
         date_to: document.getElementById('dateToFilter').value,
         min_revenue: document.querySelector('input[name="min_revenue"]').value,
     };
+}
+
+// Helper function to get CSRF token
+function getCsrfToken() {
+    return document.querySelector('[name=csrfmiddlewaretoken]').value;
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.insertBefore(alertDiv, document.body.firstChild);
+    setTimeout(() => alertDiv.remove(), 5000);
+}
+
+function editTrip(tripId) {
+    fetch(`/trips/manage/${tripId}/edit/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('editTripId').value = data.trip.id;
+                document.getElementById('editTripNumber').value = data.trip.trip_number;
+                document.getElementById('editPassengerCount').value = data.trip.passenger_count;
+                document.getElementById('editTripDate').value = data.trip.trip_date;
+                document.getElementById('editTripNotes').value = data.trip.notes;
+                
+                new bootstrap.Modal(document.getElementById('editTripModal')).show();
+            } else {
+                showAlert(data.error, 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('Error loading trip data', 'danger');
+        });
+}
+
+function saveTrip() {
+    const tripId = document.getElementById('editTripId').value;
+    const formData = {
+        passenger_count: document.getElementById('editPassengerCount').value,
+        trip_date: document.getElementById('editTripDate').value,
+        notes: document.getElementById('editTripNotes').value
+    };
+    
+    fetch(`/trips/manage/${tripId}/edit/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken()
+        },
+        body: JSON.stringify(formData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            bootstrap.Modal.getInstance(document.getElementById('editTripModal')).hide();
+            location.reload();
+        } else {
+            showAlert(data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Error saving trip', 'danger');
+    });
+}
+
+function deleteTrip(tripId) {
+    confirmTranslated('delete_trip_confirm').then(confirmed => {
+        if (confirmed) {
+            fetch(`/trips/manage/${tripId}/delete/`, {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRFToken': getCsrfToken()
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert(data.message, 'success');
+                    location.reload();
+                } else {
+                    showAlert(data.error, 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showAlert('Error deleting trip', 'danger');
+            });
+        }
+    });
+}
+
+function toggleTripStatus(tripId) {
+    fetch(`/trips/manage/${tripId}/toggle-status/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCsrfToken()
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            location.reload();
+        } else {
+            showAlert(data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Error updating trip status', 'danger');
+    });
 }
 </script>
 {% endblock %}

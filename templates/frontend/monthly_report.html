@@ -74,8 +74,8 @@
 </div>
 
 <!-- Monthly Summary -->
-<div class="row mb-4">
-    <div class="col-md-3 col-sm-6 mb-3">
+<div class="row mb-4 justify-content-center">
+    <div class="col-lg col-md-4 col-sm-6 mb-3" style="min-width: 200px; max-width: 250px;">
         <div class="stats-card">
             <div class="stats-number text-success" data-number data-original="{{ monthly_stats.total_revenue|default:0|floatformat:0 }}">
                 {{ monthly_stats.total_revenue|default:0|floatformat:0 }}
@@ -91,7 +91,21 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3 col-sm-6 mb-3">
+    <div class="col-lg col-md-4 col-sm-6 mb-3" style="min-width: 200px; max-width: 250px;">
+        <div class="stats-card">
+            <div class="stats-number text-warning" data-number data-original="{{ monthly_stats.total_costs|default:0|floatformat:0 }}">
+                {{ monthly_stats.total_costs|default:0|floatformat:0 }}
+            </div>
+            <div class="stats-label">
+                <span data-translate="monthly_cost">Monthly Cost</span> 
+                (<span data-currency-symbol>JOD</span>)
+                <small class="d-block text-muted">
+                    <span data-translate="supply_purchases">Supply Purchases</span>
+                </small>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg col-md-4 col-sm-6 mb-3" style="min-width: 200px; max-width: 250px;">
         <div class="stats-card">
             <div class="stats-number {% if monthly_profit > 0 %}text-success{% elif monthly_profit < 0 %}text-danger{% else %}text-muted{% endif %}" 
                  data-number data-original="{{ monthly_profit|floatformat:0 }}">
@@ -106,7 +120,7 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3 col-sm-6 mb-3">
+    <div class="col-lg col-md-4 col-sm-6 mb-3" style="min-width: 200px; max-width: 250px;">
         <div class="stats-card">
             <div class="stats-number text-primary" data-number data-original="{{ monthly_stats.total_transactions|default:0 }}">
                 {{ monthly_stats.total_transactions|default:0 }}
@@ -120,7 +134,7 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3 col-sm-6 mb-3">
+    <div class="col-lg col-md-4 col-sm-6 mb-3" style="min-width: 200px; max-width: 250px;">
         <div class="stats-card">
             <div class="stats-number text-info" data-number data-original="{{ monthly_stats.total_quantity|default:0|floatformat:0 }}">
                 {{ monthly_stats.total_quantity|default:0|floatformat:0 }}
@@ -357,6 +371,8 @@ document.addEventListener('DOMContentLoaded', function() {
             'select_month': 'Select Month',
             'view_report': 'View Report',
             'monthly_revenue': 'Monthly Revenue',
+            'monthly_cost': 'Monthly Cost',
+            'supply_purchases': 'Supply Purchases',
             'vs_last_month': 'vs last month',
             'monthly_profit': 'Monthly Profit',
             'margin': 'margin',
@@ -393,6 +409,8 @@ document.addEventListener('DOMContentLoaded', function() {
             'select_month': 'اختر الشهر',
             'view_report': 'عرض التقرير',
             'monthly_revenue': 'الإيرادات الشهرية',
+            'monthly_cost': 'التكلفة الشهرية',
+            'supply_purchases': 'مشتريات التوريد',
             'vs_last_month': 'مقابل الشهر الماضي',
             'monthly_profit': 'الربح الشهري',
             'margin': 'هامش',
@@ -421,7 +439,7 @@ document.addEventListener('DOMContentLoaded', function() {
             'vessel_sales_system': 'نظام مبيعات السفن'
         }
     };
-
+    
     // Merge with global translations
     const currentTranslations = window.translator.translations;
     Object.keys(pageTranslations).forEach(lang => {

@@ -8,7 +8,7 @@ from django.contrib import messages
 from django.http import JsonResponse
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction, models
-from django.db.models import Sum, F
+from django.db.models import Sum, F, Count
 from transactions.models import Transaction, Trip, PurchaseOrder
 from vessels.models import Vessel
 from .utils import BilingualMessages
@@ -17,7 +17,7 @@ from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from django.core.exceptions import ValidationError
 from django.contrib.auth.password_validation import validate_password
-from datetime import date
+from datetime import date, datetime
 import json
 import secrets
 import string
@@ -672,17 +672,24 @@ def vessel_statistics(request, vessel_id):
 @login_required
 @user_passes_test(is_admin_or_manager)
 def po_management(request):
-    """Purchase Order management interface - complete Django admin replacement"""
+    """Real PO management - CRUD for all POs"""
     
-    purchase_orders = PurchaseOrder.objects.select_related('vessel', 'created_by').order_by('-po_date', '-created_at')
-    
-    # Apply filters
+    # Get filter parameters
     vessel_filter = request.GET.get('vessel')
     status_filter = request.GET.get('status')
-    supplier_filter = request.GET.get('supplier')
     date_from = request.GET.get('date_from')
     date_to = request.GET.get('date_to')
     
+    # Get REAL POs with annotations
+    purchase_orders = PurchaseOrder.objects.select_related('vessel', 'created_by').annotate(
+        annotated_transaction_count=Count('supply_transactions'),
+        annotated_total_cost=Sum(
+            F('supply_transactions__unit_price') * F('supply_transactions__quantity'),
+            output_field=models.DecimalField()
+        )
+    ).order_by('-po_date', '-created_at')
+    
+    # Apply filters
     if vessel_filter:
         purchase_orders = purchase_orders.filter(vessel_id=vessel_filter)
     if status_filter == 'completed':
@@ -690,75 +697,47 @@ def po_management(request):
     elif status_filter == 'in_progress':
         purchase_orders = purchase_orders.filter(is_completed=False)
     if date_from:
-        purchase_orders = purchase_orders.filter(po_date__gte=date_from)
+        date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
+        purchase_orders = purchase_orders.filter(po_date__gte=date_from_obj)
     if date_to:
-        purchase_orders = purchase_orders.filter(po_date__lte=date_to)
+        date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
+        purchase_orders = purchase_orders.filter(po_date__lte=date_to_obj)
     
-    # Calculate statistics
-    from datetime import timedelta
-    thirty_days_ago = timezone.now().date() - timedelta(days=30)
-    
-    total_pos = PurchaseOrder.objects.count()
-    completed_pos = PurchaseOrder.objects.filter(is_completed=True).count()
+    # Real statistics
+    total_pos = purchase_orders.count()
+    completed_pos = purchase_orders.filter(is_completed=True).count()
     pending_pos = total_pos - completed_pos
     
-    # Total procurement value
+    # Total procurement value (real data)
     total_procurement_value = Transaction.objects.filter(
         transaction_type='SUPPLY'
     ).aggregate(
         total=Sum(F('unit_price') * F('quantity'), output_field=models.DecimalField())
     )['total'] or 0
     
-    # PO analytics for last 30 days
-    recent_pos = PurchaseOrder.objects.filter(po_date__gte=thirty_days_ago)
-    recent_po_value = Transaction.objects.filter(
-        transaction_type='SUPPLY',
-        purchase_order__po_date__gte=thirty_days_ago
-    ).aggregate(
-        total_value=Sum(F('unit_price') * F('quantity'), output_field=models.DecimalField())
-    )['total_value'] or 0
-
-    recent_po_count = recent_pos.count()
-    avg_po_value = recent_po_value / max(recent_po_count, 1)
-    
-    # Top suppliers (mock data - you can implement supplier tracking)
-    top_suppliers = [
-        {'name': 'Marina Supply Co.', 'total_value': 24550, 'po_count': 67},
-        {'name': 'Red Sea Trading', 'total_value': 18920, 'po_count': 52},
-        {'name': 'Gulf Beverages Ltd', 'total_value': 15780, 'po_count': 41},
-        {'name': 'Aqaba Food Supplies', 'total_value': 12340, 'po_count': 38},
-    ]
-    
-    # Enhanced PO data with analytics
-    po_data = []
-    for po in purchase_orders[:50]:  # Limit for performance
-        # Get item count and average cost
-        item_count = po.supply_transactions.count()
-        avg_cost_per_item = po.total_cost / max(item_count, 1)
-        
-        po_data.append({
-            'po': po,
-            'item_count': item_count,
-            'avg_cost_per_item': avg_cost_per_item,
-            'supplier': 'Marina Supply Co.',  # Mock - implement supplier tracking
-            'approval_status': 'approved' if po.is_completed else 'pending',
-        })
+    # Real supplier analysis (vessel-based since no supplier field)
+    top_suppliers = Transaction.objects.filter(
+        transaction_type='SUPPLY'
+    ).values(
+        'vessel__name', 'vessel__name_ar'
+    ).annotate(
+        total_value=Sum(F('unit_price') * F('quantity')),
+        po_count=Count('purchase_order', distinct=True)
+    ).order_by('-total_value')[:10]
     
     context = {
-        'po_data': po_data,
+        'purchase_orders': purchase_orders[:50],  # Limit for performance
         'vessels': Vessel.objects.filter(active=True).order_by('name'),
+        'top_suppliers': top_suppliers,
         'stats': {
             'total_pos': total_pos,
             'completed_pos': completed_pos,
             'pending_pos': pending_pos,
             'total_procurement_value': total_procurement_value,
-            'avg_po_value': avg_po_value,
         },
-        'top_suppliers': top_suppliers,
         'filters': {
             'vessel': vessel_filter,
             'status': status_filter,
-            'supplier': supplier_filter,
             'date_from': date_from,
             'date_to': date_to,
         }
@@ -768,18 +747,117 @@ def po_management(request):
 
 @login_required
 @user_passes_test(is_admin_or_manager)
+def edit_po(request, po_id):
+    """Edit PO details"""
+    if request.method == 'GET':
+        try:
+            po = PurchaseOrder.objects.get(id=po_id)
+            return JsonResponse({
+                'success': True,
+                'po': {
+                    'id': po.id,
+                    'po_number': po.po_number,
+                    'po_date': po.po_date.strftime('%Y-%m-%d'),
+                    'notes': po.notes or '',
+                    'vessel_id': po.vessel.id,
+                    'vessel_name': po.vessel.name,
+                }
+            })
+        except PurchaseOrder.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Purchase Order not found'})
+    
+    elif request.method == 'POST':
+        try:
+            import json
+            data = json.loads(request.body)
+            
+            po = PurchaseOrder.objects.get(id=po_id)
+            
+            # Update PO fields
+            po.po_date = datetime.strptime(data.get('po_date'), '%Y-%m-%d').date()
+            po.notes = data.get('notes', '')
+            po.save()
+            
+            return JsonResponse({
+                'success': True, 
+                'message': f'Purchase Order {po.po_number} updated successfully'
+            })
+            
+        except PurchaseOrder.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Purchase Order not found'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+@user_passes_test(is_admin_or_manager)
+def delete_po(request, po_id):
+    """Delete PO with validation"""
+    if request.method == 'DELETE':
+        try:
+            po = PurchaseOrder.objects.get(id=po_id)
+            
+            # Check if PO has transactions
+            if po.supply_transactions.exists():
+                return JsonResponse({
+                    'success': False, 
+                    'error': 'Cannot delete purchase order with existing supply transactions'
+                })
+            
+            po_number = po.po_number
+            po.delete()
+            
+            return JsonResponse({
+                'success': True, 
+                'message': f'Purchase Order {po_number} deleted successfully'
+            })
+            
+        except PurchaseOrder.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Purchase Order not found'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+@user_passes_test(is_admin_or_manager)
+def toggle_po_status(request, po_id):
+    """Toggle PO completion status"""
+    if request.method == 'POST':
+        try:
+            po = PurchaseOrder.objects.get(id=po_id)
+            po.is_completed = not po.is_completed
+            po.save()
+            
+            status = 'completed' if po.is_completed else 'in progress'
+            return JsonResponse({
+                'success': True,
+                'message': f'Purchase Order {po.po_number} marked as {status}',
+                'new_status': po.is_completed
+            })
+            
+        except PurchaseOrder.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Purchase Order not found'})
+
+@login_required
+@user_passes_test(is_admin_or_manager)
 def trip_management(request):
-    """Trip management interface - complete Django admin replacement"""
+    """Real trip management - CRUD for all trips"""
     
-    trips = Trip.objects.select_related('vessel', 'created_by').order_by('-trip_date', '-created_at')
-    
-    # Apply filters
+    # Get filter parameters
     vessel_filter = request.GET.get('vessel')
     status_filter = request.GET.get('status')
     date_from = request.GET.get('date_from')
     date_to = request.GET.get('date_to')
     min_revenue = request.GET.get('min_revenue')
     
+    # Get REAL trips with annotations - FIXED: Use annotated_ prefix to avoid conflicts
+    trips = Trip.objects.select_related('vessel', 'created_by').annotate(
+        annotated_transaction_count=Count('sales_transactions'),
+        annotated_total_revenue=Sum(
+            F('sales_transactions__unit_price') * F('sales_transactions__quantity'),
+            output_field=models.DecimalField()
+        )
+    ).order_by('-trip_date', '-created_at')
+    
+    # Apply filters
     if vessel_filter:
         trips = trips.filter(vessel_id=vessel_filter)
     if status_filter == 'completed':
@@ -787,85 +865,76 @@ def trip_management(request):
     elif status_filter == 'in_progress':
         trips = trips.filter(is_completed=False)
     if date_from:
-        trips = trips.filter(trip_date__gte=date_from)
+        date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
+        trips = trips.filter(trip_date__gte=date_from_obj)
     if date_to:
-        trips = trips.filter(trip_date__lte=date_to)
+        date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
+        trips = trips.filter(trip_date__lte=date_to_obj)
+    if min_revenue:
+        # Use annotated field for filtering
+        trips = trips.filter(annotated_total_revenue__gte=min_revenue)
     
-    # Calculate statistics
-    from datetime import timedelta
-    thirty_days_ago = timezone.now().date() - timedelta(days=30)
-    
-    total_trips = Trip.objects.count()
-    completed_trips = Trip.objects.filter(is_completed=True).count()
+    # Real statistics
+    total_trips = trips.count()
+    completed_trips = trips.filter(is_completed=True).count()
     in_progress_trips = total_trips - completed_trips
     
-    # Total revenue
+    # Calculate total revenue using aggregation
     total_revenue = Transaction.objects.filter(
         transaction_type='SALE'
     ).aggregate(
         total=Sum(F('unit_price') * F('quantity'), output_field=models.DecimalField())
     )['total'] or 0
     
-    # Daily average trips
-    daily_avg_trips = Trip.objects.filter(
-        trip_date__gte=thirty_days_ago
-    ).count() / 30.0
-    
-    # Completion rate
+    # Additional statistics
+    daily_average = total_trips / 30.0 if total_trips > 0 else 0  # Approximate
     completion_rate = (completed_trips / max(total_trips, 1)) * 100
     
-    # Vessel performance
-    vessel_performance = []
-    for vessel in Vessel.objects.filter(active=True):
-        vessel_trips = Trip.objects.filter(
-            vessel=vessel,
-            trip_date__gte=thirty_days_ago,
-            is_completed=True
-        ).count()
-        
-        vessel_revenue = Transaction.objects.filter(
-            vessel=vessel,
-            transaction_type='SALE',
-            transaction_date__gte=thirty_days_ago
-        ).aggregate(
-            total=Sum(F('unit_price') * F('quantity'), output_field=models.DecimalField())
-        )['total'] or 0
-        
-        avg_trips_month = vessel_trips / 30.0 * 30  # Monthly average
-        
-        vessel_performance.append({
-            'vessel': vessel,
-            'trips_count': vessel_trips,
-            'revenue': vessel_revenue,
-            'avg_trips_month': avg_trips_month,
-            'performance_class': 'high' if avg_trips_month > 15 else 'medium' if avg_trips_month > 10 else 'low'
-        })
+    # Vessel performance (real data)
+    vessel_performance = Trip.objects.values(
+        'vessel__name', 'vessel__name_ar'
+    ).annotate(
+        trip_count=Count('id'),
+        avg_monthly=Count('id') / 12.0,  # Approximate monthly average
+        total_revenue=Sum(
+            F('sales_transactions__unit_price') * F('sales_transactions__quantity'),
+            output_field=models.DecimalField()
+        )
+    ).order_by('-trip_count')
     
-    # Enhanced trip data
-    trip_data = []
-    for trip in trips[:50]:  # Limit for performance
-        # Calculate revenue and items
-        trip_revenue = trip.total_revenue
-        items_sold = trip.sales_transactions.aggregate(
-            total_items=Sum('quantity')
-        )['total_items'] or 0
-        
-        revenue_per_passenger = trip_revenue / max(trip.passenger_count, 1)
-        
-        # Filter by min revenue if specified
-        if min_revenue and trip_revenue < float(min_revenue):
-            continue
-            
-        trip_data.append({
-            'trip': trip,
-            'revenue': trip_revenue,
-            'items_sold': items_sold,
-            'revenue_per_passenger': revenue_per_passenger,
-            'performance_class': 'high' if revenue_per_passenger > 15 else 'medium' if revenue_per_passenger > 8 else 'low'
-        })
+    # Add performance indicators to vessel performance
+    for vessel_perf in vessel_performance:
+        if vessel_perf['avg_monthly'] >= 10:
+            vessel_perf['performance_class'] = 'high'
+            vessel_perf['performance_icon'] = 'arrow-up-circle'
+            vessel_perf['badge_class'] = 'bg-success'
+        elif vessel_perf['avg_monthly'] >= 5:
+            vessel_perf['performance_class'] = 'medium'
+            vessel_perf['performance_icon'] = 'dash-circle'
+            vessel_perf['badge_class'] = 'bg-warning'
+        else:
+            vessel_perf['performance_class'] = 'low'
+            vessel_perf['performance_icon'] = 'arrow-down-circle'
+            vessel_perf['badge_class'] = 'bg-danger'
+    
+    # Add calculated fields to trips for template
+    for trip in trips:
+        # Calculate revenue per passenger
+        if hasattr(trip, 'annotated_total_revenue') and trip.annotated_total_revenue and trip.passenger_count:
+            trip.revenue_per_passenger = trip.annotated_total_revenue / trip.passenger_count
+            # Performance class for revenue per passenger
+            if trip.revenue_per_passenger >= 50:
+                trip.revenue_performance_class = 'high'
+            elif trip.revenue_per_passenger >= 25:
+                trip.revenue_performance_class = 'medium'
+            else:
+                trip.revenue_performance_class = 'low'
+        else:
+            trip.revenue_per_passenger = 0
+            trip.revenue_performance_class = 'low'
     
     context = {
-        'trip_data': trip_data,
+        'trips': trips[:50],  # Limit for performance
         'vessels': Vessel.objects.filter(active=True).order_by('name'),
         'vessel_performance': vessel_performance,
         'stats': {
@@ -873,8 +942,8 @@ def trip_management(request):
             'completed_trips': completed_trips,
             'in_progress_trips': in_progress_trips,
             'total_revenue': total_revenue,
-            'daily_avg_trips': daily_avg_trips,
-            'completion_rate': completion_rate,
+            'daily_average': round(daily_average, 1),
+            'completion_rate': round(completion_rate, 1),
         },
         'filters': {
             'vessel': vessel_filter,
@@ -886,6 +955,103 @@ def trip_management(request):
     }
     
     return render(request, 'frontend/auth/trip_management.html', context)
+
+@login_required
+@user_passes_test(is_admin_or_manager)
+def edit_trip(request, trip_id):
+    """Edit trip details"""
+    if request.method == 'GET':
+        try:
+            trip = Trip.objects.get(id=trip_id)
+            return JsonResponse({
+                'success': True,
+                'trip': {
+                    'id': trip.id,
+                    'trip_number': trip.trip_number,
+                    'passenger_count': trip.passenger_count,
+                    'trip_date': trip.trip_date.strftime('%Y-%m-%d'),
+                    'notes': trip.notes or '',
+                    'vessel_id': trip.vessel.id,
+                    'vessel_name': trip.vessel.name,
+                }
+            })
+        except Trip.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Trip not found'})
+    
+    elif request.method == 'POST':
+        try:
+            import json
+            data = json.loads(request.body)
+            
+            trip = Trip.objects.get(id=trip_id)
+            
+            # Update trip fields
+            trip.passenger_count = int(data.get('passenger_count', trip.passenger_count))
+            trip.trip_date = datetime.strptime(data.get('trip_date'), '%Y-%m-%d').date()
+            trip.notes = data.get('notes', '')
+            trip.save()
+            
+            return JsonResponse({
+                'success': True, 
+                'message': f'Trip {trip.trip_number} updated successfully'
+            })
+            
+        except Trip.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Trip not found'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)})
+    
+    return JsonResponse({'success': False, 'error': 'Invalid request method'})
+
+@login_required
+@user_passes_test(is_admin_or_manager)
+@require_http_methods(["DELETE"])
+def delete_trip(request, trip_id):
+    """Delete trip with validation"""
+    try:
+        trip = Trip.objects.get(id=trip_id)
+        
+        # Check if trip has transactions
+        if trip.sales_transactions.exists():
+            return JsonResponse({
+                'success': False, 
+                'error': 'Cannot delete trip with existing sales transactions'
+            })
+        
+        trip_number = trip.trip_number
+        trip.delete()
+        
+        return JsonResponse({
+            'success': True, 
+            'message': f'Trip {trip_number} deleted successfully'
+        })
+        
+    except Trip.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Trip not found'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+@user_passes_test(is_admin_or_manager)
+@require_http_methods(["POST"])
+def toggle_trip_status(request, trip_id):
+    """Toggle trip completion status"""
+    try:
+        trip = Trip.objects.get(id=trip_id)
+        trip.is_completed = not trip.is_completed
+        trip.save()
+        
+        status = 'completed' if trip.is_completed else 'in progress'
+        return JsonResponse({
+            'success': True,
+            'message': f'Trip {trip.trip_number} marked as {status}',
+            'new_status': trip.is_completed
+        })
+        
+    except Trip.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Trip not found'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
 
 @login_required
 @user_passes_test(is_admin_or_manager)
