@@ -1,0 +1,551 @@
+/* =============================================================================
+   Vessel Sales System - Base Styles
+   ============================================================================= */
+
+/* CSS Variables */
+:root {
+    --primary-blue: #0f4c75;
+    --secondary-blue: #3282b8;
+    --accent-blue: #bbe1fa;
+    --success-green: #28a745;
+    --warning-orange: #fd7e14;
+    --danger-red: #dc3545;
+    --light-gray: #f8f9fa;
+    --dark-gray: #6c757d;
+}
+
+/* =============================================================================
+   Layout & Z-Index Management
+   ============================================================================= */
+
+.dropdown-menu {
+    z-index: 1060 !important;
+}
+
+.navbar .dropdown-menu {
+    z-index: 1070 !important;
+}
+
+/* Ensure all sticky elements are below dropdowns */
+.sticky-top {
+    z-index: 1020 !important;
+}
+
+.table-responsive {
+    z-index: 1010;
+}
+
+/* =============================================================================
+   RTL Support System
+   ============================================================================= */
+
+/* Enhanced RTL Support */
+[dir="rtl"] {
+    text-align: right;
+}
+
+/* 🎯 CORRECT TARGET: Apply flex-direction to PARENT container */
+.navbar-collapse {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+}
+
+/* LTR: Default order */
+html[dir="ltr"] .navbar-collapse {
+    flex-direction: row !important;
+}
+
+/* RTL: Reverse the ORDER of the two ul elements */
+html[dir="rtl"] .navbar-collapse {
+    flex-direction: row-reverse !important;
+}
+
+/* Individual navbar-nav items keep normal direction */
+.navbar-nav {
+    flex-direction: row !important;
+}
+
+/* Remove any conflicting margins */
+#mainNavItems,
+#userNavItems {
+    margin: 0 !important;
+}
+
+/* 🔧 COMPREHENSIVE NAVBAR RTL FIXES */
+[dir="rtl"] .navbar-nav {
+    flex-direction: row-reverse;
+}
+
+[dir="rtl"] .navbar-brand {
+    margin-left: auto !important;
+    margin-right: 0 !important;
+}
+
+/* Fix Bootstrap margin classes for RTL */
+[dir="rtl"] .me-auto {
+    margin-right: 0 !important;
+    margin-left: auto !important;
+}
+
+[dir="rtl"] .ms-auto {
+    margin-left: 0 !important;
+    margin-right: auto !important;
+}
+
+[dir="rtl"] .me-3 {
+    margin-right: 0 !important;
+    margin-left: 1rem !important;
+}
+
+[dir="rtl"] .ms-2 {
+    margin-left: 0 !important;
+    margin-right: 0.5rem !important;
+}
+
+/* Navbar collapse button positioning */
+[dir="rtl"] .navbar-toggler {
+    margin-left: 0 !important;
+    margin-right: auto !important;
+}
+
+/* Dropdown menu positioning */
+[dir="rtl"] .dropdown-menu {
+    right: 0 !important;
+    left: auto !important;
+    text-align: right;
+}
+
+[dir="rtl"] .dropdown-item {
+    text-align: right;
+    padding-right: 1rem;
+    padding-left: 1rem;
+}
+
+/* Navbar nav items spacing */
+[dir="rtl"] .navbar-nav .nav-item {
+    margin-left: 0.25rem;
+    margin-right: 0.25rem;
+}
+
+/* Button groups and flex containers */
+[dir="rtl"] .btn-group {
+    flex-direction: row-reverse;
+}
+
+[dir="rtl"] .d-flex {
+    flex-direction: row-reverse;
+}
+
+/* Numbers in Arabic */
+[dir="rtl"] .stats-number,
+[dir="rtl"] .fw-bold[data-number] {
+    font-family: 'Arabic-Indic', 'Tahoma', sans-serif;
+}
+
+/* 🔧 ENHANCED RTL LAYOUT CLASS */
+.rtl-layout {
+    direction: rtl;
+    text-align: right;
+}
+
+.rtl-layout .navbar {
+    text-align: right;
+}
+
+.rtl-layout .navbar-collapse {
+    text-align: right;
+}
+
+/* =============================================================================
+   Base Layout & Typography
+   ============================================================================= */
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, var(--accent-blue) 0%, #e3f2fd 100%);
+    min-height: 100vh;
+}
+
+.main-content {
+    padding: 2rem 0;
+    min-height: calc(100vh - 200px);
+}
+
+/* =============================================================================
+   Navigation Styles
+   ============================================================================= */
+
+.navbar {
+    background: linear-gradient(135deg, var(--primary-blue) 0%, var(--secondary-blue) 100%);
+    box-shadow: 0 2px 20px rgba(15, 76, 117, 0.3);
+    padding: 1rem 0;
+}
+
+.navbar-brand {
+    font-weight: bold;
+    font-size: 1.5rem;
+    color: white !important;
+}
+
+.nav-link {
+    color: rgba(255, 255, 255, 0.9) !important;
+    font-weight: 500;
+    padding: 0.75rem 1rem !important;
+    border-radius: 8px;
+    margin: 0 0.25rem;
+    transition: all 0.3s ease;
+}
+
+.nav-link:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white !important;
+    transform: translateY(-1px);
+}
+
+.nav-link.active {
+    background: rgba(255, 255, 255, 0.2);
+    color: white !important;
+}
+
+/* Language Toggle Button Styling */
+#languageToggle {
+    border-radius: 20px;
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+#languageToggle:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: translateY(-1px);
+}
+
+#currentLangText {
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+
+/* =============================================================================
+   Card Components
+   ============================================================================= */
+
+.card {
+    border: none;
+    border-radius: 15px;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    background: white;
+}
+
+.card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+}
+
+.card-header {
+    border-radius: 15px 15px 0 0 !important;
+    background: linear-gradient(135deg, var(--secondary-blue) 0%, var(--primary-blue) 100%);
+    color: white;
+    border: none;
+    padding: 1.25rem;
+}
+
+/* =============================================================================
+   Button Styles
+   ============================================================================= */
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--secondary-blue) 0%, var(--primary-blue) 100%);
+    border: none;
+    border-radius: 10px;
+    padding: 0.75rem 1.5rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(50, 130, 184, 0.4);
+}
+
+.btn-success {
+    background: linear-gradient(135deg, var(--success-green) 0%, #20c997 100%);
+    border: none;
+    border-radius: 10px;
+    transition: all 0.3s ease;
+}
+
+.btn-warning {
+    background: linear-gradient(135deg, var(--warning-orange) 0%, #ffc107 100%);
+    border: none;
+    border-radius: 10px;
+    transition: all 0.3s ease;
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, var(--danger-red) 0%, #e74c3c 100%);
+    border: none;
+    border-radius: 10px;
+    transition: all 0.3s ease;
+}
+
+/* =============================================================================
+   Dashboard Components
+   ============================================================================= */
+
+.stats-card {
+    background: white;
+    border-radius: 15px;
+    padding: 1.5rem;
+    text-align: center;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    height: 100%;
+}
+
+.stats-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+}
+
+.stats-number {
+    font-size: 2.5rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+
+.stats-label {
+    color: var(--dark-gray);
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.quick-action {
+    background: white;
+    border-radius: 15px;
+    padding: 2rem;
+    text-align: center;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    height: 100%;
+}
+
+.quick-action:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    text-decoration: none;
+    color: inherit;
+}
+
+.quick-action i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    display: block;
+}
+
+.quick-action h5 {
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+}
+
+/* =============================================================================
+   Product Panel & Inventory Improvements
+   ============================================================================= */
+
+.available-products-panel {
+    height: 100%;
+    min-height: 400px;
+}
+
+/* Dynamic height matching - make panels fill available space */
+.form-panel,
+.catalog-panel {
+    min-height: 600px;
+}
+
+@media (min-width: 768px) {
+    .form-panel,
+    .catalog-panel {
+        height: calc(100vh - 400px); /* Adjust based on your header/footer height */
+        max-height: 700px;
+    }
+    
+    .form-panel .card-body,
+    .catalog-panel .card-body {
+        height: calc(100% - 60px); /* Subtract header height */
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .scrollable-panel {
+        flex: 1; /* Take up remaining space */
+        min-height: 0; /* Allow flexbox to shrink */
+        max-height: none; /* Remove fixed max-height */
+        overflow-y: auto;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        border-radius: 8px;
+    }
+}
+
+/* Fix horizontal scrollbar issues */
+.scrollable-panel {
+    overflow-x: hidden; /* Prevent horizontal scroll */
+}
+
+.scrollable-panel table {
+    table-layout: fixed; /* Prevent table from expanding */
+    width: 100%;
+}
+
+.scrollable-panel th,
+.scrollable-panel td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Specific column widths to prevent overflow */
+.scrollable-panel th:first-child,
+.scrollable-panel td:first-child {
+    width: 50%; /* Product name */
+}
+
+.scrollable-panel th:nth-child(2),
+.scrollable-panel td:nth-child(2) {
+    width: 25%; /* Product ID */
+}
+
+.scrollable-panel th:last-child,
+.scrollable-panel td:last-child {
+    width: 25%; /* Price/Stock */
+}
+
+/* Enhanced clickable effects for product catalog */
+.table-hover tbody tr {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(var(--bs-primary-rgb), 0.05) !important;
+    transform: none !important;
+    border-left: 3px solid var(--primary-blue) !important; /* ✅ Visual effect without overflow */
+}
+
+.cursor-pointer {
+    cursor: pointer;
+}
+
+/* Better hover effects without layout shift */
+.table-hover tbody tr.cursor-pointer:hover {
+    background: linear-gradient(135deg, rgba(15, 76, 117, 0.05) 0%, rgba(50, 130, 184, 0.05) 100%);
+    box-shadow: inset 3px 0 0 var(--primary-blue); /* Use inset shadow instead of border */
+    transform: none; /* Remove transform to prevent horizontal scroll */
+}
+
+/* =============================================================================
+   Alert & Message Components
+   ============================================================================= */
+
+.alert {
+    border-radius: 10px;
+    border: none;
+    margin-bottom: 1.5rem;
+}
+
+.alert-success {
+    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+    color: #155724;
+}
+
+.alert-danger {
+    background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+    color: #721c24;
+}
+
+.alert-warning {
+    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+    color: #856404;
+}
+
+/* =============================================================================
+   Loading & Animation
+   ============================================================================= */
+
+.loading {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: white;
+    animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* =============================================================================
+   Footer
+   ============================================================================= */
+
+.footer {
+    background: var(--primary-blue);
+    color: white;
+    text-align: center;
+    padding: 1.5rem 0;
+    margin-top: auto;
+}
+
+/* =============================================================================
+   Responsive Design
+   ============================================================================= */
+
+/* Responsive adjustments */
+@media (max-width: 767px) {
+    .form-panel,
+    .catalog-panel {
+        min-height: auto;
+        height: auto;
+    }
+    
+    .scrollable-panel {
+        max-height: 300px;
+    }
+}
+
+/* Tablet-friendly touch targets */
+@media (max-width: 768px) {
+    .nav-link {
+        padding: 1rem !important;
+        margin: 0.25rem 0;
+    }
+    
+    .btn {
+        padding: 1rem 1.5rem;
+        font-size: 1.1rem;
+    }
+    
+    .quick-action {
+        padding: 2.5rem 1.5rem;
+    }
+    
+    .quick-action i {
+        font-size: 3.5rem;
+    }
+
+    /* RTL mobile fixes */
+    [dir="rtl"] .navbar-nav {
+        text-align: right;
+    }
+
+    [dir="rtl"] .navbar-toggler {
+        margin-left: 0;
+    }
+}

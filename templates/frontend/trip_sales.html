@@ -58,6 +58,7 @@
                             {% endif %}
                         </h3>
                     </div>
+                    {% if user_permissions.can_view_financials %}
                     <div class="col-md-3">
                         <h6 class="mb-1 opacity-75"><span data-translate="total_cogs">Total COGS</span></h6>
                         <h3 class="mb-0" id="totalCOGS">
@@ -70,6 +71,7 @@
                             <span data-number data-original="0.000">0.000</span> <span data-currency-symbol>JOD</span>
                         </h3>
                     </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -128,14 +130,17 @@
                     <div id="productInfo" class="mb-3" style="display: none;">
                         <div class="alert alert-info">
                             <div class="row text-center">
-                                <div class="col-3">
+                                <div class="{% if user_permissions.can_view_financials %}col-3{% else %}col-6{% endif %}">
                                     <strong><span data-translate="product">Product</span></strong>
                                     <div id="productName">-</div>
                                 </div>
-                                <div class="col-3">
+                                <div class="{% if user_permissions.can_view_financials %}col-3{% else %}col-6{% endif %}">
                                     <strong><span data-translate="unit_selling_price">Unit Price</span></strong>
                                     <div id="unitPrice">- JOD</div>
                                 </div>
+                                
+                                <!-- Show COGS and Profit only for Administrators & Managers -->
+                                {% if user_permissions.can_view_financials %}
                                 <div class="col-3">
                                     <strong><span data-translate="cogs">COGS</span></strong>
                                     <div id="cogsCost">- JOD</div>
@@ -144,6 +149,7 @@
                                     <strong><span data-translate="profit">Profit</span></strong>
                                     <div id="profitAmount">- JOD</div>
                                 </div>
+                                {% endif %}
                             </div>
                         </div>
                     </div>
@@ -240,8 +246,11 @@
                                 <th><span data-translate="product">Product</span></th>
                                 <th class="text-center"><span data-translate="quantity">Quantity</span></th>
                                 <th class="text-end"><span data-translate="unit_selling_price">Unit Price</span></th>
+                                <!-- Show COGS and Profit columns only for Administrators & Managers -->
+                                {% if user_permissions.can_view_financials %}
                                 <th class="text-end"><span data-translate="cogs">COGS</span></th>
                                 <th class="text-end"><span data-translate="profit">Profit</span></th>
+                                {% endif %}
                                 <th class="text-end"><span data-translate="total">Total</span></th>
                                 <th><span data-translate="notes">Notes</span></th>
                                 {% if can_edit %}
@@ -507,6 +516,7 @@ function displayAvailableProducts() {
 function displayCompletedSales(completedSales) {
     const salesList = document.getElementById('salesList');
     const emptyState = document.getElementById('emptySalesState');
+    const canViewFinancials = {{ user_permissions.can_view_financials|yesno:"true,false" }};
     
     // Update count with number translation
     updateNumberElement('salesListCount', completedSales.length);
@@ -516,39 +526,50 @@ function displayCompletedSales(completedSales) {
         emptyState.style.display = 'block';
     } else {
         emptyState.style.display = 'none';
-        salesList.innerHTML = completedSales.map(item => `
-            <tr>
-                <td><small data-number data-original="${item.created_at}">${translateNumber(item.created_at)}</small></td>
-                <td>
-                    <div>
-                        <strong>${item.product_name}</strong>
-                        <small class="text-muted d-block">${_('id_label')}: <span data-number data-original="${item.product_item_id}">${translateNumber(item.product_item_id)}</span></small>
-                        ${item.is_duty_free ? '<span class="badge bg-warning text-dark">' + _('duty_free') + '</span>' : ''}
-                    </div>
-                </td>
-                <td class="text-center">
-                    <span class="fw-bold" data-number data-original="${item.quantity}">${translateNumber(item.quantity.toString())}</span>
-                    <small class="text-muted d-block">${_('units')}</small>
-                </td>
-                <td class="text-end">
-                    <span class="fw-bold" data-number data-original="${item.unit_price.toFixed(3)}">${translateNumber(item.unit_price.toFixed(3))}</span>
-                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
-                </td>
-                <td class="text-end">
-                    <span class="fw-bold text-warning" data-number data-original="${(item.total_cogs || 0).toFixed(3)}">${translateNumber((item.total_cogs || 0).toFixed(3))}</span>
-                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
-                </td>
-                <td class="text-end">
-                    <span class="fw-bold text-info" data-number data-original="${(item.total_profit || 0).toFixed(3)}">${translateNumber((item.total_profit || 0).toFixed(3))}</span>
-                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
-                </td>
-                <td class="text-end">
-                    <span class="fw-bold text-success" data-number data-original="${item.total_amount.toFixed(3)}">${translateNumber(item.total_amount.toFixed(3))}</span>
-                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
-                </td>
-                <td><small>${item.notes || '-'}</small></td>
-            </tr>
-        `).join('');
+        salesList.innerHTML = completedSales.map(item => {
+            // Build table row with conditional COGS and profit columns
+            let row = `
+                <tr>
+                    <td><small data-number data-original="${item.created_at}">${translateNumber(item.created_at)}</small></td>
+                    <td>
+                        <div>
+                            <strong>${item.product_name}</strong>
+                            <small class="text-muted d-block">${_('id_label')}: <span data-number data-original="${item.product_item_id}">${translateNumber(item.product_item_id)}</span></small>
+                            ${item.is_duty_free ? '<span class="badge bg-warning text-dark">' + _('duty_free') + '</span>' : ''}
+                        </div>
+                    </td>
+                    <td class="text-center">
+                        <span class="fw-bold" data-number data-original="${item.quantity}">${translateNumber(item.quantity.toString())}</span>
+                        <small class="text-muted d-block">${_('units')}</small>
+                    </td>
+                    <td class="text-end">
+                        <span class="fw-bold" data-number data-original="${item.unit_price.toFixed(3)}">${translateNumber(item.unit_price.toFixed(3))}</span>
+                        <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+                    </td>`;
+            
+            // Add COGS and profit columns only if user has financial permissions
+            if (canViewFinancials) {
+                row += `
+                    <td class="text-end">
+                        <span class="fw-bold text-warning" data-number data-original="${(item.total_cogs || 0).toFixed(3)}">${translateNumber((item.total_cogs || 0).toFixed(3))}</span>
+                        <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+                    </td>
+                    <td class="text-end">
+                        <span class="fw-bold text-info" data-number data-original="${(item.total_profit || 0).toFixed(3)}">${translateNumber((item.total_profit || 0).toFixed(3))}</span>
+                        <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+                    </td>`;
+            }
+            
+            row += `
+                    <td class="text-end">
+                        <span class="fw-bold text-success" data-number data-original="${item.total_amount.toFixed(3)}">${translateNumber(item.total_amount.toFixed(3))}</span>
+                        <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+                    </td>
+                    <td><small>${item.notes || '-'}</small></td>
+                </tr>`;
+            
+            return row;
+        }).join('');
         
         // Apply translations after DOM update
         setTimeout(() => {
@@ -558,6 +579,8 @@ function displayCompletedSales(completedSales) {
 }
 
 function updateCompletedTripTotals(completedSales) {
+    const canViewFinancials = {{ user_permissions.can_view_financials|yesno:"true,false" }};
+    
     // Calculate totals from completed sales data
     let totalCOGS = 0;
     let totalProfit = 0;
@@ -567,17 +590,19 @@ function updateCompletedTripTotals(completedSales) {
         totalProfit += item.total_profit || 0;
     });
     
-    // Update the summary card
-    const cogsElement = document.getElementById('totalCOGS');
-    if (cogsElement) {
-        cogsElement.setAttribute('data-original', totalCOGS.toFixed(3));
-        cogsElement.innerHTML = `<span data-number data-original="${totalCOGS.toFixed(3)}">${translateNumber(totalCOGS.toFixed(3))}</span> <span data-currency-symbol>JOD</span>`;
-    }
-    
-    const profitElement = document.getElementById('totalProfit');
-    if (profitElement) {
-        profitElement.setAttribute('data-original', totalProfit.toFixed(3));
-        profitElement.innerHTML = `<span data-number data-original="${totalProfit.toFixed(3)}">${translateNumber(totalProfit.toFixed(3))}</span> <span data-currency-symbol>JOD</span>`;
+    // Only update COGS and profit elements if user has financial permissions
+    if (canViewFinancials) {
+        const cogsElement = document.getElementById('totalCOGS');
+        if (cogsElement) {
+            cogsElement.setAttribute('data-original', totalCOGS.toFixed(3));
+            cogsElement.innerHTML = `<span data-number data-original="${totalCOGS.toFixed(3)}">${translateNumber(totalCOGS.toFixed(3))}</span> <span data-currency-symbol>JOD</span>`;
+        }
+        
+        const profitElement = document.getElementById('totalProfit');
+        if (profitElement) {
+            profitElement.setAttribute('data-original', totalProfit.toFixed(3));
+            profitElement.innerHTML = `<span data-number data-original="${totalProfit.toFixed(3)}">${translateNumber(totalProfit.toFixed(3))}</span> <span data-currency-symbol>JOD</span>`;
+        }
     }
     
     // Apply translations to the updated elements
@@ -656,52 +681,67 @@ function updateCOGSDisplay() {
     
     const quantity = parseInt(document.getElementById('saleQuantity').value) || 0;
     
+    // Check if COGS elements exist (permission-based)
+    const cogsElement = document.getElementById('cogsCost');
+    const profitElement = document.getElementById('profitAmount');
+    const hasFinancialPermissions = cogsElement && profitElement;
+    
     if (quantity <= 0) {
-        document.getElementById('cogsCost').textContent = '- JOD';
-        document.getElementById('profitAmount').textContent = '- JOD';
+        if (hasFinancialPermissions) {
+            cogsElement.textContent = '- JOD';
+            profitElement.textContent = '- JOD';
+        }
         return;
     }
     
-    // Show loading
-    document.getElementById('cogsCost').textContent = _('calculating_cogs');
-    document.getElementById('profitAmount').textContent = _('calculating_cogs');
+    // Show loading only if elements exist
+    if (hasFinancialPermissions) {
+        cogsElement.textContent = _('calculating_cogs');
+        profitElement.textContent = _('calculating_cogs');
+    }
     
-    // Calculate COGS via API
-    fetch('/sales/calculate-cogs/', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-        },
-        body: JSON.stringify({
-            vessel_id: {{ trip.vessel.id }},
-            product_id: selectedProduct.id,
-            quantity: quantity
+    // Calculate COGS via API (only if needed for permissions)
+    if (hasFinancialPermissions) {
+        fetch('/sales/calculate-cogs/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify({
+                vessel_id: {{ trip.vessel.id }},
+                product_id: selectedProduct.id,
+                quantity: quantity
+            })
         })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            const cogs = parseFloat(data.total_cogs);
-            const revenue = quantity * selectedProduct.selling_price;
-            const profit = revenue - cogs;
-            
-            document.getElementById('cogsCost').textContent = cogs.toFixed(3) + ' JOD';
-            document.getElementById('profitAmount').textContent = profit.toFixed(3) + ' JOD';
-            
-            // Store for cart item
-            selectedProduct.calculated_cogs = cogs;
-            selectedProduct.calculated_profit = profit;
-        } else {
-            document.getElementById('cogsCost').textContent = 'Error';
-            document.getElementById('profitAmount').textContent = 'Error';
-        }
-    })
-    .catch(error => {
-        console.error('Error calculating COGS:', error);
-        document.getElementById('cogsCost').textContent = 'Error';
-        document.getElementById('profitAmount').textContent = 'Error';
-    });
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const cogs = parseFloat(data.total_cogs);
+                const revenue = quantity * selectedProduct.selling_price;
+                const profit = revenue - cogs;
+                
+                cogsElement.textContent = cogs.toFixed(3) + ' JOD';
+                profitElement.textContent = profit.toFixed(3) + ' JOD';
+                
+                // Store for cart item
+                selectedProduct.calculated_cogs = cogs;
+                selectedProduct.calculated_profit = profit;
+            } else {
+                cogsElement.textContent = 'Error';
+                profitElement.textContent = 'Error';
+            }
+        })
+        .catch(error => {
+            console.error('Error calculating COGS:', error);
+            cogsElement.textContent = 'Error';
+            profitElement.textContent = 'Error';
+        });
+    } else {
+        // For users without financial permissions, set default values
+        selectedProduct.calculated_cogs = 0;
+        selectedProduct.calculated_profit = 0;
+    }
 }
 
 function validateForm() {
@@ -743,8 +783,8 @@ function addToCart() {
         quantity: quantity,
         unit_price: selectedProduct.selling_price,
         total_amount: quantity * selectedProduct.selling_price,
-        total_cogs: selectedProduct.calculated_cogs || 0,
-        total_profit: selectedProduct.calculated_profit || 0,
+        total_cogs: selectedProduct.calculated_cogs || 0,  // Default to 0 if not calculated
+        total_profit: selectedProduct.calculated_profit || 0,  // Default to 0 if not calculated
         notes: notes
     };
     
@@ -805,8 +845,15 @@ function editCartItem(index) {
         // Update product info display
         document.getElementById('productName').textContent = item.product_name;
         document.getElementById('unitPrice').textContent = item.unit_price.toFixed(3) + ' JOD';
-        document.getElementById('cogsCost').textContent = item.total_cogs.toFixed(3) + ' JOD';
-        document.getElementById('profitAmount').textContent = item.total_profit.toFixed(3) + ' JOD';
+        
+        // Only update COGS elements if they exist (permission-based)
+        const cogsElement = document.getElementById('cogsCost');
+        const profitElement = document.getElementById('profitAmount');
+        if (cogsElement && profitElement) {
+            cogsElement.textContent = item.total_cogs.toFixed(3) + ' JOD';
+            profitElement.textContent = item.total_profit.toFixed(3) + ' JOD';
+        }
+        
         document.getElementById('productInfo').style.display = 'block';
         document.getElementById('availableStock').textContent = _('available') + ' ' + translateNumber(selectedProduct.total_quantity.toString()) + ' ' + _('units');
         
@@ -896,6 +943,7 @@ function exitEditMode() {
 
 function updateCartDisplay() {
     const canEdit = {{ can_edit|yesno:"true,false" }};
+    const canViewFinancials = {{ user_permissions.can_view_financials|yesno:"true,false" }};
     
     // For completed trips, the totals are already calculated in updateCompletedTripTotals
     if (!canEdit) {
@@ -933,16 +981,19 @@ function updateCartDisplay() {
         revenueElement.innerHTML = `<span data-number data-original="${totalRevenue.toFixed(3)}">${translateNumber(totalRevenue.toFixed(3))}</span> <span data-currency-symbol>JOD</span>`;
     }
     
-    const cogsElement = document.getElementById('totalCOGS');
-    if (cogsElement) {
-        cogsElement.setAttribute('data-original', totalCOGS.toFixed(3));
-        cogsElement.innerHTML = `<span data-number data-original="${totalCOGS.toFixed(3)}">${translateNumber(totalCOGS.toFixed(3))}</span> <span data-currency-symbol>JOD</span>`;
-    }
-    
-    const profitElement = document.getElementById('totalProfit');
-    if (profitElement) {
-        profitElement.setAttribute('data-original', totalProfit.toFixed(3));
-        profitElement.innerHTML = `<span data-number data-original="${totalProfit.toFixed(3)}">${translateNumber(totalProfit.toFixed(3))}</span> <span data-currency-symbol>JOD</span>`;
+    // Only update COGS and profit totals if user has financial permissions
+    if (canViewFinancials) {
+        const cogsElement = document.getElementById('totalCOGS');
+        if (cogsElement) {
+            cogsElement.setAttribute('data-original', totalCOGS.toFixed(3));
+            cogsElement.innerHTML = `<span data-number data-original="${totalCOGS.toFixed(3)}">${translateNumber(totalCOGS.toFixed(3))}</span> <span data-currency-symbol>JOD</span>`;
+        }
+        
+        const profitElement = document.getElementById('totalProfit');
+        if (profitElement) {
+            profitElement.setAttribute('data-original', totalProfit.toFixed(3));
+            profitElement.innerHTML = `<span data-number data-original="${totalProfit.toFixed(3)}">${translateNumber(totalProfit.toFixed(3))}</span> <span data-currency-symbol>JOD</span>`;
+        }
     }
     
     // Update table
@@ -951,50 +1002,61 @@ function updateCartDisplay() {
         emptyState.style.display = 'block';
     } else {
         emptyState.style.display = 'none';
-        salesList.innerHTML = tripSalesCart.map((item, index) => `
-            <tr>
-                <td>
-                    <div>
-                        <strong>${item.product_name}</strong>
-                        <small class="text-muted d-block">${_('id_label')}: <span data-number data-original="${item.product_item_id}">${translateNumber(item.product_item_id)}</span></small>
-                        ${item.is_duty_free ? '<span class="badge bg-warning text-dark">' + _('duty_free') + '</span>' : ''}
-                    </div>
-                </td>
-                <td class="text-center">
-                    <span class="fw-bold" data-number data-original="${item.quantity}">${translateNumber(item.quantity.toString())}</span>
-                    <small class="text-muted d-block">${_('units')}</small>
-                </td>
-                <td class="text-end">
-                    <span class="fw-bold" data-number data-original="${item.unit_price.toFixed(3)}">${translateNumber(item.unit_price.toFixed(3))}</span>
-                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
-                </td>
-                <td class="text-end">
-                    <span class="fw-bold text-warning" data-number data-original="${(item.total_cogs || 0).toFixed(3)}">${translateNumber((item.total_cogs || 0).toFixed(3))}</span>
-                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
-                </td>
-                <td class="text-end">
-                    <span class="fw-bold text-info" data-number data-original="${(item.total_profit || 0).toFixed(3)}">${translateNumber((item.total_profit || 0).toFixed(3))}</span>
-                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
-                </td>
-                <td class="text-end">
-                    <span class="fw-bold text-success" data-number data-original="${item.total_amount.toFixed(3)}">${translateNumber(item.total_amount.toFixed(3))}</span>
-                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
-                </td>
-                <td>
-                    <small>${item.notes || '-'}</small>
-                </td>
-                <td class="text-center">
-                    <div class="btn-group btn-group-sm">
-                        <button class="btn btn-outline-primary" onclick="editCartItem(${index})" title="${_('edit_item')}">
-                            <i class="bi bi-pencil"></i>
-                        </button>
-                        <button class="btn btn-outline-danger" onclick="removeFromCart(${index})" title="${_('remove_item')}">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </div>
-                </td>
-            </tr>
-        `).join('');
+        salesList.innerHTML = tripSalesCart.map((item, index) => {
+            // Build table row with conditional COGS and profit columns
+            let row = `
+                <tr>
+                    <td>
+                        <div>
+                            <strong>${item.product_name}</strong>
+                            <small class="text-muted d-block">${_('id_label')}: <span data-number data-original="${item.product_item_id}">${translateNumber(item.product_item_id)}</span></small>
+                            ${item.is_duty_free ? '<span class="badge bg-warning text-dark">' + _('duty_free') + '</span>' : ''}
+                        </div>
+                    </td>
+                    <td class="text-center">
+                        <span class="fw-bold" data-number data-original="${item.quantity}">${translateNumber(item.quantity.toString())}</span>
+                        <small class="text-muted d-block">${_('units')}</small>
+                    </td>
+                    <td class="text-end">
+                        <span class="fw-bold" data-number data-original="${item.unit_price.toFixed(3)}">${translateNumber(item.unit_price.toFixed(3))}</span>
+                        <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+                    </td>`;
+            
+            // Add COGS and profit columns only if user has financial permissions
+            if (canViewFinancials) {
+                row += `
+                    <td class="text-end">
+                        <span class="fw-bold text-warning" data-number data-original="${(item.total_cogs || 0).toFixed(3)}">${translateNumber((item.total_cogs || 0).toFixed(3))}</span>
+                        <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+                    </td>
+                    <td class="text-end">
+                        <span class="fw-bold text-info" data-number data-original="${(item.total_profit || 0).toFixed(3)}">${translateNumber((item.total_profit || 0).toFixed(3))}</span>
+                        <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+                    </td>`;
+            }
+            
+            row += `
+                    <td class="text-end">
+                        <span class="fw-bold text-success" data-number data-original="${item.total_amount.toFixed(3)}">${translateNumber(item.total_amount.toFixed(3))}</span>
+                        <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+                    </td>
+                    <td>
+                        <small>${item.notes || '-'}</small>
+                    </td>
+                    <td class="text-center">
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-primary" onclick="editCartItem(${index})" title="${_('edit_item')}">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-outline-danger" onclick="removeFromCart(${index})" title="${_('remove_item')}">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>`;
+            
+            return row;
+        }).join('');
     }
     
     // Apply translations after DOM update

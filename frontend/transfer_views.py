@@ -8,8 +8,13 @@ from products.models import Product
 from transactions.models import Transaction, InventoryLot
 from .utils import BilingualMessages
 from products.models import Product
+from .permissions import (
+    operations_access_required,
+    reports_access_required,
+    admin_or_manager_required
+)
 
-@login_required 
+@operations_access_required
 def transfer_center(request):
     """Functional transfer interface with FIFO cost preservation"""
     
@@ -31,7 +36,7 @@ def transfer_center(request):
     
     return render(request, 'frontend/transfer_center.html', context)
 
-@login_required
+@operations_access_required
 def transfer_search_products(request):
     """AJAX endpoint to search for products with available inventory on specific vessel"""
     if request.method != 'POST':
@@ -110,7 +115,7 @@ def transfer_search_products(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
     
-@login_required
+@operations_access_required
 def transfer_entry(request):
     """Step 1: Create new transfer session"""
     
@@ -181,7 +186,7 @@ def transfer_entry(request):
             BilingualMessages.error(request, 'error_creating_transfer', error=str(e))
             return redirect('frontend:transfer_entry')
 
-@login_required
+@operations_access_required
 def transfer_items(request, session_id):
     """Step 2: Multi-item transfer entry for a specific transfer session"""
     
@@ -216,7 +221,7 @@ def transfer_items(request, session_id):
     
     return render(request, 'frontend/transfer_items.html', context)
 
-@login_required
+@operations_access_required
 def transfer_available_products(request):
     """AJAX endpoint to get available products for transfer"""
     if request.method != 'POST':
@@ -270,7 +275,7 @@ def transfer_available_products(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
-@login_required
+@operations_access_required
 def transfer_bulk_complete(request):
     """Complete transfer with bulk transaction creation"""
     if request.method != 'POST':
@@ -373,7 +378,7 @@ def transfer_bulk_complete(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': f'Error completing transfer: {str(e)}'})
     
-@login_required
+@operations_access_required
 def transfer_execute(request):
     """AJAX endpoint to execute transfer using existing FIFO system"""
     if request.method != 'POST':
@@ -435,13 +440,7 @@ def transfer_execute(request):
             notes=notes or f'Transfer to {to_vessel.name}',
             created_by=request.user
         )
-        
-        # Your existing _handle_transfer_out() method will:
-        # 1. Consume inventory using FIFO
-        # 2. Create TRANSFER_IN transaction automatically
-        # 3. Preserve individual lot costs on destination vessel
-        # 4. Link the transactions
-        
+                
         return JsonResponse({
             'success': True,
             'message': f'Transfer completed: {quantity} units of {product.name} from {from_vessel.name} to {to_vessel.name}',

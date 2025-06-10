@@ -164,9 +164,14 @@
                                     <td>
                                         <div class="btn-group">
                                             <button type="button" class="btn btn-sm btn-outline-primary" 
-                                                    onclick="editUser({{ user.id }}, '{{ user.username|escapejs }}', '{{ user.first_name|escapejs }}', '{{ user.last_name|escapejs }}', '{{ user.email|escapejs }}', {{ user.is_active|yesno:'true,false' }}, {{ user.is_staff|yesno:'true,false' }})"
+                                                    onclick="editUser({{ user.id }}, '{{ user.username|escapejs }}', '{{ user.first_name|escapejs }}', '{{ user.last_name|escapejs }}', '{{ user.email|escapejs }}', {{ user.is_active|yesno:'true,false' }}, {{ user.is_staff|yesno:'true,false' }}, [{% for group in user.groups.all %}{{ group.id }}{% if not forloop.last %},{% endif %}{% endfor %}])"
                                                     data-translate-title="edit_user">
                                                 <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-outline-info"
+                                                    onclick="manageUserGroups({{ user.id }}, '{{ user.username|escapejs }}', [{% for group in user.groups.all %}{{ group.id }}{% if not forloop.last %},{% endif %}{% endfor %}])"
+                                                    data-translate-title="manage_groups">
+                                                <i class="bi bi-people"></i>
                                             </button>
                                             <button type="button" class="btn btn-sm btn-outline-warning"
                                                     onclick="resetPassword({{ user.id }}, '{{ user.username|escapejs }}')"
@@ -391,6 +396,93 @@
     </div>
 </div>
 
+<!-- Manage User Groups Modal -->
+<div class="modal fade" id="manageGroupsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-people me-2"></i>
+                    <span data-translate="manage_user_groups">Manage User Groups</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="manageGroupsForm" method="POST">
+                {% csrf_token %}
+                <input type="hidden" id="manageGroupsUserId" name="user_id">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <h6 class="fw-bold">
+                            <i class="bi bi-person me-1"></i>
+                            <span data-translate="user">User</span>: <span id="manageGroupsUsername"></span>
+                        </h6>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-collection me-1"></i>
+                            <span data-translate="assign_groups">Assign Groups</span>
+                        </label>
+                        <div class="border rounded p-3" style="max-height: 300px; overflow-y: auto;">
+                            {% for group in groups %}
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="groups" value="{{ group.id }}" id="manage_group_{{ group.id }}">
+                                <label class="form-check-label d-flex justify-content-between align-items-center w-100" for="manage_group_{{ group.id }}">
+                                    <span>
+                                        <strong>{{ group.name }}</strong>
+                                        <br>
+                                        <small class="text-muted">
+                                            {% if group.name == 'Administrators' %}
+                                                <span data-translate="administrators_desc">Full operational access except system setup</span>
+                                            {% elif group.name == 'Managers' %}
+                                                <span data-translate="managers_desc">Reports and inventory management access</span>
+                                            {% elif group.name == 'Vessel Operators' %}
+                                                <span data-translate="vessel_operators_desc">Sales, supply, transfers, and inventory access</span>
+                                            {% elif group.name == 'Inventory Staff' %}
+                                                <span data-translate="inventory_staff_desc">Inventory and reports access only</span>
+                                            {% elif group.name == 'Viewers' %}
+                                                <span data-translate="viewers_desc">Read-only access to inventory and basic reports</span>
+                                            {% else %}
+                                                <span data-translate="custom_group">Custom group permissions</span>
+                                            {% endif %}
+                                        </small>
+                                    </span>
+                                    <span class="badge 
+                                        {% if group.name == 'Administrators' %}bg-danger
+                                        {% elif group.name == 'Managers' %}bg-primary
+                                        {% elif group.name == 'Vessel Operators' %}bg-success
+                                        {% elif group.name == 'Inventory Staff' %}bg-info
+                                        {% elif group.name == 'Viewers' %}bg-secondary
+                                        {% else %}bg-dark{% endif %} ms-2">
+                                        {{ group.user_set.count }} <span data-translate="users">users</span>
+                                    </span>
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <small data-translate="group_assignment_note">
+                            Users can be assigned to multiple groups. The highest permission level will apply.
+                        </small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <span data-translate="cancel">Cancel</span>
+                    </button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-check-circle me-1"></i>
+                        <span data-translate="update_groups">Update Groups</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_css %}
@@ -426,6 +518,23 @@
     transform: none !important;
     background: linear-gradient(135deg, rgba(15, 76, 117, 0.05) 0%, rgba(50, 130, 184, 0.05) 100%) !important;
     border-left: 3px solid var(--primary-blue) !important;
+}
+
+/* Enhanced group selection styling */
+.form-check-label {
+    cursor: pointer;
+}
+
+.form-check-input:checked + .form-check-label {
+    color: var(--primary-blue);
+    font-weight: 600;
+}
+
+.form-check:hover {
+    background-color: rgba(var(--bs-primary-rgb), 0.05);
+    border-radius: 0.375rem;
+    padding: 0.25rem;
+    margin: -0.25rem;
 }
 </style>
 {% endblock %}
@@ -474,6 +583,19 @@ document.addEventListener('DOMContentLoaded', function() {
             'reset_password': 'Reset Password',
             'deactivate_user': 'Deactivate User',
             'activate_user': 'Activate User',
+            'manage_groups': 'Manage Groups',
+            'manage_user_groups': 'Manage User Groups',
+            'user': 'User',
+            'assign_groups': 'Assign Groups',
+            'update_groups': 'Update Groups',
+            'users': 'users',
+            'administrators_desc': 'Full operational access except system setup',
+            'managers_desc': 'Reports and inventory management access',
+            'vessel_operators_desc': 'Sales, supply, transfers, and inventory access',
+            'inventory_staff_desc': 'Inventory and reports access only',
+            'viewers_desc': 'Read-only access to inventory and basic reports',
+            'custom_group': 'Custom group permissions',
+            'group_assignment_note': 'Users can be assigned to multiple groups. The highest permission level will apply.',
             'confirm_reset_password': 'Reset password for user "{username}"?\n\nA new temporary password will be generated.',
             'confirm_deactivate_user': 'Deactivate user "{username}"?\n\nThis will prevent the user from logging in.',
             'confirm_activate_user': 'Activate user "{username}"?\n\nThis will allow the user to log in.',
@@ -519,6 +641,19 @@ document.addEventListener('DOMContentLoaded', function() {
             'reset_password': 'إعادة تعيين كلمة المرور',
             'deactivate_user': 'إلغاء تفعيل المستخدم',
             'activate_user': 'تفعيل المستخدم',
+            'manage_groups': 'إدارة المجموعات',
+            'manage_user_groups': 'إدارة مجموعات المستخدم',
+            'user': 'المستخدم',
+            'assign_groups': 'تعيين المجموعات',
+            'update_groups': 'تحديث المجموعات',
+            'users': 'مستخدمين',
+            'administrators_desc': 'صلاحية تشغيلية كاملة عدا إعداد النظام',
+            'managers_desc': 'صلاحية الوصول للتقارير وإدارة المخزون',
+            'vessel_operators_desc': 'صلاحية المبيعات والتوريد والتحويلات والمخزون',
+            'inventory_staff_desc': 'صلاحية المخزون والتقارير فقط',
+            'viewers_desc': 'صلاحية قراءة فقط للمخزون والتقارير الأساسية',
+            'custom_group': 'صلاحيات مجموعة مخصصة',
+            'group_assignment_note': 'يمكن تعيين المستخدمين لمجموعات متعددة. ستطبق أعلى مستوى صلاحية.',
             'confirm_reset_password': 'إعادة تعيين كلمة المرور للمستخدم "{username}"؟\n\nسيتم إنشاء كلمة مرور مؤقتة جديدة.',
             'confirm_deactivate_user': 'إلغاء تفعيل المستخدم "{username}"؟\n\nسيمنع هذا المستخدم من تسجيل الدخول.',
             'confirm_activate_user': 'تفعيل المستخدم "{username}"؟\n\nسيسمح هذا للمستخدم بتسجيل الدخول.',
@@ -608,7 +743,7 @@ function setupGroups() {
     });
 }
 
-function editUser(userId, username, firstName, lastName, email, isActive, isStaff) {
+function editUser(userId, username, firstName, lastName, email, isActive, isStaff, userGroups) {
     document.getElementById('editUserId').value = userId;
     document.getElementById('editUsername').value = username;
     document.getElementById('editFirstName').value = firstName;
@@ -620,6 +755,28 @@ function editUser(userId, username, firstName, lastName, email, isActive, isStaf
     document.getElementById('editUserForm').action = `/users/${userId}/edit/`;
     
     new bootstrap.Modal(document.getElementById('editUserModal')).show();
+}
+
+function manageUserGroups(userId, username, userGroups) {
+    document.getElementById('manageGroupsUserId').value = userId;
+    document.getElementById('manageGroupsUsername').textContent = username;
+    
+    // Clear all checkboxes
+    document.querySelectorAll('#manageGroupsForm input[name="groups"]').forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    
+    // Check boxes for user's current groups
+    userGroups.forEach(groupId => {
+        const checkbox = document.querySelector(`#manageGroupsForm input[name="groups"][value="${groupId}"]`);
+        if (checkbox) {
+            checkbox.checked = true;
+        }
+    });
+    
+    document.getElementById('manageGroupsForm').action = `/users/${userId}/groups/`;
+    
+    new bootstrap.Modal(document.getElementById('manageGroupsModal')).show();
 }
 
 function resetPassword(userId, username) {

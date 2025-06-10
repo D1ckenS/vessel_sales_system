@@ -1,0 +1,63 @@
+<!-- =============================================================================
+     Vessel Sales System - Base Modals
+     Reusable Modal Components for Confirmations & Alerts
+     ============================================================================= -->
+
+<!-- Custom Confirmation Modal -->
+<div class="modal fade" id="confirmationModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header border-0" style="background: linear-gradient(135deg, var(--secondary-blue) 0%, var(--primary-blue) 100%);">
+                <h5 class="modal-title text-white" id="confirmationModalTitle">
+                    <i class="bi bi-question-circle me-2"></i>Confirm Action
+                </h5>
+            </div>
+            <div class="modal-body p-4">
+                <div class="text-center">
+                    <div class="confirmation-icon mb-3">
+                        <i class="bi bi-exclamation-triangle text-warning" style="font-size: 3rem;"></i>
+                    </div>
+                    <p class="confirmation-message mb-0" id="confirmationMessage">
+                        Are you sure you want to proceed?
+                    </p>
+                </div>
+            </div>
+            <div class="modal-footer border-0 justify-content-center">
+                <button type="button" class="btn btn-outline-secondary px-4" id="confirmationCancel">
+                    <i class="bi bi-x-circle me-2"></i><span data-translate="cancel">Cancel</span>
+                </button>
+                <button type="button" class="btn btn-primary px-4" id="confirmationConfirm">
+                    <i class="bi bi-check-circle me-2"></i><span data-translate="confirm">Confirm</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Custom Alert Modal -->
+<div class="modal fade" id="alertModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header border-0" style="background: linear-gradient(135deg, var(--secondary-blue) 0%, var(--primary-blue) 100%);">
+                <h5 class="modal-title text-white" id="alertModalTitle">
+                    <i class="bi bi-info-circle me-2"></i>Information
+                </h5>
+            </div>
+            <div class="modal-body p-4">
+                <div class="text-center">
+                    <div class="alert-icon mb-3">
+                        <i class="bi bi-info-circle text-info" style="font-size: 3rem;"></i>
+                    </div>
+                    <p class="alert-message mb-0" id="alertMessage">
+                        This is an alert message.
+                    </p>
+                </div>
+            </div>
+            <div class="modal-footer border-0 justify-content-center">
+                <button type="button" class="btn btn-primary px-4" id="alertOk">
+                    <i class="bi bi-check-circle me-2"></i><span data-translate="ok">OK</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

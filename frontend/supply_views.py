@@ -13,8 +13,13 @@ from django.core.exceptions import ValidationError
 import json
 from decimal import Decimal
 import decimal
+from .permissions import (
+    operations_access_required,
+    reports_access_required,
+    admin_or_manager_required
+)
 
-@login_required
+@operations_access_required
 def supply_entry(request):
     """Step 1: Create new purchase order for supply transactions"""
     
@@ -76,7 +81,7 @@ def supply_entry(request):
             BilingualMessages.error(request, 'error_creating_po', error=str(e))
             return redirect('frontend:supply_entry')
 
-@login_required
+@operations_access_required
 def po_supply(request, po_id):
     """Step 2: Multi-item supply entry for a specific purchase order (Shopping Cart Approach)"""
     
@@ -145,7 +150,7 @@ def po_supply(request, po_id):
     return render(request, 'frontend/po_supply.html', context)
 
 
-@login_required
+@operations_access_required
 def po_complete(request, po_id):
     """Complete a purchase order and mark it as finished"""
     
@@ -169,7 +174,7 @@ def po_complete(request, po_id):
             BilingualMessages.error(request, 'Purchase Order not found.')
             return redirect('frontend:supply_entry')
 
-@login_required
+@operations_access_required
 def supply_search_products(request):
     """AJAX endpoint to search for products for supply entry"""
     if request.method != 'POST':
@@ -213,7 +218,7 @@ def supply_search_products(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
     
-@login_required
+@operations_access_required
 def po_bulk_complete(request):
     """Complete purchase order with bulk transaction creation"""
     if request.method != 'POST':
@@ -322,7 +327,7 @@ def po_bulk_complete(request):
         return JsonResponse({'success': False, 'error': f'Error completing purchase order: {str(e)}'})
     
 
-@login_required
+@operations_access_required
 def po_cancel(request):
     """Cancel PO and delete it from database (if no items committed)"""
     if request.method != 'POST':
@@ -367,7 +372,7 @@ def po_cancel(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': f'Error cancelling purchase order: {str(e)}'})
     
-@login_required
+@operations_access_required
 def supply_product_catalog(request):
     """AJAX endpoint to get products filtered by vessel's duty-free capability"""
     if request.method != 'POST':
@@ -412,7 +417,7 @@ def supply_product_catalog(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
     
-@login_required
+@operations_access_required
 def supply_execute(request):
     """AJAX endpoint to execute supply transaction"""
     if request.method != 'POST':

@@ -150,7 +150,7 @@
                                 </td>
                                 <td>
                                     <small>{{ po.created_by.username|default:"System" }}</small>
-                                    <small class="text-muted d-block po-time-ago" data-time="{{ po.created_at|timesince }}">{{ po.created_at|timesince }} ago</small>
+                                    <small class="text-muted po-time-ago" data-time="{{ po.created_at|timesince }}">{{ po.created_at|timesince }} ago</small>
                                 </td>
                                 <td>
                                     {% if not po.is_completed %}

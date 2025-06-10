@@ -14,13 +14,12 @@ from django.db import models
 from products.models import Product
 from django.core.exceptions import ValidationError
 import json
-
-def is_admin_or_manager(user):
-    """Check if user is superuser or in admin/manager groups"""
-    if user.is_superuser:
-        return True
-    user_groups = [group.name.lower() for group in user.groups.all()]
-    return 'administrators' in user_groups or 'managers' in user_groups
+from .permissions import is_admin_or_manager, admin_or_manager_required
+from .permissions import (
+    operations_access_required,
+    reports_access_required,
+    admin_or_manager_required
+)
 
 @login_required
 def dashboard(request):

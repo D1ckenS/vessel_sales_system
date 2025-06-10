@@ -25,7 +25,8 @@ urlpatterns = [
     path('setup-groups/', auth_views.setup_groups, name='setup_groups'),
     path('profile/', auth_views.user_profile, name='user_profile'),
     path('change-password/', auth_views.change_password, name='change_password'),
-    
+    path('users/<int:user_id>/groups/', auth_views.manage_user_groups, name='manage_user_groups'),
+
     # Product Management - FIXED ORDER AND MISSING URL
     path('products/manage/<int:product_id>/delete/', product_views.delete_product, name='delete_product'),
     path('products/add/', product_views.add_product, name='add_product'),  # Legacy - List mode by default

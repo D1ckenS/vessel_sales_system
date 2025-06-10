@@ -120,7 +120,7 @@
                         <tbody>
                             {% for transfer in recent_transfers %}
                             <tr>
-                                <td><span data-number data-original="{{ transfer.transaction_date|date:'d/m/Y' }}">{{ transfer.transaction_date|date:"d/m/Y" }}</span></td>
+                                <td><span data-transfer-date data-original="{{ transfer.transaction_date|date:'d/m/Y' }}">{{ transfer.transaction_date|date:"d/m/Y" }}</span></td>
                                 <td>
                                     <span class="badge bg-danger me-1">
                                         <span class="vessel-name" data-en="{{ transfer.vessel.name }}" data-ar="{{ transfer.vessel.name_ar }}">{{ transfer.vessel.name }}</span>

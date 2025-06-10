@@ -9,8 +9,13 @@ from transactions.models import Transaction, InventoryLot, Trip, PurchaseOrder
 from django.shortcuts import render
 from vessels.models import Vessel
 from products.models import Product
+from .permissions import (
+    operations_access_required,
+    reports_access_required,
+    admin_or_manager_required
+)
 
-@login_required
+@reports_access_required
 def trip_reports(request):
     """Trip-based sales reports"""
     
@@ -71,7 +76,7 @@ def trip_reports(request):
     
     return render(request, 'frontend/trip_reports.html', context)
 
-@login_required
+@reports_access_required
 def po_reports(request):
     """Purchase Order reports"""
     
@@ -128,7 +133,7 @@ def po_reports(request):
     
     return render(request, 'frontend/po_reports.html', context)
 
-@login_required
+@reports_access_required
 def transactions_list(request):
     """Frontend transactions list to replace Django admin redirect"""
     
@@ -177,7 +182,7 @@ def transactions_list(request):
     
     return render(request, 'frontend/transactions_list.html', context)
 
-@login_required
+@reports_access_required
 def reports_dashboard(request):
     """Reports hub with statistics and report options"""
     
@@ -228,7 +233,7 @@ def reports_dashboard(request):
     
     return render(request, 'frontend/reports_dashboard.html', context)
 
-@login_required  
+@reports_access_required
 def comprehensive_report(request):
     """Comprehensive transaction report - all transaction types with filtering"""
     
@@ -369,7 +374,7 @@ def comprehensive_report(request):
     
     return render(request, 'frontend/comprehensive_report.html', context)
 
-@login_required
+@reports_access_required
 def daily_report(request):
     """Comprehensive daily operations report for a specific date"""
     
@@ -592,7 +597,7 @@ def daily_report(request):
     
     return render(request, 'frontend/daily_report.html', context)
 
-@login_required
+@reports_access_required
 def monthly_report(request):
     """Comprehensive monthly operations and financial report"""
 
@@ -846,7 +851,7 @@ def monthly_report(request):
     
     return render(request, 'frontend/monthly_report.html', context)
 
-@login_required
+@reports_access_required
 def analytics_report(request):
     """Advanced business analytics and KPI dashboard"""
 
@@ -1059,4 +1064,3 @@ def analytics_report(request):
     }
     
     return render(request, 'frontend/analytics_report.html', context)
-

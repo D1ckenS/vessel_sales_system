@@ -1,7 +1,6 @@
 {% extends 'frontend/base.html' %}
-{% load i18n %}
 
-{% block title %}{% trans "Sales Entry" %} - {% trans "Vessel Sales System" %}{% endblock %}
+{% block title %}<span data-translate="sales_entry">Sales Entry</span> - <span data-translate="vessel_sales_system">Vessel Sales System</span>{% endblock %}
 
 {% block content %}
 <!-- Page Header -->
@@ -13,10 +12,10 @@
                     <i class="bi bi-cart-plus text-success"></i> 
                     <span data-translate="sales_entry">Sales Entry</span>
                 </h2>
-                <p class="text-muted mb-0">{% trans "Create new trip and record sales transactions" %}</p>
+                <p class="text-muted mb-0"><span data-translate="create_trip_description">Create new trip and record sales transactions</span></p>
             </div>
             <a href="{% url 'frontend:dashboard' %}" class="btn btn-outline-secondary">
-                <i class="bi bi-arrow-left"></i> {% trans "Back to Dashboard" %}
+                <i class="bi bi-arrow-left"></i> <span data-translate="back_to_dashboard">Back to Dashboard</span>
             </a>
         </div>
     </div>
@@ -78,7 +77,7 @@
                             </label>
                             <input type="number" class="form-control form-control-lg" name="passenger_count" 
                                    placeholder="0" min="1" step="1" required>
-                            <small class="text-muted">{% trans "Total passengers on this trip" %}</small>
+                            <small class="text-muted"><span data-translate="passengers_help">Total passengers on this trip</span></small>
                         </div>
                     </div>
 
@@ -90,7 +89,7 @@
                         <textarea class="form-control" name="notes" rows="3" 
                                   placeholder='Additional notes about this trip...'
                                   data-placeholder-en='Additional notes about this trip...'
-                                  data-placeholder-ar='ملاحظات إضافية عن هذه الرحلة...'
+                                  data-placeholder-ar='ملاحظات إضافية عن هذه الرحلة...'
                                   >
                                 </textarea>
                     </div>
@@ -101,7 +100,7 @@
                             <i class="bi bi-x-circle"></i> <span data-translate="clear_form">Clear Form</span>
                         </button>
                         <button type="submit" class="btn btn-success btn-lg">
-                            <i class="bi bi-arrow-right"></i> <span data-translate="create_new_trip">Create Trip & Add Sales</span>
+                            <i class="bi bi-arrow-right"></i> <span data-translate="create_trip_add_sales">Create Trip & Add Sales</span>
                         </button>
                     </div>
                 </form>
@@ -116,8 +115,22 @@
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0">
-                    <i class="bi bi-clock-history"></i> <span data-translate="recent_trips">Recent Trips</span>
+                    <i class="bi bi-clock-history"></i> 
+                    {% if user_role == 'Vessel Operators' %}
+                        <span data-translate="todays_trips">Today's Trips</span>
+                    {% else %}
+                        <span data-translate="recent_trips">Recent Trips</span>
+                    {% endif %}
                 </h5>
+                {% if user_role == 'Vessel Operators' %}
+                    <small class="text-muted">
+                        {% if LANGUAGE_CODE == 'ar' %}
+                            عرض رحلات {{ today|date:"d/m/Y" }} فقط
+                        {% else %}
+                            Showing trips for {{ today|date:"d/m/Y" }} only
+                        {% endif %}
+                    </small>
+                {% endif %}
             </div>
             <div class="card-body">
                 <div class="table-responsive">
@@ -154,7 +167,7 @@
                                 <td>
                                     <span class="fw-bold">{{ trip.total_revenue|floatformat:3 }}</span>
                                     <small class="text-muted">JOD</small>
-                                    <small class="text-muted d-block">({{ trip.transaction_count }} {% trans "items" %})</small>
+                                    <small class="text-muted d-block">({{ trip.transaction_count }} <span data-translate="items">items</span>)</small>
                                 </td>
                                 <td>
                                     {% if trip.is_completed %}
@@ -179,8 +192,13 @@
                             <tr>
                                 <td colspan="7" class="text-center text-muted py-4">
                                     <i class="bi bi-ship" style="font-size: 2rem;"></i>
-                                    <p class="mt-2 mb-0"><span data-translate="no_trips_yet">No Trips Recorded Yet</span></p>
-                                    <small>{% trans "Create your first trip using the form above" %}</small>
+                                    {% if user_role == 'Vessel Operators' %}
+                                        <p class="mt-2 mb-0"><span data-translate="no_trips_today">No Trips for Today</span></p>
+                                        <small><span data-translate="create_first_trip_today">Create your first trip for today using the form above</span></small>
+                                    {% else %}
+                                        <p class="mt-2 mb-0"><span data-translate="no_trips_yet">No Trips Recorded Yet</span></p>
+                                        <small><span data-translate="create_first_trip">Create your first trip using the form above</span></small>
+                                    {% endif %}
                                 </td>
                             </tr>
                             {% endfor %}
@@ -212,16 +230,116 @@ document.getElementById('tripForm').addEventListener('submit', function(e) {
     
     if (!tripNumber) {
         e.preventDefault();
-        alert('{% trans "Please enter a trip number" %}');
+        alertTranslated('enter_trip_number');
         return;
     }
     
     if (!passengerCount || passengerCount <= 0) {
         e.preventDefault();
-        alert('{% trans "Please enter a valid number of passengers" %}');
+        alertTranslated('enter_valid_passenger_count');
         return;
     }
     
 });
+
+// Enhanced translation for sales entry - add this after the existing form validation code
+document.addEventListener('DOMContentLoaded', function() {
+    // Update on language change
+    window.addEventListener('languageChanged', function() {
+        updateSalesPageTranslations();
+    });
+    
+    function updateSalesPageTranslations() {
+        // Update trip numbers
+        document.querySelectorAll('tbody tr td:first-child strong').forEach(element => {
+            const originalValue = element.textContent.trim();
+            if (!element.getAttribute('data-original')) {
+                element.setAttribute('data-original', originalValue);
+            }
+            
+            if (window.translator.currentLanguage === 'ar') {
+                element.textContent = window.translateNumber(originalValue);
+            } else {
+                element.textContent = originalValue;
+            }
+        });
+        
+        // Update passenger counts
+        document.querySelectorAll('tbody tr td .fw-bold').forEach(element => {
+            const text = element.textContent.trim();
+            if (/^\d+$/.test(text)) {
+                const originalValue = element.getAttribute('data-original') || text;
+                if (!element.getAttribute('data-original')) {
+                    element.setAttribute('data-original', originalValue);
+                }
+                element.textContent = window.translateNumber(originalValue);
+            }
+        });
+        
+        // Update revenue amounts
+        document.querySelectorAll('tbody tr td span.fw-bold').forEach(element => {
+            const text = element.textContent.trim();
+            if (/^\d+\.?\d*$/.test(text)) {
+                const originalValue = element.getAttribute('data-original') || text;
+                if (!element.getAttribute('data-original')) {
+                    element.setAttribute('data-original', originalValue);
+                }
+                element.textContent = window.translateNumber(originalValue);
+            }
+        });
+        
+        // Update dates
+        document.querySelectorAll('tbody tr td').forEach(element => {
+            const text = element.textContent.trim();
+            if (/^\d{2}\/\d{2}\/\d{4}$/.test(text)) {
+                const originalValue = element.getAttribute('data-original') || text;
+                if (!element.getAttribute('data-original')) {
+                    element.setAttribute('data-original', originalValue);
+                }
+                
+                if (window.translator.currentLanguage === 'ar') {
+                    element.textContent = window.translateNumber(originalValue);
+                } else {
+                    element.textContent = originalValue;
+                }
+            }
+        });
+        
+        // Update item counts in parentheses  
+        document.querySelectorAll('small.text-muted').forEach(element => {
+            const text = element.textContent;
+            if (text.includes('items') || text.includes('عنصر')) {
+                const match = text.match(/\((\d+)/);
+                if (match) {
+                    const originalNumber = match[1];
+                    const translatedNumber = window.translateNumber(originalNumber);
+                    const currentLang = window.translator.currentLanguage;
+                    
+                    if (currentLang === 'ar') {
+                        element.textContent = `(${translatedNumber} عنصر)`;
+                    } else {
+                        element.textContent = `(${translatedNumber} items)`;
+                    }
+                }
+            }
+        });
+    }
+    
+    // Initial call
+    setTimeout(() => {
+        updateSalesPageTranslations();
+    }, 100);
+});
+
+// Also trigger the language changed event when toggleLanguage is called
+const originalToggleLanguage = window.toggleLanguage;
+window.toggleLanguage = function() {
+    originalToggleLanguage();
+    
+    // Trigger custom event for page-specific translations
+    setTimeout(() => {
+        window.dispatchEvent(new Event('languageChanged'));
+    }, 200);
+};
 </script>
 {% endblock %}

@@ -10,20 +10,48 @@ from transactions.models import Transaction, InventoryLot, Trip
 from .utils import BilingualMessages
 from products.models import Product
 from django.core.exceptions import ValidationError
+import json
+from .permissions import (
+    operations_access_required,
+    reports_access_required,
+    admin_or_manager_required
+)
 
-@login_required
+@operations_access_required
 def sales_entry(request):
     """Step 1: Create new trip for sales transactions"""
     
     if request.method == 'GET':
         vessels = Vessel.objects.filter(active=True).order_by('name')
-        recent_trips = Trip.objects.select_related('vessel', 'created_by').order_by('-created_at')[:10]
+        
+        # Import permission functions
+        from .permissions import get_user_role, UserRoles
+        
+        # Get user's role
+        user_role = get_user_role(request.user)
+        print(f"DEBUG: User role detected: {user_role}")  # Debug print
+        
+        # Filter recent trips based on user role
+        if user_role == UserRoles.VESSEL_OPERATORS:
+            # Vessel Operators see only today's trips
+            today = date.today()
+            recent_trips = Trip.objects.select_related('vessel', 'created_by').filter(
+                trip_date=today
+            ).order_by('-created_at')[:10]
+            print(f"DEBUG: Filtered trips for today: {recent_trips.count()}")  # Debug print
+        else:
+            # Administrators, Managers, and higher roles see all recent trips
+            recent_trips = Trip.objects.select_related('vessel', 'created_by').order_by('-created_at')[:10]
+            print(f"DEBUG: All recent trips: {recent_trips.count()}")  # Debug print
         
         context = {
             'vessels': vessels,
             'recent_trips': recent_trips,
             'today': date.today(),
+            'user_role': user_role,  # Make sure this is included
         }
+        
+        print(f"DEBUG: Context user_role: {context['user_role']}")  # Debug print
         
         return render(request, 'frontend/sales_entry.html', context)
     
@@ -81,7 +109,7 @@ def sales_entry(request):
             BilingualMessages.error(request, 'error_creating_trip', error=str(e))
             return redirect('frontend:sales_entry')
 
-@login_required
+@operations_access_required
 def trip_sales(request, trip_id):
     """Step 2: Multi-item sales entry for a specific trip (Shopping Cart Approach)"""
     
@@ -178,8 +206,6 @@ def trip_sales(request, trip_id):
                 'created_at': sale.created_at.strftime('%H:%M')
             })
     
-    # Convert to JSON strings for safe template rendering
-    import json
     existing_sales_json = json.dumps(existing_sales)
     completed_sales_json = json.dumps(completed_sales)
     
@@ -192,7 +218,7 @@ def trip_sales(request, trip_id):
     
     return render(request, 'frontend/trip_sales.html', context)
 
-@login_required
+@operations_access_required
 def sales_search_products(request):
     """AJAX endpoint to search for products available on specific vessel"""
     if request.method != 'POST':
@@ -281,7 +307,7 @@ def sales_search_products(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
-@login_required
+@operations_access_required
 def sales_validate_inventory(request):
     """AJAX endpoint to validate inventory and preview FIFO consumption"""
     if request.method != 'POST':
@@ -353,7 +379,7 @@ def sales_validate_inventory(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
     
-@login_required
+@operations_access_required
 def trip_bulk_complete(request):
     """Complete trip with bulk transaction creation"""
     if request.method != 'POST':
@@ -462,7 +488,7 @@ def trip_bulk_complete(request):
 
 # Add this new view to handle trip cancellation
 
-@login_required
+@operations_access_required
 def trip_cancel(request):
     """Cancel trip and delete it from database (if no items committed)"""
     if request.method != 'POST':
@@ -507,7 +533,7 @@ def trip_cancel(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': f'Error cancelling trip: {str(e)}'})
     
-@login_required
+@operations_access_required
 def sales_available_products(request):
     """AJAX endpoint to get available products for sales"""
     if request.method != 'POST':
@@ -567,7 +593,7 @@ def sales_available_products(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
-@login_required
+@operations_access_required
 def sales_calculate_cogs(request):
     """AJAX endpoint to calculate COGS for sales using FIFO simulation"""
     if request.method != 'POST':
@@ -630,7 +656,7 @@ def sales_calculate_cogs(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
     
-@login_required
+@operations_access_required
 def sales_execute(request):
     """AJAX endpoint to execute sales transaction using FIFO system"""
     if request.method != 'POST':

@@ -13,6 +13,26 @@
                     <span data-translate="welcome_back">Welcome back,</span> <span id="username-display">{{ user.first_name|default:user.username }}</span>!
                 </h2>
                 <p class="lead text-muted mb-0">{{ today|date:"l, F d, Y" }}</p>
+                
+                <!-- Role Badge -->
+                {% if user_role %}
+                <div class="mt-2">
+                    <span class="badge fs-6 px-3 py-2 
+                        {% if user_permissions.is_superuser %}bg-warning text-dark
+                        {% elif user_role == 'Administrators' %}bg-danger
+                        {% elif user_role == 'Managers' %}bg-primary
+                        {% elif user_role == 'Vessel Operators' %}bg-success
+                        {% elif user_role == 'Inventory Staff' %}bg-info
+                        {% else %}bg-secondary{% endif %}">
+                        <i class="bi bi-person-badge me-1"></i>
+                        {% if user_permissions.is_superuser %}
+                            <span data-translate="superuser_access">Superuser Access</span>
+                        {% else %}
+                            {{ user_role }}
+                        {% endif %}
+                    </span>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -69,6 +89,8 @@
         <div class="col-12">
             <div class="d-flex flex-wrap justify-content-center gap-2">
                 
+                <!-- Sales Entry - Administrators & Vessel Operators Only -->
+                {% if user_permissions.can_access_operations %}
                 <div class="quick-action-wrapper">
                     <a href="{% url 'frontend:sales_entry' %}" class="quick-action">
                         <i class="bi bi-cart-plus text-success"></i>
@@ -76,7 +98,10 @@
                         <p class="text-muted small mb-0" data-translate="add_sales_desc">Add new sales transactions</p>
                     </a>
                 </div>
+                {% endif %}
 
+                <!-- Receive Stock - Administrators & Vessel Operators Only -->
+                {% if user_permissions.can_access_operations %}
                 <div class="quick-action-wrapper">
                     <a href="{% url 'frontend:supply_entry' %}" class="quick-action">
                         <i class="bi bi-box-seam text-primary"></i>
@@ -84,7 +109,10 @@
                         <p class="text-muted small mb-0" data-translate="record_inventory_desc">Record new inventory shipments</p>
                     </a>
                 </div>
+                {% endif %}
                 
+                <!-- Check Stock - Everyone -->
+                {% if user_permissions.can_access_inventory %}
                 <div class="quick-action-wrapper">
                     <a href="{% url 'frontend:inventory_check' %}" class="quick-action">
                         <i class="bi bi-boxes text-primary"></i>
@@ -92,7 +120,10 @@
                         <p class="text-muted small mb-0" data-translate="view_inventory_desc">View inventory levels</p>
                     </a>
                 </div>
+                {% endif %}
                 
+                <!-- Transfers - Administrators & Vessel Operators Only -->
+                {% if user_permissions.can_access_operations %}
                 <div class="quick-action-wrapper">
                     <a href="{% url 'frontend:transfer_center' %}" class="quick-action">
                         <i class="bi bi-arrow-left-right text-warning"></i>
@@ -100,7 +131,10 @@
                         <p class="text-muted small mb-0" data-translate="move_stock_desc">Move stock between vessels</p>
                     </a>
                 </div>
+                {% endif %}
                 
+                <!-- Reports - Administrators, Managers & Inventory Staff -->
+                {% if user_permissions.can_access_reports %}
                 <div class="quick-action-wrapper">
                     <a href="{% url 'frontend:reports_dashboard' %}" class="quick-action">
                         <i class="bi bi-graph-up text-info"></i>
@@ -108,7 +142,10 @@
                         <p class="text-muted small mb-0" data-translate="sales_inventory_desc">Sales & inventory reports</p>
                     </a>
                 </div>
+                {% endif %}
                 
+                <!-- System Setup - Superuser Only -->
+                {% if user_permissions.can_access_system_setup %}
                 <div class="quick-action-wrapper">
                     <a href="/admin/" class="quick-action">
                         <i class="bi bi-gear text-secondary"></i>
@@ -116,7 +153,9 @@
                         <p class="text-muted small mb-0" data-translate="manage_products_desc">Manage products & vessels</p>
                     </a>
                 </div>
+                {% endif %}
                 
+                <!-- Alerts - Everyone (Coming Soon) -->
                 <div class="quick-action-wrapper">
                     <a href="#" class="quick-action" onclick="showComingSoon()">
                         <i class="bi bi-bell text-danger"></i>
@@ -128,6 +167,69 @@
         </div>
     </div>
 </div>
+
+<!-- Role-Specific Information -->
+{% if not user_permissions.is_superuser %}
+<div class="container-fluid px-0 mb-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="alert alert-info border-0 shadow-sm">
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-info-circle me-3" style="font-size: 1.5rem;"></i>
+                    <div>
+                        <h6 class="mb-1">
+                            {% if user_role == 'Vessel Operators' %}
+                                <span data-translate="vessel_operator_access">Vessel Operator Access</span>
+                            {% elif user_role == 'Inventory Staff' %}
+                                <span data-translate="inventory_staff_access">Inventory Staff Access</span>
+                            {% elif user_role == 'Managers' %}
+                                <span data-translate="manager_access">Manager Access</span>
+                            {% elif user_role == 'Administrators' %}
+                                <span data-translate="administrator_access">Administrator Access</span>
+                            {% elif user_role == 'Viewers' %}
+                                <span data-translate="viewer_access">Viewer Access</span>
+                            {% else %}
+                                <span data-translate="limited_access">Limited Access</span>
+                            {% endif %}
+                        </h6>
+                        <small class="mb-0">
+                            {% if user_role == 'Vessel Operators' %}
+                                <span data-translate="vessel_operator_desc">You can record sales, receive stock, manage transfers, and check inventory.</span>
+                            {% elif user_role == 'Inventory Staff' %}
+                                <span data-translate="inventory_staff_desc">You can check inventory and view reports.</span>
+                            {% elif user_role == 'Managers' %}
+                                <span data-translate="manager_desc">You can access all reports and inventory features.</span>
+                            {% elif user_role == 'Administrators' %}
+                                <span data-translate="administrator_desc">You have access to all operational features except system setup.</span>
+                            {% elif user_role == 'Viewers' %}
+                                <span data-translate="viewer_desc">You have read-only access to inventory and basic reports.</span>
+                            {% else %}
+                                <span data-translate="limited_access_desc">Contact your administrator for additional permissions.</span>
+                            {% endif %}
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="container-fluid px-0 mb-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="alert alert-warning border-0 shadow-sm">
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-shield-check me-3" style="font-size: 1.5rem;"></i>
+                    <div>
+                        <h6 class="mb-1"><span data-translate="superuser_access">Superuser Access</span></h6>
+                        <small class="mb-0"><span data-translate="superuser_desc">You have full administrative access to all system features.</span></small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <style>
 .quick-action-wrapper {
@@ -402,11 +504,14 @@
                             </div>
                             {% endfor %}
                         </div>
+                        <!-- View All Transactions button - Administrators, Managers & Inventory Staff only -->
+                        {% if user_permissions.can_access_reports %}
                         <div class="text-center mt-3">
                             <a href="{% url 'frontend:transactions_list' %}" class="btn btn-outline-primary btn-sm">
                                 <span data-translate="view_all_transactions">View All Transactions</span>
                             </a>
                         </div>
+                        {% endif %}
                     {% else %}
                         <div class="text-center py-4">
                             <i class="bi bi-clock-history text-muted" style="font-size: 3rem;"></i>
@@ -429,24 +534,28 @@
                         <i class="bi bi-lightbulb text-warning"></i> <span data-translate="quick_tips">Quick Tips</span>
                     </h6>
                     <div class="row">
+                        {% if user_permissions.can_access_operations %}
                         <div class="col-md-4 mb-2">
                             <small class="text-muted">
                                 <i class="bi bi-check-circle text-success"></i> 
                                 <span data-translate="use">Use</span> <strong><span data-translate="sales_entry">Sales Entry</span></strong> <span data-translate="for_daily_transactions">for daily transactions</span>
                             </small>
                         </div>
+                        {% endif %}
                         <div class="col-md-4 mb-2">
                             <small class="text-muted">
                                 <i class="bi bi-check-circle text-success"></i> 
                                 <span data-translate="check">Check</span> <strong><span data-translate="inventory">Inventory</span></strong> <span data-translate="before_transfers">before transfers</span>
                             </small>
                         </div>
+                        {% if user_permissions.can_access_reports %}
                         <div class="col-md-4 mb-2">
                             <small class="text-muted">
                                 <i class="bi bi-check-circle text-success"></i> 
                                 <span data-translate="view">View</span> <strong><span data-translate="reports">Reports</span></strong> <span data-translate="business_insights">for business insights</span>
                             </small>
                         </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -499,5 +608,46 @@ function showComingSoon() {
 setTimeout(function() {
     window.location.reload();
 }, 300000);
+
+// Add permission-specific translations
+document.addEventListener('DOMContentLoaded', function() {
+    const permissionTranslations = {
+        en: {
+            'vessel_operator_access': 'Vessel Operator Access',
+            'vessel_operator_desc': 'You can record sales, receive stock, manage transfers, and check inventory.',
+            'inventory_staff_access': 'Inventory Staff Access',
+            'inventory_staff_desc': 'You can check inventory and view reports.',
+            'manager_access': 'Manager Access',
+            'manager_desc': 'You can access all reports and inventory features.',
+            'administrator_access': 'Administrator Access',
+            'administrator_desc': 'You have access to all operational features except system setup.',
+            'viewer_access': 'Viewer Access',
+            'viewer_desc': 'You have read-only access to inventory and basic reports.',
+            'limited_access': 'Limited Access',
+            'limited_access_desc': 'Contact your administrator for additional permissions.',
+        },
+        ar: {
+            'vessel_operator_access': 'صلاحية مشغل السفينة',
+            'vessel_operator_desc': 'يمكنك تسجيل المبيعات واستلام المخزون وإدارة التحويلات وفحص المخزون.',
+            'inventory_staff_access': 'صلاحية موظف المخزون',
+            'inventory_staff_desc': 'يمكنك فحص المخزون وعرض التقارير.',
+            'manager_access': 'صلاحية المدير',
+            'manager_desc': 'يمكنك الوصول لجميع التقارير وميزات المخزون.',
+            'administrator_access': 'صلاحية المدير العام',
+            'administrator_desc': 'لديك وصول لجميع الميزات التشغيلية عدا إعداد النظام.',
+            'viewer_access': 'صلاحية المشاهد',
+            'viewer_desc': 'لديك وصول للقراءة فقط للمخزون والتقارير الأساسية.',
+            'limited_access': 'وصول محدود',
+            'limited_access_desc': 'اتصل بالمدير للحصول على صلاحيات إضافية.',
+        }
+    };
+    
+    // Merge with existing translations
+    Object.assign(window.translator.translations.en, permissionTranslations.en);
+    Object.assign(window.translator.translations.ar, permissionTranslations.ar);
+    
+    // Update page translations
+    updatePageTranslations();
+});
 </script>
 {% endblock %}

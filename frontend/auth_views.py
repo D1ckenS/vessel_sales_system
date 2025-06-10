@@ -21,12 +21,12 @@ from datetime import date, datetime
 import json
 import secrets
 import string
-
-def is_admin_or_manager(user):
-    return user.is_authenticated and (
-        user.is_superuser or 
-        user.groups.filter(name__in=['Administrators', 'Managers']).exists()
-    )
+from .permissions import is_admin_or_manager, admin_or_manager_required, superuser_required
+from .permissions import (
+    operations_access_required,
+    reports_access_required,
+    admin_or_manager_required
+)
 
 def user_login(request):
     """User login view with bilingual support"""
@@ -96,11 +96,34 @@ def user_management(request):
     }
     return render(request, 'frontend/auth/user_management.html', context)
 
+@login_required
+@user_passes_test(is_admin_or_manager)
+def manage_user_groups(request, user_id):
+    """Manage user group assignments"""
+    if request.method == 'POST':
+        try:
+            user = get_object_or_404(User, id=user_id)
+            group_ids = request.POST.getlist('groups')
+            
+            # Clear existing groups and add new ones
+            user.groups.clear()
+            if group_ids:
+                groups = Group.objects.filter(id__in=group_ids)
+                user.groups.set(groups)
+            
+            messages.success(request, f'Groups updated for user "{user.username}"')
+            return redirect('frontend:user_management')
+            
+        except Exception as e:
+            messages.error(request, f'Error updating groups: {str(e)}')
+            return redirect('frontend:user_management')
+    
+    return redirect('frontend:user_management')
 
 @login_required
 @user_passes_test(is_admin_or_manager)
 def create_user(request):
-    """Create new user with enhanced validation"""
+    """Create new user with enhanced validation and group assignment"""
     if request.method == 'POST':
         try:
             username = request.POST.get('username', '').strip()
@@ -139,22 +162,27 @@ def create_user(request):
                 return redirect('frontend:user_management')
             
             # Create user
-            user = User.objects.create_user(
-                username=username,
-                email=email,
-                password=password,
-                first_name=first_name,
-                last_name=last_name,
-                is_active=is_active,
-                is_staff=is_staff
-            )
+            with transaction.atomic():
+                user = User.objects.create_user(
+                    username=username,
+                    email=email,
+                    password=password,
+                    first_name=first_name,
+                    last_name=last_name,
+                    is_active=is_active,
+                    is_staff=is_staff
+                )
+                
+                # Add to groups
+                if group_ids:
+                    groups = Group.objects.filter(id__in=group_ids)
+                    user.groups.set(groups)
             
-            # Add to groups
-            if group_ids:
-                groups = Group.objects.filter(id__in=group_ids)
-                user.groups.set(groups)
+            # Build success message with group info
+            group_names = list(user.groups.values_list('name', flat=True))
+            group_info = f" and assigned to groups: {', '.join(group_names)}" if group_names else ""
             
-            messages.success(request, f'User "{username}" created successfully')
+            messages.success(request, f'User "{username}" created successfully{group_info}')
             return redirect('frontend:user_management')
             
         except Exception as e:
@@ -167,7 +195,7 @@ def create_user(request):
 @login_required
 @user_passes_test(is_admin_or_manager)
 def edit_user(request, user_id):
-    """Edit existing user"""
+    """Edit existing user with group management"""
     user = get_object_or_404(User, id=user_id)
     
     if request.method == 'POST':
@@ -178,6 +206,7 @@ def edit_user(request, user_id):
             last_name = request.POST.get('last_name', '').strip()
             is_active = request.POST.get('is_active') == 'on'
             is_staff = request.POST.get('is_staff') == 'on'
+            group_ids = request.POST.getlist('groups')
             
             # Validation
             if not username:
@@ -194,16 +223,28 @@ def edit_user(request, user_id):
                 messages.error(request, 'You cannot deactivate your own account')
                 return redirect('frontend:user_management')
             
-            # Update user
-            user.username = username
-            user.email = email
-            user.first_name = first_name
-            user.last_name = last_name
-            user.is_active = is_active
-            user.is_staff = is_staff
-            user.save()
+            # Update user with transaction
+            with transaction.atomic():
+                user.username = username
+                user.email = email
+                user.first_name = first_name
+                user.last_name = last_name
+                user.is_active = is_active
+                user.is_staff = is_staff
+                user.save()
+                
+                # Update groups
+                if group_ids:
+                    groups = Group.objects.filter(id__in=group_ids)
+                    user.groups.set(groups)
+                else:
+                    user.groups.clear()
             
-            messages.success(request, f'User "{username}" updated successfully')
+            # Build success message with group info
+            group_names = list(user.groups.values_list('name', flat=True))
+            group_info = f" Groups: {', '.join(group_names)}" if group_names else " (No groups assigned)"
+            
+            messages.success(request, f'User "{username}" updated successfully.{group_info}')
             return redirect('frontend:user_management')
             
         except Exception as e:
@@ -319,43 +360,70 @@ def change_password(request):
 @user_passes_test(is_admin_or_manager)
 @require_http_methods(["POST"])
 def setup_groups(request):
-    """Create default user groups - SIMPLIFIED VERSION"""
+    """Create default user groups with enhanced feedback"""
     try:
-        # Simple group creation without complex permissions
+        # Define groups with descriptions
         default_groups = [
-            'Administrators',
-            'Managers', 
-            'Vessel Operators',
-            'Inventory Staff',
-            'Viewers'
+            {
+                'name': 'Administrators',
+                'description': 'Full operational access except system setup'
+            },
+            {
+                'name': 'Managers',
+                'description': 'Reports and inventory management access'
+            },
+            {
+                'name': 'Vessel Operators',
+                'description': 'Sales, supply, transfers, and inventory access'
+            },
+            {
+                'name': 'Inventory Staff',
+                'description': 'Inventory and reports access only'
+            },
+            {
+                'name': 'Viewers',
+                'description': 'Read-only access to inventory and basic reports'
+            }
         ]
         
         created_groups = []
         existing_groups = []
         
-        for group_name in default_groups:
-            group, created = Group.objects.get_or_create(name=group_name)
-            if created:
-                created_groups.append(group_name)
-            else:
-                existing_groups.append(group_name)
+        with transaction.atomic():
+            for group_data in default_groups:
+                group, created = Group.objects.get_or_create(
+                    name=group_data['name'],
+                    defaults={'name': group_data['name']}
+                )
+                if created:
+                    created_groups.append(group_data['name'])
+                else:
+                    existing_groups.append(group_data['name'])
         
-        # Simple success response
-        message = f"Groups setup complete. Created: {len(created_groups)}, Existing: {len(existing_groups)}"
+        # Detailed response with counts
+        total_groups = Group.objects.count()
+        user_counts = {group.name: group.user_set.count() for group in Group.objects.all()}
+        
+        message = f"Groups setup complete. Total groups: {total_groups}"
+        if created_groups:
+            message += f"\n✅ Created: {', '.join(created_groups)}"
+        if existing_groups:
+            message += f"\nℹ️ Already existed: {', '.join(existing_groups)}"
         
         return JsonResponse({
             'success': True,
             'created_groups': created_groups,
             'existing_groups': existing_groups,
+            'total_groups': total_groups,
+            'user_counts': user_counts,
             'message': message
         })
         
     except Exception as e:
-        # Better error handling
         import traceback
         error_details = str(e)
-        print(f"Setup groups error: {error_details}")  # For debugging
-        print(traceback.format_exc())  # For debugging
+        print(f"Setup groups error: {error_details}")
+        print(traceback.format_exc())
         
         return JsonResponse({
             'success': False,
@@ -375,22 +443,27 @@ def user_profile(request):
 
 @login_required
 def check_permission(request):
-    """AJAX endpoint to check user permissions"""
+    """AJAX endpoint to check user permissions with detailed info"""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
     try:
         import json
+        from .permissions import get_user_role, UserRoles
+        
         data = json.loads(request.body)
         permission_name = data.get('permission')
         
-        has_permission = request.user.has_perm(permission_name) or request.user.is_superuser
+        user_role = get_user_role(request.user)
+        has_permission = request.user.has_perm(permission_name) if permission_name else False
         
         return JsonResponse({
             'success': True,
             'has_permission': has_permission,
+            'user_role': user_role,
             'user_groups': [group.name for group in request.user.groups.all()],
-            'is_superuser': request.user.is_superuser
+            'is_superuser': request.user.is_superuser,
+            'role_hierarchy': UserRoles.HIERARCHY.get(user_role, 0) if user_role else 0
         })
         
     except Exception as e:
