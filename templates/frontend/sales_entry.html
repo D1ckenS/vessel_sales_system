@@ -250,10 +250,33 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     function updateSalesPageTranslations() {
-        // Update trip numbers
-        document.querySelectorAll('tbody tr td:first-child strong').forEach(element => {
-            const originalValue = element.textContent.trim();
-            if (!element.getAttribute('data-original')) {
+    // Update trip numbers with proper reversion
+    document.querySelectorAll('tbody tr td:first-child strong').forEach(element => {
+        let originalValue = element.getAttribute('data-original');
+        if (!originalValue) {
+            // Store the original English value
+            originalValue = element.textContent.trim();
+            element.setAttribute('data-original', originalValue);
+        }
+        
+        if (window.translator.currentLanguage === 'ar') {
+            element.textContent = window.translateNumber(originalValue);
+        } else {
+            element.textContent = originalValue; // Always revert to original English
+        }
+    });
+    
+    // Update passenger counts with proper reversion
+    document.querySelectorAll('tbody tr td .fw-bold').forEach(element => {
+        const text = element.textContent.trim();
+        if (/^\d+$/.test(text) || /^[٠-٩]+$/.test(text)) { // Check for both English and Arabic numerals
+            let originalValue = element.getAttribute('data-original');
+            if (!originalValue) {
+                // Extract English numbers from current text
+                originalValue = text.replace(/[٠-٩]/g, (char) => {
+                    const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                    return arabicNumerals.indexOf(char).toString();
+                });
                 element.setAttribute('data-original', originalValue);
             }
             
@@ -262,67 +285,84 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 element.textContent = originalValue;
             }
-        });
-        
-        // Update passenger counts
-        document.querySelectorAll('tbody tr td .fw-bold').forEach(element => {
-            const text = element.textContent.trim();
-            if (/^\d+$/.test(text)) {
-                const originalValue = element.getAttribute('data-original') || text;
-                if (!element.getAttribute('data-original')) {
-                    element.setAttribute('data-original', originalValue);
-                }
-                element.textContent = window.translateNumber(originalValue);
+        }
+    });
+    
+    // Update revenue amounts with proper reversion
+    document.querySelectorAll('tbody tr td span.fw-bold').forEach(element => {
+        const text = element.textContent.trim();
+        if (/^[\d.]+$/.test(text) || /^[٠-٩.]+$/.test(text)) { // Check for both English and Arabic numerals
+            let originalValue = element.getAttribute('data-original');
+            if (!originalValue) {
+                // Convert Arabic numerals back to English for storage
+                originalValue = text.replace(/[٠-٩]/g, (char) => {
+                    const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                    return arabicNumerals.indexOf(char).toString();
+                });
+                element.setAttribute('data-original', originalValue);
             }
-        });
-        
-        // Update revenue amounts
-        document.querySelectorAll('tbody tr td span.fw-bold').forEach(element => {
-            const text = element.textContent.trim();
-            if (/^\d+\.?\d*$/.test(text)) {
-                const originalValue = element.getAttribute('data-original') || text;
-                if (!element.getAttribute('data-original')) {
-                    element.setAttribute('data-original', originalValue);
-                }
+            
+            if (window.translator.currentLanguage === 'ar') {
                 element.textContent = window.translateNumber(originalValue);
+            } else {
+                element.textContent = originalValue;
             }
-        });
-        
-        // Update dates
-        document.querySelectorAll('tbody tr td').forEach(element => {
-            const text = element.textContent.trim();
-            if (/^\d{2}\/\d{2}\/\d{4}$/.test(text)) {
-                const originalValue = element.getAttribute('data-original') || text;
-                if (!element.getAttribute('data-original')) {
-                    element.setAttribute('data-original', originalValue);
-                }
+        }
+    });
+    
+    // Update dates with proper reversion
+    document.querySelectorAll('tbody tr td').forEach(element => {
+        const text = element.textContent.trim();
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(text) || /^[٠-٩]{2}\/[٠-٩]{2}\/[٠-٩]{4}$/.test(text)) {
+            let originalValue = element.getAttribute('data-original');
+            if (!originalValue) {
+                // Convert Arabic date back to English for storage
+                originalValue = text.replace(/[٠-٩]/g, (char) => {
+                    const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                    return arabicNumerals.indexOf(char).toString();
+                });
+                element.setAttribute('data-original', originalValue);
+            }
+            
+            if (window.translator.currentLanguage === 'ar') {
+                element.textContent = window.translateNumber(originalValue);
+            } else {
+                element.textContent = originalValue;
+            }
+        }
+    });
+    
+    // Update item counts in parentheses with proper reversion
+    document.querySelectorAll('small.text-muted').forEach(element => {
+        const text = element.textContent;
+        if (text.includes('items') || text.includes('عنصر')) {
+            // Extract number from text (works for both English and Arabic)
+            const englishMatch = text.match(/\((\d+)/);
+            const arabicMatch = text.match(/\(([٠-٩]+)/);
+            
+            let originalNumber;
+            if (englishMatch) {
+                originalNumber = englishMatch[1];
+            } else if (arabicMatch) {
+                // Convert Arabic numerals back to English
+                originalNumber = arabicMatch[1].replace(/[٠-٩]/g, (char) => {
+                    const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                    return arabicNumerals.indexOf(char).toString();
+                });
+            }
+            
+            if (originalNumber) {
+                const currentLang = window.translator.currentLanguage;
                 
-                if (window.translator.currentLanguage === 'ar') {
-                    element.textContent = window.translateNumber(originalValue);
-                } else {
-                    element.textContent = originalValue;
-                }
-            }
-        });
-        
-        // Update item counts in parentheses  
-        document.querySelectorAll('small.text-muted').forEach(element => {
-            const text = element.textContent;
-            if (text.includes('items') || text.includes('عنصر')) {
-                const match = text.match(/\((\d+)/);
-                if (match) {
-                    const originalNumber = match[1];
+                if (currentLang === 'ar') {
                     const translatedNumber = window.translateNumber(originalNumber);
-                    const currentLang = window.translator.currentLanguage;
-                    
-                    if (currentLang === 'ar') {
-                        element.textContent = `(${translatedNumber} عنصر)`;
-                    } else {
-                        element.textContent = `(${translatedNumber} items)`;
-                    }
+                    element.textContent = `(${translatedNumber} عنصر)`;
+                } else {
+                    element.textContent = `(${originalNumber} items)`;
                 }
             }
-        });
+        }
+    });
     }
     
     // Initial call
