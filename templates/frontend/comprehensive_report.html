@@ -372,123 +372,184 @@
 
 {% block extra_js %}
 <script>
-// Add page-specific translations
+// Enhanced translation for comprehensive report
 document.addEventListener('DOMContentLoaded', function() {
-    const pageTranslations = {
-        en: {
-            'comprehensive_report': 'Comprehensive Report',
-            'single_day_report': 'Single Day Report',
-            'duration_report': 'Duration Report',
-            'to': 'to',
-            'days': 'days',
-            'all_transactions_overview': 'Complete overview of all transactions',
-            'back_to_reports': 'Back to Reports',
-            'total_transactions': 'Total Transactions',
-            'sales_revenue': 'Sales Revenue',
-            'purchase_costs': 'Purchase Costs',
-            'total_quantity': 'Total Quantity',
-            'breakdown_by_type': 'Breakdown by Type',
-            'breakdown_by_vessel': 'Breakdown by Vessel',
-            'transactions': 'transactions',
-            'units': 'units',
-            'no_data_available': 'No data available',
-            'filter_transactions': 'Filter Transactions',
-            'vessel': 'Vessel',
-            'all_vessels': 'All Vessels',
-            'from_date': 'From Date',
-            'to_date': 'To Date',
-            'to_date_help': 'Optional - leave blank for single day report',
-            'transaction_type': 'Transaction Type',
-            'all_types': 'All Types',
-            'filter': 'Filter',
-            'clear': 'Clear',
-            'transaction_details': 'Transaction Details',
-            'of': 'of',
-            'export': 'Export',
-            'print': 'Print',
-            'date': 'Date',
-            'type': 'Type',
-            'product': 'Product',
-            'quantity': 'Quantity',
-            'unit_price': 'Unit Price',
-            'total_amount': 'Total Amount',
-            'reference': 'Reference',
-            'created_by': 'Created By',
-            'duty_free': 'Duty-Free',
-            'trip': 'Trip',
-            'po': 'PO',
-            'from': 'From',
-            'no_transactions_found': 'No transactions found',
-            'try_adjusting_filters': 'Try adjusting your filter criteria',
-            'showing': 'Showing',
-            'total': 'total',
-            'filtered': 'filtered',
-            'limited_results': 'Limited to 200 most recent results',
-            'vessel_sales_system': 'Vessel Sales System'
-        },
-        ar: {
-            'comprehensive_report': 'التقرير الشامل',
-            'single_day_report': 'تقرير يوم واحد',
-            'duration_report': 'تقرير فترة',
-            'to': 'إلى',
-            'days': 'أيام',
-            'all_transactions_overview': 'نظرة شاملة على جميع الحركات',
-            'back_to_reports': 'الرجوع للتقارير',
-            'total_transactions': 'إجمالي الحركات',
-            'sales_revenue': 'إيرادات المبيعات',
-            'purchase_costs': 'تكاليف الشراء',
-            'total_quantity': 'إجمالي الكمية',
-            'breakdown_by_type': 'التوزيع حسب النوع',
-            'breakdown_by_vessel': 'التوزيع حسب السفينة',
-            'transactions': 'حركات',
-            'units': 'وحدات',
-            'no_data_available': 'لا توجد بيانات متاحة',
-            'filter_transactions': 'تصفية الحركات',
-            'vessel': 'السفينة',
-            'all_vessels': 'جميع السفن',
-            'from_date': 'من تاريخ',
-            'to_date': 'إلى تاريخ',
-            'to_date_help': 'اختياري - اتركه فارغاً لتقرير يوم واحد',
-            'transaction_type': 'نوع الحركة',
-            'all_types': 'جميع الأنواع',
-            'filter': 'تصفية',
-            'clear': 'مسح',
-            'transaction_details': 'تفاصيل الحركات',
-            'of': 'من',
-            'export': 'تصدير',
-            'print': 'طباعة',
-            'date': 'التاريخ',
-            'type': 'النوع',
-            'product': 'المنتج',
-            'quantity': 'الكمية',
-            'unit_price': 'سعر الوحدة',
-            'total_amount': 'المبلغ الإجمالي',
-            'reference': 'المرجع',
-            'created_by': 'أنشئ بواسطة',
-            'duty_free': 'سوق حرة',
-            'trip': 'رحلة',
-            'po': 'أمر شراء',
-            'from': 'من',
-            'no_transactions_found': 'لم يتم العثور على حركات',
-            'try_adjusting_filters': 'جرب تعديل معايير التصفية',
-            'showing': 'عرض',
-            'total': 'إجمالي',
-            'filtered': 'مفلتر',
-            'limited_results': 'مقتصر على ٢٠٠ نتيجة حديثة',
-            'vessel_sales_system': 'نظام مبيعات السفن'
-        }
-    };
-
-    // Merge with global translations
-    const currentTranslations = window.translator.translations;
-    Object.keys(pageTranslations).forEach(lang => {
-        if (currentTranslations[lang]) {
-            Object.assign(currentTranslations[lang], pageTranslations[lang]);
-        }
+    // Update on language change
+    window.addEventListener('languageChanged', function() {
+        updateComprehensiveReportTranslations();
     });
     
-    // Apply translations
-    updatePageTranslations();
+    function updateComprehensiveReportTranslations() {
+        // Update transaction dates in table
+        document.querySelectorAll('tbody tr td:first-child div:first-child').forEach(element => {
+            const text = element.textContent.trim();
+            if (/^\d{2}\/\d{2}\/\d{4}$/.test(text) || /^[٠-٩]{2}\/[٠-٩]{2}\/[٠-٩]{4}$/.test(text)) {
+                let originalValue = element.getAttribute('data-original');
+                if (!originalValue) {
+                    // Convert Arabic date back to English for storage
+                    originalValue = text.replace(/[٠-٩]/g, (char) => {
+                        const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                        return arabicNumerals.indexOf(char).toString();
+                    });
+                    element.setAttribute('data-original', originalValue);
+                }
+                
+                if (window.translator.currentLanguage === 'ar') {
+                    element.textContent = window.translateNumber(originalValue);
+                } else {
+                    element.textContent = originalValue;
+                }
+            }
+        });
+        
+        // Update transaction times
+        document.querySelectorAll('tbody tr td:first-child small').forEach(element => {
+            const text = element.textContent.trim();
+            if (/^\d{2}:\d{2}$/.test(text) || /^[٠-٩]{2}:[٠-٩]{2}$/.test(text)) {
+                let originalValue = element.getAttribute('data-original');
+                if (!originalValue) {
+                    // Convert Arabic time back to English for storage
+                    originalValue = text.replace(/[٠-٩]/g, (char) => {
+                        const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                        return arabicNumerals.indexOf(char).toString();
+                    });
+                    element.setAttribute('data-original', originalValue);
+                }
+                
+                if (window.translator.currentLanguage === 'ar') {
+                    element.textContent = window.translateNumber(originalValue);
+                } else {
+                    element.textContent = originalValue;
+                }
+            }
+        });
+        
+        // Update product IDs (small text under product names)
+        document.querySelectorAll('tbody tr td:nth-child(4) small').forEach(element => {
+            const text = element.textContent.trim();
+            if (/^\d+$/.test(text) || /^[٠-٩]+$/.test(text)) {
+                let originalValue = element.getAttribute('data-original');
+                if (!originalValue) {
+                    // Convert Arabic numbers back to English for storage
+                    originalValue = text.replace(/[٠-٩]/g, (char) => {
+                        const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                        return arabicNumerals.indexOf(char).toString();
+                    });
+                    element.setAttribute('data-original', originalValue);
+                }
+                
+                if (window.translator.currentLanguage === 'ar') {
+                    element.textContent = window.translateNumber(originalValue);
+                } else {
+                    element.textContent = originalValue;
+                }
+            }
+        });
+        
+        // Update trip numbers and PO numbers in Reference column
+        document.querySelectorAll('tbody tr td:nth-child(8) small').forEach(element => {
+            const text = element.textContent.trim();
+            
+            // Handle Trip: numbers
+            if (text.includes('Trip:') || text.includes('رحلة:')) {
+                const tripMatch = text.match(/(\d+)|([٠-٩]+)/);
+                if (tripMatch) {
+                    let originalNumber = tripMatch[0];
+                    // Convert Arabic to English if needed
+                    if (/[٠-٩]/.test(originalNumber)) {
+                        originalNumber = originalNumber.replace(/[٠-٩]/g, (char) => {
+                            const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                            return arabicNumerals.indexOf(char).toString();
+                        });
+                    }
+                    
+                    const currentLang = window.translator.currentLanguage;
+                    if (currentLang === 'ar') {
+                        const translatedNumber = window.translateNumber(originalNumber);
+                        element.textContent = `رحلة: ${translatedNumber}`;
+                    } else {
+                        element.textContent = `Trip: ${originalNumber}`;
+                    }
+                }
+            }
+            
+            // Handle PO: numbers
+            if (text.includes('PO:') || text.includes('أمر:')) {
+                const poMatch = text.match(/(\d+)|([٠-٩]+)/);
+                if (poMatch) {
+                    let originalNumber = poMatch[0];
+                    // Convert Arabic to English if needed
+                    if (/[٠-٩]/.test(originalNumber)) {
+                        originalNumber = originalNumber.replace(/[٠-٩]/g, (char) => {
+                            const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                            return arabicNumerals.indexOf(char).toString();
+                        });
+                    }
+                    
+                    const currentLang = window.translator.currentLanguage;
+                    if (currentLang === 'ar') {
+                        const translatedNumber = window.translateNumber(originalNumber);
+                        element.textContent = `أمر: ${translatedNumber}`;
+                    } else {
+                        element.textContent = `PO: ${originalNumber}`;
+                    }
+                }
+            }
+        });
+        
+        // Update timesince in Created By column
+        document.querySelectorAll('.transaction-time').forEach(element => {
+            const originalTime = element.getAttribute('data-time');
+            if (!originalTime) {
+                // Extract original time from current text
+                const currentText = element.textContent.trim();
+                const cleanTime = currentText.replace(' ago', '').replace(' مضت', '');
+                element.setAttribute('data-time', cleanTime);
+            }
+            
+            const timeValue = element.getAttribute('data-time');
+            const currentLang = window.translator.currentLanguage;
+            
+            if (currentLang === 'ar') {
+                let arabicTime = timeValue
+                    .replace(/(\d+)\s*days?/g, (match, num) => window.translateNumber(num) + ' يوم')
+                    .replace(/(\d+)\s*hours?/g, (match, num) => window.translateNumber(num) + ' ساعة') 
+                    .replace(/(\d+)\s*minutes?/g, (match, num) => window.translateNumber(num) + ' دقيقة')
+                    .replace(/(\d+)\s*weeks?/g, (match, num) => window.translateNumber(num) + ' أسبوع')
+                    .replace(/(\d+)\s*months?/g, (match, num) => window.translateNumber(num) + ' شهر')
+                    .replace(/(\d+)\s*years?/g, (match, num) => window.translateNumber(num) + ' سنة')
+                    .replace(/,\s*/g, '، ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+                
+                if (!arabicTime.includes('مضت')) {
+                    arabicTime += ' مضت';
+                }
+                
+                element.textContent = arabicTime;
+            } else {
+                const timeWithoutAgo = timeValue.replace(' ago', '').replace(' مضت', '');
+                element.textContent = timeWithoutAgo + ' ago';
+            }
+        });
+    }
+    
+    // Initial call
+    setTimeout(() => {
+        updateComprehensiveReportTranslations();
+        updatePageTranslations(); // Call global translation update
+    }, 100);
+    
+    // Also trigger the language changed event when toggleLanguage is called
+    const originalToggleLanguage = window.toggleLanguage;
+    window.toggleLanguage = function() {
+        originalToggleLanguage();
+        
+        // Trigger custom event for page-specific translations
+        setTimeout(() => {
+            window.dispatchEvent(new Event('languageChanged'));
+        }, 200);
+    };
 });
 
 // Export and Print functions
