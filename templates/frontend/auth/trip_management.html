@@ -699,28 +699,147 @@ function saveTrip() {
 }
 
 function deleteTrip(tripId) {
-    confirmTranslated('delete_trip_confirm').then(confirmed => {
-        if (confirmed) {
-            fetch(`/trips/manage/${tripId}/delete/`, {
-                method: 'DELETE',
-                headers: {
-                    'X-CSRFToken': getCsrfToken()
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showAlert(data.message, 'success');
-                    location.reload();
-                } else {
-                    showAlert(data.error, 'danger');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showAlert('Error deleting trip', 'danger');
-            });
+    // First attempt - check for transactions
+    fetch(`/trips/manage/${tripId}/delete/`, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRFToken': getCsrfToken()
         }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            location.reload();
+        } else if (data.requires_confirmation) {
+            // Show detailed confirmation modal
+            showTransactionConfirmationModal('trip', tripId, data);
+        } else {
+            showAlert(data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Error deleting trip', 'danger');
+    });
+}
+
+function showTransactionConfirmationModal(type, id, data) {
+    const isTrip = type === 'trip';
+    const title = isTrip ? 'Delete Trip with Transactions' : 'Delete PO with Transactions';
+    const entityName = isTrip ? 'trip' : 'purchase order';
+    const totalLabel = isTrip ? 'Total Revenue' : 'Total Cost';
+    const totalValue = isTrip ? data.total_revenue : data.total_cost;
+    
+    // Build transaction list
+    let transactionsList = '<ul class="list-group list-group-flush mb-3">';
+    data.transactions.forEach(trans => {
+        transactionsList += `
+            <li class="list-group-item d-flex justify-content-between">
+                <span>${trans.product_name}</span>
+                <div>
+                    <span class="badge bg-primary me-2">${trans.quantity} units</span>
+                    <span class="fw-bold">${trans.amount.toFixed(3)} JOD</span>
+                </div>
+            </li>
+        `;
+    });
+    transactionsList += '</ul>';
+    
+    const modalHTML = `
+        <div class="modal fade" id="deleteConfirmationModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header bg-danger text-white">
+                        <h5 class="modal-title">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            ${title}
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            <strong>Warning!</strong> This ${entityName} has <strong>${data.transaction_count} transactions</strong> that will also be deleted.
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center">
+                                        <h6 class="card-title">${totalLabel}</h6>
+                                        <h4 class="text-primary">${totalValue.toFixed(3)} JOD</h4>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center">
+                                        <h6 class="card-title">Transactions</h6>
+                                        <h4 class="text-danger">${data.transaction_count}</h4>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <h6>Transactions to be deleted:</h6>
+                        ${transactionsList}
+                        
+                        <div class="alert alert-danger">
+                            <i class="bi bi-exclamation-octagon me-2"></i>
+                            <strong>This action cannot be undone!</strong> All transactions and related inventory changes will be permanently deleted.
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-circle me-1"></i> Cancel
+                        </button>
+                        <button type="button" class="btn btn-danger" onclick="confirmForceDelete('${type}', ${id})">
+                            <i class="bi bi-trash me-1"></i> Delete ${entityName.charAt(0).toUpperCase() + entityName.slice(1)} & Transactions
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remove existing modal if any
+    const existingModal = document.getElementById('deleteConfirmationModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // Add modal to body
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    // Show modal
+    new bootstrap.Modal(document.getElementById('deleteConfirmationModal')).show();
+}
+
+function confirmForceDelete(type, id) {
+    const isTrip = type === 'trip';
+    const url = isTrip ? `/trips/manage/${id}/delete/` : `/purchase-orders/manage/${id}/delete/`;
+    
+    fetch(url, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRFToken': getCsrfToken(),
+            'X-Force-Delete': 'true'  // This tells the backend to force delete
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('deleteConfirmationModal')).hide();
+            showAlert(data.message, 'success');
+            location.reload();
+        } else {
+            showAlert(data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert(`Error deleting ${type}`, 'danger');
     });
 }
 

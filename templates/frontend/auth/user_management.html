@@ -24,6 +24,10 @@
                         <i class="bi bi-person-plus me-2"></i>
                         <span data-translate="add_user">Add User</span>
                     </button>
+                    <a href="{% url 'frontend:group_management' %}" class="btn btn-outline-info">
+                        <i class="bi bi-collection me-2"></i>
+                        <span data-translate="manage_groups">Manage Groups</span>
+                    </a>
                     <button type="button" class="btn btn-outline-primary" onclick="setupGroups()">
                         <i class="bi bi-gear me-2"></i>
                         <span data-translate="setup_groups">Setup Groups</span>
@@ -589,11 +593,6 @@ document.addEventListener('DOMContentLoaded', function() {
             'assign_groups': 'Assign Groups',
             'update_groups': 'Update Groups',
             'users': 'users',
-            'administrators_desc': 'Full operational access except system setup',
-            'managers_desc': 'Reports and inventory management access',
-            'vessel_operators_desc': 'Sales, supply, transfers, and inventory access',
-            'inventory_staff_desc': 'Inventory and reports access only',
-            'viewers_desc': 'Read-only access to inventory and basic reports',
             'custom_group': 'Custom group permissions',
             'group_assignment_note': 'Users can be assigned to multiple groups. The highest permission level will apply.',
             'confirm_reset_password': 'Reset password for user "{username}"?\n\nA new temporary password will be generated.',
@@ -647,11 +646,7 @@ document.addEventListener('DOMContentLoaded', function() {
             'assign_groups': 'تعيين المجموعات',
             'update_groups': 'تحديث المجموعات',
             'users': 'مستخدمين',
-            'administrators_desc': 'صلاحية تشغيلية كاملة عدا إعداد النظام',
-            'managers_desc': 'صلاحية الوصول للتقارير وإدارة المخزون',
-            'vessel_operators_desc': 'صلاحية المبيعات والتوريد والتحويلات والمخزون',
-            'inventory_staff_desc': 'صلاحية المخزون والتقارير فقط',
-            'viewers_desc': 'صلاحية قراءة فقط للمخزون والتقارير الأساسية',
+            
             'custom_group': 'صلاحيات مجموعة مخصصة',
             'group_assignment_note': 'يمكن تعيين المستخدمين لمجموعات متعددة. ستطبق أعلى مستوى صلاحية.',
             'confirm_reset_password': 'إعادة تعيين كلمة المرور للمستخدم "{username}"؟\n\nسيتم إنشاء كلمة مرور مؤقتة جديدة.',

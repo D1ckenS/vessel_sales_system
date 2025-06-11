@@ -129,5 +129,12 @@ urlpatterns = [
     path('purchase-orders/manage/<int:po_id>/edit/', auth_views.edit_po, name='edit_po'),
     path('purchase-orders/manage/<int:po_id>/delete/', auth_views.delete_po, name='delete_po'),
     path('purchase-orders/manage/<int:po_id>/toggle-status/', auth_views.toggle_po_status, name='toggle_po_status'),
+    
+    # Group Management (Superuser only)
+    path('groups/', auth_views.group_management, name='group_management'),
+    path('groups/create/', auth_views.create_group, name='create_group'),
+    path('groups/<int:group_id>/edit/', auth_views.edit_group, name='edit_group'),
+    path('groups/<int:group_id>/delete/', auth_views.delete_group, name='delete_group'),
+    path('groups/<int:group_id>/details/', auth_views.group_details, name='group_details'),
 
 ]

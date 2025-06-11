@@ -9,7 +9,7 @@ from django.http import JsonResponse
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction, models
 from django.db.models import Sum, F, Count
-from transactions.models import Transaction, Trip, PurchaseOrder
+from transactions.models import Transaction, Trip, PurchaseOrder, InventoryLot
 from vessels.models import Vessel
 from .utils import BilingualMessages
 from django.contrib.admin.views.decorators import staff_member_required
@@ -21,7 +21,7 @@ from datetime import date, datetime, timedelta
 import json
 import secrets
 import string
-from .permissions import is_admin_or_manager, admin_or_manager_required, superuser_required
+from .permissions import is_admin_or_manager, admin_or_manager_required, is_superuser_only, superuser_required
 from .permissions import (
     operations_access_required,
     reports_access_required,
@@ -429,6 +429,215 @@ def setup_groups(request):
             'success': False,
             'error': f'Error creating groups: {error_details}'
         })
+
+@login_required 
+@user_passes_test(is_superuser_only)
+def group_management(request):
+    """Complete group management interface"""
+    groups = Group.objects.all().order_by('name')
+    
+    # Calculate statistics for each group
+    for group in groups:
+        group.user_count = group.user_set.count()
+        group.active_user_count = group.user_set.filter(is_active=True).count()
+    
+    # Overall statistics
+    total_groups = groups.count()
+    total_users_in_groups = User.objects.filter(groups__isnull=False).distinct().count()
+    users_without_groups = User.objects.filter(groups__isnull=True).count()
+    
+    context = {
+        'groups': groups,
+        'stats': {
+            'total_groups': total_groups,
+            'total_users_in_groups': total_users_in_groups,
+            'users_without_groups': users_without_groups,
+        }
+    }
+    return render(request, 'frontend/auth/group_management.html', context)
+
+@login_required
+@user_passes_test(is_superuser_only)
+def create_group(request):
+    """Create new user group"""
+    if request.method == 'POST':
+        try:
+            import json
+            data = json.loads(request.body)
+            
+            name = data.get('name', '').strip()
+            description = data.get('description', '').strip()
+            
+            # Validation
+            if not name:
+                return JsonResponse({'success': False, 'error': 'Group name is required'})
+            
+            # Check if group exists
+            if Group.objects.filter(name=name).exists():
+                return JsonResponse({'success': False, 'error': f'Group "{name}" already exists'})
+            
+            # Create group
+            group = Group.objects.create(name=name)
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'Group "{name}" created successfully',
+                'group': {
+                    'id': group.id,
+                    'name': group.name,
+                    'user_count': 0
+                }
+            })
+            
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)})
+    
+    return JsonResponse({'success': False, 'error': 'Invalid request method'})
+
+@login_required
+@user_passes_test(is_superuser_only) 
+def edit_group(request, group_id):
+    """Edit existing group"""
+    if request.method == 'GET':
+        try:
+            group = Group.objects.get(id=group_id)
+            return JsonResponse({
+                'success': True,
+                'group': {
+                    'id': group.id,
+                    'name': group.name,
+                    'user_count': group.user_set.count(),
+                    'users': list(group.user_set.values('id', 'username'))
+                }
+            })
+        except Group.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Group not found'})
+    
+    elif request.method == 'POST':
+        try:
+            import json
+            data = json.loads(request.body)
+            
+            group = Group.objects.get(id=group_id)
+            new_name = data.get('name', '').strip()
+            
+            # Validation
+            if not new_name:
+                return JsonResponse({'success': False, 'error': 'Group name is required'})
+            
+            # Check if name exists for other groups
+            if Group.objects.filter(name=new_name).exclude(id=group_id).exists():
+                return JsonResponse({'success': False, 'error': f'Group "{new_name}" already exists'})
+            
+            # Update group
+            old_name = group.name
+            group.name = new_name
+            group.save()
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'Group renamed from "{old_name}" to "{new_name}"',
+                'group': {
+                    'id': group.id,
+                    'name': group.name,
+                    'user_count': group.user_set.count()
+                }
+            })
+            
+        except Group.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Group not found'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)})
+    
+    return JsonResponse({'success': False, 'error': 'Invalid request method'})
+
+@login_required
+@user_passes_test(is_superuser_only)
+@require_http_methods(["DELETE"])
+def delete_group(request, group_id):
+    """Delete group with validation"""
+    try:
+        group = Group.objects.get(id=group_id)
+        
+        # Check if group has users
+        user_count = group.user_set.count()
+        force_delete = request.headers.get('X-Force-Delete') == 'true'
+        
+        if user_count > 0 and not force_delete:
+            # Return user details for confirmation
+            users_info = list(group.user_set.values('username', 'is_active'))
+            
+            return JsonResponse({
+                'success': False,
+                'requires_confirmation': True,
+                'user_count': user_count,
+                'users': users_info,
+                'error': f'Group "{group.name}" has {user_count} users. Remove users and delete group?'
+            })
+        
+        group_name = group.name
+        
+        # Delete with cascade if confirmed
+        if force_delete and user_count > 0:
+            # Remove all users from group first
+            group.user_set.clear()
+        
+        # Delete the group
+        group.delete()
+        
+        message = f'Group "{group_name}" deleted successfully'
+        if force_delete and user_count > 0:
+            message += f' (removed {user_count} users from group)'
+        
+        return JsonResponse({
+            'success': True,
+            'message': message
+        })
+        
+    except Group.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Group not found'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+@user_passes_test(is_superuser_only)
+def group_details(request, group_id):
+    """Get detailed group information including permissions"""
+    try:
+        group = Group.objects.get(id=group_id)
+        
+        # Get users in group
+        users = group.user_set.all().order_by('username')
+        users_data = []
+        for user in users:
+            users_data.append({
+                'id': user.id,
+                'username': user.username,
+                'full_name': user.get_full_name() or '-',
+                'is_active': user.is_active,
+                'is_staff': user.is_staff,
+                'last_login': user.last_login.strftime('%d/%m/%Y %H:%M') if user.last_login else 'Never'
+            })
+        
+        # Get permissions (if any custom permissions are set)
+        permissions = group.permissions.all()
+        permissions_data = [{'name': perm.name, 'codename': perm.codename} for perm in permissions]
+        
+        return JsonResponse({
+            'success': True,
+            'group': {
+                'id': group.id,
+                'name': group.name,
+                'user_count': len(users_data),
+                'users': users_data,
+                'permissions': permissions_data
+            }
+        })
+        
+    except Group.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Group not found'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
 
 @login_required
 def user_profile(request):
@@ -979,31 +1188,109 @@ def edit_po(request, po_id):
 
 @login_required
 @user_passes_test(is_admin_or_manager)
+@require_http_methods(["DELETE"])
 def delete_po(request, po_id):
-    """Delete PO with validation"""
-    if request.method == 'DELETE':
-        try:
-            po = PurchaseOrder.objects.get(id=po_id)
-            
-            # Check if PO has transactions
-            if po.supply_transactions.exists():
-                return JsonResponse({
-                    'success': False, 
-                    'error': 'Cannot delete purchase order with existing supply transactions'
+    """Delete PO with cascade option for transactions and proper inventory removal"""
+    try:
+        po = PurchaseOrder.objects.get(id=po_id)
+        
+        # Get transaction count for confirmation
+        transaction_count = po.supply_transactions.count()
+        
+        # Check if force delete was requested (cascade)
+        force_delete = request.headers.get('X-Force-Delete') == 'true'
+        
+        if transaction_count > 0 and not force_delete:
+            # Return transaction details for user confirmation
+            transactions_info = []
+            for supply_txn in po.supply_transactions.all():
+                transactions_info.append({
+                    'product_name': supply_txn.product.name,
+                    'quantity': float(supply_txn.quantity),
+                    'amount': float(supply_txn.total_amount)
                 })
             
-            po_number = po.po_number
-            po.delete()
+            return JsonResponse({
+                'success': False,
+                'requires_confirmation': True,
+                'transaction_count': transaction_count,
+                'total_cost': float(po.total_cost),
+                'transactions': transactions_info,
+                'error': f'This PO has {transaction_count} supply transactions. Delete anyway?'
+            })
+        
+        po_number = po.po_number
+        
+        # Delete with cascade if confirmed
+        if force_delete and transaction_count > 0:
+            with transaction.atomic():
+                # For supply transactions, we need to properly remove inventory
+                for supply_txn in po.supply_transactions.all():
+                    # Find and remove the exact inventory lots created by this supply
+                    lots_to_remove = InventoryLot.objects.filter(
+                        vessel=supply_txn.vessel,
+                        product=supply_txn.product,
+                        purchase_date=supply_txn.transaction_date,
+                        purchase_price=supply_txn.unit_price,
+                        original_quantity=int(supply_txn.quantity)
+                    ).order_by('created_at')
+                    
+                    # Remove the lots (this will affect inventory counts)
+                    removed_count = 0
+                    for lot in lots_to_remove:
+                        if removed_count < supply_txn.quantity:
+                            quantity_to_remove = min(lot.remaining_quantity, supply_txn.quantity - removed_count)
+                            if lot.remaining_quantity <= quantity_to_remove:
+                                # Remove entire lot
+                                lot.delete()
+                                removed_count += lot.original_quantity
+                            else:
+                                # Partially remove from lot
+                                lot.remaining_quantity -= quantity_to_remove
+                                lot.original_quantity -= quantity_to_remove
+                                lot.save()
+                                removed_count += quantity_to_remove
+                    
+                    # If we couldn't remove exact lots, create a reversal sale transaction
+                    if removed_count < supply_txn.quantity:
+                        remaining_to_remove = supply_txn.quantity - removed_count
+                        from transactions.models import Transaction
+                        Transaction.objects.create(
+                            vessel=supply_txn.vessel,
+                            product=supply_txn.product,
+                            transaction_type='SALE',
+                            transaction_date=supply_txn.transaction_date,
+                            quantity=remaining_to_remove,
+                            unit_price=supply_txn.unit_price,
+                            notes=f"Inventory removal from deleted PO {po_number}",
+                            created_by=request.user
+                        )
+                
+                # Delete all related transactions
+                po.supply_transactions.all().delete()
+                
+                # Then delete the PO
+                po.delete()
             
             return JsonResponse({
-                'success': True, 
-                'message': f'Purchase Order {po_number} deleted successfully'
+                'success': True,
+                'message': f'PO {po_number} and all {transaction_count} transactions deleted successfully. Inventory removed.'
             })
-            
-        except PurchaseOrder.DoesNotExist:
-            return JsonResponse({'success': False, 'error': 'Purchase Order not found'})
-        except Exception as e:
-            return JsonResponse({'success': False, 'error': str(e)})
+        else:
+            # No transactions, safe to delete
+            po.delete()
+            return JsonResponse({
+                'success': True,
+                'message': f'PO {po_number} deleted successfully'
+            })
+        
+    except PurchaseOrder.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Purchase Order not found'})
+    except Exception as e:
+        import traceback
+        print(f"Delete PO error: {str(e)}")
+        print(traceback.format_exc())
+        return JsonResponse({'success': False, 'error': str(e)})
 
 @login_required
 @user_passes_test(is_admin_or_manager)
@@ -1192,32 +1479,86 @@ def edit_trip(request, trip_id):
     
     return JsonResponse({'success': False, 'error': 'Invalid request method'})
 
+# Add these enhanced deletion methods to your auth_views.py
+
 @login_required
 @user_passes_test(is_admin_or_manager)
 @require_http_methods(["DELETE"])
 def delete_trip(request, trip_id):
-    """Delete trip with validation"""
+    """Delete trip with cascade option for transactions and proper inventory restoration"""
     try:
         trip = Trip.objects.get(id=trip_id)
         
-        # Check if trip has transactions
-        if trip.sales_transactions.exists():
+        # Get transaction count for confirmation
+        transaction_count = trip.sales_transactions.count()
+        
+        # Check if force delete was requested (cascade)
+        force_delete = request.headers.get('X-Force-Delete') == 'true'
+        
+        if transaction_count > 0 and not force_delete:
+            # Return transaction details for user confirmation
+            transactions_info = []
+            for sale_txn in trip.sales_transactions.all():
+                transactions_info.append({
+                    'product_name': sale_txn.product.name,
+                    'quantity': float(sale_txn.quantity),
+                    'amount': float(sale_txn.total_amount)
+                })
+            
             return JsonResponse({
-                'success': False, 
-                'error': 'Cannot delete trip with existing sales transactions'
+                'success': False,
+                'requires_confirmation': True,
+                'transaction_count': transaction_count,
+                'total_revenue': float(trip.total_revenue),
+                'transactions': transactions_info,
+                'error': f'This trip has {transaction_count} sales transactions. Delete anyway?'
             })
         
         trip_number = trip.trip_number
-        trip.delete()
         
-        return JsonResponse({
-            'success': True, 
-            'message': f'Trip {trip_number} deleted successfully'
-        })
+        # Delete with cascade if confirmed
+        if force_delete and transaction_count > 0:
+            # Handle inventory restoration for sales transactions
+            with transaction.atomic():
+                for sale_txn in trip.sales_transactions.all():
+                    # Restore inventory by creating a new supply transaction (reversal)
+                    # This maintains proper FIFO tracking
+                    from transactions.models import Transaction
+                    Transaction.objects.create(
+                        vessel=sale_txn.vessel,
+                        product=sale_txn.product,
+                        transaction_type='SUPPLY',
+                        transaction_date=sale_txn.transaction_date,
+                        quantity=sale_txn.quantity,
+                        unit_price=sale_txn.unit_price,  # Restore at original sale price (closest approximation)
+                        notes=f"Inventory restoration from deleted trip {trip_number}",
+                        created_by=request.user
+                    )
+                
+                # Delete all related transactions first
+                trip.sales_transactions.all().delete()
+                
+                # Then delete the trip
+                trip.delete()
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'Trip {trip_number} and all {transaction_count} transactions deleted successfully. Inventory restored.'
+            })
+        else:
+            # No transactions, safe to delete
+            trip.delete()
+            return JsonResponse({
+                'success': True,
+                'message': f'Trip {trip_number} deleted successfully'
+            })
         
     except Trip.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Trip not found'})
     except Exception as e:
+        import traceback
+        print(f"Delete trip error: {str(e)}")
+        print(traceback.format_exc())
         return JsonResponse({'success': False, 'error': str(e)})
 
 @login_required

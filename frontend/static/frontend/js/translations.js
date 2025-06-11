@@ -593,6 +593,29 @@ window.VesselSalesTranslations = {
         'date_range': 'Date Range',
         'inactive': 'Inactive',
 
+        // Group Management
+        'administrators_desc': 'Full operational access except system setup',
+        'managers_desc': 'Reports and inventory management access',
+        'vessel_operators_desc': 'Sales, supply, transfers, and inventory access',
+        'inventory_staff_desc': 'Inventory and reports access only',
+        'viewers_desc': 'Read-only access to inventory and basic reports',
+
+        // Change Password
+        'update_password_desc': 'Update your account password',
+        'current_password': 'Current Password',
+        'new_password': 'New Password',
+        'confirm_new_password': 'Confirm New Password',
+        'password_requirements': 'Password must be at least 6 characters long',
+        'back_to_dashboard': 'Back to Dashboard',
+        'password_security_tips': 'Password Security Tips',
+        'tip_mixed_case': 'Use a mix of uppercase and lowercase letters',
+        'tip_numbers_symbols': 'Include numbers and special characters',
+        'tip_length': 'Make it at least 8 characters long',
+        'tip_avoid_personal': 'Avoid using personal information',
+        'password_strength_weak': 'Weak',
+        'password_strength_medium': 'Medium',
+        'password_strength_strong': 'Strong',
+
     },
     
     ar: {
@@ -668,7 +691,6 @@ window.VesselSalesTranslations = {
         'previous_login': 'اخر تسجيل دخول',
         'account_created': 'تاريخ انشاء الحساب',
         'account_settings': 'اعدادات الحساب',
-        'change_password': 'تغيير كلمة المرور',
         'permissions_overview': 'معرفة صلاحياتك',
         
         // Dashboard translations
@@ -1161,6 +1183,29 @@ window.VesselSalesTranslations = {
         'reference_date': 'تاريخ المرجع',
         'date_range': 'نطاق التاريخ',
         'inactive': 'غير نشط',
+
+        // Group Management
+        'administrators_desc': 'صلاحية تشغيلية كاملة عدا إعداد النظام',
+        'managers_desc': 'صلاحية الوصول للتقارير وإدارة المخزون',
+        'vessel_operators_desc': 'صلاحية المبيعات والتوريد والتحويلات والمخزون',
+        'inventory_staff_desc': 'صلاحية المخزون والتقارير فقط',
+        'viewers_desc': 'صلاحية قراءة فقط للمخزون والتقارير الأساسية',
+
+        // Change Password
+        'update_password_desc': 'تحديث كلمة مرور حسابك',
+        'current_password': 'كلمة المرور الحالية',
+        'new_password': 'كلمة المرور الجديدة',
+        'confirm_new_password': 'تأكيد كلمة المرور الجديدة',
+        'password_requirements': 'يجب أن تكون كلمة المرور 6 أحرف على الأقل',
+        'back_to_dashboard': 'العودة إلى لوحة التحكم',
+        'password_security_tips': 'نصائح أمان كلمة المرور',
+        'tip_mixed_case': 'استخدم مزيجاً من الأحرف الكبيرة والصغيرة',
+        'tip_numbers_symbols': 'أدرج أرقاماً ورموزاً خاصة',
+        'tip_length': 'اجعلها 8 أحرف على الأقل',
+        'tip_avoid_personal': 'تجنب استخدام المعلومات الشخصية',
+        'password_strength_weak': 'ضعيفة',
+        'password_strength_medium': 'متوسطة',
+        'password_strength_strong': 'قوية'
         
     }
 };

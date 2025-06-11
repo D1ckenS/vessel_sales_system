@@ -1,0 +1,656 @@
+{% extends 'frontend/base.html' %}
+
+{% block title %}
+    <span data-translate="group_management">Group Management</span> - <span data-translate="vessel_sales_system">Vessel Sales System</span>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-0">
+                        <i class="bi bi-collection me-2" style="color: var(--secondary-blue);"></i>
+                        <span data-translate="group_management">Group Management</span>
+                    </h2>
+                    <p class="text-muted mb-0" data-translate="group_management_desc">
+                        Manage user groups and role-based permissions
+                    </p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#createGroupModal">
+                        <i class="bi bi-plus-circle me-2"></i>
+                        <span data-translate="add_group">Add Group</span>
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" onclick="setupGroups()">
+                        <i class="bi bi-gear me-2"></i>
+                        <span data-translate="setup_default_groups">Setup Default Groups</span>
+                    </button>
+                    <a href="{% url 'frontend:user_management' %}" class="btn btn-outline-info">
+                        <i class="bi bi-people me-2"></i>
+                        <span data-translate="manage_users">Manage Users</span>
+                    </a>
+                    <a href="{% url 'frontend:dashboard' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left me-2"></i>
+                        <span data-translate="back_to_dashboard">Back to Dashboard</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Group Statistics -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="stats-card" style="background: linear-gradient(135deg, var(--secondary-blue) 0%, var(--primary-blue) 100%); color: white;">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="stats-number" data-number data-original="{{ stats.total_groups }}">{{ stats.total_groups }}</div>
+                        <div class="stats-label text-white" data-translate="total_groups">Total Groups</div>
+                    </div>
+                    <i class="bi bi-collection" style="font-size: 2.5rem; opacity: 0.8;"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="stats-card" style="background: linear-gradient(135deg, var(--success-green) 0%, #20c997 100%); color: white;">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="stats-number" data-number data-original="{{ stats.total_users_in_groups }}">{{ stats.total_users_in_groups }}</div>
+                        <div class="stats-label text-white" data-translate="users_in_groups">Users in Groups</div>
+                    </div>
+                    <i class="bi bi-people-fill" style="font-size: 2.5rem; opacity: 0.8;"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="stats-card" style="background: linear-gradient(135deg, var(--warning-orange) 0%, #ffc107 100%); color: white;">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="stats-number" data-number data-original="{{ stats.users_without_groups }}">{{ stats.users_without_groups }}</div>
+                        <div class="stats-label text-white" data-translate="users_without_groups">Users Without Groups</div>
+                    </div>
+                    <i class="bi bi-person-x" style="font-size: 2.5rem; opacity: 0.8;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Groups Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-table me-2"></i>
+                        <span data-translate="system_groups">System Groups</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="groupsTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th data-translate="group_name">Group Name</th>
+                                    <th data-translate="total_users">Total Users</th>
+                                    <th data-translate="active_users">Active Users</th>
+                                    <th data-translate="description">Description</th>
+                                    <th data-translate="actions">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for group in groups %}
+                                <tr id="group-row-{{ group.id }}">
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="group-icon me-2">
+                                                {% if group.name == 'Administrators' %}
+                                                    <i class="bi bi-shield-exclamation text-danger"></i>
+                                                {% elif group.name == 'Managers' %}
+                                                    <i class="bi bi-person-gear text-primary"></i>
+                                                {% elif group.name == 'Vessel Operators' %}
+                                                    <i class="bi bi-ship text-success"></i>
+                                                {% elif group.name == 'Inventory Staff' %}
+                                                    <i class="bi bi-boxes text-info"></i>
+                                                {% elif group.name == 'Viewers' %}
+                                                    <i class="bi bi-eye text-secondary"></i>
+                                                {% else %}
+                                                    <i class="bi bi-people text-dark"></i>
+                                                {% endif %}
+                                            </div>
+                                            <strong>{{ group.name }}</strong>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-primary" data-number data-original="{{ group.user_count }}">{{ group.user_count }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-success" data-number data-original="{{ group.active_user_count }}">{{ group.active_user_count }}</span>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">
+                                            {% if group.name == 'Administrators' %}
+                                                <span data-translate="administrators_desc">Full operational access except system setup</span>
+                                            {% elif group.name == 'Managers' %}
+                                                <span data-translate="managers_desc">Reports and inventory management access</span>
+                                            {% elif group.name == 'Vessel Operators' %}
+                                                <span data-translate="vessel_operators_desc">Sales, supply, transfers, and inventory access</span>
+                                            {% elif group.name == 'Inventory Staff' %}
+                                                <span data-translate="inventory_staff_desc">Inventory and reports access only</span>
+                                            {% elif group.name == 'Viewers' %}
+                                                <span data-translate="viewers_desc">Read-only access to inventory and basic reports</span>
+                                            {% else %}
+                                                <span data-translate="custom_group">Custom group permissions</span>
+                                            {% endif %}
+                                        </small>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <button type="button" class="btn btn-sm btn-outline-info"
+                                                    onclick="viewGroupDetails({{ group.id }})" 
+                                                    data-translate-title="view_details">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-outline-primary"
+                                                    onclick="editGroup({{ group.id }}, '{{ group.name|escapejs }}')"
+                                                    data-translate-title="edit_group">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-outline-danger"
+                                                    onclick="deleteGroup({{ group.id }}, '{{ group.name|escapejs }}')"
+                                                    data-translate-title="delete_group">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">
+                                        <i class="bi bi-collection" style="font-size: 3rem; opacity: 0.5;"></i>
+                                        <div data-translate="no_groups_found">No groups found</div>
+                                        <small data-translate="create_first_group">Create your first group or set up default groups</small>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Group Modal -->
+<div class="modal fade" id="createGroupModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-plus-circle me-2"></i>
+                    <span data-translate="add_new_group">Add New Group</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="createGroupForm">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-collection me-1"></i>
+                            <span data-translate="group_name">Group Name</span> *
+                        </label>
+                        <input type="text" class="form-control" name="name" required placeholder="Enter group name">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-info-circle me-1"></i>
+                            <span data-translate="description">Description</span>
+                        </label>
+                        <textarea class="form-control" name="description" rows="3" placeholder="Optional description of group purpose"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <span data-translate="cancel">Cancel</span>
+                    </button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-plus-circle me-1"></i>
+                        <span data-translate="create_group">Create Group</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Group Modal -->
+<div class="modal fade" id="editGroupModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-pencil me-2"></i>
+                    <span data-translate="edit_group">Edit Group</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="editGroupForm">
+                {% csrf_token %}
+                <input type="hidden" id="editGroupId" name="group_id">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-collection me-1"></i>
+                            <span data-translate="group_name">Group Name</span> *
+                        </label>
+                        <input type="text" class="form-control" id="editGroupName" name="name" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <span data-translate="cancel">Cancel</span>
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle me-1"></i>
+                        <span data-translate="update_group">Update Group</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Group Details Modal -->
+<div class="modal fade" id="groupDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <span data-translate="group_details">Group Details</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="groupDetailsContent">
+                <!-- Content will be loaded dynamically -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <span data-translate="close">Close</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.group-icon {
+    font-size: 1.2rem;
+}
+
+.table td {
+    vertical-align: middle;
+}
+
+.btn-group .btn {
+    border-radius: 0.375rem !important;
+    margin-right: 2px;
+}
+
+.badge {
+    font-size: 0.75rem;
+}
+
+/* Fix hover scroll for this table too */
+.table-hover tbody tr:hover {
+    transform: none !important;
+    background: linear-gradient(135deg, rgba(15, 76, 117, 0.05) 0%, rgba(50, 130, 184, 0.05) 100%) !important;
+    border-left: 3px solid var(--primary-blue) !important;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Add translations for group management
+    const pageTranslations = {
+        en: {
+            'group_management': 'Group Management',
+            'group_management_desc': 'Manage user groups and role-based permissions',
+            'add_group': 'Add Group',
+            'setup_default_groups': 'Setup Default Groups',
+            'manage_users': 'Manage Users',
+            'total_groups': 'Total Groups',
+            'users_in_groups': 'Users in Groups',
+            'users_without_groups': 'Users Without Groups',
+            'system_groups': 'System Groups',
+            'group_name': 'Group Name',
+            'total_users': 'Total Users',
+            'active_users': 'Active Users',
+            'description': 'Description',
+            'view_details': 'View Details',
+            'edit_group': 'Edit Group',
+            'delete_group': 'Delete Group',
+            'no_groups_found': 'No groups found',
+            'create_first_group': 'Create your first group or set up default groups',
+            'add_new_group': 'Add New Group',
+            'create_group': 'Create Group',
+            'update_group': 'Update Group',
+            'group_details': 'Group Details',
+            'close': 'Close',
+            'confirm_delete_group': 'Are you sure you want to delete group "{name}"?',
+            'confirm_delete_group_with_users': 'Group "{name}" has {count} users. Remove users and delete group?',
+            'vessel_sales_system': 'Vessel Sales System',
+            'manage_groups': 'Manage Groups',
+        },
+        ar: {
+            'group_management': 'إدارة المجموعات',
+            'group_management_desc': 'إدارة مجموعات المستخدمين والصلاحيات القائمة على الأدوار',
+            'add_group': 'إضافة مجموعة',
+            'setup_default_groups': 'إعداد المجموعات الافتراضية',
+            'manage_users': 'إدارة المستخدمين',
+            'total_groups': 'إجمالي المجموعات',
+            'users_in_groups': 'المستخدمين في المجموعات',
+            'users_without_groups': 'المستخدمين بدون مجموعات',
+            'system_groups': 'مجموعات النظام',
+            'group_name': 'اسم المجموعة',
+            'total_users': 'إجمالي المستخدمين',
+            'active_users': 'المستخدمين النشطين',
+            'description': 'الوصف',
+            'view_details': 'عرض التفاصيل',
+            'edit_group': 'تحرير المجموعة',
+            'delete_group': 'حذف المجموعة',
+            'no_groups_found': 'لم يتم العثور على مجموعات',
+            'create_first_group': 'أنشئ مجموعتك الأولى أو اعداد المجموعات الافتراضية',
+            'add_new_group': 'إضافة مجموعة جديدة',
+            'create_group': 'إنشاء مجموعة',
+            'update_group': 'تحديث المجموعة',
+            'group_details': 'تفاصيل المجموعة',
+            'close': 'إغلاق',
+            'confirm_delete_group': 'هل أنت متأكد من أنك تريد حذف المجموعة "{name}"؟',
+            'confirm_delete_group_with_users': 'المجموعة "{name}" لديها {count} مستخدمين. إزالة المستخدمين وحذف المجموعة؟',
+            'vessel_sales_system': 'نظام مبيعات السفن',
+            'manage_groups': 'إدارة المجموعات',
+        }
+    };
+    
+    // Merge with existing translations
+    Object.assign(window.translator.translations.en, pageTranslations.en);
+    Object.assign(window.translator.translations.ar, pageTranslations.ar);
+    
+    // Update page translations
+    updatePageTranslations();
+    
+    // Form handlers
+    document.getElementById('createGroupForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        createGroup();
+    });
+    
+    document.getElementById('editGroupForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        saveGroup();
+    });
+});
+
+function createGroup() {
+    const formData = new FormData(document.getElementById('createGroupForm'));
+    const data = {
+        name: formData.get('name'),
+        description: formData.get('description')
+    };
+    
+    fetch('/groups/create/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken()
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('createGroupModal')).hide();
+            showAlert(data.message, 'success');
+            location.reload();
+        } else {
+            showAlert(data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Error creating group', 'danger');
+    });
+}
+
+function editGroup(groupId, groupName) {
+    document.getElementById('editGroupId').value = groupId;
+    document.getElementById('editGroupName').value = groupName;
+    document.getElementById('editGroupForm').action = `/groups/${groupId}/edit/`;
+    
+    new bootstrap.Modal(document.getElementById('editGroupModal')).show();
+}
+
+function saveGroup() {
+    const groupId = document.getElementById('editGroupId').value;
+    const data = {
+        name: document.getElementById('editGroupName').value
+    };
+    
+    fetch(`/groups/${groupId}/edit/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken()
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('editGroupModal')).hide();
+            showAlert(data.message, 'success');
+            location.reload();
+        } else {
+            showAlert(data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Error updating group', 'danger');
+    });
+}
+
+function deleteGroup(groupId, groupName) {
+    // First attempt - check for users
+    fetch(`/groups/${groupId}/delete/`, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRFToken': getCsrfToken()
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            location.reload();
+        } else if (data.requires_confirmation) {
+            confirmDeleteGroupWithUsers(groupId, groupName, data);
+        } else {
+            showAlert(data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Error deleting group', 'danger');
+    });
+}
+
+function confirmDeleteGroupWithUsers(groupId, groupName, data) {
+    const usersList = data.users.map(u => `${u.username} (${u.is_active ? 'Active' : 'Inactive'})`).join('\n');
+    const message = `Group "${groupName}" has ${data.user_count} users:\n\n${usersList}\n\nRemove all users and delete group?`;
+    
+    confirmTranslated(message).then(confirmed => {
+        if (confirmed) {
+            fetch(`/groups/${groupId}/delete/`, {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRFToken': getCsrfToken(),
+                    'X-Force-Delete': 'true'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert(data.message, 'success');
+                    location.reload();
+                } else {
+                    showAlert(data.error, 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showAlert('Error deleting group', 'danger');
+            });
+        }
+    });
+}
+
+function viewGroupDetails(groupId) {
+    fetch(`/groups/${groupId}/details/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const group = data.group;
+                let usersTable = '';
+                
+                if (group.users.length > 0) {
+                    usersTable = `
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Username</th>
+                                        <th>Full Name</th>
+                                        <th>Status</th>
+                                        <th>Last Login</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                    `;
+                    
+                    group.users.forEach(user => {
+                        const statusBadge = user.is_active ? 
+                            '<span class="badge bg-success">Active</span>' : 
+                            '<span class="badge bg-danger">Inactive</span>';
+                        const staffBadge = user.is_staff ? 
+                            ' <span class="badge bg-primary">Staff</span>' : '';
+                        
+                        usersTable += `
+                            <tr>
+                                <td><strong>${user.username}</strong></td>
+                                <td>${user.full_name}</td>
+                                <td>${statusBadge}${staffBadge}</td>
+                                <td><small>${user.last_login}</small></td>
+                            </tr>
+                        `;
+                    });
+                    
+                    usersTable += '</tbody></table></div>';
+                } else {
+                    usersTable = '<div class="alert alert-info">No users in this group</div>';
+                }
+                
+                const content = `
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <h6><i class="bi bi-collection me-2"></i>Group: <strong>${group.name}</strong></h6>
+                        </div>
+                        <div class="col-md-6 text-end">
+                            <span class="badge bg-primary">${group.user_count} users</span>
+                        </div>
+                    </div>
+                    
+                    <h6><i class="bi bi-people me-2"></i>Users in Group:</h6>
+                    ${usersTable}
+                `;
+                
+                document.getElementById('groupDetailsContent').innerHTML = content;
+                new bootstrap.Modal(document.getElementById('groupDetailsModal')).show();
+            } else {
+                showAlert(data.error, 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('Error loading group details', 'danger');
+        });
+}
+
+function setupGroups() {
+    // This function is already implemented in user_management.html
+    // Copy the implementation from there
+    confirmTranslated('Are you sure you want to set up default user groups?\n\nThis will create: Administrators, Managers, Vessel Operators, Inventory Staff, and Viewers.').then(confirmed => {
+        if (confirmed) {
+            fetch('/setup-groups/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCsrfToken(),
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    let message = '';
+                    if (data.created_groups.length > 0 && data.existing_groups.length > 0) {
+                        message = `Groups setup complete!\n\n✅ Created: ${data.created_groups.join(', ')}\n\nℹ️ Already existed: ${data.existing_groups.join(', ')}`;
+                    } else if (data.created_groups.length > 0) {
+                        message = `All user groups created successfully!\n\n✅ Created: ${data.created_groups.join(', ')}`;
+                    } else if (data.existing_groups.length > 0) {
+                        message = `All user groups already exist!\n\nℹ️ Existing groups: ${data.existing_groups.join(', ')}\n\nNo changes were made.`;
+                    } else {
+                        message = 'Groups setup completed successfully!';
+                    }
+                    
+                    alertTranslated(message).then(() => {
+                        location.reload();
+                    });
+                } else {
+                    alertTranslated('Error: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Setup groups error:', error);
+                alertTranslated('Error setting up groups: ' + error.message);
+            });
+        }
+    });
+}
+
+// Helper functions
+function getCsrfToken() {
+    return document.querySelector('[name=csrfmiddlewaretoken]').value;
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.insertBefore(alertDiv, document.body.firstChild);
+    setTimeout(() => alertDiv.remove(), 5000);
+}
+</script>
+{% endblock %}
