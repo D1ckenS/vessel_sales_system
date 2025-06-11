@@ -115,6 +115,7 @@ urlpatterns = [
     path('vessels/<int:vessel_id>/edit/', auth_views.edit_vessel, name='edit_vessel'),
     path('vessels/<int:vessel_id>/toggle-status/', auth_views.toggle_vessel_status, name='toggle_vessel_status'),
     path('vessels/<int:vessel_id>/statistics/', auth_views.vessel_statistics, name='vessel_statistics'),
+    path('vessels/data-ajax/', auth_views.vessel_data_ajax, name='vessel_data_ajax'),
     
      # Trip Management (COMPLETE DJANGO ADMIN REPLACEMENT)
     path('trips/manage/', auth_views.trip_management, name='trip_management'),

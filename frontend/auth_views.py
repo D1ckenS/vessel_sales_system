@@ -17,7 +17,7 @@ from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from django.core.exceptions import ValidationError
 from django.contrib.auth.password_validation import validate_password
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import json
 import secrets
 import string
@@ -472,41 +472,74 @@ def check_permission(request):
 @login_required
 @user_passes_test(is_admin_or_manager)
 def vessel_management(request):
-    """Vessel management interface - complete Django admin replacement"""
+    """Vessel management interface with date-based revenue calculation"""
+    
+    # Get selected date from request (default to today)
+    selected_date = request.GET.get('date')
+    if selected_date:
+        try:
+            reference_date = datetime.strptime(selected_date, '%Y-%m-%d').date()
+        except ValueError:
+            reference_date = date.today()
+    else:
+        reference_date = date.today()
+    
+    # Calculate 30 days before the reference date
+    thirty_days_ago = reference_date - timedelta(days=30)
     
     vessels = Vessel.objects.all().order_by('name')
     
-    # Calculate statistics
+    # Calculate overall statistics
     total_vessels = vessels.count()
     active_vessels = vessels.filter(active=True).count()
     duty_free_vessels = vessels.filter(has_duty_free=True).count()
     inactive_vessels = total_vessels - active_vessels
     
-    # Get performance data for each vessel (last 30 days)
-    from datetime import timedelta
-    thirty_days_ago = timezone.now().date() - timedelta(days=30)
-    
+    # Get performance data for each vessel
     vessel_data = []
     for vessel in vessels:
-        # Get trip count and revenue for last 30 days
-        trips_30d = Trip.objects.filter(
+        # Get trip count for the date range
+        trips_count = Trip.objects.filter(
             vessel=vessel,
             trip_date__gte=thirty_days_ago,
+            trip_date__lte=reference_date,
             is_completed=True
         ).count()
         
-        revenue_30d = Transaction.objects.filter(
+        # Get total trips (all time) for the vessel
+        total_trips = Trip.objects.filter(
+            vessel=vessel,
+            is_completed=True
+        ).count()
+        
+        # Get revenue for the date range
+        revenue_result = Transaction.objects.filter(
             vessel=vessel,
             transaction_type='SALE',
-            transaction_date__gte=thirty_days_ago
+            transaction_date__gte=thirty_days_ago,
+            transaction_date__lte=reference_date
         ).aggregate(
             total=Sum(F('unit_price') * F('quantity'), output_field=models.DecimalField())
-        )['total'] or 0
+        )
+        revenue_30d = revenue_result['total'] or 0
+        
+        # Get total passengers for the date range
+        passenger_result = Trip.objects.filter(
+            vessel=vessel,
+            trip_date__gte=thirty_days_ago,
+            trip_date__lte=reference_date,
+            is_completed=True
+        ).aggregate(
+            total_passengers=Sum('passenger_count')
+        )
+        total_passengers_30d = passenger_result['total_passengers'] or 0
         
         vessel_data.append({
             'vessel': vessel,
-            'trips_30d': trips_30d,
-            'revenue_30d': revenue_30d,
+            'trips_30d': trips_count,
+            'total_trips': total_trips,
+            'revenue_30d': float(revenue_30d),
+            'total_passengers_30d': total_passengers_30d,
         })
     
     context = {
@@ -516,10 +549,93 @@ def vessel_management(request):
             'active_vessels': active_vessels,
             'duty_free_vessels': duty_free_vessels,
             'inactive_vessels': inactive_vessels,
-        }
+        },
+        'reference_date': reference_date,
+        'thirty_days_ago': thirty_days_ago,
+        'today': date.today(),
     }
     
     return render(request, 'frontend/auth/vessel_management.html', context)
+
+@login_required
+@user_passes_test(is_admin_or_manager)
+def vessel_data_ajax(request):
+    """AJAX endpoint to get vessel data for specific date range"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST method required'})
+    
+    try:
+        data = json.loads(request.body)
+        selected_date = data.get('date')
+        
+        if not selected_date:
+            return JsonResponse({'success': False, 'error': 'Date required'})
+        
+        # Parse date
+        reference_date = datetime.strptime(selected_date, '%Y-%m-%d').date()
+        thirty_days_ago = reference_date - timedelta(days=30)
+        
+        vessels = Vessel.objects.all().order_by('name')
+        vessel_data = []
+        
+        for vessel in vessels:
+            # Get trip count for the date range
+            trips_count = Trip.objects.filter(
+                vessel=vessel,
+                trip_date__gte=thirty_days_ago,
+                trip_date__lte=reference_date,
+                is_completed=True
+            ).count()
+            
+            # Get total trips (all time)
+            total_trips = Trip.objects.filter(
+                vessel=vessel,
+                is_completed=True
+            ).count()
+            
+            # Get revenue for the date range
+            revenue_result = Transaction.objects.filter(
+                vessel=vessel,
+                transaction_type='SALE',
+                transaction_date__gte=thirty_days_ago,
+                transaction_date__lte=reference_date
+            ).aggregate(
+                total=Sum(F('unit_price') * F('quantity'), output_field=models.DecimalField())
+            )
+            revenue_30d = revenue_result['total'] or 0
+            
+            # Get total passengers for the date range
+            passenger_result = Trip.objects.filter(
+                vessel=vessel,
+                trip_date__gte=thirty_days_ago,
+                trip_date__lte=reference_date,
+                is_completed=True
+            ).aggregate(
+                total_passengers=Sum('passenger_count')
+            )
+            total_passengers_30d = passenger_result['total_passengers'] or 0
+            
+            vessel_data.append({
+                'vessel_id': vessel.id,
+                'vessel_name': vessel.name,
+                'vessel_name_ar': vessel.name_ar,
+                'has_duty_free': vessel.has_duty_free,
+                'active': vessel.active,
+                'trips_30d': trips_count,
+                'total_trips': total_trips,
+                'revenue_30d': float(revenue_30d),
+                'total_passengers_30d': total_passengers_30d,
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'vessel_data': vessel_data,
+            'reference_date': reference_date.strftime('%Y-%m-%d'),
+            'date_range': f"{thirty_days_ago.strftime('%d/%m/%Y')} - {reference_date.strftime('%d/%m/%Y')}"
+        })
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
 
 @login_required
 @user_passes_test(is_admin_or_manager)
