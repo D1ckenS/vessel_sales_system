@@ -231,82 +231,122 @@
 
 {% block extra_js %}
 <script>
+// Enhanced translation for trip reports
 document.addEventListener('DOMContentLoaded', function() {
-    // Add trip report-specific translations
-    const tripReportTranslations = {
-        en: {
-            'trip_reports': 'Trip Reports',
-            'analyze_trip_performance': 'Analyze trip performance and passenger revenue',
-            'total_trips': 'Total Trips',
-            'total_revenue_jod': 'Total Revenue',
-            'total_passengers': 'Total Passengers',
-            'avg_revenue_per_passenger': 'Avg Revenue/Passenger',
-            'filter_trips': 'Filter Trips',
-            'trip_details': 'Trip Details',
-            'trip_hash': 'Trip #',
-            'items_sold': 'Items Sold',
-            'revenue_per_passenger': 'Revenue/Passenger',
-            'people': 'people',
-            'no_trips_found': 'No trips found',
-            'try_adjusting_filters_trips': 'Try adjusting your filter criteria or create new trips',
-            'trips': 'trips',
-            'print_feature_coming_soon_trips': 'Print feature coming soon!',
-            'printable_trip_report': 'This will generate a printable trip report.',
-            'trip_analytics_coming_soon': 'Trip analytics coming soon!',
-            'detailed_analytics_trip': 'This will show detailed analytics for trip ID:'
-        },
-        ar: {
-            'trip_reports': 'تقارير الرحلات',
-            'analyze_trip_performance': 'تحليل أداء الرحلات وإيرادات الركاب',
-            'total_trips': 'إجمالي الرحلات',
-            'total_revenue_jod': 'إجمالي الإيرادات',
-            'total_passengers': 'إجمالي الركاب',
-            'avg_revenue_per_passenger': 'متوسط الإيراد لكل راكب',
-            'filter_trips': 'تصفية الرحلات',
-            'trip_details': 'تفاصيل الرحلات',
-            'trip_hash': 'رقم الرحلة',
-            'items_sold': 'العناصر المباعة',
-            'revenue_per_passenger': 'الإيراد/راكب',
-            'people': 'أشخاص',
-            'no_trips_found': 'لم يتم العثور على رحلات',
-            'try_adjusting_filters_trips': 'جرب تعديل معايير التصفية أو إنشاء رحلات جديدة',
-            'trips': 'رحلات',
-            'print_feature_coming_soon_trips': 'ميزة الطباعة قادمة قريباً!',
-            'printable_trip_report': 'سيتم إنشاء تقرير رحلات قابل للطباعة.',
-            'trip_analytics_coming_soon': 'تحليلات الرحلات قادمة قريباً!',
-            'detailed_analytics_trip': 'سيتم عرض تحليلات مفصلة للرحلة رقم:'
-        }
-    };
-    
-    // Merge with global translations
-    const currentTranslations = window.translator.translations;
-    Object.keys(tripReportTranslations).forEach(lang => {
-        if (currentTranslations[lang]) {
-            Object.assign(currentTranslations[lang], tripReportTranslations[lang]);
-        }
+    // Update on language change
+    window.addEventListener('languageChanged', function() {
+        updateTripPageTranslations();
+        calculateRevenuePerPassenger();
     });
     
-    // Calculate revenue per passenger
-    calculateRevenuePerPassenger();
-    
-    // Apply translations
-    updatePageTranslations();
-});
-
-function calculateRevenuePerPassenger() {
-    document.querySelectorAll('.revenue-per-passenger').forEach(element => {
-        const revenue = parseFloat(element.getAttribute('data-revenue')) || 0;
-        const passengers = parseInt(element.getAttribute('data-passengers')) || 0;
+    function updateTripPageTranslations() {
+        // Update trip numbers (first column, strong elements)
+        document.querySelectorAll('tbody tr td:first-child strong').forEach(element => {
+            const text = element.textContent.trim();
+            if (/^\d+$/.test(text) || /^[٠-٩]+$/.test(text)) {
+                let originalValue = element.getAttribute('data-original');
+                if (!originalValue) {
+                    // Convert Arabic numerals back to English for storage
+                    originalValue = text.replace(/[٠-٩]/g, (char) => {
+                        const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                        return arabicNumerals.indexOf(char).toString();
+                    });
+                    element.setAttribute('data-original', originalValue);
+                }
+                
+                if (window.translator.currentLanguage === 'ar') {
+                    element.textContent = window.translateNumber(originalValue);
+                } else {
+                    element.textContent = originalValue;
+                }
+            }
+        });
         
-        if (passengers > 0) {
-            const revenuePerPassenger = (revenue / passengers).toFixed(3);
-            element.setAttribute('data-original', revenuePerPassenger);
-            element.textContent = window.translateNumber ? window.translateNumber(revenuePerPassenger) : revenuePerPassenger;
-        } else {
-            element.textContent = '--';
-        }
-    });
-}
+        // Update dates in date column
+        document.querySelectorAll('tbody tr td:nth-child(2) div').forEach(element => {
+            const text = element.textContent.trim();
+            if (/^\d{2}\/\d{2}\/\d{4}$/.test(text) || /^[٠-٩]{2}\/[٠-٩]{2}\/[٠-٩]{4}$/.test(text)) {
+                let originalValue = element.getAttribute('data-original');
+                if (!originalValue) {
+                    // Convert Arabic date back to English for storage
+                    originalValue = text.replace(/[٠-٩]/g, (char) => {
+                        const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                        return arabicNumerals.indexOf(char).toString();
+                    });
+                    element.setAttribute('data-original', originalValue);
+                }
+                
+                if (window.translator.currentLanguage === 'ar') {
+                    element.textContent = window.translateNumber(originalValue);
+                } else {
+                    element.textContent = originalValue;
+                }
+            }
+        });
+        
+        // Update time stamps (HH:MM format)
+        document.querySelectorAll('tbody tr td:nth-child(2) small').forEach(element => {
+            const text = element.textContent.trim();
+            if (/^\d{2}:\d{2}$/.test(text) || /^[٠-٩]{2}:[٠-٩]{2}$/.test(text)) {
+                let originalValue = element.getAttribute('data-original');
+                if (!originalValue) {
+                    // Convert Arabic time back to English for storage
+                    originalValue = text.replace(/[٠-٩]/g, (char) => {
+                        const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                        return arabicNumerals.indexOf(char).toString();
+                    });
+                    element.setAttribute('data-original', originalValue);
+                }
+                
+                if (window.translator.currentLanguage === 'ar') {
+                    element.textContent = window.translateNumber(originalValue);
+                } else {
+                    element.textContent = originalValue;
+                }
+            }
+        });
+    }
+    
+    function calculateRevenuePerPassenger() {
+        document.querySelectorAll('.revenue-per-passenger').forEach(element => {
+            const revenue = parseFloat(element.getAttribute('data-revenue')) || 0;
+            const passengers = parseInt(element.getAttribute('data-passengers')) || 0;
+            
+            if (passengers > 0) {
+                const revenuePerPassenger = (revenue / passengers).toFixed(3);
+                element.setAttribute('data-original', revenuePerPassenger);
+                
+                if (window.translator && window.translator.currentLanguage === 'ar') {
+                    element.textContent = window.translateNumber(revenuePerPassenger);
+                } else {
+                    element.textContent = revenuePerPassenger;
+                }
+            } else {
+                element.textContent = '--';
+            }
+        });
+    }
+    
+    // Make function available globally
+    window.calculateRevenuePerPassenger = calculateRevenuePerPassenger;
+    
+    // Initial call
+    setTimeout(() => {
+        updateTripPageTranslations();
+        calculateRevenuePerPassenger();
+    }, 100);
+    
+    // Also trigger the language changed event when toggleLanguage is called
+    const originalToggleLanguage = window.toggleLanguage;
+    window.toggleLanguage = function() {
+        originalToggleLanguage();
+        
+        // Trigger custom event for page-specific translations
+        setTimeout(() => {
+            window.dispatchEvent(new Event('languageChanged'));
+        }, 200);
+    };
+});
 
 function exportTripReports() {
     const additionalData = {
@@ -320,13 +360,11 @@ function exportTripReports() {
 }
 
 function printTrips() {
-    alertTranslated('print_feature_coming_soon_trips');
-    alertTranslated('printable_trip_report');
+    alertTranslated('print_feature_coming_soon');
 }
 
 function viewTripAnalytics(tripId) {
-    alertTranslated('trip_analytics_coming_soon');
-    alertTranslated('detailed_analytics_trip', { id: tripId });
+    alertTranslated('feature_coming_soon');
 }
 </script>
 {% endblock %}

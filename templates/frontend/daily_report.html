@@ -147,7 +147,7 @@
                             <div class="h4 text-success mb-1" data-number data-original="{{ daily_stats.sales_count|default:0 }}">
                                 {{ daily_stats.sales_count|default:0 }}
                             </div>
-                            <small class="text-muted transaction-type" data-type="Sales">Sales</small>
+                            <small class="text-muted transaction-type" data-type="sales">Sales</small>
                         </div>
                     </div>
                     <div class="col-6">
@@ -155,7 +155,7 @@
                             <div class="h4 text-primary mb-1" data-number data-original="{{ daily_stats.supply_count|default:0 }}">
                                 {{ daily_stats.supply_count|default:0 }}
                             </div>
-                            <small class="text-muted transaction-type" data-type="Supplies">Supplies</small>
+                            <small class="text-muted transaction-type" data-type="supplies">Supplies</small>
                         </div>
                     </div>
                 </div>
@@ -165,7 +165,7 @@
                             <div class="h4 text-warning mb-1" data-number data-original="{{ daily_stats.transfer_count|default:0 }}">
                                 {{ daily_stats.transfer_count|default:0 }}
                             </div>
-                            <small class="text-muted transaction-type" data-type="Transfers">Transfers</small>
+                            <small class="text-muted transaction-type" data-type="transfers">Transfers</small>
                         </div>
                     </div>
                 </div>
@@ -209,15 +209,28 @@
                 </div>
                 {% endif %}
                 
-                {% if low_stock_products %}
-                <div>
-                    <strong class="text-warning">
-                        <i class="bi bi-exclamation-triangle"></i> 
-                        <span data-translate="low_stock_items">Low Stock Items:</span>
-                    </strong>
-                    <span class="badge bg-warning text-dark">{{ low_stock_products|length }}</span>
+                <!-- Stock Alerts Summary -->
+                <div class="mb-3">
+                    {% if out_of_stock_products %}
+                    <div class="mb-2">
+                        <strong class="text-danger">
+                            <i class="bi bi-x-circle"></i> 
+                            <span data-translate="out_of_stock_items">Out of Stock Items:</span>
+                        </strong>
+                        <span class="badge bg-danger">{{ out_of_stock_products|length }}</span>
+                    </div>
+                    {% endif %}
+                    
+                    {% if low_stock_products %}
+                    <div>
+                        <strong class="text-warning">
+                            <i class="bi bi-exclamation-triangle"></i> 
+                            <span data-translate="low_stock_items">Low Stock Items:</span>
+                        </strong>
+                        <span class="badge bg-warning text-dark">{{ low_stock_products|length }}</span>
+                    </div>
+                    {% endif %}
                 </div>
-                {% endif %}
             </div>
         </div>
     </div>
@@ -393,10 +406,28 @@
                 </h5>
             </div>
             <div class="card-body">
+                <!-- Out of Stock Alerts -->
+                {% if out_of_stock_products %}
+                <div class="mb-3">
+                    <h6 class="text-danger"><i class="bi bi-x-circle"></i> <span data-translate="out_of_stock_alert">Out of Stock Alert</span></h6>
+                    {% for item in out_of_stock_products %}
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <small class="fw-bold">{{ item.product.name }}</small>
+                            <small class="text-muted d-block">{{ item.product.item_id }}</small>
+                        </div>
+                        <span class="badge bg-danger">
+                            <span data-number data-original="0">0</span> <span data-translate="units">units</span>
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                
                 <!-- Low Stock Alerts -->
                 {% if low_stock_products %}
                 <div class="mb-3">
-                    <h6 class="text-warning"><span data-translate="low_stock_alert">Low Stock Alert</span></h6>
+                    <h6 class="text-warning"><i class="bi bi-exclamation-triangle"></i> <span data-translate="low_stock_alert">Low Stock Alert</span></h6>
                     {% for item in low_stock_products %}
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <div>
@@ -431,7 +462,7 @@
                 {% endif %}
                 
                 <!-- No Alerts -->
-                {% if not low_stock_products and not unusual_activity %}
+                {% if not low_stock_products and not out_of_stock_products and not unusual_activity %}
                 <div class="text-center text-muted">
                     <i class="bi bi-check-circle text-success" style="font-size: 2rem;"></i>
                     <p class="mt-2 mb-0"><span data-translate="no_alerts">No alerts for this date</span></p>
@@ -528,133 +559,100 @@
 
 {% block extra_js %}
 <script>
-// Add page-specific translations
+// Enhanced translation for daily report
 document.addEventListener('DOMContentLoaded', function() {
-    const pageTranslations = {
-        en: {
-            'daily_operations_report': 'Daily Operations Report',
-            'operations_summary_for': 'Operations summary for',
-            'back_to_reports': 'Back to Reports',
-            'export': 'Export',
-            'print': 'Print',
-            'select_date': 'Select Date',
-            'view_report': 'View Report',
-            'today': 'Today',
-            'daily_revenue': 'Daily Revenue',
-            'daily_cost': 'Daily Cost',
-            'supply_purchases': 'Supply Purchases',
-            'total_transactions': 'Total Transactions',
-            'daily_profit': 'Daily Profit',
-            'margin': 'margin',
-            'units_moved': 'Units Moved',
-            'all_operations': 'All operations',
-            'transaction_breakdown': 'Transaction Breakdown',
-            'daily_highlights': 'Daily Highlights',
-            'top_revenue_vessel': 'Top Revenue Vessel',
-            'most_active_vessel': 'Most Active Vessel',
-            'transactions': 'transactions',
-            'low_stock_items': 'Low Stock Items',
-            'vessel_performance': 'Vessel Performance',
-            'vessel': 'Vessel',
-            'sales': 'Sales',
-            'supplies': 'Supplies',
-            'transfers': 'Transfers',
-            'revenue': 'Revenue',
-            'profit': 'Profit',
-            'trips_pos': 'Trips/POs',
-            'duty_free': 'Duty-Free',
-            'out_in': 'Out/In',
-            'trips': 'Trips',
-            'pos': 'POs',
-            'inventory_activity': 'Inventory Activity',
-            'product': 'Product',
-            'received': 'Received',
-            'sold_sent': 'Sold/Sent',
-            'net_change': 'Net Change',
-            'no_inventory_changes': 'No inventory changes on this date',
-            'alerts': 'Alerts',
-            'low_stock_alert': 'Low Stock Alert',
-            'units': 'units',
-            'unusual_activity': 'Unusual Activity',
-            'vs_avg': 'vs avg',
-            'no_alerts': 'No alerts for this date',
-            'daily_trips': 'Daily Trips',
-            'passengers': 'passengers',
-            'completed': 'Completed',
-            'in_progress': 'In Progress',
-            'no_trips_this_date': 'No trips on this date',
-            'daily_pos': 'Daily Purchase Orders',
-            'no_pos_this_date': 'No purchase orders on this date',
-            'vessel_sales_system': 'Vessel Sales System'
-        },
-        ar: {
-            'daily_operations_report': 'تقرير العمليات اليومية',
-            'operations_summary_for': 'ملخص العمليات لتاريخ',
-            'back_to_reports': 'الرجوع للتقارير',
-            'export': 'تصدير',
-            'print': 'طباعة',
-            'select_date': 'اختر التاريخ',
-            'view_report': 'عرض التقرير',
-            'today': 'اليوم',
-            'daily_revenue': 'الإيرادات اليومية',
-            'daily_cost': 'التكلفة اليومية',
-            'supply_purchases': 'مشتريات التوريد',
-            'total_transactions': 'إجمالي الحركات',
-            'daily_profit': 'الربح اليومي',
-            'margin': 'هامش',
-            'units_moved': 'الوحدات المنقولة',
-            'all_operations': 'جميع العمليات',
-            'transaction_breakdown': 'توزيع الحركات',
-            'daily_highlights': 'النقاط المهمة اليومية',
-            'top_revenue_vessel': 'السفينة الأعلى إيراداً',
-            'most_active_vessel': 'السفينة الأكثر نشاطاً',
-            'transactions': 'حركات',
-            'low_stock_items': 'عناصر منخفضة المخزون',
-            'vessel_performance': 'أداء السفن',
-            'vessel': 'السفينة',
-            'sales': 'المبيعات',
-            'supplies': 'التوريدات',
-            'transfers': 'التحويلات',
-            'revenue': 'الإيرادات',
-            'profit': 'الربح',
-            'trips_pos': 'الرحلات/أوامر الشراء',
-            'duty_free': 'سوق حرة',
-            'out_in': 'خارج/داخل',
-            'trips': 'الرحلات',
-            'pos': 'أوامر الشراء',
-            'inventory_activity': 'نشاط المخزون',
-            'product': 'المنتج',
-            'received': 'مستلم',
-            'sold_sent': 'مباع/مرسل',
-            'net_change': 'التغيير الصافي',
-            'no_inventory_changes': 'لا توجد تغييرات في المخزون في هذا التاريخ',
-            'alerts': 'التنبيهات',
-            'low_stock_alert': 'تنبيه انخفاض المخزون',
-            'units': 'وحدات',
-            'unusual_activity': 'نشاط غير اعتيادي',
-            'vs_avg': 'مقابل المتوسط',
-            'no_alerts': 'لا توجد تنبيهات لهذا التاريخ',
-            'daily_trips': 'الرحلات اليومية',
-            'passengers': 'راكب',
-            'completed': 'مكتمل',
-            'in_progress': 'قيد التنفيذ',
-            'no_trips_this_date': 'لا توجد رحلات في هذا التاريخ',
-            'daily_pos': 'أوامر الشراء اليومية',
-            'no_pos_this_date': 'لا توجد أوامر شراء في هذا التاريخ',
-            'vessel_sales_system': 'نظام مبيعات السفن'
-        }
-    };
-
-    // Merge with global translations
-    const currentTranslations = window.translator.translations;
-    Object.keys(pageTranslations).forEach(lang => {
-        if (currentTranslations[lang]) {
-            Object.assign(currentTranslations[lang], pageTranslations[lang]);
-        }
+    // Update on language change
+    window.addEventListener('languageChanged', function() {
+        updateDailyReportTranslations();
     });
     
-    // Apply translations
-    updatePageTranslations();
+    function updateDailyReportTranslations() {
+        // Handle transaction breakdown types specifically
+        document.querySelectorAll('.transaction-type[data-type]').forEach(element => {
+            const type = element.getAttribute('data-type');
+            const currentLang = window.translator.currentLanguage;
+            
+            // Map transaction breakdown types to translations
+            const typeTranslations = {
+                'sales': currentLang === 'ar' ? 'المبيعات' : 'Sales',
+                'supplies': currentLang === 'ar' ? 'التوريدات' : 'Supplies', 
+                'transfers': currentLang === 'ar' ? 'التحويلات' : 'Transfers'
+            };
+            
+            if (typeTranslations[type]) {
+                element.textContent = typeTranslations[type];
+            }
+        });
+        
+        // Update trip numbers and PO numbers in badges
+        document.querySelectorAll('.badge').forEach(element => {
+            const text = element.textContent.trim();
+            if (/^\d+$/.test(text) || /^[٠-٩]+$/.test(text)) {
+                let originalValue = element.getAttribute('data-original');
+                if (!originalValue) {
+                    // Convert Arabic numbers back to English for storage
+                    originalValue = text.replace(/[٠-٩]/g, (char) => {
+                        const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                        return arabicNumerals.indexOf(char).toString();
+                    });
+                    element.setAttribute('data-original', originalValue);
+                }
+                
+                if (window.translator.currentLanguage === 'ar') {
+                    element.textContent = window.translateNumber(originalValue);
+                } else {
+                    element.textContent = originalValue;
+                }
+            }
+        });
+        
+        // Update passenger counts in trip details
+        document.querySelectorAll('small.text-muted').forEach(element => {
+            const text = element.textContent;
+            if (text.includes('passengers') || text.includes('راكب')) {
+                const match = text.match(/(\d+)|([٠-٩]+)/);
+                if (match) {
+                    let originalNumber = match[0];
+                    // Convert Arabic to English if needed
+                    if (/[٠-٩]/.test(originalNumber)) {
+                        originalNumber = originalNumber.replace(/[٠-٩]/g, (char) => {
+                            const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                            return arabicNumerals.indexOf(char).toString();
+                        });
+                    }
+                    
+                    const currentLang = window.translator.currentLanguage;
+                    if (currentLang === 'ar') {
+                        const translatedNumber = window.translateNumber(originalNumber);
+                        // Update the entire text with proper Arabic structure
+                        const vesselName = element.querySelector('.vessel-name')?.textContent || '';
+                        element.innerHTML = `<span class="vessel-name" data-en="${element.querySelector('.vessel-name')?.getAttribute('data-en') || ''}" data-ar="${element.querySelector('.vessel-name')?.getAttribute('data-ar') || ''}">${element.querySelector('.vessel-name')?.textContent || ''}</span> - ${translatedNumber} راكب`;
+                    } else {
+                        // Reconstruct English text
+                        const vesselName = element.querySelector('.vessel-name')?.textContent || '';
+                        element.innerHTML = `<span class="vessel-name" data-en="${element.querySelector('.vessel-name')?.getAttribute('data-en') || ''}" data-ar="${element.querySelector('.vessel-name')?.getAttribute('data-ar') || ''}">${element.querySelector('.vessel-name')?.textContent || ''}</span> - ${originalNumber} passengers`;
+                    }
+                }
+            }
+        });
+    }
+    
+    // Initial call
+    setTimeout(() => {
+        updateDailyReportTranslations();
+        updatePageTranslations(); // Call global translation update
+    }, 100);
+    
+    // Also trigger the language changed event when toggleLanguage is called
+    const originalToggleLanguage = window.toggleLanguage;
+    window.toggleLanguage = function() {
+        originalToggleLanguage();
+        
+        // Trigger custom event for page-specific translations
+        setTimeout(() => {
+            window.dispatchEvent(new Event('languageChanged'));
+        }, 200);
+    };
 });
 
 // Export and Print functions
@@ -664,10 +662,6 @@ function exportDailyReport() {
     showExportModal('daily_report', {
         date: selectedDate
     });
-}
-
-function printDailyReport() {
-    alertTranslated('print_feature_coming_soon');
 }
 
 function printDailyReport() {

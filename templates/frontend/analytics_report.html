@@ -134,7 +134,7 @@
                                 </td>
                                 <td class="text-center">
                                     <span class="{% if vessel_data.profit_margin > 20 %}text-success{% elif vessel_data.profit_margin > 10 %}text-warning{% else %}text-danger{% endif %}" 
-                                          data-number data-original="{{ vessel_data.profit_margin|floatformat:1 }}">
+                                        data-number data-original="{{ vessel_data.profit_margin|floatformat:1 }}">
                                         {{ vessel_data.profit_margin|floatformat:1 }}%
                                     </span>
                                 </td>
@@ -287,7 +287,7 @@
                                     <i class="bi bi-graph-up"></i>
                                 </div>
                             {% endif %}
-                            <small class="text-muted d-block">{{ month_data.month|slice:":3" }} {{ month_data.year }}</small>
+                            <small class="text-muted d-block" data-month-year>{{ month_data.month|slice:":3" }} {{ month_data.year }}</small>
                             <div class="h6 text-success mb-1" data-number data-original="{{ month_data.revenue|floatformat:0 }}">
                                 {{ month_data.revenue|floatformat:0 }}
                             </div>
@@ -464,189 +464,199 @@
 
 {% block extra_js %}
 <script>
-// Add page-specific translations
+// Enhanced translation for analytics report
 document.addEventListener('DOMContentLoaded', function() {
-    const pageTranslations = {
-        en: {
-            'analytics_dashboard': 'Analytics Dashboard',
-            'advanced_business_intelligence': 'Advanced business intelligence and performance metrics',
-            'back_to_reports': 'Back to Reports',
-            'export': 'Export',
-            'print': 'Print',
-            'revenue_30_days': 'Revenue (30 Days)',
-            'avg_per_transaction': 'Avg per transaction',
-            'growth_rate': 'Growth Rate',
-            'this_vs_last_month': 'This vs last month',
-            'revenue_per_passenger': 'Revenue per Passenger',
-            'last_90_days': 'Last 90 days',
-            'efficiency_score': 'Efficiency Score',
-            'operational_performance': 'Operational performance',
-            'vessel_analytics': 'Vessel Analytics',
-            'last_30_days': 'Last 30 days',
-            'vessel': 'Vessel',
-            'revenue': 'Revenue',
-            'profit_margin': 'Profit Margin',
-            'trips': 'Trips',
-            'revenue_per_trip': 'Revenue/Trip',
-            'performance': 'Performance',
-            'duty_free': 'Duty-Free',
-            'excellent': 'Excellent',
-            'good': 'Good',
-            'fair': 'Fair',
-            'poor': 'Poor',
-            'top_products': 'Top Products',
-            'sold': 'sold',
-            'no_sales_data': 'No sales data',
-            'inventory_analysis': 'Inventory Analysis',
-            'fast_moving': 'Fast Moving',
-            'moderate': 'Moderate',
-            'slow_moving': 'Slow Moving',
-            'stock': 'Stock',
-            'days_left': 'days left',
-            'no_inventory_data': 'No inventory data',
-            'revenue_trends': 'Revenue Trends',
-            'last_12_months': 'Last 12 months',
-            'passenger_analytics': 'Passenger Analytics',
-            'total_passengers_90_days': 'Total Passengers (90 days)',
-            'avg_per_trip': 'Avg per Trip',
-            'revenue_per_person': 'Revenue per Person',
-            'total_completed_trips': 'Total Completed Trips',
-            'business_insights': 'Business Insights',
-            'growth_analysis': 'Growth Analysis',
-            'strong_growth': 'Strong growth momentum',
-            'excellent_performance': 'Excellent performance! Consider expanding successful strategies.',
-            'moderate_growth': 'Moderate growth',
-            'room_for_improvement': 'Room for improvement. Analyze top-performing vessels.',
-            'declining_performance': 'Declining performance',
-            'review_strategies': 'Review operational strategies and market conditions.',
-            'efficiency_analysis': 'Efficiency Analysis',
-            'high_efficiency': 'High operational efficiency',
-            'maintain_standards': 'Maintain current operational standards.',
-            'average_efficiency': 'Average efficiency',
-            'optimize_processes': 'Consider optimizing daily processes.',
-            'low_efficiency': 'Low efficiency detected',
-            'urgent_review': 'Urgent review of operations needed.',
-            'recommended_actions': 'Recommended Actions',
-            'analyze_top_vessels': 'Analyze top-performing vessels and replicate strategies',
-            'streamline_operations': 'Streamline daily operations to improve efficiency',
-            'monitor_inventory': 'Monitor inventory turnover for slow-moving items',
-            'focus_top_products': 'Focus marketing on top-performing products',
-            'vessel_sales_system': 'Vessel Sales System'
-        },
-        ar: {
-            'analytics_dashboard': 'لوحة التحليلات',
-            'advanced_business_intelligence': 'ذكاء الأعمال المتقدم ومقاييس الأداء',
-            'back_to_reports': 'الرجوع للتقارير',
-            'export': 'تصدير',
-            'print': 'طباعة',
-            'revenue_30_days': 'الإيرادات (٣٠ يوم)',
-            'avg_per_transaction': 'متوسط كل حركة',
-            'growth_rate': 'معدل النمو',
-            'this_vs_last_month': 'هذا الشهر مقابل الماضي',
-            'revenue_per_passenger': 'الإيرادات لكل راكب',
-            'last_90_days': 'آخر ٩٠ يوم',
-            'efficiency_score': 'نقاط الكفاءة',
-            'operational_performance': 'الأداء التشغيلي',
-            'vessel_analytics': 'تحليلات السفن',
-            'last_30_days': 'آخر ٣٠ يوم',
-            'vessel': 'السفينة',
-            'revenue': 'الإيرادات',
-            'profit_margin': 'هامش الربح',
-            'trips': 'الرحلات',
-            'revenue_per_trip': 'الإيرادات/الرحلة',
-            'performance': 'الأداء',
-            'duty_free': 'سوق حرة',
-            'excellent': 'ممتاز',
-            'good': 'جيد',
-            'fair': 'مقبول',
-            'poor': 'ضعيف',
-            'top_products': 'أفضل المنتجات',
-            'sold': 'مباع',
-            'no_sales_data': 'لا توجد بيانات مبيعات',
-            'inventory_analysis': 'تحليل المخزون',
-            'fast_moving': 'سريع الحركة',
-            'moderate': 'متوسط',
-            'slow_moving': 'بطيء الحركة',
-            'stock': 'المخزون',
-            'days_left': 'يوم متبقي',
-            'no_inventory_data': 'لا توجد بيانات مخزون',
-            'revenue_trends': 'اتجاهات الإيرادات',
-            'last_12_months': 'آخر ١٢ شهر',
-            'passenger_analytics': 'تحليلات الركاب',
-            'total_passengers_90_days': 'إجمالي الركاب (٩٠ يوم)',
-            'avg_per_trip': 'متوسط كل رحلة',
-            'revenue_per_person': 'الإيرادات لكل شخص',
-            'total_completed_trips': 'إجمالي الرحلات المكتملة',
-            'business_insights': 'رؤى الأعمال',
-            'growth_analysis': 'تحليل النمو',
-            'strong_growth': 'زخم نمو قوي',
-            'excellent_performance': 'أداء ممتاز! فكر في توسيع الاستراتيجيات الناجحة.',
-            'moderate_growth': 'نمو متوسط',
-            'room_for_improvement': 'مجال للتحسن. حلل السفن عالية الأداء.',
-            'declining_performance': 'أداء متراجع',
-            'review_strategies': 'راجع الاستراتيجيات التشغيلية وظروف السوق.',
-            'efficiency_analysis': 'تحليل الكفاءة',
-            'high_efficiency': 'كفاءة تشغيلية عالية',
-            'maintain_standards': 'حافظ على المعايير التشغيلية الحالية.',
-            'average_efficiency': 'كفاءة متوسطة',
-            'optimize_processes': 'فكر في تحسين العمليات اليومية.',
-            'low_efficiency': 'تم اكتشاف كفاءة منخفضة',
-            'urgent_review': 'مراجعة عاجلة للعمليات مطلوبة.',
-            'recommended_actions': 'الإجراءات الموصى بها',
-            'analyze_top_vessels': 'حلل السفن عالية الأداء وكرر الاستراتيجيات',
-            'streamline_operations': 'بسط العمليات اليومية لتحسين الكفاءة',
-            'monitor_inventory': 'راقب دوران المخزون للعناصر بطيئة الحركة',
-            'focus_top_products': 'ركز التسويق على المنتجات عالية الأداء',
-            'vessel_sales_system': 'نظام مبيعات السفن'
-        }
-    };
-
-    // Merge with global translations
-    const currentTranslations = window.translator.translations;
-    Object.keys(pageTranslations).forEach(lang => {
-        if (currentTranslations[lang]) {
-            Object.assign(currentTranslations[lang], pageTranslations[lang]);
-        }
+    // Ensure MonthTranslator is available
+    if (!window.monthTranslator) {
+        console.warn('MonthTranslator not available, some translations may not work properly');
+    }
+    
+    // Update on language change
+    window.addEventListener('languageChanged', function() {
+        setTimeout(() => {
+            updateAnalyticsPageTranslations();
+        }, 50);
     });
     
-    // Apply translations
-    updatePageTranslations();
+    function updateAnalyticsPageTranslations() {
+        const currentLang = window.translator ? window.translator.currentLanguage : 'en';
+        
+        // 1. Handle all numbers with data-number attribute
+        document.querySelectorAll('[data-number]').forEach(element => {
+            let originalValue = element.getAttribute('data-original');
+            
+            if (!originalValue) {
+                // Store original English value
+                const currentText = element.textContent.trim();
+                originalValue = currentText.replace(/[٠-٩]/g, (char) => {
+                    const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                    return arabicNumerals.indexOf(char).toString();
+                });
+                element.setAttribute('data-original', originalValue);
+            }
+            
+            if (currentLang === 'ar' && window.translateNumber) {
+                element.textContent = window.translateNumber(originalValue);
+            } else {
+                element.textContent = originalValue;
+            }
+        });
+        
+        // 2. Handle ranking numbers in top products (#1, #2, etc.)
+        document.querySelectorAll('.position-absolute.top-0.start-0').forEach(element => {
+            const text = element.textContent.trim();
+            const match = text.match(/#(\d+|[٠-٩]+)/);
+            
+            if (match) {
+                let originalNumber = match[1];
+                
+                if (!element.getAttribute('data-original')) {
+                    // Convert Arabic to English for storage if needed
+                    originalNumber = originalNumber.replace(/[٠-٩]/g, (char) => {
+                        const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                        return arabicNumerals.indexOf(char).toString();
+                    });
+                    element.setAttribute('data-original', originalNumber);
+                }
+                
+                const storedNumber = element.getAttribute('data-original');
+                
+                if (currentLang === 'ar' && window.translateNumber) {
+                    const translatedNumber = window.translateNumber(storedNumber);
+                    element.textContent = `#${translatedNumber}`;
+                } else {
+                    element.textContent = `#${storedNumber}`;
+                }
+            }
+        });
+        
+        // 3. Handle percentage values
+        document.querySelectorAll('.stats-number, .fw-bold, .h3, .h5, .h6').forEach(element => {
+            const text = element.textContent.trim();
+            const percentMatch = text.match(/^([+-]?\d+\.?\d*|[+-]?[٠-٩]+\.?[٠-٩]*)%$/);
+            
+            if (percentMatch) {
+                let originalNumber = percentMatch[1];
+                
+                if (!element.getAttribute('data-original')) {
+                    // Convert Arabic to English for storage if needed
+                    originalNumber = originalNumber.replace(/[٠-٩]/g, (char) => {
+                        const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                        return arabicNumerals.indexOf(char).toString();
+                    });
+                    element.setAttribute('data-original', originalNumber);
+                }
+                
+                const storedNumber = element.getAttribute('data-original');
+                
+                if (currentLang === 'ar' && window.translateNumber) {
+                    const translatedNumber = window.translateNumber(storedNumber);
+                    element.textContent = `${translatedNumber}%`;
+                } else {
+                    element.textContent = `${storedNumber}%`;
+                }
+            }
+        });
+        
+        // 4. Handle month-year combinations using MonthTranslator
+        if (window.monthTranslator) {
+            window.monthTranslator.translateAllMonthYearElements('.col-md-4.col-sm-6 .text-center small.text-muted');
+        }
+        
+        // 5. Handle Product IDs and other numeric small text
+        document.querySelectorAll('small.text-muted').forEach(element => {
+            const text = element.textContent.trim();
+            
+            // Skip month-year elements (already handled above)
+            if (/^([A-Za-z\u0600-\u06FF]+)\s+(\d{4}|[٠-٩]{4})$/.test(text)) {
+                return;
+            }
+            
+            // Handle pure numbers (like product IDs)
+            if (/^\d+$/.test(text) || /^[٠-٩]+$/.test(text)) {
+                let originalValue = element.getAttribute('data-original');
+                
+                if (!originalValue) {
+                    originalValue = text.replace(/[٠-٩]/g, (char) => {
+                        const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                        return arabicNumerals.indexOf(char).toString();
+                    });
+                    element.setAttribute('data-original', originalValue);
+                }
+                
+                if (currentLang === 'ar' && window.translateNumber) {
+                    element.textContent = window.translateNumber(originalValue);
+                } else {
+                    element.textContent = originalValue;
+                }
+            }
+            
+            // Handle "X days left" format
+            const daysLeftMatch = text.match(/^(\d+|[٠-٩]+)\s+(days left|يوم متبقي)$/);
+            if (daysLeftMatch) {
+                let originalNumber = daysLeftMatch[1];
+                
+                if (!element.getAttribute('data-original-days')) {
+                    originalNumber = originalNumber.replace(/[٠-٩]/g, (char) => {
+                        const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                        return arabicNumerals.indexOf(char).toString();
+                    });
+                    element.setAttribute('data-original-days', originalNumber);
+                }
+                
+                const storedNumber = element.getAttribute('data-original-days');
+                
+                if (currentLang === 'ar') {
+                    const translatedNumber = window.translateNumber ? window.translateNumber(storedNumber) : storedNumber;
+                    element.textContent = `${translatedNumber} يوم متبقي`;
+                } else {
+                    element.textContent = `${storedNumber} days left`;
+                }
+            }
+        });
+        
+        // 6. Let the main translation system handle data-translate elements
+        // This should be called AFTER our custom translations to avoid interference
+        if (window.translator && window.translator.translatePage) {
+            window.translator.translatePage();
+        }
+    }
+    
+    // Initial translation call
+    setTimeout(() => {
+        updateAnalyticsPageTranslations();
+    }, 100);
+    
+    // Enhanced language toggle override - prevents interference and ensures proper sequencing
+    const originalToggleLanguage = window.toggleLanguage;
+    if (originalToggleLanguage) {
+        window.toggleLanguage = function() {
+            // Call original function first
+            originalToggleLanguage();
+            
+            // Trigger our custom translations after main translation is complete
+            setTimeout(() => {
+                window.dispatchEvent(new Event('languageChanged'));
+            }, 150); // Slightly longer delay to ensure main translation is done
+        };
+    }
 });
 
 // Export and Print functions
-function exportAnalyticsReport() {
-    showExportModal('analytics_report');
+function exportAnalytics() {
+    if (window.showExportModal) {
+        showExportModal('analytics_report');
+    } else {
+        alert('Export functionality is not available');
+    }
 }
 
-function printAnalyticsReport() {
-    alertTranslated('print_feature_coming_soon');
+function printAnalytics() {
+    if (window.alertTranslated) {
+        alertTranslated('print_feature_coming_soon');
+    } else {
+        alert('Print feature coming soon');
+    }
 }
 </script>
-
-<style>
-.analytics-kpi {
-    background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
-    border: 1px solid #e9ecef;
-    transition: transform 0.2s ease;
-}
-
-.analytics-kpi:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-}
-
-.insight-card {
-    background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
-    transition: transform 0.2s ease;
-}
-
-.insight-card:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.table-row-active {
-    background-color: rgba(0,123,255,0.05);
-}
-</style>
 {% endblock %}

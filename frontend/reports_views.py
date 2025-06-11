@@ -527,13 +527,20 @@ def daily_report(request):
     
     # Low stock alerts (products with less than 10 units total across all vessels)
     low_stock_products = []
+    out_of_stock_products = []
+
     for product in Product.objects.filter(active=True):
         total_stock = InventoryLot.objects.filter(
             product=product,
             remaining_quantity__gt=0
         ).aggregate(total=Sum('remaining_quantity'))['total'] or 0
         
-        if total_stock < 10:
+        if total_stock == 0:
+            out_of_stock_products.append({
+                'product': product,
+                'total_stock': total_stock
+            })
+        elif total_stock < 10:  # Low stock threshold (1-9 units)
             low_stock_products.append({
                 'product': product,
                 'total_stock': total_stock
@@ -589,6 +596,7 @@ def daily_report(request):
         'best_vessel': best_vessel,
         'most_active_vessel': most_active_vessel,
         'low_stock_products': low_stock_products[:10],  # Limit to top 10
+        'out_of_stock_products': out_of_stock_products[:10],  # Limit to top 10
         'unusual_activity': unusual_activity,
         'daily_trips': daily_trips,
         'daily_pos': daily_pos,

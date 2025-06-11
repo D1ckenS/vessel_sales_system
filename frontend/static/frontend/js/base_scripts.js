@@ -69,6 +69,175 @@ class TranslationBridge {
     }
 }
 
+/**
+ * MonthTranslator Class - Handles all month-related translations
+ * Add this to your base_scripts.js file
+ */
+class MonthTranslator {
+    constructor() {
+        this.monthMappings = {
+            // English abbreviations to full Arabic names
+            'Jan': { en: 'Jan', ar: 'يناير' },
+            'Feb': { en: 'Feb', ar: 'فبراير' },
+            'Mar': { en: 'Mar', ar: 'مارس' },
+            'Apr': { en: 'Apr', ar: 'أبريل' },
+            'May': { en: 'May', ar: 'مايو' },
+            'Jun': { en: 'Jun', ar: 'يونيو' },
+            'Jul': { en: 'Jul', ar: 'يوليو' },
+            'Aug': { en: 'Aug', ar: 'أغسطس' },
+            'Sep': { en: 'Sep', ar: 'سبتمبر' },
+            'Oct': { en: 'Oct', ar: 'أكتوبر' },
+            'Nov': { en: 'Nov', ar: 'نوفمبر' },
+            'Dec': { en: 'Dec', ar: 'ديسمبر' }
+        };
+
+        // Reverse mapping for Arabic to English
+        this.arabicToEnglish = {};
+        Object.keys(this.monthMappings).forEach(key => {
+            this.arabicToEnglish[this.monthMappings[key].ar] = key;
+        });
+
+        // Full month names
+        this.fullMonthNames = {
+            'January': { en: 'January', ar: 'يناير' },
+            'February': { en: 'February', ar: 'فبراير' },
+            'March': { en: 'March', ar: 'مارس' },
+            'April': { en: 'April', ar: 'أبريل' },
+            'May': { en: 'May', ar: 'مايو' },
+            'June': { en: 'June', ar: 'يونيو' },
+            'July': { en: 'July', ar: 'يوليو' },
+            'August': { en: 'August', ar: 'أغسطس' },
+            'September': { en: 'September', ar: 'سبتمبر' },
+            'October': { en: 'October', ar: 'أكتوبر' },
+            'November': { en: 'November', ar: 'نوفمبر' },
+            'December': { en: 'December', ar: 'ديسمبر' }
+        };
+    }
+
+    /**
+     * Translate month abbreviation or full name
+     * @param {string} month - Month name (Jan, February, etc.)
+     * @param {string} targetLang - Target language ('en' or 'ar')
+     * @returns {string} Translated month name
+     */
+    translateMonth(month, targetLang = 'en') {
+        // Check abbreviations first
+        if (this.monthMappings[month]) {
+            return this.monthMappings[month][targetLang];
+        }
+        
+        // Check full names
+        if (this.fullMonthNames[month]) {
+            return this.fullMonthNames[month][targetLang];
+        }
+        
+        // Check if it's an Arabic month that needs conversion to English
+        if (this.arabicToEnglish[month]) {
+            const englishAbbr = this.arabicToEnglish[month];
+            return this.monthMappings[englishAbbr][targetLang];
+        }
+        
+        // Return original if not found
+        return month;
+    }
+
+    /**
+     * Extract and translate month-year combinations
+     * @param {string} text - Text containing month and year (e.g., "Jan 2024")
+     * @param {string} targetLang - Target language
+     * @returns {string} Translated text
+     */
+    translateMonthYear(text, targetLang = 'en') {
+        const monthYearMatch = text.match(/^([A-Za-z\u0600-\u06FF]+)\s+(\d{4}|[٠-٩]{4})$/);
+        
+        if (!monthYearMatch) return text;
+        
+        const monthPart = monthYearMatch[1];
+        const yearPart = monthYearMatch[2];
+        
+        // Translate month
+        const translatedMonth = this.translateMonth(monthPart, targetLang);
+        
+        // Translate year numbers
+        let translatedYear = yearPart;
+        if (targetLang === 'ar') {
+            translatedYear = window.translateNumber ? window.translateNumber(yearPart) : yearPart;
+        } else {
+            // Convert Arabic numerals back to English
+            translatedYear = yearPart.replace(/[٠-٩]/g, (char) => {
+                const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                return arabicNumerals.indexOf(char).toString();
+            });
+        }
+        
+        return `${translatedMonth} ${translatedYear}`;
+    }
+
+    /**
+     * Handle month-year elements with proper data storage
+     * @param {HTMLElement} element - DOM element containing month-year text
+     */
+    handleMonthYearElement(element) {
+        const text = element.textContent.trim();
+        const currentLang = window.translator ? window.translator.currentLanguage : 'en';
+        
+        // Store original English values if not already stored
+        if (!element.getAttribute('data-original-month-year')) {
+            // Determine if current text is in Arabic or English
+            const monthYearMatch = text.match(/^([A-Za-z\u0600-\u06FF]+)\s+(\d{4}|[٠-٩]{4})$/);
+            if (monthYearMatch) {
+                const monthPart = monthYearMatch[1];
+                const yearPart = monthYearMatch[2];
+                
+                // Convert to English for storage
+                let englishMonth = monthPart;
+                if (this.arabicToEnglish[monthPart]) {
+                    englishMonth = this.arabicToEnglish[monthPart];
+                }
+                
+                const englishYear = yearPart.replace(/[٠-٩]/g, (char) => {
+                    const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                    return arabicNumerals.indexOf(char).toString();
+                });
+                
+                element.setAttribute('data-original-month-year', `${englishMonth} ${englishYear}`);
+            }
+        }
+        
+        // Get stored original and translate
+        const originalText = element.getAttribute('data-original-month-year');
+        if (originalText) {
+            const translatedText = this.translateMonthYear(originalText, currentLang);
+            element.textContent = translatedText;
+        }
+    }
+
+    /**
+     * Process all month-year elements in the page
+     * @param {string} selector - CSS selector for elements (optional)
+     */
+    translateAllMonthYearElements(selector = null) {
+        const selectors = selector ? [selector] : [
+            '.col-md-4.col-sm-6 .text-center small.text-muted', // Revenue trends
+            '.month-year', // Generic class for month-year elements
+            '[data-month-year]' // Elements with month-year data attribute
+        ];
+        
+        selectors.forEach(sel => {
+            document.querySelectorAll(sel).forEach(element => {
+                // Only process if it looks like month-year content
+                const text = element.textContent.trim();
+                if (/^([A-Za-z\u0600-\u06FF]+)\s+(\d{4}|[٠-٩]{4})$/.test(text)) {
+                    this.handleMonthYearElement(element);
+                }
+            });
+        });
+    }
+}
+
+// Initialize global MonthTranslator instance
+window.monthTranslator = new MonthTranslator();
+
 /* =============================================================================
    Global Instances & Shorthand Functions
    ============================================================================= */

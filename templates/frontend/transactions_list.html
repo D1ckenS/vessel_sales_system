@@ -196,79 +196,112 @@
 
 {% block extra_js %}
 <script>
-function exportTransactions() {
-    const exportMsg = window.translator._('export_feature_coming_soon');
-    const excelMsg = window.translator._('excel_file_description');
-    alert(`📊 ${exportMsg}\n\n${excelMsg}`);
-}
-
-// Enhanced translation for transaction table
+// Enhanced translation for transactions list
 document.addEventListener('DOMContentLoaded', function() {
-    // Update transaction type badges on language change
+    // Update on language change
     window.addEventListener('languageChanged', function() {
-        updateTransactionTypes();
-        updateAllTransactionElements();
-        updateTransactionTimes();
+        updateTransactionsPageTranslations();
     });
     
-    function updateTransactionTypes() {
-        document.querySelectorAll('.transaction-type-badge').forEach(badge => {
-            const originalType = badge.getAttribute('data-type');
-            if (originalType) {
-                badge.textContent = window.translateTransactionType(originalType);
-            }
-        });
-        
-        // Update select options
-        document.querySelectorAll('option[data-transaction-type]').forEach(option => {
-            const type = option.getAttribute('data-transaction-type');
-            if (type) {
-                option.textContent = window.translateTransactionType(type);
-            }
-        });
-    }
-    
-    function updateAllTransactionElements() {
-        // Update time displays (hours:minutes format)
-        document.querySelectorAll('.transaction-time').forEach(element => {
-            const originalTime = element.getAttribute('data-time');
-            if (originalTime && window.translator.currentLanguage === 'ar') {
-                const translatedTime = window.translateNumber(originalTime);
-                element.textContent = translatedTime;
-            } else if (originalTime) {
-                element.textContent = originalTime;
-            }
-        });
-        
-        // Update dates with proper Arabic format
+    function updateTransactionsPageTranslations() {
+        // Update transaction dates
         document.querySelectorAll('.transaction-date').forEach(element => {
-            const originalDate = element.getAttribute('data-date');
-            if (originalDate && window.translator.currentLanguage === 'ar') {
-                const translatedDate = window.translateNumber(originalDate);
-                element.textContent = translatedDate;
-            } else if (originalDate) {
+            const originalDate = element.getAttribute('data-date') || element.textContent.trim();
+            if (!element.getAttribute('data-date')) {
+                element.setAttribute('data-date', originalDate);
+            }
+            
+            if (window.translator.currentLanguage === 'ar') {
+                element.textContent = window.translateNumber(originalDate);
+            } else {
                 element.textContent = originalDate;
             }
         });
         
-        // Update all number displays
-        document.querySelectorAll('.transaction-quantity, .transaction-amount').forEach(element => {
-            const originalValue = element.getAttribute('data-original') || element.textContent.trim();
-            if (!element.getAttribute('data-original')) {
-                element.setAttribute('data-original', originalValue);
+        // Update transaction times (HH:MM format)
+        document.querySelectorAll('.transaction-time').forEach(element => {
+            const originalTime = element.getAttribute('data-time') || element.textContent.trim();
+            if (!element.getAttribute('data-time')) {
+                element.setAttribute('data-time', originalTime);
             }
-            const translatedNumber = window.translateNumber(originalValue);
-            element.textContent = translatedNumber;
+            
+            if (window.translator.currentLanguage === 'ar') {
+                element.textContent = window.translateNumber(originalTime);
+            } else {
+                element.textContent = originalTime;
+            }
         });
-    }
-    
-    function updateTransactionTimes() {
+        
+        // Update transaction types in badges
+        document.querySelectorAll('.transaction-type-badge').forEach(element => {
+            const originalType = element.getAttribute('data-type') || element.textContent.trim();
+            if (!element.getAttribute('data-type')) {
+                element.setAttribute('data-type', originalType);
+            }
+            element.textContent = window.translateTransactionType(originalType);
+        });
+        
+        // Update dropdown transaction types
+        document.querySelectorAll('option[data-transaction-type]').forEach(element => {
+            const originalType = element.getAttribute('data-transaction-type');
+            if (originalType) {
+                element.textContent = window.translateTransactionType(originalType);
+            }
+        });
+        
+        // Update product IDs (ID: 104, ID: 101, etc.) - FIXED VERSION
+        document.querySelectorAll('td small.text-muted').forEach(element => {
+            const text = element.textContent.trim();
+            if (text.includes('ID:') || text.includes('رقم:')) {
+                // Store original value if not already stored
+                let originalText = element.getAttribute('data-original');
+                if (!originalText) {
+                    // If it's already in Arabic, convert back to English first
+                    if (text.includes('رقم:')) {
+                        const arabicMatch = text.match(/([٠-٩]+)/);
+                        if (arabicMatch) {
+                            const englishNumber = arabicMatch[0].replace(/[٠-٩]/g, (char) => {
+                                const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                                return arabicNumerals.indexOf(char).toString();
+                            });
+                            originalText = `ID: ${englishNumber}`;
+                        }
+                    } else {
+                        originalText = text;
+                    }
+                    element.setAttribute('data-original', originalText);
+                }
+                
+                // Extract the number from original text
+                const numberMatch = originalText.match(/(\d+)/);
+                if (numberMatch) {
+                    const originalNumber = numberMatch[0];
+                    
+                    const currentLang = window.translator.currentLanguage;
+                    if (currentLang === 'ar') {
+                        const translatedNumber = window.translateNumber(originalNumber);
+                        element.textContent = `رقم: ${translatedNumber}`;
+                    } else {
+                        element.textContent = originalText; // Always revert to original English
+                    }
+                }
+            }
+        });
+        
+        // Update timesince information
         document.querySelectorAll('.transaction-time-ago').forEach(element => {
             const originalTime = element.getAttribute('data-time');
+            if (!originalTime) {
+                const currentText = element.textContent.trim();
+                const cleanTime = currentText.replace(' ago', '').replace(' مضت', '');
+                element.setAttribute('data-time', cleanTime);
+            }
+            
+            const timeValue = element.getAttribute('data-time');
             const currentLang = window.translator.currentLanguage;
             
             if (currentLang === 'ar') {
-                let arabicTime = originalTime
+                let arabicTime = timeValue
                     .replace(/(\d+)\s*days?/g, (match, num) => window.translateNumber(num) + ' يوم')
                     .replace(/(\d+)\s*hours?/g, (match, num) => window.translateNumber(num) + ' ساعة') 
                     .replace(/(\d+)\s*minutes?/g, (match, num) => window.translateNumber(num) + ' دقيقة')
@@ -279,20 +312,67 @@ document.addEventListener('DOMContentLoaded', function() {
                     .replace(/\s+/g, ' ')
                     .trim();
                 
-                arabicTime += ' مضت';
+                if (!arabicTime.includes('مضت')) {
+                    arabicTime += ' مضت';
+                }
+                
                 element.textContent = arabicTime;
             } else {
-                element.textContent = originalTime + ' ago';
+                const timeWithoutAgo = timeValue.replace(' ago', '').replace(' مضت', '');
+                element.textContent = timeWithoutAgo + ' ago';
+            }
+        });
+        
+        // Update Trip/PO numbers in links
+        document.querySelectorAll('td a small').forEach(element => {
+            const text = element.textContent.trim();
+            // Check if it contains a number (trip or PO number)
+            const numberMatch = text.match(/(\d+)/);
+            if (numberMatch) {
+                let originalNumber = numberMatch[0];
+                let originalText = element.getAttribute('data-original');
+                if (!originalText) {
+                    originalText = text;
+                    element.setAttribute('data-original', originalText);
+                }
+                
+                if (window.translator.currentLanguage === 'ar') {
+                    const translatedNumber = window.translateNumber(originalNumber);
+                    const newText = originalText.replace(/\d+/, translatedNumber);
+                    element.textContent = newText;
+                } else {
+                    element.textContent = originalText;
+                }
             }
         });
     }
     
     // Initial call
     setTimeout(() => {
-        updateTransactionTypes();
-        updateAllTransactionElements();
-        updateTransactionTimes();
-    }, 0);
+        updateTransactionsPageTranslations();
+    }, 100);
+    
+    // Also trigger the language changed event when toggleLanguage is called
+    const originalToggleLanguage = window.toggleLanguage;
+    window.toggleLanguage = function() {
+        originalToggleLanguage();
+        
+        // Trigger custom event for page-specific translations
+        setTimeout(() => {
+            window.dispatchEvent(new Event('languageChanged'));
+        }, 200);
+    };
 });
+
+function exportTransactions() {
+    const additionalData = {
+        type_filter: document.querySelector('[name="type"]')?.value || '',
+        vessel_filter: document.querySelector('[name="vessel"]')?.value || '',
+        date_from: document.querySelector('[name="date_from"]')?.value || '',
+        date_to: document.querySelector('[name="date_to"]')?.value || ''
+    };
+    
+    showExportModal('transactions', additionalData);
+}
 </script>
 {% endblock %}

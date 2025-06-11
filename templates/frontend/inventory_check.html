@@ -790,7 +790,9 @@ function updateInventoryTable() {
             </td>
             <td class="text-center">
                 <span class="badge bg-${item.status_class}">
-                    <span data-translate="${item.stock_status}_stock_status">${item.status_text}</span>
+                    ${item.stock_status === 'out' ? '<span data-translate="out_of_stock_status">Out of Stock</span>' :
+                    item.stock_status === 'low' ? '<span data-translate="low_stock_status">Low Stock</span>' :
+                    '<span data-translate="good_stock_status">Good Stock</span>'}
                 </span>
             </td>
             <td class="text-end">

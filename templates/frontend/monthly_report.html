@@ -359,97 +359,270 @@
 
 {% block extra_js %}
 <script>
-// Add page-specific translations
+// Enhanced translation for monthly report
 document.addEventListener('DOMContentLoaded', function() {
-    const pageTranslations = {
-        en: {
-            'monthly_report': 'Monthly Report',
-            'monthly_operations_analysis': 'Monthly operations and financial analysis for',
-            'back_to_reports': 'Back to Reports',
-            'export': 'Export',
-            'print': 'Print',
-            'select_month': 'Select Month',
-            'view_report': 'View Report',
-            'monthly_revenue': 'Monthly Revenue',
-            'monthly_cost': 'Monthly Cost',
-            'supply_purchases': 'Supply Purchases',
-            'vs_last_month': 'vs last month',
-            'monthly_profit': 'Monthly Profit',
-            'margin': 'margin',
-            'total_transactions': 'Total Transactions',
-            'sales': 'sales',
-            'supplies': 'supplies',
-            'units_processed': 'Units Processed',
-            'all_operations': 'All operations',
-            'daily_performance': 'Daily Performance',
-            'date': 'Date',
-            'day': 'Day',
-            'revenue': 'Revenue',
-            'costs': 'Costs',
-            'profit': 'Profit',
-            'transactions': 'Transactions',
-            'vessel_performance': 'Vessel Performance',
-            'vessel': 'Vessel',
-            'trips': 'Trips',
-            'pos': 'POs',
-            'duty_free': 'Duty-Free',
-            'sales_supplies': 'Sales/Supplies',
-            'top_products': 'Top Products',
-            'sold': 'sold',
-            'no_sales_data': 'No sales data',
-            'twelve_month_trend': '12-Month Trend',
-            'vessel_sales_system': 'Vessel Sales System'
-        },
-        ar: {
-            'monthly_report': 'التقرير الشهري',
-            'monthly_operations_analysis': 'تحليل العمليات والأعمال الشهرية لشهر',
-            'back_to_reports': 'الرجوع للتقارير',
-            'export': 'تصدير',
-            'print': 'طباعة',
-            'select_month': 'اختر الشهر',
-            'view_report': 'عرض التقرير',
-            'monthly_revenue': 'الإيرادات الشهرية',
-            'monthly_cost': 'التكلفة الشهرية',
-            'supply_purchases': 'مشتريات التوريد',
-            'vs_last_month': 'مقابل الشهر الماضي',
-            'monthly_profit': 'الربح الشهري',
-            'margin': 'هامش',
-            'total_transactions': 'إجمالي الحركات',
-            'sales': 'مبيعات',
-            'supplies': 'توريدات',
-            'units_processed': 'الوحدات المعالجة',
-            'all_operations': 'جميع العمليات',
-            'daily_performance': 'الأداء اليومي',
-            'date': 'التاريخ',
-            'day': 'اليوم',
-            'revenue': 'الإيرادات',
-            'costs': 'التكاليف',
-            'profit': 'الربح',
-            'transactions': 'الحركات',
-            'vessel_performance': 'أداء السفن',
-            'vessel': 'السفينة',
-            'trips': 'الرحلات',
-            'pos': 'أوامر الشراء',
-            'duty_free': 'سوق حرة',
-            'sales_supplies': 'مبيعات/توريدات',
-            'top_products': 'أفضل المنتجات',
-            'sold': 'مباع',
-            'no_sales_data': 'لا توجد بيانات مبيعات',
-            'twelve_month_trend': 'اتجاه ١٢ شهر',
-            'vessel_sales_system': 'نظام مبيعات السفن'
-        }
-    };
-    
-    // Merge with global translations
-    const currentTranslations = window.translator.translations;
-    Object.keys(pageTranslations).forEach(lang => {
-        if (currentTranslations[lang]) {
-            Object.assign(currentTranslations[lang], pageTranslations[lang]);
-        }
+    // Update on language change
+    window.addEventListener('languageChanged', function() {
+        updateMonthlyReportTranslations();
     });
     
-    // Apply translations
-    updatePageTranslations();
+    function updateMonthlyReportTranslations() {
+        // Update month/year in header
+        updateHeaderMonthYear();
+        
+        // Update dropdown options
+        updateDropdownTranslations();
+        
+        // Update dates in daily breakdown table
+        updateDailyBreakdownDates();
+        
+        // Update day names in daily breakdown
+        updateDayNames();
+        
+        // Update product IDs in top products
+        updateProductIds();
+        
+        // Update 12-month trend data
+        updateTrendMonths();
+        
+        // Update years in trend and dropdowns
+        updateYearNumbers();
+    }
+    
+    function updateHeaderMonthYear() {
+        // The header displays month name and year that come from backend
+        // We need to handle the year number translation
+        const headerText = document.querySelector('p.text-muted strong');
+        if (headerText) {
+            const text = headerText.textContent;
+            let originalText = headerText.getAttribute('data-original');
+            if (!originalText) {
+                originalText = text;
+                headerText.setAttribute('data-original', originalText);
+            }
+            
+            if (window.translator.currentLanguage === 'ar') {
+                // Translate numbers in the header text
+                const translatedText = originalText.replace(/\d+/g, (match) => {
+                    return window.translateNumber(match);
+                });
+                headerText.textContent = translatedText;
+            } else {
+                headerText.textContent = originalText;
+            }
+        }
+    }
+    
+    function updateDropdownTranslations() {
+        // Update month dropdown options
+        document.querySelectorAll('select[name="month"] option').forEach(option => {
+            const value = option.value;
+            if (value && value !== "") {
+                const currentLang = window.translator.currentLanguage;
+                
+                // Month translation mapping
+                const monthTranslations = {
+                    '1': { en: 'January', ar: 'يناير' },
+                    '2': { en: 'February', ar: 'فبراير' },
+                    '3': { en: 'March', ar: 'مارس' },
+                    '4': { en: 'April', ar: 'أبريل' },
+                    '5': { en: 'May', ar: 'مايو' },
+                    '6': { en: 'June', ar: 'يونيو' },
+                    '7': { en: 'July', ar: 'يوليو' },
+                    '8': { en: 'August', ar: 'أغسطس' },
+                    '9': { en: 'September', ar: 'سبتمبر' },
+                    '10': { en: 'October', ar: 'أكتوبر' },
+                    '11': { en: 'November', ar: 'نوفمبر' },
+                    '12': { en: 'December', ar: 'ديسمبر' }
+                };
+                
+                if (monthTranslations[value]) {
+                    option.textContent = monthTranslations[value][currentLang];
+                }
+            }
+        });
+        
+        // Update year dropdown options
+        document.querySelectorAll('select[name="year"] option').forEach(option => {
+            const originalYear = option.getAttribute('data-original') || option.textContent;
+            if (!option.getAttribute('data-original')) {
+                option.setAttribute('data-original', originalYear);
+            }
+            
+            if (window.translator.currentLanguage === 'ar') {
+                option.textContent = window.translateNumber(originalYear);
+            } else {
+                option.textContent = originalYear;
+            }
+        });
+    }
+    
+    function updateDailyBreakdownDates() {
+        // Update dates in daily performance table (d/m format)
+        document.querySelectorAll('tbody tr td:first-child').forEach(element => {
+            const text = element.textContent.trim();
+            if (/^\d{1,2}\/\d{1,2}$/.test(text) || /^[٠-٩]{1,2}\/[٠-٩]{1,2}$/.test(text)) {
+                let originalValue = element.getAttribute('data-original');
+                if (!originalValue) {
+                    // Convert Arabic date back to English for storage
+                    originalValue = text.replace(/[٠-٩]/g, (char) => {
+                        const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                        return arabicNumerals.indexOf(char).toString();
+                    });
+                    element.setAttribute('data-original', originalValue);
+                }
+                
+                if (window.translator.currentLanguage === 'ar') {
+                    element.textContent = window.translateNumber(originalValue);
+                } else {
+                    element.textContent = originalValue;
+                }
+            }
+        });
+    }
+    
+    function updateDayNames() {
+        // Update day names in daily breakdown
+        document.querySelectorAll('.day-name').forEach(element => {
+            const enName = element.getAttribute('data-en');
+            const arName = element.getAttribute('data-ar');
+            const currentLang = window.translator.currentLanguage;
+            
+            // Day name translations
+            const dayTranslations = {
+                'Monday': { en: 'Monday', ar: 'الاثنين' },
+                'Tuesday': { en: 'Tuesday', ar: 'الثلاثاء' },
+                'Wednesday': { en: 'Wednesday', ar: 'الأربعاء' },
+                'Thursday': { en: 'Thursday', ar: 'الخميس' },
+                'Friday': { en: 'Friday', ar: 'الجمعة' },
+                'Saturday': { en: 'Saturday', ar: 'السبت' },
+                'Sunday': { en: 'Sunday', ar: 'الأحد' }
+            };
+            
+            const dayKey = enName || element.textContent.trim();
+            if (dayTranslations[dayKey]) {
+                if (currentLang === 'ar') {
+                    element.textContent = dayTranslations[dayKey].ar;
+                } else {
+                    element.textContent = dayTranslations[dayKey].en;
+                }
+            }
+        });
+    }
+    
+    function updateProductIds() {
+        // Update product IDs in top products section
+        document.querySelectorAll('.col-md-4 .card-body small.text-muted').forEach(element => {
+            const text = element.textContent.trim();
+            if (/^\d+$/.test(text) || /^[٠-٩]+$/.test(text)) {
+                let originalValue = element.getAttribute('data-original');
+                if (!originalValue) {
+                    // Convert Arabic numbers back to English for storage
+                    originalValue = text.replace(/[٠-٩]/g, (char) => {
+                        const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                        return arabicNumerals.indexOf(char).toString();
+                    });
+                    element.setAttribute('data-original', originalValue);
+                }
+                
+                if (window.translator.currentLanguage === 'ar') {
+                    element.textContent = window.translateNumber(originalValue);
+                } else {
+                    element.textContent = originalValue;
+                }
+            }
+        });
+    }
+    
+    function updateTrendMonths() {
+        // Update month/year in 12-month trend
+        document.querySelectorAll('.col-md-2 small.text-muted').forEach(element => {
+            const text = element.textContent.trim();
+            
+            // Match pattern like "Jan 2025", "Feb 2024", etc.
+            const monthYearMatch = text.match(/^([A-Za-z]{3})\s+(\d{4})$/);
+            if (monthYearMatch) {
+                const monthAbbr = monthYearMatch[1];
+                const year = monthYearMatch[2];
+                
+                let originalText = element.getAttribute('data-original');
+                if (!originalText) {
+                    originalText = text;
+                    element.setAttribute('data-original', originalText);
+                }
+                
+                const currentLang = window.translator.currentLanguage;
+                
+                // Month abbreviation translations
+                const monthAbbrTranslations = {
+                    'Jan': { en: 'Jan', ar: 'يناير' },
+                    'Feb': { en: 'Feb', ar: 'فبراير' },
+                    'Mar': { en: 'Mar', ar: 'مارس' },
+                    'Apr': { en: 'Apr', ar: 'أبريل' },
+                    'May': { en: 'May', ar: 'مايو' },
+                    'Jun': { en: 'Jun', ar: 'يونيو' },
+                    'Jul': { en: 'Jul', ar: 'يوليو' },
+                    'Aug': { en: 'Aug', ar: 'أغسطس' },
+                    'Sep': { en: 'Sep', ar: 'سبتمبر' },
+                    'Oct': { en: 'Oct', ar: 'أكتوبر' },
+                    'Nov': { en: 'Nov', ar: 'نوفمبر' },
+                    'Dec': { en: 'Dec', ar: 'ديسمبر' }
+                };
+                
+                if (currentLang === 'ar') {
+                    const arabicMonth = monthAbbrTranslations[monthAbbr]?.ar || monthAbbr;
+                    const arabicYear = window.translateNumber(year);
+                    element.textContent = `${arabicMonth} ${arabicYear}`;
+                } else {
+                    element.textContent = originalText;
+                }
+            }
+        });
+    }
+    
+    function updateYearNumbers() {
+        // Update any standalone year numbers (4 digits)
+        document.querySelectorAll('td, th, span, div').forEach(element => {
+            // Skip if element has child elements (to avoid processing containers)
+            if (element.children.length > 0) return;
+            
+            const text = element.textContent.trim();
+            if (/^\d{4}$/.test(text) || /^[٠-٩]{4}$/.test(text)) {
+                let originalValue = element.getAttribute('data-original');
+                if (!originalValue) {
+                    // Convert Arabic numbers back to English for storage
+                    originalValue = text.replace(/[٠-٩]/g, (char) => {
+                        const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                        return arabicNumerals.indexOf(char).toString();
+                    });
+                    element.setAttribute('data-original', originalValue);
+                }
+                
+                if (window.translator.currentLanguage === 'ar') {
+                    element.textContent = window.translateNumber(originalValue);
+                } else {
+                    element.textContent = originalValue;
+                }
+            }
+        });
+    }
+    
+    // Initial call
+    setTimeout(() => {
+        updateMonthlyReportTranslations();
+        updatePageTranslations(); // Call global translation update
+    }, 100);
+    
+    // Also trigger the language changed event when toggleLanguage is called
+    const originalToggleLanguage = window.toggleLanguage;
+    window.toggleLanguage = function() {
+        originalToggleLanguage();
+        
+        // Trigger custom event for page-specific translations
+        setTimeout(() => {
+            window.dispatchEvent(new Event('languageChanged'));
+        }, 200);
+    };
 });
 
 // Export and Print functions
@@ -461,10 +634,6 @@ function exportMonthlyReport() {
         month: month,
         year: year
     });
-}
-
-function printMonthlyReport() {
-    alertTranslated('print_feature_coming_soon');
 }
 
 function printMonthlyReport() {

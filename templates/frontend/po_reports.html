@@ -216,67 +216,96 @@
 
 {% block extra_js %}
 <script>
+// Enhanced translation for PO reports
 document.addEventListener('DOMContentLoaded', function() {
-    // Add report-specific translations
-    const reportTranslations = {
-        en: {
-            'purchase_order_reports': 'Purchase Order Reports',
-            'vessel_sales_system': 'Vessel Sales System',
-            'analyze_supply_chain': 'Analyze supply chain and inventory procurement',
-            'back_to_reports': 'Back to Reports',
-            'total_purchase_orders': 'Total Purchase Orders',
-            'total_cost_jod': 'Total Cost',
-            'avg_cost_per_po': 'Avg Cost per PO',
-            'filter_purchase_orders': 'Filter Purchase Orders',
-            'all_status': 'All Status',
-            'purchase_order_details': 'Purchase Order Details',
-            'po_hash': 'PO #',
-            'view_details': 'View Details',
-            'analytics': 'Analytics',
-            'no_purchase_orders_found': 'No purchase orders found',
-            'try_adjusting_filters_pos': 'Try adjusting your filter criteria or create new purchase orders',
-            'showing': 'Showing',
-            'purchase_orders': 'purchase orders',
-            'print_feature_coming_soon': 'Print feature coming soon!',
-            'printable_po_report': 'This will generate a printable purchase order report.',
-            'po_analytics_coming_soon': 'PO analytics coming soon!',
-            'detailed_analytics_po': 'This will show detailed analytics for PO ID:'
-        },
-        ar: {
-            'purchase_order_reports': 'تقارير أوامر الشراء',
-            'vessel_sales_system': 'نظام مبيعات السفن',
-            'analyze_supply_chain': 'تحليل سلسلة التوريد واشتراء المخزون',
-            'back_to_reports': 'العودة للتقارير',
-            'total_purchase_orders': 'إجمالي أوامر الشراء',
-            'total_cost_jod': 'التكلفة الإجمالية',
-            'avg_cost_per_po': 'متوسط تكلفة أمر الشراء',
-            'filter_purchase_orders': 'تصفية أوامر الشراء',
-            'all_status': 'جميع الحالات',
-            'purchase_order_details': 'تفاصيل أوامر الشراء',
-            'po_hash': 'رقم أمر الشراء',
-            'view_details': 'عرض التفاصيل',
-            'analytics': 'التحليلات',
-            'no_purchase_orders_found': 'لم يتم العثور على أوامر شراء',
-            'try_adjusting_filters_pos': 'جرب تعديل معايير التصفية أو إنشاء أوامر شراء جديدة',
-            'showing': 'عرض',
-            'purchase_orders': 'أوامر شراء',
-            'print_feature_coming_soon': 'ميزة الطباعة قادمة قريباً!',
-            'printable_po_report': 'سيتم إنشاء تقرير أوامر شراء قابل للطباعة.',
-            'po_analytics_coming_soon': 'تحليلات أوامر الشراء قادمة قريباً!',
-            'detailed_analytics_po': 'سيتم عرض تحليلات مفصلة لأمر الشراء رقم:'
-        }
-    };
-    
-    // Merge with global translations
-    const currentTranslations = window.translator.translations;
-    Object.keys(reportTranslations).forEach(lang => {
-        if (currentTranslations[lang]) {
-            Object.assign(currentTranslations[lang], reportTranslations[lang]);
-        }
+    // Update on language change
+    window.addEventListener('languageChanged', function() {
+        updatePOPageTranslations();
     });
     
-    // Apply translations
-    updatePageTranslations();
+    function updatePOPageTranslations() {
+        // Update PO numbers (first column, strong elements)
+        document.querySelectorAll('tbody tr td:first-child strong').forEach(element => {
+            const text = element.textContent.trim();
+            if (/^\d+$/.test(text) || /^[٠-٩]+$/.test(text)) {
+                let originalValue = element.getAttribute('data-original');
+                if (!originalValue) {
+                    // Convert Arabic numerals back to English for storage
+                    originalValue = text.replace(/[٠-٩]/g, (char) => {
+                        const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                        return arabicNumerals.indexOf(char).toString();
+                    });
+                    element.setAttribute('data-original', originalValue);
+                }
+                
+                if (window.translator.currentLanguage === 'ar') {
+                    element.textContent = window.translateNumber(originalValue);
+                } else {
+                    element.textContent = originalValue;
+                }
+            }
+        });
+        
+        // Update dates in date column
+        document.querySelectorAll('tbody tr td:nth-child(2) div').forEach(element => {
+            const text = element.textContent.trim();
+            if (/^\d{2}\/\d{2}\/\d{4}$/.test(text) || /^[٠-٩]{2}\/[٠-٩]{2}\/[٠-٩]{4}$/.test(text)) {
+                let originalValue = element.getAttribute('data-original');
+                if (!originalValue) {
+                    // Convert Arabic date back to English for storage
+                    originalValue = text.replace(/[٠-٩]/g, (char) => {
+                        const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                        return arabicNumerals.indexOf(char).toString();
+                    });
+                    element.setAttribute('data-original', originalValue);
+                }
+                
+                if (window.translator.currentLanguage === 'ar') {
+                    element.textContent = window.translateNumber(originalValue);
+                } else {
+                    element.textContent = originalValue;
+                }
+            }
+        });
+        
+        // Update time stamps (HH:MM format)
+        document.querySelectorAll('tbody tr td:nth-child(2) small').forEach(element => {
+            const text = element.textContent.trim();
+            if (/^\d{2}:\d{2}$/.test(text) || /^[٠-٩]{2}:[٠-٩]{2}$/.test(text)) {
+                let originalValue = element.getAttribute('data-original');
+                if (!originalValue) {
+                    // Convert Arabic time back to English for storage
+                    originalValue = text.replace(/[٠-٩]/g, (char) => {
+                        const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                        return arabicNumerals.indexOf(char).toString();
+                    });
+                    element.setAttribute('data-original', originalValue);
+                }
+                
+                if (window.translator.currentLanguage === 'ar') {
+                    element.textContent = window.translateNumber(originalValue);
+                } else {
+                    element.textContent = originalValue;
+                }
+            }
+        });
+    }
+    
+    // Initial call
+    setTimeout(() => {
+        updatePOPageTranslations();
+    }, 100);
+    
+    // Also trigger the language changed event when toggleLanguage is called
+    const originalToggleLanguage = window.toggleLanguage;
+    window.toggleLanguage = function() {
+        originalToggleLanguage();
+        
+        // Trigger custom event for page-specific translations
+        setTimeout(() => {
+            window.dispatchEvent(new Event('languageChanged'));
+        }, 200);
+    };
 });
 
 function exportPOReports() {
@@ -292,12 +321,10 @@ function exportPOReports() {
 
 function printPOs() {
     alertTranslated('print_feature_coming_soon');
-    alertTranslated('printable_po_report');
 }
 
 function viewPOAnalytics(poId) {
-    alertTranslated('po_analytics_coming_soon');
-    alertTranslated('detailed_analytics_po', { id: poId });
+    alertTranslated('feature_coming_soon');
 }
 </script>
 {% endblock %}
