@@ -7,7 +7,7 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter, A4
+from reportlab.lib.pagesizes import letter, A4, landscape
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
@@ -112,99 +112,218 @@ class ExcelExporter:
         return response
 
 class PDFExporter:
-    def __init__(self, title="Report"):
+    def __init__(self, title="Report", landscape_mode=False):
         self.title = title
+        self.landscape_mode = landscape_mode
         self.styles = getSampleStyleSheet()
         self.story = []
         
-        # Custom styles
+        # Determine page size and orientation
+        if self.landscape_mode:
+            self.pagesize = landscape(A4)  # Landscape A4: 842 x 595 points
+            self.available_width = 842 - 2*inch  # ~650 points available
+        else:
+            self.pagesize = A4  # Portrait A4: 595 x 842 points
+            self.available_width = 595 - 2*inch  # ~450 points available
+        
+        # Custom styles with better sizing
         self.title_style = ParagraphStyle(
             'CustomTitle',
             parent=self.styles['Heading1'],
             fontSize=18,
-            spaceAfter=30,
-            alignment=1  # Center
+            spaceAfter=20,
+            alignment=1,  # Center alignment
+            textColor=colors.HexColor('#0f4c75')
         )
         
         self.subtitle_style = ParagraphStyle(
             'CustomSubtitle',
+            parent=self.styles['Normal'],
+            fontSize=12,
+            spaceAfter=15,
+            alignment=1,
+            textColor=colors.HexColor('#6c757d')
+        )
+        
+        self.header_style = ParagraphStyle(
+            'CustomHeader',
             parent=self.styles['Heading2'],
             fontSize=14,
-            spaceAfter=20,
-            alignment=1  # Center
+            spaceAfter=10,
+            textColor=colors.HexColor('#0f4c75')
         )
         
     def add_title(self, title, subtitle=None):
-        """Add title and subtitle"""
+        """Add title with proper formatting"""
         self.story.append(Paragraph(title, self.title_style))
         if subtitle:
             self.story.append(Paragraph(subtitle, self.subtitle_style))
         self.story.append(Spacer(1, 20))
         
     def add_metadata(self, metadata):
-        """Add metadata table"""
+        """Add metadata table with better sizing"""
+        if not metadata:
+            return
+            
         data = [[key + ":", str(value)] for key, value in metadata.items()]
-        table = Table(data, colWidths=[2*inch, 4*inch])
+        
+        # Calculate column widths based on available space
+        col1_width = self.available_width * 0.35
+        col2_width = self.available_width * 0.65
+        
+        table = Table(data, colWidths=[col1_width, col2_width])
         table.setStyle(TableStyle([
             ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
             ('FONTSIZE', (0, 0), (-1, -1), 10),
-            ('LEFTPADDING', (0, 0), (-1, -1), 0),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f8f9fa')),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
         ]))
+        
         self.story.append(table)
         self.story.append(Spacer(1, 20))
         
-    def add_table(self, headers, data_rows):
-        """Add data table"""
-        # Prepare table data
-        table_data = [headers] + data_rows
+    def add_table(self, headers, data, auto_size_columns=True):
+        """Add table with dynamic column sizing and proper width management"""
+        if not data:
+            self.story.append(Paragraph("No data available", self.styles['Normal']))
+            return
+            
+        # Prepare table data with proper string conversion
+        table_data = [headers]
+        for row in data:
+            # Convert all cells to strings and handle None values
+            string_row = [str(cell) if cell is not None else '' for cell in row]
+            table_data.append(string_row)
+        
+        if auto_size_columns and len(headers) > 0:
+            # Calculate optimal column widths
+            num_cols = len(headers)
+            col_widths = []
+            
+            # Calculate content-based widths
+            for col_idx in range(num_cols):
+                max_content_length = 0
+                for row in table_data:
+                    if col_idx < len(row):
+                        content_length = len(str(row[col_idx]))
+                        max_content_length = max(max_content_length, content_length)
+                
+                # Convert to actual width
+                # Base width calculation: 6 points per character + padding
+                min_width = 60  # Minimum 60 points (~0.83 inch)
+                estimated_width = max_content_length * 6 + 20  # 6 points per char + padding
+                col_widths.append(max(min_width, estimated_width))
+            
+            # Scale down if total width exceeds available space
+            total_width = sum(col_widths)
+            if total_width > self.available_width:
+                scale_factor = self.available_width / total_width
+                col_widths = [w * scale_factor for w in col_widths]
+                
+            # Ensure minimum readable width
+            min_readable_width = 50
+            col_widths = [max(w, min_readable_width) for w in col_widths]
+            
+        else:
+            # Equal width columns
+            col_width = self.available_width / len(headers)
+            col_widths = [col_width] * len(headers)
         
         # Create table
-        table = Table(table_data)
+        table = Table(table_data, colWidths=col_widths, repeatRows=1)
         
-        # Style the table
+        # Enhanced table styling
         table.setStyle(TableStyle([
-            # Header row
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#366092')),
+            # Header styling
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0f4c75')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 10),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ('TOPPADDING', (0, 0), (-1, 0), 8),
             
-            # Data rows
+            # Data rows styling
             ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -1), 9),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
             
             # Alternating row colors
             ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')]),
+            
+            # Handle text wrapping
+            ('WORDWRAP', (0, 0), (-1, -1), 'LTR'),
         ]))
         
         self.story.append(table)
         self.story.append(Spacer(1, 20))
         
     def add_summary(self, summary_data):
-        """Add summary section"""
-        self.story.append(Paragraph("Summary", self.styles['Heading2']))
+        """Add summary section with better layout"""
+        if not summary_data:
+            return
+            
+        self.story.append(Paragraph("Summary", self.header_style))
         
         data = [[key + ":", str(value)] for key, value in summary_data.items()]
-        table = Table(data, colWidths=[2*inch, 2*inch])
+        
+        # Use smaller width for summary table (centered)
+        col1_width = self.available_width * 0.4
+        col2_width = self.available_width * 0.35
+        
+        table = Table(data, colWidths=[col1_width, col2_width])
         table.setStyle(TableStyle([
             ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
             ('FONTSIZE', (0, 0), (-1, -1), 10),
             ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#e3f2fd')),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
         ]))
+        
         self.story.append(table)
+        self.story.append(Spacer(1, 20))
         
     def get_response(self, filename):
-        """Generate HTTP response with PDF file"""
+        """Generate HTTP response with properly sized PDF file"""
         response = HttpResponse(content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         
-        # Create PDF
-        doc = SimpleDocTemplate(response, pagesize=A4)
-        doc.build(self.story)
+        # Create PDF with custom page size and margins
+        doc = SimpleDocTemplate(
+            response, 
+            pagesize=self.pagesize,
+            rightMargin=0.75*inch,
+            leftMargin=0.75*inch,
+            topMargin=1*inch,
+            bottomMargin=0.75*inch
+        )
         
+        doc.build(self.story)
         return response
+
+
+def create_pdf_exporter_for_data(title, data_width="normal"):
+    """
+    Helper function to create appropriately sized PDF exporter
+    
+    Args:
+        title: PDF title
+        data_width: "normal" for portrait, "wide" for landscape
+    """
+    landscape_mode = data_width == "wide"
+    return PDFExporter(title=title, landscape_mode=landscape_mode)

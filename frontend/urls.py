@@ -107,7 +107,7 @@ urlpatterns = [
     path('export/purchase-orders/', export_views.export_purchase_orders, name='export_purchase_orders'),
     path('export/monthly-report/', export_views.export_monthly_report, name='export_monthly_report'),
     path('export/daily-report/', export_views.export_daily_report, name='export_daily_report'),
-    path('export/analytics/', export_views.export_analytics_report, name='export_analytics_report'),
+    path('export/analytics/', export_views.export_analytics, name='export_analytics'),
     
     # Transactions
     path('transactions/', reports_views.transactions_list, name='transactions_list'),  # NEW
