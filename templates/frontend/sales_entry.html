@@ -209,7 +209,6 @@
         </div>
     </div>
 </div>
-
 {% endblock %}
 
 {% block extra_js %}
@@ -239,147 +238,107 @@ document.getElementById('tripForm').addEventListener('submit', function(e) {
         alertTranslated('enter_valid_passenger_count');
         return;
     }
-    
 });
 
-// Enhanced translation for sales entry - add this after the existing form validation code
+// ✅ CLEAN EVENT-DRIVEN TRANSLATION SYSTEM - NO FUNCTION OVERRIDES
 document.addEventListener('DOMContentLoaded', function() {
-    // Update on language change
+    console.log('📝 Sales Entry: Initializing event-driven translation system');
+    
+    // Enhanced translation for sales entry
+    function updateSalesPageTranslations() {
+        console.log('🔄 Sales Entry: Updating page-specific translations');
+        
+        // Update trip numbers with proper reversion
+        document.querySelectorAll('tbody tr td:first-child strong').forEach(element => {
+            let originalValue = element.getAttribute('data-original');
+            if (!originalValue) {
+                originalValue = element.textContent.trim();
+                element.setAttribute('data-original', originalValue);
+            }
+            
+            if (window.translator && window.translator.currentLanguage === 'ar') {
+                element.textContent = window.translateNumber ? window.translateNumber(originalValue) : originalValue;
+            } else {
+                element.textContent = originalValue;
+            }
+        });
+        
+        // Update passenger counts
+        document.querySelectorAll('tbody tr td .fw-bold').forEach(element => {
+            const text = element.textContent.trim();
+            if (/^\d+$/.test(text) || /^[٠-٩]+$/.test(text)) {
+                let originalValue = element.getAttribute('data-original');
+                if (!originalValue) {
+                    originalValue = text.replace(/[٠-٩]/g, (char) => {
+                        const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                        return arabicNumerals.indexOf(char).toString();
+                    });
+                    element.setAttribute('data-original', originalValue);
+                }
+                
+                if (window.translator && window.translator.currentLanguage === 'ar') {
+                    element.textContent = window.translateNumber ? window.translateNumber(originalValue) : originalValue;
+                } else {
+                    element.textContent = originalValue;
+                }
+            }
+        });
+        
+        // Update revenue amounts  
+        document.querySelectorAll('tbody tr td span.fw-bold').forEach(element => {
+            const text = element.textContent.trim();
+            if (/^[\d.]+$/.test(text) || /^[٠-٩.]+$/.test(text)) {
+                let originalValue = element.getAttribute('data-original');
+                if (!originalValue) {
+                    originalValue = text.replace(/[٠-٩]/g, (char) => {
+                        const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                        return arabicNumerals.indexOf(char).toString();
+                    });
+                    element.setAttribute('data-original', originalValue);
+                }
+                
+                if (window.translator && window.translator.currentLanguage === 'ar') {
+                    element.textContent = window.translateNumber ? window.translateNumber(originalValue) : originalValue;
+                } else {
+                    element.textContent = originalValue;
+                }
+            }
+        });
+        
+        // Update dates
+        document.querySelectorAll('tbody tr td').forEach(element => {
+            const text = element.textContent.trim();
+            if (/^\d{2}\/\d{2}\/\d{4}$/.test(text) || /^[٠-٩]{2}\/[٠-٩]{2}\/[٠-٩]{4}$/.test(text)) {
+                let originalValue = element.getAttribute('data-original');
+                if (!originalValue) {
+                    originalValue = text.replace(/[٠-٩]/g, (char) => {
+                        const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                        return arabicNumerals.indexOf(char).toString();
+                    });
+                    element.setAttribute('data-original', originalValue);
+                }
+                
+                if (window.translator && window.translator.currentLanguage === 'ar') {
+                    element.textContent = window.translateNumber ? window.translateNumber(originalValue) : originalValue;
+                } else {
+                    element.textContent = originalValue;
+                }
+            }
+        });
+    }
+    
+    // Update on language change - LISTEN for events instead of overriding toggleLanguage
     window.addEventListener('languageChanged', function() {
+        console.log('📢 Sales Entry: Received languageChanged event');
         updateSalesPageTranslations();
     });
     
-    function updateSalesPageTranslations() {
-    // Update trip numbers with proper reversion
-    document.querySelectorAll('tbody tr td:first-child strong').forEach(element => {
-        let originalValue = element.getAttribute('data-original');
-        if (!originalValue) {
-            // Store the original English value
-            originalValue = element.textContent.trim();
-            element.setAttribute('data-original', originalValue);
-        }
-        
-        if (window.translator.currentLanguage === 'ar') {
-            element.textContent = window.translateNumber(originalValue);
-        } else {
-            element.textContent = originalValue; // Always revert to original English
-        }
-    });
-    
-    // Update passenger counts with proper reversion
-    document.querySelectorAll('tbody tr td .fw-bold').forEach(element => {
-        const text = element.textContent.trim();
-        if (/^\d+$/.test(text) || /^[٠-٩]+$/.test(text)) { // Check for both English and Arabic numerals
-            let originalValue = element.getAttribute('data-original');
-            if (!originalValue) {
-                // Extract English numbers from current text
-                originalValue = text.replace(/[٠-٩]/g, (char) => {
-                    const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
-                    return arabicNumerals.indexOf(char).toString();
-                });
-                element.setAttribute('data-original', originalValue);
-            }
-            
-            if (window.translator.currentLanguage === 'ar') {
-                element.textContent = window.translateNumber(originalValue);
-            } else {
-                element.textContent = originalValue;
-            }
-        }
-    });
-    
-    // Update revenue amounts with proper reversion
-    document.querySelectorAll('tbody tr td span.fw-bold').forEach(element => {
-        const text = element.textContent.trim();
-        if (/^[\d.]+$/.test(text) || /^[٠-٩.]+$/.test(text)) { // Check for both English and Arabic numerals
-            let originalValue = element.getAttribute('data-original');
-            if (!originalValue) {
-                // Convert Arabic numerals back to English for storage
-                originalValue = text.replace(/[٠-٩]/g, (char) => {
-                    const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
-                    return arabicNumerals.indexOf(char).toString();
-                });
-                element.setAttribute('data-original', originalValue);
-            }
-            
-            if (window.translator.currentLanguage === 'ar') {
-                element.textContent = window.translateNumber(originalValue);
-            } else {
-                element.textContent = originalValue;
-            }
-        }
-    });
-    
-    // Update dates with proper reversion
-    document.querySelectorAll('tbody tr td').forEach(element => {
-        const text = element.textContent.trim();
-        if (/^\d{2}\/\d{2}\/\d{4}$/.test(text) || /^[٠-٩]{2}\/[٠-٩]{2}\/[٠-٩]{4}$/.test(text)) {
-            let originalValue = element.getAttribute('data-original');
-            if (!originalValue) {
-                // Convert Arabic date back to English for storage
-                originalValue = text.replace(/[٠-٩]/g, (char) => {
-                    const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
-                    return arabicNumerals.indexOf(char).toString();
-                });
-                element.setAttribute('data-original', originalValue);
-            }
-            
-            if (window.translator.currentLanguage === 'ar') {
-                element.textContent = window.translateNumber(originalValue);
-            } else {
-                element.textContent = originalValue;
-            }
-        }
-    });
-    
-    // Update item counts in parentheses with proper reversion
-    document.querySelectorAll('small.text-muted').forEach(element => {
-        const text = element.textContent;
-        if (text.includes('items') || text.includes('عنصر')) {
-            // Extract number from text (works for both English and Arabic)
-            const englishMatch = text.match(/\((\d+)/);
-            const arabicMatch = text.match(/\(([٠-٩]+)/);
-            
-            let originalNumber;
-            if (englishMatch) {
-                originalNumber = englishMatch[1];
-            } else if (arabicMatch) {
-                // Convert Arabic numerals back to English
-                originalNumber = arabicMatch[1].replace(/[٠-٩]/g, (char) => {
-                    const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
-                    return arabicNumerals.indexOf(char).toString();
-                });
-            }
-            
-            if (originalNumber) {
-                const currentLang = window.translator.currentLanguage;
-                
-                if (currentLang === 'ar') {
-                    const translatedNumber = window.translateNumber(originalNumber);
-                    element.textContent = `(${translatedNumber} عنصر)`;
-                } else {
-                    element.textContent = `(${originalNumber} items)`;
-                }
-            }
-        }
-    });
-    }
-    
-    // Initial call
+    // Initial call to set up translations
     setTimeout(() => {
         updateSalesPageTranslations();
     }, 100);
-});
-
-// Also trigger the language changed event when toggleLanguage is called
-const originalToggleLanguage = window.toggleLanguage;
-window.toggleLanguage = function() {
-    originalToggleLanguage();
     
-    // Trigger custom event for page-specific translations
-    setTimeout(() => {
-        window.dispatchEvent(new Event('languageChanged'));
-    }, 200);
-};
+    console.log('✅ Sales Entry: Event-driven translation system initialized');
+});
 </script>
 {% endblock %}

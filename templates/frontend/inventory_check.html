@@ -575,6 +575,50 @@ document.addEventListener('DOMContentLoaded', function() {
         
         switchVessel(vesselId, vesselNameEn, vesselNameAr, hasDutyFree);
     }
+
+    // Update on language change with inventory-specific handling
+    window.addEventListener('languageChanged', function() {
+        console.log('📢 Inventory: Received languageChanged event');
+        updateInventorySpecificTranslations();
+    });
+
+    function updateInventorySpecificTranslations() {
+        // Handle product IDs in the table
+        document.querySelectorAll('.product-id[data-number]').forEach(element => {
+            const originalValue = element.getAttribute('data-original') || element.textContent.trim();
+            if (!element.getAttribute('data-original')) {
+                element.setAttribute('data-original', originalValue);
+            }
+            
+            if (window.translator && window.translator.currentLanguage === 'ar') {
+                element.textContent = window.translateNumber ? window.translateNumber(originalValue) : originalValue;
+            } else {
+                element.textContent = originalValue;
+            }
+        });
+        
+        // Handle product IDs in modal content
+        document.querySelectorAll('#modalContent small.text-muted').forEach(element => {
+            const text = element.textContent.trim();
+            // Only process pure numbers that look like product IDs
+            if (/^\d+$/.test(text) || /^[٠-٩]+$/.test(text)) {
+                let originalValue = element.getAttribute('data-original');
+                if (!originalValue) {
+                    originalValue = text.replace(/[٠-٩]/g, (char) => {
+                        const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                        return arabicNumerals.indexOf(char).toString();
+                    });
+                    element.setAttribute('data-original', originalValue);
+                }
+                
+                if (window.translator.currentLanguage === 'ar') {
+                    element.textContent = window.translateNumber(originalValue);
+                } else {
+                    element.textContent = originalValue;
+                }
+            }
+        });
+    }
 });
 
 function switchVessel(vesselId, vesselNameEn, vesselNameAr, hasDutyFree) {    
@@ -776,7 +820,7 @@ function updateInventoryTable() {
                 <div>
                     <h6 class="mb-1">${item.product_name}</h6>
                     <small class="text-muted">
-                        <span data-translate="item_id">ID</span>: ${item.product_item_id}
+                        <span data-translate="item_id">ID</span>: <span class="product-id" data-number data-original="${item.product_item_id}">${item.product_item_id}</span>
                         ${item.product_barcode ? ` • ${item.product_barcode}` : ''}
                         ${item.is_duty_free ? '<span class="badge bg-warning text-dark ms-1"><span data-translate="duty_free">Duty-Free</span></span>' : ''}
                     </small>
@@ -838,8 +882,18 @@ function updateInventoryTable() {
         </button>` : ''}
     `;
     
-    // Apply translations to the new content
+    // ✅ CRITICAL FIX: Apply translations to dynamically generated content
     updatePageTranslations();
+    
+    // ✅ ADDITIONAL FIX: Specifically handle product IDs after table generation
+    document.querySelectorAll('.product-id[data-number]').forEach(element => {
+        const originalValue = element.getAttribute('data-original');
+        if (originalValue && window.translator && window.translator.currentLanguage === 'ar') {
+            element.textContent = window.translateNumber ? window.translateNumber(originalValue) : originalValue;
+        } else if (originalValue) {
+            element.textContent = originalValue;
+        }
+    });
 }
 
 function handleSearchInput() {

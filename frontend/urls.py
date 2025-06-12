@@ -82,7 +82,7 @@ urlpatterns = [
     path('inventory/details/<int:product_id>/<int:vessel_id>/', inventory_views.inventory_details_ajax, name='inventory_details_ajax'),
     
     # Transfers
-    path('transfer-center/', lambda request: redirect('frontend:transfer_entry'), name='transfer_center'),
+    # path('transfer-center/', lambda request: redirect('frontend:transfer_entry'), name='transfer_center'),
     path('transfer/search-products/', transfer_views.transfer_search_products, name='transfer_search_products'),
     path('transfer/execute/', transfer_views.transfer_execute, name='transfer_execute'),
     # Transfer workflows

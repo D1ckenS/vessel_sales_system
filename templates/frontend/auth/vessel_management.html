@@ -433,14 +433,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initial translation
     updateVesselTranslations();
-    
-    // OPTIMIZED: Override language toggle for this page
-    const originalToggle = window.toggleLanguage;
-    if (originalToggle) {
-        window.toggleLanguage = function() {
-            originalToggle();
-            setTimeout(updateVesselTranslations, 100);
-        };
     }
     
     // OPTIMIZED: Date picker functionality

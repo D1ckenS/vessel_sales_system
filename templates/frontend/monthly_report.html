@@ -14,7 +14,7 @@
                 </h2>
                 <p class="text-muted mb-0">
                     <span data-translate="monthly_operations_analysis">Monthly operations and financial analysis for</span> 
-                    <strong>{{ month_name }} {{ selected_year }}</strong>
+                    <strong class="report-header-date" data-month="{{ month_name }}" data-year="{{ selected_year }}">{{ month_name }} {{ selected_year }}</strong>
                 </p>
             </div>
             <div class="d-flex gap-2">
@@ -40,24 +40,9 @@
                 <form method="GET" class="d-flex align-items-center gap-3">
                     <label class="form-label fw-bold mb-0" data-translate="select_month">Select Month:</label>
                     <select class="form-control" name="month" style="max-width: 150px;">
-                        {% comment %} <option value="1" {% if selected_month == 1 %}selected{% endif %}>January</option>
-                        <option value="2" {% if selected_month == 2 %}selected{% endif %}>February</option>
-                        <option value="3" {% if selected_month == 3 %}selected{% endif %}>March</option>
-                        <option value="4" {% if selected_month == 4 %}selected{% endif %}>April</option>
-                        <option value="5" {% if selected_month == 5 %}selected{% endif %}>May</option>
-                        <option value="6" {% if selected_month == 6 %}selected{% endif %}>June</option>
-                        <option value="7" {% if selected_month == 7 %}selected{% endif %}>July</option>
-                        <option value="8" {% if selected_month == 8 %}selected{% endif %}>August</option>
-                        <option value="9" {% if selected_month == 9 %}selected{% endif %}>September</option>
-                        <option value="10" {% if selected_month == 10 %}selected{% endif %}>October</option>
-                        <option value="11" {% if selected_month == 11 %}selected{% endif %}>November</option>
-                        <option value="12" {% if selected_month == 12 %}selected{% endif %}>December</option> {% endcomment %}
-
-                        
                         {% for month, value in months.items %}
                             <option value="{{ month }}" {% if selected_month == month %} selected {% endif %}> {{ value }} </option>
                         {% endfor %}
-                            
                     </select>
                     <select class="form-control" name="year" style="max-width: 100px;">
                         {% for year in year_range %}
@@ -335,7 +320,11 @@
                     {% for month_data in trend_months %}
                     <div class="col-md-2 col-sm-4 col-6 mb-3">
                         <div class="text-center p-2 border rounded">
-                            <small class="text-muted d-block">{{ month_data.month|slice:":3" }} {{ month_data.year }}</small>
+                            <small class="text-muted d-block trend-month-year" 
+                                   data-month="{{ month_data.month|slice:':3' }}" 
+                                   data-year="{{ month_data.year }}">
+                                {{ month_data.month|slice:":3" }} {{ month_data.year }}
+                            </small>
                             <div class="h6 text-success mb-1" data-number data-original="{{ month_data.revenue|floatformat:0 }}">
                                 {{ month_data.revenue|floatformat:0 }}
                             </div>
@@ -390,26 +379,33 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function updateHeaderMonthYear() {
-        // The header displays month name and year that come from backend
-        // We need to handle the year number translation
-        const headerText = document.querySelector('p.text-muted strong');
-        if (headerText) {
-            const text = headerText.textContent;
-            let originalText = headerText.getAttribute('data-original');
-            if (!originalText) {
-                originalText = text;
-                headerText.setAttribute('data-original', originalText);
-            }
+        // ✅ FIXED: Handle header month/year translation
+        const headerElement = document.querySelector('.report-header-date');
+        if (headerElement) {
+            const month = headerElement.getAttribute('data-month');
+            const year = headerElement.getAttribute('data-year');
+            const currentLang = window.translator.currentLanguage;
             
-            if (window.translator.currentLanguage === 'ar') {
-                // Translate numbers in the header text
-                const translatedText = originalText.replace(/\d+/g, (match) => {
-                    return window.translateNumber(match);
-                });
-                headerText.textContent = translatedText;
-            } else {
-                headerText.textContent = originalText;
-            }
+            // Month translation mapping
+            const monthTranslations = {
+                'January': { en: 'January', ar: 'يناير' },
+                'February': { en: 'February', ar: 'فبراير' },
+                'March': { en: 'March', ar: 'مارس' },
+                'April': { en: 'April', ar: 'أبريل' },
+                'May': { en: 'May', ar: 'مايو' },
+                'June': { en: 'June', ar: 'يونيو' },
+                'July': { en: 'July', ar: 'يوليو' },
+                'August': { en: 'August', ar: 'أغسطس' },
+                'September': { en: 'September', ar: 'سبتمبر' },
+                'October': { en: 'October', ar: 'أكتوبر' },
+                'November': { en: 'November', ar: 'نوفمبر' },
+                'December': { en: 'December', ar: 'ديسمبر' }
+            };
+            
+            const translatedMonth = monthTranslations[month] ? monthTranslations[month][currentLang] : month;
+            const translatedYear = currentLang === 'ar' ? window.translateNumber(year) : year;
+            
+            headerElement.textContent = `${translatedMonth} ${translatedYear}`;
         }
     }
     
@@ -535,47 +531,35 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function updateTrendMonths() {
-        // Update month/year in 12-month trend
-        document.querySelectorAll('.col-md-2 small.text-muted').forEach(element => {
-            const text = element.textContent.trim();
+        // ✅ FIXED: Update month/year in 12-month trend with proper reset
+        document.querySelectorAll('.trend-month-year').forEach(element => {
+            const month = element.getAttribute('data-month');
+            const year = element.getAttribute('data-year');
+            const currentLang = window.translator.currentLanguage;
             
-            // Match pattern like "Jan 2025", "Feb 2024", etc.
-            const monthYearMatch = text.match(/^([A-Za-z]{3})\s+(\d{4})$/);
-            if (monthYearMatch) {
-                const monthAbbr = monthYearMatch[1];
-                const year = monthYearMatch[2];
-                
-                let originalText = element.getAttribute('data-original');
-                if (!originalText) {
-                    originalText = text;
-                    element.setAttribute('data-original', originalText);
-                }
-                
-                const currentLang = window.translator.currentLanguage;
-                
-                // Month abbreviation translations
-                const monthAbbrTranslations = {
-                    'Jan': { en: 'Jan', ar: 'يناير' },
-                    'Feb': { en: 'Feb', ar: 'فبراير' },
-                    'Mar': { en: 'Mar', ar: 'مارس' },
-                    'Apr': { en: 'Apr', ar: 'أبريل' },
-                    'May': { en: 'May', ar: 'مايو' },
-                    'Jun': { en: 'Jun', ar: 'يونيو' },
-                    'Jul': { en: 'Jul', ar: 'يوليو' },
-                    'Aug': { en: 'Aug', ar: 'أغسطس' },
-                    'Sep': { en: 'Sep', ar: 'سبتمبر' },
-                    'Oct': { en: 'Oct', ar: 'أكتوبر' },
-                    'Nov': { en: 'Nov', ar: 'نوفمبر' },
-                    'Dec': { en: 'Dec', ar: 'ديسمبر' }
-                };
-                
-                if (currentLang === 'ar') {
-                    const arabicMonth = monthAbbrTranslations[monthAbbr]?.ar || monthAbbr;
-                    const arabicYear = window.translateNumber(year);
-                    element.textContent = `${arabicMonth} ${arabicYear}`;
-                } else {
-                    element.textContent = originalText;
-                }
+            // Month abbreviation translations
+            const monthAbbrTranslations = {
+                'Jan': { en: 'Jan', ar: 'يناير' },
+                'Feb': { en: 'Feb', ar: 'فبراير' },
+                'Mar': { en: 'Mar', ar: 'مارس' },
+                'Apr': { en: 'Apr', ar: 'أبريل' },
+                'May': { en: 'May', ar: 'مايو' },
+                'Jun': { en: 'Jun', ar: 'يونيو' },
+                'Jul': { en: 'Jul', ar: 'يوليو' },
+                'Aug': { en: 'Aug', ar: 'أغسطس' },
+                'Sep': { en: 'Sep', ar: 'سبتمبر' },
+                'Oct': { en: 'Oct', ar: 'أكتوبر' },
+                'Nov': { en: 'Nov', ar: 'نوفمبر' },
+                'Dec': { en: 'Dec', ar: 'ديسمبر' }
+            };
+            
+            if (currentLang === 'ar') {
+                const arabicMonth = monthAbbrTranslations[month]?.ar || month;
+                const arabicYear = window.translateNumber(year);
+                element.textContent = `${arabicMonth} ${arabicYear}`;
+            } else {
+                // ✅ CRITICAL: Always revert to original English format
+                element.textContent = `${month} ${year}`;
             }
         });
     }
@@ -613,16 +597,6 @@ document.addEventListener('DOMContentLoaded', function() {
         updatePageTranslations(); // Call global translation update
     }, 100);
     
-    // Also trigger the language changed event when toggleLanguage is called
-    const originalToggleLanguage = window.toggleLanguage;
-    window.toggleLanguage = function() {
-        originalToggleLanguage();
-        
-        // Trigger custom event for page-specific translations
-        setTimeout(() => {
-            window.dispatchEvent(new Event('languageChanged'));
-        }, 200);
-    };
 });
 
 // Export and Print functions

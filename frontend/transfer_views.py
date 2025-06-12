@@ -15,28 +15,6 @@ from .permissions import (
 )
 
 @operations_access_required
-def transfer_center(request):
-    """Functional transfer interface with FIFO cost preservation"""
-    
-    # Get all active vessels for dropdown
-    vessels = Vessel.objects.filter(active=True).order_by('name')
-    
-    # Get recent transfers (last 20 TRANSFER_OUT transactions)
-    recent_transfers = Transaction.objects.filter(
-        transaction_type='TRANSFER_OUT'
-    ).select_related(
-        'vessel', 'product', 'transfer_to_vessel', 'created_by'
-    ).order_by('-created_at')[:20]
-    
-    context = {
-        'vessels': vessels,
-        'recent_transfers': recent_transfers,
-        'today': date.today(),
-    }
-    
-    return render(request, 'frontend/transfer_center.html', context)
-
-@operations_access_required
 def transfer_search_products(request):
     """AJAX endpoint to search for products with available inventory on specific vessel"""
     if request.method != 'POST':

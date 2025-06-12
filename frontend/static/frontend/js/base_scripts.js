@@ -40,7 +40,7 @@ class TranslationBridge {
         });
     }
 
-    // Switch language
+    // Switch language - THIS IS THE KEY METHOD
     setLanguage(lang) {
         this.currentLanguage = lang;
         localStorage.setItem('preferred_language', lang);
@@ -71,7 +71,6 @@ class TranslationBridge {
 
 /**
  * MonthTranslator Class - Handles all month-related translations
- * Add this to your base_scripts.js file
  */
 class MonthTranslator {
     constructor() {
@@ -116,9 +115,6 @@ class MonthTranslator {
 
     /**
      * Translate month abbreviation or full name
-     * @param {string} month - Month name (Jan, February, etc.)
-     * @param {string} targetLang - Target language ('en' or 'ar')
-     * @returns {string} Translated month name
      */
     translateMonth(month, targetLang = 'en') {
         // Check abbreviations first
@@ -143,9 +139,6 @@ class MonthTranslator {
 
     /**
      * Extract and translate month-year combinations
-     * @param {string} text - Text containing month and year (e.g., "Jan 2024")
-     * @param {string} targetLang - Target language
-     * @returns {string} Translated text
      */
     translateMonthYear(text, targetLang = 'en') {
         const monthYearMatch = text.match(/^([A-Za-z\u0600-\u06FF]+)\s+(\d{4}|[٠-٩]{4})$/);
@@ -175,7 +168,6 @@ class MonthTranslator {
 
     /**
      * Handle month-year elements with proper data storage
-     * @param {HTMLElement} element - DOM element containing month-year text
      */
     handleMonthYearElement(element) {
         const text = element.textContent.trim();
@@ -214,7 +206,6 @@ class MonthTranslator {
 
     /**
      * Process all month-year elements in the page
-     * @param {string} selector - CSS selector for elements (optional)
      */
     translateAllMonthYearElements(selector = null) {
         const selectors = selector ? [selector] : [
@@ -387,39 +378,141 @@ window.translateTransactionType = function(type) {
 };
 
 /* =============================================================================
-   Language Toggle System
+   🔧 FIXED Language Toggle System
    ============================================================================= */
 
-// Language toggle function
+// Language toggle function - CORRECTED VERSION
+// 🔧 FIXED toggleLanguage function in base_scripts.js
+// Language toggle function - CORRECTED VERSION
 window.toggleLanguage = function() {
-    const currentLang = window.translator.currentLanguage;
+    console.log('🔄 toggleLanguage called');
+    
+    const currentLang = window.translator ? window.translator.currentLanguage : 
+                       (document.documentElement.dir === 'rtl' ? 'ar' : 'en');
     const newLang = currentLang === 'en' ? 'ar' : 'en';
     
-    // Switch language
-    window.translator.setLanguage(newLang);
+    console.log('Switching from', currentLang, 'to', newLang);
     
-    // Update button text
-    const langButton = document.getElementById('currentLangText');
-    if (langButton) {
-        const targetLang = newLang === 'en' ? 'AR' : 'EN';
-        langButton.textContent = targetLang;
-    }
-    
-    // 🎯 SIMPLE: Just set the dir attribute - CSS handles the rest
-    document.documentElement.lang = newLang;
+    // Update HTML attributes
     document.documentElement.dir = newLang === 'ar' ? 'rtl' : 'ltr';
+    document.documentElement.lang = newLang;
     
+    // Update body class for RTL layout
     if (newLang === 'ar') {
         document.body.classList.add('rtl-layout');
     } else {
         document.body.classList.remove('rtl-layout');
     }
     
-    // Update translations
-    setTimeout(() => {
+    // Update translator state
+    if (window.translator) {
+        window.translator.currentLanguage = newLang;
+        localStorage.setItem('preferred_language', newLang);
+    }
+    
+    // Update language button (show opposite language)
+    const btn = document.getElementById('currentLangText');
+    if (btn) {
+        btn.textContent = newLang === 'en' ? 'AR' : 'EN';
+    }
+    
+    // 🎯 CRITICAL: Always call updatePageTranslations immediately
+    console.log('🔄 Calling updatePageTranslations...');
+    if (typeof updatePageTranslations === 'function') {
         updatePageTranslations();
-    }, 100);
+    } else {
+        console.log('⚠️ updatePageTranslations not found, using manual updates');
+        manualTranslationUpdate(newLang);
+    }
+    
+    // 🔥 IMPORTANT: Dispatch languageChanged event for templates
+    console.log('📢 Dispatching languageChanged event');
+    window.dispatchEvent(new Event('languageChanged'));
+    
+    // Also dispatch with a slight delay for any delayed operations
+    setTimeout(() => {
+        window.dispatchEvent(new Event('languageChanged'));
+    }, 50);
+    
+    console.log('✅ Language toggle completed');
 };
+
+// Enhanced manual translation function for fallback
+function manualTranslationUpdate(newLang) {
+    const translations = {
+        'ar': {
+            'active': 'نشط',
+            'inactive': 'غير نشط',
+            'vessel_status': 'حالة السفن',
+            'dashboard': 'لوحة التحكم',
+            'sales_entry': 'إدخال المبيعات',
+            'receive_stock': 'استلام البضائع',
+            'inventory': 'إدارة المخزون',
+            'transfers': 'التحويلات',
+            'reports': 'التقارير',
+            'transfer_entry': 'إدخال التحويل',
+            'completed': 'مكتمل',
+            'in_progress': 'قيد التنفيذ',
+            'view': 'عرض',
+            'add_sales': 'إضافة مبيعات',
+            'add_items': 'إضافة عناصر'
+        },
+        'en': {
+            'active': 'Active',
+            'inactive': 'Inactive', 
+            'vessel_status': 'Vessel Status',
+            'dashboard': 'Dashboard',
+            'sales_entry': 'Sales Entry',
+            'receive_stock': 'Receive Stock',
+            'inventory': 'Inventory',
+            'transfers': 'Transfers',
+            'reports': 'Reports',
+            'transfer_entry': 'Transfer Entry',
+            'completed': 'Completed',
+            'in_progress': 'In Progress',
+            'view': 'View',
+            'add_sales': 'Add Sales',
+            'add_items': 'Add Items'
+        }
+    };
+    
+    // Update all data-translate elements including the crucial badges
+    Object.keys(translations[newLang]).forEach(key => {
+        document.querySelectorAll(`[data-translate="${key}"]`).forEach(el => {
+            el.textContent = translations[newLang][key];
+            console.log(`✅ Updated ${key}: "${translations[newLang][key]}"`);
+        });
+    });
+    
+    // Update vessel names
+    document.querySelectorAll('.vessel-name').forEach(element => {
+        const enName = element.getAttribute('data-en');
+        const arName = element.getAttribute('data-ar');
+        
+        if (newLang === 'ar' && arName) {
+            element.textContent = arName;
+        } else if (enName) {
+            element.textContent = enName;
+        }
+    });
+    
+    // Force update numbers if translateNumber function exists
+    if (window.translateNumber) {
+        document.querySelectorAll('[data-number], .po-number, .trip-number').forEach(element => {
+            const originalValue = element.getAttribute('data-original') || element.textContent.trim();
+            if (!element.getAttribute('data-original')) {
+                element.setAttribute('data-original', originalValue);
+            }
+            
+            if (newLang === 'ar') {
+                element.textContent = window.translateNumber(originalValue);
+            } else {
+                element.textContent = originalValue;
+            }
+        });
+    }
+}
+
 
 /* =============================================================================
    Translation Update Functions
@@ -427,12 +520,20 @@ window.toggleLanguage = function() {
 
 // Update page translations function
 window.updatePageTranslations = function() {
+    console.log('🔄 updatePageTranslations called - Current language:', window.translator.currentLanguage);
+    
     // Update elements with data-translate attribute
     document.querySelectorAll('[data-translate]').forEach(element => {
         const key = element.getAttribute('data-translate');
         const params = element.getAttribute('data-translate-params');
         const parsedParams = params ? JSON.parse(params) : {};
-        element.textContent = window.translator._(key, parsedParams);
+        const translation = window.translator._(key, parsedParams);
+        element.textContent = translation;
+        
+        // Debug specific badges
+        if (key === 'active' || key === 'inactive') {
+            console.log(`🔧 Updated ${key}: "${translation}"`);
+        }
     });
     
     // Update vessel names based on current language
@@ -510,26 +611,7 @@ window.updatePageTranslations = function() {
         });
     });
 
-    // Update currency and badges immediately
-    document.querySelectorAll('.badge, [data-currency], .text-muted small').forEach(element => {
-        if (element.textContent.includes('JOD')) {
-            const amount = element.textContent.match(/[\d,]+\.?\d*/);
-            if (amount) {
-                element.textContent = element.textContent.replace(/[\d,]+\.?\d* JOD/, translateCurrency(amount[0]));
-            }
-        }
-    });
-    
-    // Update "Active" badges and status text
-    document.querySelectorAll('.badge').forEach(element => {
-        if (element.textContent.includes('Active') || element.textContent.includes('نشط')) {
-            element.innerHTML = '<span data-translate="active">Active</span>';
-            const span = element.querySelector('span');
-            span.textContent = window.translator._('active');
-        }
-    });
-
-    // Update currency symbols
+    // Update currency and currency symbols
     document.querySelectorAll('[data-currency-symbol]').forEach(element => {
         const currentLang = window.translator.currentLanguage;
         if (currentLang === 'ar') {
@@ -546,9 +628,10 @@ window.updatePageTranslations = function() {
         element.textContent = translatedNumber;
     });
 
-    // Update timesince translations
-    document.querySelectorAll('.transaction-time').forEach(element => {
-        const originalTime = element.getAttribute('data-time');
+    // ✅ CRITICAL FIX: More precise time-ago translation processing
+    // Only process elements that are specifically marked as time-ago elements
+    document.querySelectorAll('.transaction-time[data-time], .po-time-ago[data-time], [data-time-ago]').forEach(element => {
+        const originalTime = element.getAttribute('data-time') || element.getAttribute('data-time-ago');
         const currentLang = window.translator.currentLanguage;
         
         if (currentLang === 'ar') {
@@ -564,7 +647,7 @@ window.updatePageTranslations = function() {
                 .replace(/\s+/g, ' ')  // Clean up extra spaces
                 .trim();
             
-            // Add "مضت" if not already there and if it doesn't contain "ago"
+            // Add "مضت" if not already there
             if (!arabicTime.includes('مضت')) {
                 arabicTime += ' مضت';
             }
@@ -572,130 +655,14 @@ window.updatePageTranslations = function() {
             element.textContent = arabicTime;
         } else {
             // For English, ensure "ago" is present
-            const timeWithoutAgo = originalTime.replace(' ago', '');
+            const timeWithoutAgo = originalTime.replace(' ago', '').replace(' مضت', '');
             element.textContent = timeWithoutAgo + ' ago';
         }
     });
 
-    // 🔧 SALES ENTRY SPECIFIC TRANSLATIONS
-    // Handle trip numbers in Recent Trips table
-    document.querySelectorAll('tr td:first-child strong').forEach(element => {
-        if (!element.classList.contains('po-number') && !element.getAttribute('data-original')) {
-            const originalValue = element.textContent.trim();
-            element.setAttribute('data-original', originalValue);
-            if (window.translator.currentLanguage === 'ar') {
-                element.textContent = translateNumber(originalValue);
-            } else {
-                element.textContent = originalValue;
-            }
-        }
-    });
-
-    // Handle passenger counts in Recent Trips
-    document.querySelectorAll('td .fw-bold').forEach(element => {
-        const text = element.textContent.trim();
-        if (/^\d+$/.test(text) && !element.getAttribute('data-original')) {
-            element.setAttribute('data-original', text);
-            element.textContent = translateNumber(text);
-        }
-    });
-
-    // Handle revenue amounts in Recent Trips
-    document.querySelectorAll('td span.fw-bold').forEach(element => {
-        const text = element.textContent.trim();
-        if (/^\d+\.?\d*$/.test(text) && !element.getAttribute('data-original')) {
-            element.setAttribute('data-original', text);
-            element.textContent = translateNumber(text);
-        }
-    });
-
-    // Handle trip dates in Recent Trips (direct date cells)
-    document.querySelectorAll('tr td').forEach(element => {
-        const text = element.textContent.trim();
-        if (/^\d{2}\/\d{2}\/\d{4}$/.test(text) && !element.getAttribute('data-original')) {
-            element.setAttribute('data-original', text);
-            if (window.translator.currentLanguage === 'ar') {
-                element.textContent = translateNumber(text);
-            } else {
-                element.textContent = text;
-            }
-        }
-    });
-
-    // 🔧 TRANSFER ENTRY SPECIFIC TRANSLATIONS
-    // Handle transfer dates with proper selector
-    document.querySelectorAll('[data-transfer-date]').forEach(element => {
-        const originalDate = element.getAttribute('data-original') || element.textContent.trim();
-        if (!element.getAttribute('data-original')) {
-            element.setAttribute('data-original', originalDate);
-        }
-        
-        if (window.translator.currentLanguage === 'ar') {
-            element.textContent = translateNumber(originalDate);
-        } else {
-            element.textContent = originalDate;
-        }
-    });
-
-    // Handle transfer quantities with [data-number] attribute
-    document.querySelectorAll('td small span[data-number]').forEach(element => {
-        const originalValue = element.getAttribute('data-original') || element.textContent.trim();
-        if (!element.getAttribute('data-original')) {
-            element.setAttribute('data-original', originalValue);
-        }
-        element.textContent = translateNumber(originalValue);
-    });
-
-    // 🔧 PURCHASE ORDER ENTRY REFRESH FIX
-    // Force update PO dates that might not be updating properly
-    document.querySelectorAll('.po-date').forEach(element => {
-        const originalDate = element.getAttribute('data-date') || element.getAttribute('data-original') || element.textContent.trim();
-        if (!element.getAttribute('data-original')) {
-            element.setAttribute('data-original', originalDate);
-        }
-        
-        if (window.translator.currentLanguage === 'ar') {
-            element.textContent = translateNumber(originalDate);
-        } else {
-            element.textContent = originalDate;
-        }
-    });
-
-    // Force update all time-ago elements that might have different classes
-    document.querySelectorAll('small.text-muted').forEach(element => {
-        const text = element.textContent.trim();
-        if (text.includes('ago') || text.includes('مضت') || /\d+\s+(day|hour|minute|week|month|year)/.test(text)) {
-            if (!element.getAttribute('data-time')) {
-                element.setAttribute('data-time', text.replace(' مضت', '').replace(' ago', ''));
-            }
-            
-            const originalTime = element.getAttribute('data-time');
-            const currentLang = window.translator.currentLanguage;
-            
-            if (currentLang === 'ar') {
-                let arabicTime = originalTime
-                    .replace(/(\d+)\s*days?/g, (match, num) => translateNumber(num) + ' يوم')
-                    .replace(/(\d+)\s*hours?/g, (match, num) => translateNumber(num) + ' ساعة') 
-                    .replace(/(\d+)\s*minutes?/g, (match, num) => translateNumber(num) + ' دقيقة')
-                    .replace(/(\d+)\s*weeks?/g, (match, num) => translateNumber(num) + ' أسبوع')
-                    .replace(/(\d+)\s*months?/g, (match, num) => translateNumber(num) + ' شهر')
-                    .replace(/(\d+)\s*years?/g, (match, num) => translateNumber(num) + ' سنة')
-                    .replace(/,\s*/g, '، ')
-                    .replace(/\s+/g, ' ')
-                    .trim();
-                
-                if (!arabicTime.includes('مضت')) {
-                    arabicTime += ' مضت';
-                }
-                
-                element.textContent = arabicTime;
-            } else {
-                const timeWithoutAgo = originalTime.replace(' ago', '').replace(' مضت', '');
-                element.textContent = timeWithoutAgo + ' ago';
-            }
-        }
-    });
-
+    // ✅ REMOVED: The problematic broad small.text-muted processing
+    // This was causing issues with elements like "Last 90 days" getting "ago" added incorrectly
+    
     // Update numbers with Arabic-Indic numerals
     ['.po-number', '.trip-number', '.count'].forEach(selector => {
         document.querySelectorAll(selector).forEach(element => {

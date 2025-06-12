@@ -599,17 +599,7 @@ document.addEventListener('DOMContentLoaded', function() {
         updateComprehensiveReportTranslations();
         updatePageTranslations(); // Call global translation update
     }, 100);
-    
-    // Also trigger the language changed event when toggleLanguage is called
-    const originalToggleLanguage = window.toggleLanguage;
-    window.toggleLanguage = function() {
-        originalToggleLanguage();
-        
-        // Trigger custom event for page-specific translations
-        setTimeout(() => {
-            window.dispatchEvent(new Event('languageChanged'));
-        }, 200);
-    };
+
 });
 
 // Export and Print functions

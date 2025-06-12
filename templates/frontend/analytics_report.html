@@ -464,7 +464,7 @@
 
 {% block extra_js %}
 <script>
-// Enhanced translation for analytics report
+// ✅ FIXED Enhanced translation for analytics report - Remove problematic time processing
 document.addEventListener('DOMContentLoaded', function() {
     // Ensure MonthTranslator is available
     if (!window.monthTranslator) {
@@ -563,12 +563,25 @@ document.addEventListener('DOMContentLoaded', function() {
             window.monthTranslator.translateAllMonthYearElements('.col-md-4.col-sm-6 .text-center small.text-muted');
         }
         
-        // 5. Handle Product IDs and other numeric small text
+        // 5. ✅ CRITICAL FIX: Handle Product IDs and other numeric text - EXCLUDE time duration expressions
         document.querySelectorAll('small.text-muted').forEach(element => {
             const text = element.textContent.trim();
             
             // Skip month-year elements (already handled above)
             if (/^([A-Za-z\u0600-\u06FF]+)\s+(\d{4}|[٠-٩]{4})$/.test(text)) {
+                return;
+            }
+            
+            // ✅ CRITICAL FIX: Skip elements that contain time duration expressions without "ago"
+            // These are legitimate time period indicators like "Last 90 days", not time-ago stamps
+            if (/^(Last|آخر)\s+\d+\s+(days?|يوم|hours?|ساعة|minutes?|دقيقة|weeks?|أسبوع|months?|شهر|years?|سنة)/i.test(text)) {
+                console.log('🚫 Skipping time duration element:', text);
+                return;
+            }
+            
+            // Skip elements that already have "ago" in them (these are actual time-ago stamps)
+            if (text.includes('ago') || text.includes('مضت')) {
+                console.log('🚫 Skipping time-ago element:', text);
                 return;
             }
             
@@ -591,7 +604,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
             
-            // Handle "X days left" format
+            // ✅ IMPROVED: Handle "X days left" format more specifically
             const daysLeftMatch = text.match(/^(\d+|[٠-٩]+)\s+(days left|يوم متبقي)$/);
             if (daysLeftMatch) {
                 let originalNumber = daysLeftMatch[1];
@@ -617,8 +630,8 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // 6. Let the main translation system handle data-translate elements
         // This should be called AFTER our custom translations to avoid interference
-        if (window.translator && window.translator.translatePage) {
-            window.translator.translatePage();
+        if (window.updatePageTranslations) {
+            window.updatePageTranslations();
         }
     }
     
@@ -627,19 +640,6 @@ document.addEventListener('DOMContentLoaded', function() {
         updateAnalyticsPageTranslations();
     }, 100);
     
-    // Enhanced language toggle override - prevents interference and ensures proper sequencing
-    const originalToggleLanguage = window.toggleLanguage;
-    if (originalToggleLanguage) {
-        window.toggleLanguage = function() {
-            // Call original function first
-            originalToggleLanguage();
-            
-            // Trigger our custom translations after main translation is complete
-            setTimeout(() => {
-                window.dispatchEvent(new Event('languageChanged'));
-            }, 150); // Slightly longer delay to ensure main translation is done
-        };
-    }
 });
 
 // Export and Print functions
