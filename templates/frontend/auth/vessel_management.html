@@ -90,6 +90,79 @@
 .vessel-grid {
     position: relative;
 }
+
+/* NEW: Pricing status styles */
+.pricing-status-section {
+    border-top: 1px solid #e9ecef;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+    border-radius: 0 0 8px 8px;
+}
+
+.pricing-status-complete {
+    color: var(--success-green);
+    background: rgba(40, 167, 69, 0.1);
+    border: 1px solid rgba(40, 167, 69, 0.2);
+    border-radius: 20px;
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.pricing-status-incomplete {
+    color: var(--warning-orange);
+    background: rgba(255, 193, 7, 0.1);
+    border: 1px solid rgba(255, 193, 7, 0.3);
+    border-radius: 20px;
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.pricing-status-na {
+    color: var(--dark-gray);
+    background: rgba(108, 117, 125, 0.1);
+    border: 1px solid rgba(108, 117, 125, 0.2);
+    border-radius: 20px;
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.pricing-completion-bar {
+    height: 6px;
+    background: #e9ecef;
+    border-radius: 3px;
+    overflow: hidden;
+    margin: 0.5rem 0;
+}
+
+.pricing-completion-fill {
+    height: 100%;
+    transition: width 0.3s ease;
+    border-radius: 3px;
+}
+
+.pricing-completion-complete {
+    background: linear-gradient(90deg, var(--success-green), #20c997);
+}
+
+.pricing-completion-incomplete {
+    background: linear-gradient(90deg, var(--warning-orange), #ffc107);
+}
+
+.pricing-quick-action {
+    font-size: 0.8rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 15px;
+    transition: all 0.2s ease;
+}
+
+.pricing-quick-action:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
 </style>
 {% endblock %}
 
@@ -204,6 +277,33 @@
         </div>
     </div>
 
+    <!-- Vessel Pricing Status Alert -->
+    {% if pricing_summary.vessels_with_incomplete_pricing > 0 %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="alert alert-warning border-0 shadow-sm">
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-exclamation-triangle me-3" style="font-size: 1.5rem;"></i>
+                    <div class="flex-grow-1">
+                        <h6 class="mb-1"><span data-translate="vessel_pricing_issues">Vessel Pricing Issues Detected</span></h6>
+                        <small class="mb-0">
+                            <span data-number data-original="{{ pricing_summary.vessels_with_incomplete_pricing }}">{{ pricing_summary.vessels_with_incomplete_pricing }}</span> 
+                            <span data-translate="vessels_incomplete_pricing">vessels have incomplete pricing for</span>
+                            <span data-number data-original="{{ pricing_summary.total_missing_prices }}">{{ pricing_summary.total_missing_prices }}</span> 
+                            <span data-translate="products">products</span>
+                        </small>
+                    </div>
+                    <div class="text-end">
+                        <a href="{% url 'frontend:bulk_pricing_management' %}" class="btn btn-warning btn-sm">
+                            <i class="bi bi-gear"></i> <span data-translate="fix_pricing">Fix Pricing</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Vessel Fleet Grid -->
     <div class="row">
         <div class="col-12">
@@ -284,7 +384,70 @@
                                             </strong>
                                         </div>
                                     </div>
-                                    <div class="btn-group w-100">
+                                    
+                                    <!-- NEW: Vessel Pricing Status Section -->
+                                    <div class="pricing-status-section">
+                                        {% if vessel_info.vessel.has_duty_free %}
+                                        <!-- Duty-free vessels don't use custom pricing -->
+                                        <div class="pricing-status-na text-center">
+                                            <i class="bi bi-info-circle me-2"></i>
+                                            <span data-translate="duty_free_pricing">Duty-Free Pricing</span>
+                                        </div>
+                                        <small class="text-muted d-block mt-2" data-translate="uses_default_pricing">Uses default product pricing</small>
+                                        {% else %}
+                                        <!-- Touristic vessels with custom pricing -->
+                                        {% if vessel_info.pricing_warnings.has_warnings %}
+                                        <div class="pricing-status-incomplete text-center">
+                                            <i class="bi bi-exclamation-triangle me-2"></i>
+                                            <span data-number data-original="{{ vessel_info.pricing_warnings.missing_price_count }}">{{ vessel_info.pricing_warnings.missing_price_count }}</span>
+                                            <span data-translate="products_missing_pricing">products missing custom pricing</span>
+                                        </div>
+                                        {% else %}
+                                        <div class="pricing-status-complete text-center">
+                                            <i class="bi bi-check-circle me-2"></i>
+                                            <span data-translate="all_products_priced">All products priced</span>
+                                        </div>
+                                        {% endif %}
+                                        
+                                        <!-- Pricing completion bar -->
+                                        {% if vessel_info.pricing_data.total_products > 0 %}
+                                        <div class="pricing-completion-bar">
+                                            <div class="pricing-completion-fill {% if vessel_info.pricing_warnings.has_warnings %}pricing-completion-incomplete{% else %}pricing-completion-complete{% endif %}" 
+                                                style="width: {{ vessel_info.pricing_data.completion_percentage }}%"></div>
+                                        </div>
+                                        <div class="text-center">
+                                            <small class="text-muted">
+                                                <span data-number data-original="{{ vessel_info.pricing_data.products_priced }}">{{ vessel_info.pricing_data.products_priced }}</span>/<span data-number data-original="{{ vessel_info.pricing_data.total_products }}">{{ vessel_info.pricing_data.total_products }}</span> 
+                                                <span data-translate="products_priced">products priced</span>
+                                                <span class="ms-2">
+                                                    (<span data-number data-original="{{ vessel_info.pricing_data.completion_percentage }}">{{ vessel_info.pricing_data.completion_percentage }}</span>%)
+                                                </span>
+                                            </small>
+                                        </div>
+                                        {% endif %}
+                                        
+                                        <!-- Quick action button for pricing -->
+                                        {% if vessel_info.pricing_warnings.has_warnings %}
+                                        <div class="text-center mt-2">
+                                            <a href="{% url 'frontend:bulk_pricing_management' %}?vessel={{ vessel_info.vessel.id }}" 
+                                               class="btn btn-warning btn-sm pricing-quick-action">
+                                                <i class="bi bi-gear me-1"></i>
+                                                <span data-translate="fix_pricing">Fix Pricing</span>
+                                            </a>
+                                        </div>
+                                        {% else %}
+                                        <div class="text-center mt-2">
+                                            <a href="{% url 'frontend:bulk_pricing_management' %}?vessel={{ vessel_info.vessel.id }}" 
+                                               class="btn btn-outline-success btn-sm pricing-quick-action">
+                                                <i class="bi bi-eye me-1"></i>
+                                                <span data-translate="view_pricing">View Pricing</span>
+                                            </a>
+                                        </div>
+                                        {% endif %}
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <div class="btn-group w-100 mt-3">
                                         <button class="btn btn-outline-primary btn-sm" onclick="editVessel({{ vessel_info.vessel.id }}, '{{ vessel_info.vessel.name }}', '{{ vessel_info.vessel.name_ar }}', {{ vessel_info.vessel.has_duty_free|yesno:'true,false' }}, {{ vessel_info.vessel.active|yesno:'true,false' }})">
                                             <i class="bi bi-pencil"></i> <span data-translate="edit">Edit</span>
                                         </button>
@@ -552,229 +715,44 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Independent translation system for vessel management
-    const vesselTranslations = {
-        en: {
-            // Status translations
-            active: "Active",
-            inactive: "Inactive", 
-            duty_free: "Duty-Free",
-            no_duty_free: "No Duty-Free",
-            
-            // Page translations
-            vessel_management: "Vessel Management",
-            vessel_management_desc: "Manage vessel fleet, configurations, and operational status",
-            add_vessel: "Add Vessel",
-            total_vessels: "Total Vessels",
-            active_vessels: "Active Vessels",
-            duty_free_vessels: "Duty-Free Vessels",
-            inactive_vessels: "Inactive Vessels",
-            vessel_fleet: "Vessel Fleet",
-            total_trips: "Total Trips",
-            revenue_30d: "Revenue (30d)",
-            edit: "Edit",
-            stats: "Stats",
-            deactivate: "Deactivate",
-            activate: "Activate",
-            revenue_date_filter: "Revenue Date Filter",
-            select_date_for_30day_revenue: "Select a date to calculate 30-day revenue ending on that date",
-            reference_date: "Reference Date",
-            date_range: "Date Range"
-        },
-        ar: {
-            // Status translations
-            active: "نشط",
-            inactive: "غير نشط",
-            duty_free: "سوق حرة",
-            no_duty_free: "لا سوق حرة",
-            
-            // Page translations
-            vessel_management: "إدارة السفن",
-            vessel_management_desc: "إدارة أسطول السفن والتكوينات والحالة التشغيلية",
-            add_vessel: "إضافة سفينة",
-            total_vessels: "إجمالي السفن",
-            active_vessels: "السفن النشطة",
-            duty_free_vessels: "سفن السوق الحرة",
-            inactive_vessels: "السفن غير النشطة",
-            vessel_fleet: "أسطول السفن",
-            total_trips: "إجمالي الرحلات",
-            revenue_30d: "الإيرادات (٣٠ يوم)",
-            edit: "تحرير",
-            stats: "إحصائيات",
-            deactivate: "إلغاء التفعيل",
-            activate: "تفعيل",
-            revenue_date_filter: "مرشح تاريخ الإيرادات",
-            select_date_for_30day_revenue: "اختر تاريخًا لحساب إيرادات ٣٠ يومًا تنتهي في ذلك التاريخ",
-            reference_date: "التاريخ المرجعي",
-            date_range: "نطاق التاريخ"
-        }
-    };
-    
-    // Independent language detection
-    function getCurrentLanguage() {
-        return window.translator ? window.translator.currentLanguage : 'en';
-    }
-    
-    // Independent translation function
-    function translate(key, params = {}) {
-        const currentLang = getCurrentLanguage();
-        let translation = vesselTranslations[currentLang]?.[key] || vesselTranslations.en[key] || key;
-        
-        Object.keys(params).forEach(param => {
-            translation = translation.replace(`{${param}}`, params[param]);
-        });
-        
-        return translation;
-    }
-    
-    // Independent number translation
-    function translateNumber(number) {
-        const currentLang = getCurrentLanguage();
-        if (currentLang === 'ar') {
-            const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
-            return number.toString().replace(/[0-9]/g, (w) => arabicNumerals[+w]);
-        }
-        return number.toString();
-    }
     
     // ENHANCED: Direct status badge translation with multiple approaches
     function translateVesselStatusBadges() {
-        const currentLang = getCurrentLanguage();
+        const currentLang = window.translator.currentLanguage;
         
-        console.log('🔍 Translating vessel status badges for language:', currentLang);
-        
-        // Approach 1: Find badges by text content
+        // Use global translator for status badges
         document.querySelectorAll('.vessel-status-badge').forEach(badge => {
             const textContent = badge.textContent.trim();
             
-            // Direct text replacement
             if (textContent.includes('Active') || textContent.includes('نشط')) {
-                const span = badge.querySelector('span') || badge;
-                if (currentLang === 'ar') {
-                    span.textContent = span.textContent.replace(/Active|نشط/g, 'نشط');
-                } else {
-                    span.textContent = span.textContent.replace(/Active|نشط/g, 'Active');
-                }
+                const span = badge.querySelector('.status-text');
+                if (span) span.textContent = window._('active');
             }
             
             if (textContent.includes('Inactive') || textContent.includes('غير نشط')) {
-                const span = badge.querySelector('span') || badge;
-                if (currentLang === 'ar') {
-                    span.textContent = span.textContent.replace(/Inactive|غير نشط/g, 'غير نشط');
-                } else {
-                    span.textContent = span.textContent.replace(/Inactive|غير نشط/g, 'Inactive');
-                }
+                const span = badge.querySelector('.status-text');
+                if (span) span.textContent = window._('inactive');
             }
             
             if (textContent.includes('Duty-Free') || textContent.includes('سوق حرة')) {
-                const span = badge.querySelector('span') || badge;
-                if (currentLang === 'ar') {
-                    span.textContent = span.textContent.replace(/Duty-Free|سوق حرة/g, 'سوق حرة');
-                } else {
-                    span.textContent = span.textContent.replace(/Duty-Free|سوق حرة/g, 'Duty-Free');
-                }
+                const span = badge.querySelector('.duty-free-text');
+                if (span) span.textContent = window._('duty_free');
             }
             
             if (textContent.includes('No Duty-Free') || textContent.includes('لا سوق حرة')) {
-                const span = badge.querySelector('span') || badge;
-                if (currentLang === 'ar') {
-                    span.textContent = span.textContent.replace(/No Duty-Free|لا سوق حرة/g, 'لا سوق حرة');
-                } else {
-                    span.textContent = span.textContent.replace(/No Duty-Free|لا سوق حرة/g, 'No Duty-Free');
-                }
+                const span = badge.querySelector('.duty-free-text');
+                if (span) span.textContent = window._('no_duty_free');
             }
         });
-        
-        // Approach 2: Find by data-translate attribute
-        document.querySelectorAll('[data-translate]').forEach(element => {
-            const translateKey = element.getAttribute('data-translate');
-            
-            if (translateKey === 'active') {
-                element.textContent = currentLang === 'ar' ? 'نشط' : 'Active';
-            } else if (translateKey === 'inactive') {
-                element.textContent = currentLang === 'ar' ? 'غير نشط' : 'Inactive';
-            } else if (translateKey === 'duty_free') {
-                element.textContent = currentLang === 'ar' ? 'سوق حرة' : 'Duty-Free';
-            } else if (translateKey === 'no_duty_free') {
-                element.textContent = currentLang === 'ar' ? 'لا سوق حرة' : 'No Duty-Free';
-            }
-        });
-        
-        // Approach 3: Direct text search and replace across the entire page
-        const walker = document.createTreeWalker(
-            document.querySelector('.vessel-grid') || document.body,
-            NodeFilter.SHOW_TEXT,
-            null,
-            false
-        );
-        
-        const textNodes = [];
-        let node;
-        while (node = walker.nextNode()) {
-            textNodes.push(node);
-        }
-        
-        textNodes.forEach(textNode => {
-            let text = textNode.textContent;
-            let modified = false;
-            
-            if (currentLang === 'ar') {
-                if (text.includes('Active') && !text.includes('نشط')) {
-                    text = text.replace(/Active/g, 'نشط');
-                    modified = true;
-                }
-                if (text.includes('Inactive') && !text.includes('غير نشط')) {
-                    text = text.replace(/Inactive/g, 'غير نشط');
-                    modified = true;
-                }
-                if (text.includes('Duty-Free') && !text.includes('سوق حرة')) {
-                    text = text.replace(/Duty-Free/g, 'سوق حرة');
-                    modified = true;
-                }
-                if (text.includes('No Duty-Free') && !text.includes('لا سوق حرة')) {
-                    text = text.replace(/No Duty-Free/g, 'لا سوق حرة');
-                    modified = true;
-                }
-            } else {
-                if (text.includes('نشط') && !text.includes('Active')) {
-                    text = text.replace(/نشط/g, 'Active');
-                    modified = true;
-                }
-                if (text.includes('غير نشط') && !text.includes('Inactive')) {
-                    text = text.replace(/غير نشط/g, 'Inactive');
-                    modified = true;
-                }
-                if (text.includes('سوق حرة') && !text.includes('Duty-Free')) {
-                    text = text.replace(/سوق حرة/g, 'Duty-Free');
-                    modified = true;
-                }
-                if (text.includes('لا سوق حرة') && !text.includes('No Duty-Free')) {
-                    text = text.replace(/لا سوق حرة/g, 'No Duty-Free');
-                    modified = true;
-                }
-            }
-            
-            if (modified) {
-                textNode.textContent = text;
-            }
-        });
-        
-        console.log('✅ Vessel status badge translation completed');
     }
     
     // Independent page translation function
     function translateVesselPage() {
-        const currentLang = getCurrentLanguage();
+        // Use the global translation system
+        window.updatePageTranslations();
         
-        // Translate all data-translate elements (except status badges)
-        document.querySelectorAll('[data-translate]').forEach(element => {
-            const key = element.getAttribute('data-translate');
-            
-            // Skip status badges - we handle them separately
-            if (!['active', 'inactive', 'duty_free', 'no_duty_free'].includes(key)) {
-                element.textContent = translate(key);
-            }
-        });
+        // Handle vessel-specific translations
+        const currentLang = window.translator.currentLanguage;
         
         // Translate vessel names
         document.querySelectorAll('.vessel-name').forEach(element => {
@@ -788,21 +766,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
-        // Translate numbers
-        document.querySelectorAll('[data-number]').forEach(element => {
-            const originalValue = element.getAttribute('data-original') || element.textContent.trim();
-            if (!element.getAttribute('data-original')) {
-                element.setAttribute('data-original', originalValue);
-            }
-            element.textContent = translateNumber(originalValue);
-        });
-        
-        // Translate currency symbols
-        document.querySelectorAll('[data-currency-symbol]').forEach(element => {
-            element.textContent = currentLang === 'ar' ? 'دينار' : 'JOD';
-        });
-        
-        // CRITICAL: Always translate status badges last
+        // Handle vessel status badges specifically
         setTimeout(() => {
             translateVesselStatusBadges();
         }, 50);
@@ -818,18 +782,10 @@ document.addEventListener('DOMContentLoaded', function() {
             // Call original function
             originalToggleLanguage();
             
-            // Our independent translation with multiple attempts
+            // Apply vessel-specific translations
             setTimeout(() => {
                 translateVesselPage();
-            }, 50);
-            
-            setTimeout(() => {
-                translateVesselStatusBadges();
-            }, 150);
-            
-            setTimeout(() => {
-                translateVesselStatusBadges();
-            }, 300);
+            }, 100);
         };
     }
     

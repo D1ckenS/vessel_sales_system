@@ -386,6 +386,79 @@ class Transaction(models.Model):
             except ValidationError as e:
                 raise ValidationError(f"Transfer failed: {str(e)}")
 
+class VesselProductPrice(models.Model):
+    """
+    Tracks vessel-specific pricing for general products on touristic vessels
+    Only applicable to non-duty-free vessels (Babel, Dahab) for general products
+    """
+    vessel = models.ForeignKey(
+        Vessel, 
+        on_delete=models.CASCADE, 
+        related_name='custom_prices',
+        help_text="Vessel with custom pricing (must be non-duty-free vessel)"
+    )
+    product = models.ForeignKey(
+        Product, 
+        on_delete=models.CASCADE, 
+        related_name='vessel_prices',
+        help_text="Product with custom pricing (must be general product)"
+    )
+    selling_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=3,
+        validators=[MinValueValidator(Decimal('0.001'))],
+        help_text="Custom selling price for this vessel-product combination (JOD)"
+    )
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    class Meta:
+        unique_together = ('vessel', 'product')
+        ordering = ['vessel__name', 'product__item_id']
+        verbose_name = 'Vessel Product Price'
+        verbose_name_plural = 'Vessel Product Prices'
+    
+    def __str__(self):
+        return f"{self.vessel.name} - {self.product.item_id} - {self.selling_price} JOD"
+    
+    def clean(self):
+        """Validate that pricing is only for valid vessel-product combinations"""
+        super().clean()
+        
+        # Validate vessel is non-duty-free (touristic vessel)
+        if self.vessel and self.vessel.has_duty_free:
+            raise ValidationError(
+                f"Vessel-specific pricing is only allowed for touristic vessels (non-duty-free). "
+                f"{self.vessel.name} is a duty-free vessel."
+            )
+        
+        # Validate product is general (non-duty-free)
+        if self.product and self.product.is_duty_free:
+            raise ValidationError(
+                f"Vessel-specific pricing is only allowed for general products. "
+                f"{self.product.name} is a duty-free product."
+            )
+    
+    def save(self, *args, **kwargs):
+        """Override save to run validation"""
+        self.clean()
+        super().save(*args, **kwargs)
+    
+    @property
+    def price_difference(self):
+        """Calculate difference from default product price"""
+        return self.selling_price - self.product.selling_price
+    
+    @property
+    def price_difference_percentage(self):
+        """Calculate percentage difference from default price"""
+        if self.product.selling_price > 0:
+            return ((self.selling_price - self.product.selling_price) / self.product.selling_price) * 100
+        return 0
+
 # Utility functions for FIFO operations
 def get_available_inventory(vessel, product):
     """Get current available inventory for a vessel-product combination"""
@@ -425,3 +498,113 @@ def consume_inventory_fifo(vessel, product, quantity_to_consume):
         remaining_to_consume -= consumed_from_lot
     
     return consumption_details
+
+def get_vessel_product_price(vessel, product):
+    """
+    Get the appropriate selling price for a vessel-product combination
+    Priority: vessel-specific price → default product price
+    
+    Args:
+        vessel: Vessel instance
+        product: Product instance
+    
+    Returns:
+        tuple: (price_decimal, is_custom_price_boolean, warning_message_or_none)
+    """
+    # Check if this combination supports vessel-specific pricing
+    if vessel.has_duty_free or product.is_duty_free:
+        # Duty-free vessels or duty-free products always use default pricing
+        return product.selling_price, False, None
+    
+    # Try to get vessel-specific price
+    try:
+        vessel_price = VesselProductPrice.objects.get(vessel=vessel, product=product)
+        return vessel_price.selling_price, True, None
+    except VesselProductPrice.DoesNotExist:
+        # No custom price found, use default with warning for touristic vessels
+        warning_message = None
+        if not vessel.has_duty_free:  # Touristic vessel
+            warning_message = f"Using default price ({product.selling_price} JOD) - No custom price set for {vessel.name}"
+        
+        return product.selling_price, False, warning_message
+
+
+def get_vessel_pricing_warnings(vessel):
+    """
+    Get pricing warnings for a specific vessel
+    
+    Args:
+        vessel: Vessel instance
+    
+    Returns:
+        dict: Warning information for the vessel
+    """
+    if vessel.has_duty_free:
+        return {
+            'has_warnings': False,
+            'missing_price_count': 0,
+            'missing_products': [],
+            'message': None
+        }
+    
+    # Get all general products (non-duty-free)
+    general_products = Product.objects.filter(active=True, is_duty_free=False)
+    
+    # Get products with custom pricing for this vessel
+    products_with_custom_pricing = VesselProductPrice.objects.filter(
+        vessel=vessel
+    ).values_list('product_id', flat=True)
+    
+    # Find products missing custom pricing
+    missing_products = general_products.exclude(id__in=products_with_custom_pricing)
+    missing_count = missing_products.count()
+    
+    warning_message = None
+    if missing_count > 0:
+        warning_message = f"{missing_count} products missing custom pricing"
+    
+    return {
+        'has_warnings': missing_count > 0,
+        'missing_price_count': missing_count,
+        'missing_products': list(missing_products.values('id', 'name', 'item_id')),
+        'message': warning_message
+    }
+
+
+def get_all_vessel_pricing_summary():
+    """
+    Get pricing summary for all touristic vessels
+    
+    Returns:
+        dict: Summary of vessel pricing status
+    """
+    from vessels.models import Vessel
+    
+    touristic_vessels = Vessel.objects.filter(active=True, has_duty_free=False)
+    general_products_count = Product.objects.filter(active=True, is_duty_free=False).count()
+    
+    summary = {
+        'touristic_vessels': [],
+        'total_general_products': general_products_count,
+        'vessels_with_incomplete_pricing': 0,
+        'total_missing_prices': 0
+    }
+    
+    for vessel in touristic_vessels:
+        vessel_warnings = get_vessel_pricing_warnings(vessel)
+        
+        vessel_info = {
+            'vessel': vessel,
+            'custom_prices_count': VesselProductPrice.objects.filter(vessel=vessel).count(),
+            'missing_prices_count': vessel_warnings['missing_price_count'],
+            'completion_percentage': ((general_products_count - vessel_warnings['missing_price_count']) / max(general_products_count, 1)) * 100,
+            'has_warnings': vessel_warnings['has_warnings']
+        }
+        
+        summary['touristic_vessels'].append(vessel_info)
+        
+        if vessel_warnings['has_warnings']:
+            summary['vessels_with_incomplete_pricing'] += 1
+            summary['total_missing_prices'] += vessel_warnings['missing_price_count']
+    
+    return summary

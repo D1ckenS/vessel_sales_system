@@ -78,6 +78,39 @@
     </div>
 </div>
 
+<!-- Pricing Warnings Section (only for editable trips on touristic vessels) -->
+<!-- Enhanced Pricing Warnings Section -->
+{% if can_edit and not trip.vessel.has_duty_free %}
+<div class="row mb-4" id="pricingWarningsSection" style="display: none;">
+    <div class="col-12">
+        <div class="alert alert-warning border-0 shadow-sm">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-exclamation-triangle me-3" style="font-size: 1.5rem;"></i>
+                <div class="flex-grow-1">
+                    <h6 class="mb-1">
+                        <span data-translate="pricing_warnings_detected">Pricing Warnings Detected</span>
+                    </h6>
+                    <div id="pricingWarningsList">
+                        <!-- Will be populated by JavaScript -->
+                    </div>
+                    <div id="vesselPricingOverview" class="mt-2" style="display: none;">
+                        <small class="text-muted">
+                            <i class="bi bi-info-circle"></i>
+                            <span id="overviewMessage"></span>
+                        </small>
+                    </div>
+                </div>
+                <div class="text-end">
+                    <a href="{% url 'frontend:bulk_pricing_management' %}" class="btn btn-warning btn-sm" target="_blank">
+                        <i class="bi bi-gear"></i> <span data-translate="manage_pricing">Manage Pricing</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <div class="row">
     {% if can_edit %}
     <!-- LEFT SIDE: Add Sales Item Form (only for editable trips) -->
@@ -319,7 +352,12 @@ document.addEventListener('DOMContentLoaded', function() {
             'select_from_available': 'Click on a product from the available products list',
             'trip_completed': 'Trip Completed',
             'trip_completed_desc': 'This trip has been completed and is now read-only. All sales have been finalized and inventory has been updated.',
-            'completion_date': 'Completed:'
+            'completion_date': 'Completed:',
+            'pricing_warnings_detected': 'Pricing Warnings Detected',
+            'manage_pricing': 'Manage Pricing',
+            'custom_price': 'Custom',
+            'default_price': 'Default',
+            'pricing_info': 'Pricing Info',
         },
         ar: {
             'total_cogs': 'إجمالي تكلفة البضاعة المباعة',
@@ -351,7 +389,12 @@ document.addEventListener('DOMContentLoaded', function() {
             'select_from_available': 'انقر على منتج من قائمة المنتجات المتوفرة',
             'trip_completed': 'تم إكمال الرحلة',
             'trip_completed_desc': 'تم إكمال هذه الرحلة وهي الآن للقراءة فقط. تم الانتهاء من جميع المبيعات وتحديث المخزون.',
-            'completion_date': 'تاريخ الإكمال:'
+            'completion_date': 'تاريخ الإكمال:',
+            'pricing_warnings_detected': 'تم اكتشاف تحذيرات التسعير',
+            'manage_pricing': 'إدارة التسعير',
+            'custom_price': 'مخصص',
+            'default_price': 'افتراضي',
+            'pricing_info': 'معلومات التسعير',
         }
     };
     
@@ -467,6 +510,16 @@ function loadAvailableProducts() {
         if (data.success) {
             availableProducts = data.products;
             displayAvailableProducts();
+            
+            // ✅ Handle pricing warnings
+            if (data.pricing_warnings && data.pricing_warnings.length > 0) {
+                displayPricingWarnings(data.pricing_warnings);
+            }
+
+            // ✅ Handle vessel pricing overview warnings
+            if (data.vessel_warnings && data.vessel_warnings.has_warnings) {
+                displayVesselPricingOverview(data.vessel_warnings);
+            }
         } else {
             console.error('Error loading available products:', data.error);
         }
@@ -475,6 +528,7 @@ function loadAvailableProducts() {
         console.error('Error loading available products:', error);
     });
 }
+
 
 function displayAvailableProducts() {
     const tbody = document.getElementById('availableProductsList');
@@ -617,9 +671,18 @@ function selectProductFromList(product) {
     // Update search field
     document.getElementById('productSearch').value = product.name;
     
-    // Update product info
+    // Update product info with pricing information
     document.getElementById('productName').textContent = product.name;
-    document.getElementById('unitPrice').textContent = product.selling_price.toFixed(3) + ' JOD';
+    
+    // Show pricing information
+    let priceDisplay = `${product.selling_price.toFixed(3)} JOD`;
+    if (product.is_custom_price) {
+        priceDisplay += ` <span class="badge bg-info ms-1">${_('custom_price')}</span>`;
+    } else if (!product.is_custom_price && !{{ trip.vessel.has_duty_free|yesno:"true,false" }}) {
+        priceDisplay += ` <span class="badge bg-warning text-dark ms-1">${_('default_price')}</span>`;
+    }
+    
+    document.getElementById('unitPrice').innerHTML = priceDisplay;
     document.getElementById('productInfo').style.display = 'block';
     
     // Enable quantity input
@@ -1176,6 +1239,40 @@ function showAlert(message, type) {
             alertDiv.remove();
         }
     }, 5000);
+}
+
+function displayPricingWarnings(warnings) {
+    const warningsSection = document.getElementById('pricingWarningsSection');
+    const warningsList = document.getElementById('pricingWarningsList');
+    
+    if (!warningsSection || !warningsList) return;
+    
+    if (warnings && warnings.length > 0) {
+        const warningsHtml = warnings.map(warning => `
+            <div class="d-flex align-items-center mb-2">
+                <i class="bi bi-exclamation-circle text-warning me-2"></i>
+                <div>
+                    <strong>${warning.product_name}:</strong> 
+                    <span class="text-warning">${warning.message}</span>
+                </div>
+            </div>
+        `).join('');
+        
+        warningsList.innerHTML = warningsHtml;
+        warningsSection.style.display = 'block';
+    } else {
+        warningsSection.style.display = 'none';
+    }
+}
+
+function displayVesselPricingOverview(vesselWarnings) {
+    const overviewSection = document.getElementById('vesselPricingOverview');
+    const overviewMessage = document.getElementById('overviewMessage');
+    
+    if (vesselWarnings && vesselWarnings.has_warnings && overviewSection && overviewMessage) {
+        overviewMessage.textContent = vesselWarnings.message;
+        overviewSection.style.display = 'block';
+    }
 }
 </script>
 {% endblock %}

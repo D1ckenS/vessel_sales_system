@@ -6,7 +6,7 @@ from django.http import JsonResponse
 from datetime import date
 from vessels.models import Vessel
 from products.models import Product
-from transactions.models import Transaction, InventoryLot, Trip
+from transactions.models import Transaction, InventoryLot, Trip, VesselProductPrice, get_vessel_product_price, get_vessel_pricing_warnings
 from .utils import BilingualMessages
 from products.models import Product
 from django.core.exceptions import ValidationError
@@ -381,7 +381,7 @@ def sales_validate_inventory(request):
     
 @operations_access_required
 def trip_bulk_complete(request):
-    """Complete trip with bulk transaction creation"""
+    """Complete trip with bulk transaction creation using vessel-specific pricing"""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
@@ -404,6 +404,7 @@ def trip_bulk_complete(request):
         # Validate all items first (before saving anything)
         validated_items = []
         total_revenue = 0
+        pricing_warnings = []
         
         for item in items:
             product_id = item.get('product_id')
@@ -426,6 +427,16 @@ def trip_bulk_complete(request):
                     'error': f'Cannot sell duty-free product {product.name} on {trip.vessel.name}'
                 })
             
+            # Get vessel-specific pricing
+            actual_selling_price, is_custom_price, warning_message = get_vessel_product_price(trip.vessel, product)
+            
+            # Collect pricing warnings
+            if warning_message:
+                pricing_warnings.append({
+                    'product_name': product.name,
+                    'message': warning_message
+                })
+            
             # Check inventory availability
             from transactions.models import get_available_inventory
             available_quantity, lots = get_available_inventory(trip.vessel, product)
@@ -436,14 +447,16 @@ def trip_bulk_complete(request):
                     'error': f'Insufficient inventory for {product.name}. Available: {available_quantity}, Requested: {quantity}'
                 })
             
-            # Add to validated items
+            # Add to validated items with vessel-specific pricing
             validated_items.append({
                 'product': product,
                 'quantity': quantity,
                 'notes': notes,
-                'revenue': quantity * product.selling_price
+                'unit_price': actual_selling_price,  # Use vessel-specific price
+                'revenue': quantity * actual_selling_price,
+                'is_custom_price': is_custom_price
             })
-            total_revenue += quantity * product.selling_price
+            total_revenue += quantity * actual_selling_price
         
         # All items validated - now create transactions atomically
         from django.db import transaction
@@ -451,13 +464,14 @@ def trip_bulk_complete(request):
             created_transactions = []
             
             for item in validated_items:
+                # Create sale transaction with vessel-specific pricing
                 sale_transaction = Transaction.objects.create(
                     vessel=trip.vessel,
                     product=item['product'],
                     transaction_type='SALE',
                     transaction_date=trip.trip_date,
                     quantity=item['quantity'],
-                    unit_price=item['product'].selling_price,
+                    unit_price=item['unit_price'],  # Vessel-specific price stored in transaction
                     trip=trip,
                     notes=item['notes'] or f'Sale for trip {trip.trip_number}',
                     created_by=request.user
@@ -468,7 +482,7 @@ def trip_bulk_complete(request):
             trip.is_completed = True
             trip.save()
         
-        return JsonResponse({
+        response_data = {
             'success': True,
             'message': f'Trip {trip.trip_number} completed successfully!',
             'trip_data': {
@@ -477,7 +491,14 @@ def trip_bulk_complete(request):
                 'total_revenue': float(total_revenue),
                 'vessel': trip.vessel.name
             }
-        })
+        }
+        
+        # Include pricing warnings if any
+        if pricing_warnings:
+            response_data['pricing_warnings'] = pricing_warnings
+            response_data['warning_message'] = f"⚠️ {len(pricing_warnings)} items used default pricing on touristic vessel"
+        
+        return JsonResponse(response_data)
         
     except Trip.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Trip not found'})
@@ -535,7 +556,7 @@ def trip_cancel(request):
     
 @operations_access_required
 def sales_available_products(request):
-    """AJAX endpoint to get available products for sales"""
+    """AJAX endpoint to get available products for sales with vessel-specific pricing"""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
@@ -572,20 +593,53 @@ def sales_available_products(request):
         ).order_by('product__item_id')
         
         products = []
+        pricing_warnings = []
+        
         for summary in product_summaries:
+            product_id = summary['product__id']
+            product = Product.objects.get(id=product_id)
+            
+            # Get vessel-specific pricing
+            actual_price, is_custom_price, warning_message = get_vessel_product_price(vessel, product)
+            
+            # Collect warnings for non-duty-free vessels using default pricing
+            if warning_message:
+                pricing_warnings.append({
+                    'product_id': product_id,
+                    'product_name': product.name,
+                    'message': warning_message
+                })
+            
             products.append({
-                'id': summary['product__id'],
+                'id': product_id,
                 'name': summary['product__name'],
                 'item_id': summary['product__item_id'],
                 'barcode': summary['product__barcode'] or '',
                 'is_duty_free': summary['product__is_duty_free'],
-                'selling_price': float(summary['product__selling_price']),
+                'selling_price': float(actual_price),  # Use vessel-specific price
+                'default_price': float(product.selling_price),  # Include default for comparison
+                'is_custom_price': is_custom_price,
                 'total_quantity': summary['total_quantity'],
             })
         
+        # Get overall vessel pricing warnings
+        vessel_warnings = get_vessel_pricing_warnings(vessel)
+        
         return JsonResponse({
             'success': True,
-            'products': products
+            'products': products,
+            'pricing_warnings': pricing_warnings,
+            'vessel_warnings': {
+                'has_warnings': vessel_warnings['has_warnings'],
+                'missing_price_count': vessel_warnings['missing_price_count'],
+                'message': vessel_warnings['message'],
+                'detailed_message': f"⚠️ {vessel_warnings['missing_price_count']} products missing custom pricing for {vessel.name}" if vessel_warnings['has_warnings'] else None
+            },
+            'vessel_info': {
+                'name': vessel.name,
+                'is_touristic': not vessel.has_duty_free,
+                'pricing_completion': ((vessel_warnings.get('total_products', 0) - vessel_warnings['missing_price_count']) / max(vessel_warnings.get('total_products', 0), 1)) * 100 if vessel_warnings.get('total_products') else 100
+            }
         })
         
     except Vessel.DoesNotExist:
@@ -595,7 +649,7 @@ def sales_available_products(request):
 
 @operations_access_required
 def sales_calculate_cogs(request):
-    """AJAX endpoint to calculate COGS for sales using FIFO simulation"""
+    """AJAX endpoint to calculate COGS for sales using FIFO simulation with vessel-specific pricing"""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
@@ -612,6 +666,9 @@ def sales_calculate_cogs(request):
         # Get objects
         vessel = Vessel.objects.get(id=vessel_id, active=True)
         product = Product.objects.get(id=product_id, active=True)
+        
+        # Get vessel-specific pricing
+        actual_selling_price, is_custom_price, warning_message = get_vessel_product_price(vessel, product)
         
         # Get available inventory and FIFO lots
         from transactions.models import get_available_inventory
@@ -645,11 +702,29 @@ def sales_calculate_cogs(request):
             
             remaining_to_consume -= consumed_from_lot
         
-        return JsonResponse({
+        # Calculate profit using vessel-specific selling price
+        total_revenue = quantity * actual_selling_price
+        total_profit = total_revenue - total_fifo_cost
+        
+        response_data = {
             'success': True,
             'total_cogs': float(total_fifo_cost),
-            'consumption_breakdown': consumption_preview
-        })
+            'total_revenue': float(total_revenue),
+            'total_profit': float(total_profit),
+            'consumption_breakdown': consumption_preview,
+            'pricing_info': {
+                'selling_price': float(actual_selling_price),
+                'default_price': float(product.selling_price),
+                'is_custom_price': is_custom_price,
+                'price_difference': float(actual_selling_price - product.selling_price)
+            }
+        }
+        
+        # Add warning if using default price on touristic vessel
+        if warning_message:
+            response_data['pricing_warning'] = warning_message
+        
+        return JsonResponse(response_data)
         
     except (Vessel.DoesNotExist, Product.DoesNotExist):
         return JsonResponse({'success': False, 'error': 'Vessel or product not found'})

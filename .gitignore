@@ -1,25 +1,299 @@
-# Database
-db.sqlite3
-*.db
-
-# Python cache
+# Byte-compiled / optimized / DLL files
 __pycache__/
+*.py[cod]
+*$py.class
 *.pyc
-*.pyo
 
-# Environment
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Translations
+*.mo
+*.pot
+
+# Django specific
+*.log
+local_settings.py
+# db.sqlite3  # COMMENTED OUT for development - we want to commit this
+db.sqlite3-journal
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# PEP 582; used by e.g. github.com/David-OConnor/pyflow
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
 .env
-venv/
+.venv
 env/
+venv/
+ENV/
+env.bak/
+venv.bak/
 
-# Collected static files (if you use collectstatic)
-staticfiles/
-static_collected/
+# Spyder project settings
+.spyderproject
+.spyproject
 
-# Media uploads
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# Django specific additions
 media/
+staticfiles/
+static_root/
+collected_static/
 
-# IDE files
+# Database - DEVELOPMENT CONFIGURATION
+# NOTE: For production, uncomment the db.sqlite3 line above
+*.db
+# *.sqlite3  # COMMENTED OUT - we want to commit db.sqlite3 for development
+# Alternative: Ignore other sqlite files but keep our main one
+*_backup.sqlite3
+*_test.sqlite3
+*_copy.sqlite3
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# IDE specific files
+# VS Code
 .vscode/
+*.code-workspace
+
+# PyCharm
 .idea/
+*.iml
+*.iws
+*.ipr
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
 *.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# OS specific files
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+temp/
+tmp/
+logs/
+
+# Backup files
+*.bak
+*.backup
+*.orig
+
+# Node modules (if you use any Node.js tools)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Webpack (if using)
+webpack-stats.json
+
+# Coverage reports
+htmlcov/
+.coverage
+
+# Local development
+local_settings.py
+dev_settings.py
+
+# Docker
+docker-compose.override.yml
+
+# Elastic Beanstalk Files
+.elasticbeanstalk/*
+!.elasticbeanstalk/*.cfg.yml
+!.elasticbeanstalk/*.global.yml
+
+# Heroku
+.heroku/
+
+# Redis dump file
+dump.rdb
+
+# Vessel Sales System specific
+vessel_sales_system/local_config.py
+reports/generated_reports/
+exports/temp_files/
+
+# Production secrets (IMPORTANT!)
+secrets.json
+production_settings.py
+.secrets
+*.pem
+*.key
+*.crt
+
+# Cache files
+.cache/
+cache/
+
+# Compiled translation files
+locale/*/LC_MESSAGES/django.mo
+
+# Session files
+django_session/
+
+# Development database fixtures (if any)
+fixtures/dev_data.json
+
+# Generated API documentation
+api_docs/
+
+# Temporary upload files
+uploads/temp/
+
+# Email backend files (if using file-based email backend)
+sent_emails/
+
+# Development specific - Django debug toolbar
+debug_toolbar/
+
+# Testing databases
+test_*.sqlite3

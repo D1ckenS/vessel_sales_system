@@ -75,6 +75,14 @@ class BilingualMessages:
             'invalid_request_method': 'Invalid request method.',
             'back_to_inventory': 'Back to Inventory',
             'back_to_dashboard': 'Back to Dashboard',
+            
+            # Vessel pricing management
+            'vessel_pricing_updated': 'Vessel pricing updated successfully.',
+            'vessel_pricing_removed': 'Vessel pricing removed successfully.',
+            'bulk_pricing_completed': 'Bulk pricing update completed: {successful} successful, {failed} failed.',
+            'pricing_copied_successfully': 'Pricing copied successfully from {source} to {target_count} vessels.',
+            'no_source_pricing': 'No pricing found for source vessel {vessel}.',
+            'invalid_vessel_product_combination': 'Invalid vessel-product combination for pricing.',
         },
         'ar': {
             # Authentication messages (Arabic)
@@ -140,6 +148,14 @@ class BilingualMessages:
             'invalid_request_method': 'طريقة طلب غير صالحة.',
             'back_to_inventory': 'العودة للمخزون',
             'back_to_dashboard': 'العودة للوحة التحكم',
+            
+            # Vessel pricing management (Arabic)
+            'vessel_pricing_updated': 'تم تحديث تسعير السفينة بنجاح.',
+            'vessel_pricing_removed': 'تم إزالة تسعير السفينة بنجاح.',
+            'bulk_pricing_completed': 'تم إكمال التحديث الجماعي للتسعير: {successful} نجح، {failed} فشل.',
+            'pricing_copied_successfully': 'تم نسخ التسعير بنجاح من {source} إلى {target_count} سفن.',
+            'no_source_pricing': 'لم يتم العثور على تسعير للسفينة المصدر {vessel}.',
+            'invalid_vessel_product_combination': 'مزيج غير صالح من السفينة والمنتج للتسعير.',
         }
     }
 

@@ -1,7 +1,7 @@
 from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.urls import path
-from . import views, auth_views, test_views, reports_views, export_views, product_views, category_views, supply_views, transfer_views, sales_views, inventory_views
+from . import views, auth_views, test_views, reports_views, export_views, product_views, category_views, supply_views, transfer_views, sales_views, inventory_views, pricing_views
 
 app_name = 'frontend'
 
@@ -33,6 +33,12 @@ urlpatterns = [
     path('products/create/', product_views.add_product, name='add_product_form'),  # NEW - Create mode explicitly
     path('products/manage/', product_views.add_product, name='product_management'),  # List mode
     path('products/edit/<int:product_id>/', product_views.add_product, name='edit_product'),  # Edit mode
+    
+    # Vessel Pricing Management (NEW)
+    path('pricing/bulk/', pricing_views.bulk_pricing_management, name='bulk_pricing_management'),
+    path('pricing/update/', pricing_views.update_vessel_pricing, name='update_vessel_pricing'),
+    path('pricing/bulk-update/', pricing_views.bulk_update_pricing, name='bulk_update_pricing'),
+    path('pricing/copy-template/', pricing_views.copy_pricing_template, name='copy_pricing_template'),
     
     # Category Management
     path('categories/manage/', category_views.category_management, name='category_management'),

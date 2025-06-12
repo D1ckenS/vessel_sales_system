@@ -6,6 +6,7 @@ from products.models import Product
 from .utils import BilingualMessages
 from products.models import Product, Category
 from .utils import get_vessel_display_name, format_vessel_list
+from transactions.models import VesselProductPrice, get_vessel_pricing_warnings, get_all_vessel_pricing_summary
 
 @login_required
 @user_passes_test(is_admin_or_manager)
@@ -67,12 +68,12 @@ def product_management(request):
 @login_required
 @user_passes_test(is_admin_or_manager)
 def add_product(request, product_id=None):
-    """Enhanced product management: list, create, edit products with initial stock"""
+    """Enhanced product management: list, create, edit products with vessel-specific pricing"""
     
     # FIXED: Import at function level - MOVED TO TOP OF FUNCTION
     from products.models import Category, Product
     from vessels.models import Vessel
-    from transactions.models import Transaction
+    from transactions.models import Transaction, VesselProductPrice
     from decimal import Decimal
     from datetime import date
     from django.db.models import Q
@@ -89,99 +90,151 @@ def add_product(request, product_id=None):
         url_name = resolver_match.url_name if resolver_match else None
         
         if url_name == 'add_product_form':
-            # Explicit create mode from /products/create/
             mode = 'create'
         elif url_name == 'product_management':
-            # Explicit list mode from /products/manage/
             mode = 'list'
         else:
-            # Legacy /products/add/ - check mode parameter or default to list
             mode = request.GET.get('mode', 'list')
         
         product = None
     
     if request.method == 'GET':
-            # Get all data needed for the interface
-            categories = Category.objects.filter(active=True).order_by('name')
-            vessels = Vessel.objects.filter(active=True).order_by('name')
+        # Get all data needed for the interface
+        categories = Category.objects.filter(active=True).order_by('name')
+        vessels = Vessel.objects.filter(active=True).order_by('name')
+        
+        # Get touristic vessels for pricing
+        touristic_vessels = vessels.filter(has_duty_free=False)
+        
+        # FIXED: Initialize context with common data first
+        context = {
+            'mode': mode,
+            'categories': categories,
+            'vessels': vessels,
+            'touristic_vessels': touristic_vessels,
+            'today': date.today(),
+        }
+        
+        # For list mode, get products with filtering and pricing info
+        if mode == 'list':
+            # ENHANCED: Calculate total inventory for each product
+            from django.db.models import Sum, F
+            from transactions.models import InventoryLot
             
-            # FIXED: Initialize context with common data first
-            context = {
-                'mode': mode,
-                'categories': categories,
-                'vessels': vessels,
-                'today': date.today(),
-            }
+            products = Product.objects.select_related('category', 'created_by').order_by('item_id')
             
-            # For list mode, get products with filtering
-            if mode == 'list':
-                # ENHANCED: Calculate total inventory for each product
-                from django.db.models import Sum, F
-                from transactions.models import InventoryLot
+            # Apply filters
+            search_query = request.GET.get('search', '')
+            category_filter = request.GET.get('category', '')
+            status_filter = request.GET.get('status', '')
+            
+            if search_query:
+                products = products.filter(
+                    Q(name__icontains=search_query) |
+                    Q(item_id__icontains=search_query) |
+                    Q(barcode__icontains=search_query)
+                )
+            
+            if category_filter:
+                products = products.filter(category_id=category_filter)
+            
+            if status_filter == 'active':
+                products = products.filter(active=True)
+            elif status_filter == 'inactive':
+                products = products.filter(active=False)
+            
+            # NEW: Calculate total inventory and pricing info for each product
+            products_with_info = []
+            for product in products:
+                # Calculate total inventory across all vessels using InventoryLot
+                total_inventory = InventoryLot.objects.filter(
+                    product=product,
+                    remaining_quantity__gt=0
+                ).aggregate(
+                    total=Sum('remaining_quantity')
+                )['total'] or 0
                 
-                products = Product.objects.select_related('category', 'created_by').order_by('item_id')
+                # Get vessel pricing info for general products
+                vessel_pricing_info = {
+                    'has_vessel_pricing': False,
+                    'vessel_prices_count': 0,
+                    'missing_prices_count': 0,
+                    'pricing_completion': 100,
+                    'pricing_warnings': []
+                }
                 
-                # Apply filters
-                search_query = request.GET.get('search', '')
-                category_filter = request.GET.get('category', '')
-                status_filter = request.GET.get('status', '')
-                
-                if search_query:
-                    products = products.filter(
-                        Q(name__icontains=search_query) |
-                        Q(item_id__icontains=search_query) |
-                        Q(barcode__icontains=search_query)
-                    )
-                
-                if category_filter:
-                    products = products.filter(category_id=category_filter)
-                
-                if status_filter == 'active':
-                    products = products.filter(active=True)
-                elif status_filter == 'inactive':
-                    products = products.filter(active=False)
-                
-                # NEW: Calculate total inventory for each product
-                products_with_inventory = []
-                for product in products:
-                    # Calculate total inventory across all vessels using InventoryLot
-                    total_inventory = InventoryLot.objects.filter(
-                        product=product,
-                        remaining_quantity__gt=0
-                    ).aggregate(
-                        total=Sum('remaining_quantity')
-                    )['total'] or 0
+                if not product.is_duty_free:  # Only for general products
+                    vessel_prices = VesselProductPrice.objects.filter(product=product)
+                    vessel_prices_count = vessel_prices.count()
+                    touristic_vessels_count = touristic_vessels.count()
+                    missing_prices_count = max(0, touristic_vessels_count - vessel_prices_count)
                     
-                    # Add total_inventory as an attribute to the product
-                    product.total_inventory = total_inventory
-                    products_with_inventory.append(product)
-                
-                # Calculate stats
-                total_products = Product.objects.count()
-                active_products = Product.objects.filter(active=True).count()
-                
-                # FIXED: Update context instead of creating new one
-                context.update({
-                    'products': products_with_inventory,
-                    'filters': {
-                        'search': search_query,
-                        'category': category_filter,
-                        'status': status_filter,
-                    },
-                    'stats': {
-                        'total_products': total_products,
-                        'active_products': active_products,
-                        'inactive_products': total_products - active_products,
-                        'total_categories': categories.count(),
+                    vessel_pricing_info = {
+                        'has_vessel_pricing': vessel_prices_count > 0,
+                        'vessel_prices_count': vessel_prices_count,
+                        'missing_prices_count': missing_prices_count,
+                        'pricing_completion': (vessel_prices_count / max(touristic_vessels_count, 1)) * 100,
+                        'pricing_warnings': []
                     }
-                })
-            else:
-                # Create or edit mode - FIXED: Update context instead of creating new one
-                context.update({
-                    'product': product,
-                })
+                    
+                    # Add warning if incomplete pricing
+                    if missing_prices_count > 0:
+                        vessel_pricing_info['pricing_warnings'].append(
+                            f"Missing pricing for {missing_prices_count} touristic vessels"
+                        )
+                
+                # Add attributes to the product
+                product.total_inventory = total_inventory
+                product.vessel_pricing_info = vessel_pricing_info
+                products_with_info.append(product)
             
-            return render(request, 'frontend/add_product.html', context)
+            # Calculate stats with pricing info
+            total_products = Product.objects.count()
+            active_products = Product.objects.filter(active=True).count()
+            general_products = Product.objects.filter(active=True, is_duty_free=False).count()
+            
+            # Products with incomplete pricing
+            products_with_incomplete_pricing = 0
+            for product in products_with_info:
+                if hasattr(product, 'vessel_pricing_info') and product.vessel_pricing_info['missing_prices_count'] > 0:
+                    products_with_incomplete_pricing += 1
+            
+            # Get vessel pricing summary
+            vessel_pricing_summary = get_all_vessel_pricing_summary()
+            
+            # FIXED: Update context instead of creating new one
+            context.update({
+                'products': products_with_info,
+                'filters': {
+                    'search': search_query,
+                    'category': category_filter,
+                    'status': status_filter,
+                },
+                'stats': {
+                    'total_products': total_products,
+                    'active_products': active_products,
+                    'inactive_products': total_products - active_products,
+                    'total_categories': categories.count(),
+                    'general_products': general_products,
+                    'products_with_incomplete_pricing': products_with_incomplete_pricing,
+                },
+                'vessel_pricing_summary': vessel_pricing_summary,
+            })
+        else:
+            # Create or edit mode
+            existing_vessel_prices = {}
+            if product and not product.is_duty_free:
+                # Get existing vessel prices for editing
+                vessel_prices = VesselProductPrice.objects.filter(product=product)
+                existing_vessel_prices = {vp.vessel_id: vp.selling_price for vp in vessel_prices}
+            
+            # FIXED: Update context instead of creating new one
+            context.update({
+                'product': product,
+                'existing_vessel_prices': existing_vessel_prices,
+            })
+        
+        return render(request, 'frontend/add_product.html', context)
     
     elif request.method == 'POST':
         try:
@@ -218,7 +271,7 @@ def add_product(request, product_id=None):
                 else:
                     return redirect('frontend:add_product_form')
             
-            # Get category - REMOVED the redundant import since it's at the top
+            # Get category
             try:
                 category = Category.objects.get(id=category_id, active=True)
             except Category.DoesNotExist:
@@ -228,34 +281,83 @@ def add_product(request, product_id=None):
                 else:
                     return redirect('frontend:add_product_form')
             
-            # Create or update the product
-            if mode == 'edit':
-                # Update existing product
-                product.name = name
-                product.item_id = item_id
-                product.barcode = barcode
-                product.category = category
-                product.purchase_price = Decimal(purchase_price)
-                product.selling_price = Decimal(selling_price)
-                product.is_duty_free = is_duty_free
-                product.active = active
-                product.save()
-                
-                BilingualMessages.success(request, 'product_updated_success', name=product.name)
-                return redirect('frontend:product_management')
-            else:
-                # Create new product
-                product = Product.objects.create(
-                    name=name,
-                    item_id=item_id,
-                    barcode=barcode,
-                    category=category,
-                    purchase_price=Decimal(purchase_price),
-                    selling_price=Decimal(selling_price),
-                    is_duty_free=is_duty_free,
-                    active=active,
-                    created_by=request.user
-                )
+            # Process vessel pricing for general products
+            vessel_prices_data = {}
+            if not is_duty_free:  # Only for general products
+                touristic_vessels = Vessel.objects.filter(active=True, has_duty_free=False)
+                for vessel in touristic_vessels:
+                    vessel_price = request.POST.get(f'vessel_price_{vessel.id}', '').strip()
+                    if vessel_price:
+                        try:
+                            vessel_prices_data[vessel.id] = Decimal(vessel_price)
+                        except (ValueError, decimal.InvalidOperation):
+                            BilingualMessages.error(request, 'invalid_vessel_price', vessel_name=vessel.name)
+                            if mode == 'edit':
+                                return redirect('frontend:edit_product', product_id=product.id)
+                            else:
+                                return redirect('frontend:add_product_form')
+            
+            # Create or update the product with transaction
+            with transaction.atomic():
+                if mode == 'edit':
+                    # Update existing product
+                    product.name = name
+                    product.item_id = item_id
+                    product.barcode = barcode
+                    product.category = category
+                    product.purchase_price = Decimal(purchase_price)
+                    product.selling_price = Decimal(selling_price)
+                    product.is_duty_free = is_duty_free
+                    product.active = active
+                    product.save()
+                    
+                    # Update vessel prices for general products
+                    if not is_duty_free:
+                        # Remove existing vessel prices
+                        VesselProductPrice.objects.filter(product=product).delete()
+                        
+                        # Add new vessel prices
+                        for vessel_id, vessel_price in vessel_prices_data.items():
+                            vessel = Vessel.objects.get(id=vessel_id)
+                            VesselProductPrice.objects.create(
+                                vessel=vessel,
+                                product=product,
+                                selling_price=vessel_price,
+                                created_by=request.user
+                            )
+                    
+                    # Build success message
+                    vessel_pricing_info = ""
+                    if vessel_prices_data:
+                        vessel_pricing_info = f" with custom pricing for {len(vessel_prices_data)} vessels"
+                    
+                    BilingualMessages.success(request, 'product_updated_success', 
+                                            name=product.name + vessel_pricing_info)
+                    return redirect('frontend:product_management')
+                else:
+                    # Create new product
+                    product = Product.objects.create(
+                        name=name,
+                        item_id=item_id,
+                        barcode=barcode,
+                        category=category,
+                        purchase_price=Decimal(purchase_price),
+                        selling_price=Decimal(selling_price),
+                        is_duty_free=is_duty_free,
+                        active=active,
+                        created_by=request.user
+                    )
+                    
+                    # Add vessel prices for general products
+                    if not is_duty_free and vessel_prices_data:
+                        for vessel_id, vessel_price in vessel_prices_data.items():
+                            vessel = Vessel.objects.get(id=vessel_id)
+                            VesselProductPrice.objects.create(
+                                vessel=vessel,
+                                product=product,
+                                selling_price=vessel_price,
+                                created_by=request.user
+                            )
             
             # Handle initial stock (only for new products)
             if mode == 'create' and action == 'with_stock':
@@ -317,22 +419,32 @@ def add_product(request, product_id=None):
                                 return redirect('frontend:add_product_form')
                 
                 if vessels_processed:
-                    # Format vessel list for message
+                    # Build success message
                     language = BilingualMessages.get_user_language(request)
                     vessel_list = '; '.join([
                         f'{get_vessel_display_name(v["vessel"], language)}: {v["quantity"]} units @ {v["cost"]} JOD'
                         for v in vessels_processed
                     ])
+                    
+                    vessel_pricing_info = ""
+                    if vessel_prices_data:
+                        vessel_pricing_info = f" + custom pricing for {len(vessel_prices_data)} vessels"
+                    
                     BilingualMessages.success(request, 'product_created_with_stock', 
-                                            name=product.name, vessels=vessel_list)
+                                            name=product.name + vessel_pricing_info, vessels=vessel_list)
                 else:
                     BilingualMessages.error(request, 'no_valid_stock_data')
                     product.delete()
                     return redirect('frontend:add_product_form')
                     
             else:
+                # Product only creation
+                vessel_pricing_info = ""
+                if vessel_prices_data:
+                    vessel_pricing_info = f" with custom pricing for {len(vessel_prices_data)} vessels"
+                
                 BilingualMessages.success(request, 'product_created_success', 
-                                        name=product.name, item_id=product.item_id)
+                                        name=product.name + vessel_pricing_info, item_id=product.item_id)
             
             return redirect('frontend:product_management')
             

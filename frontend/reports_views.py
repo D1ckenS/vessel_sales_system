@@ -330,6 +330,20 @@ def comprehensive_report(request):
         total_quantity=Sum('quantity')
     ).order_by('-total_quantity')[:10]
     
+    # NEW: Check for pricing warnings in transactions
+    pricing_warnings_count = 0
+    if vessel_filter:
+        # Check if filtered vessel is touristic and has pricing warnings
+        try:
+            filtered_vessel = Vessel.objects.get(id=vessel_filter)
+            if not filtered_vessel.has_duty_free:
+                from transactions.models import get_vessel_pricing_warnings
+                vessel_warnings = get_vessel_pricing_warnings(filtered_vessel)
+                if vessel_warnings['has_warnings']:
+                    pricing_warnings_count = vessel_warnings['missing_price_count']
+        except Vessel.DoesNotExist:
+            pass
+    
     # Get date range info
     date_range_info = None
     if date_from:
@@ -357,6 +371,11 @@ def comprehensive_report(request):
         'transactions': transactions_limited,
         'vessels': vessels,
         'transaction_types': Transaction.TRANSACTION_TYPES,
+        'pricing_warnings': {
+            'has_warnings': pricing_warnings_count > 0,
+            'missing_prices_count': pricing_warnings_count,
+            'message': f"⚠️ {pricing_warnings_count} products missing custom pricing" if pricing_warnings_count > 0 else None
+        },
         'filters': {
             'vessel': vessel_filter,
             'date_from': date_from,

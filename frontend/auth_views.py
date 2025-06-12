@@ -681,7 +681,7 @@ def check_permission(request):
 @login_required
 @user_passes_test(is_admin_or_manager)
 def vessel_management(request):
-    """Vessel management interface with date-based revenue calculation"""
+    """Enhanced vessel management interface with pricing warnings"""
     
     # Get selected date from request (default to today)
     selected_date = request.GET.get('date')
@@ -704,7 +704,11 @@ def vessel_management(request):
     duty_free_vessels = vessels.filter(has_duty_free=True).count()
     inactive_vessels = total_vessels - active_vessels
     
-    # Get performance data for each vessel
+    # Get overall pricing summary FIRST (before vessel loop)
+    from transactions.models import get_all_vessel_pricing_summary
+    pricing_summary = get_all_vessel_pricing_summary()
+    
+    # Get performance data for each vessel with pricing warnings
     vessel_data = []
     for vessel in vessels:
         # Get trip count for the date range
@@ -743,12 +747,41 @@ def vessel_management(request):
         )
         total_passengers_30d = passenger_result['total_passengers'] or 0
         
+        # Get vessel pricing warnings with calculations
+        from transactions.models import get_vessel_pricing_warnings
+        pricing_warnings = get_vessel_pricing_warnings(vessel)
+        
+        # Calculate pricing completion data
+        if vessel.has_duty_free:
+            # Duty-free vessels don't use custom pricing
+            pricing_data = {
+                'is_duty_free': True,
+                'completion_percentage': 100,
+                'products_priced': 0,
+                'total_products': 0
+            }
+        else:
+            # Touristic vessels with custom pricing
+            total_general_products = pricing_summary['total_general_products']
+            missing_count = pricing_warnings['missing_price_count']
+            products_priced = total_general_products - missing_count
+            completion_pct = (products_priced / max(total_general_products, 1)) * 100
+            
+            pricing_data = {
+                'is_duty_free': False,
+                'completion_percentage': round(completion_pct, 0),
+                'products_priced': products_priced,
+                'total_products': total_general_products
+            }
+        
         vessel_data.append({
             'vessel': vessel,
             'trips_30d': trips_count,
             'total_trips': total_trips,
             'revenue_30d': float(revenue_30d),
             'total_passengers_30d': total_passengers_30d,
+            'pricing_warnings': pricing_warnings,
+            'pricing_data': pricing_data,  # NEW
         })
     
     context = {
@@ -759,6 +792,7 @@ def vessel_management(request):
             'duty_free_vessels': duty_free_vessels,
             'inactive_vessels': inactive_vessels,
         },
+        'pricing_summary': pricing_summary,
         'reference_date': reference_date,
         'thirty_days_ago': thirty_days_ago,
         'today': date.today(),

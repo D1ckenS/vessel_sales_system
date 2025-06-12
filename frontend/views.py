@@ -28,7 +28,9 @@ def dashboard(request):
     # Get basic stats
     today = date.today()
     now = datetime.now()
-    vessels = Vessel.objects.filter(active=True)
+    # Get all vessels for vessel status display
+    all_vessels = Vessel.objects.all().order_by('-active', 'name')  # Active first, then by name
+    vessels = Vessel.objects.filter(active=True).order_by('name')  # Keep this for Quick Stats
     
     # Today's sales summary
     today_sales = Transaction.objects.filter(
@@ -46,6 +48,7 @@ def dashboard(request):
     
     context = {
         'vessels': vessels,
+        'all_vessels': all_vessels,
         'today_sales': today_sales,
         'recent_transactions': recent_transactions,
         'today': today,

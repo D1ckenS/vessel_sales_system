@@ -31,6 +31,58 @@
     </div>
 </div>
 
+<!-- Pricing Warnings Alert -->
+<!-- Enhanced Pricing Warnings Alert -->
+{% if pricing_warnings.has_warnings %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="alert alert-warning border-0 shadow-sm">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-exclamation-triangle me-3" style="font-size: 1.5rem;"></i>
+                <div class="flex-grow-1">
+                    <h6 class="mb-1"><span data-translate="pricing_warnings_in_report">Pricing Warnings in Report</span></h6>
+                    <div class="mb-2">
+                        <small class="mb-1 d-block">{{ pricing_warnings.message }}</small>
+                        <small class="text-muted">
+                            <span data-translate="pricing_warning_explanation">Some transactions in this report used default pricing on touristic vessels instead of custom pricing.</span>
+                        </small>
+                    </div>
+                    <!-- NEW: Detailed breakdown -->
+                    <div class="row mt-2">
+                        <div class="col-md-4">
+                            <small class="fw-bold text-warning">
+                                <i class="bi bi-exclamation-circle"></i>
+                                <span data-translate="affected_transactions">Affected Transactions</span>
+                            </small>
+                            <div><small class="text-muted"><span data-translate="check_transaction_details">Check transaction details below for specific items</span></small></div>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="fw-bold text-info">
+                                <i class="bi bi-info-circle"></i>
+                                <span data-translate="recommendation">Recommendation</span>
+                            </small>
+                            <div><small class="text-muted"><span data-translate="set_custom_pricing_recommendation">Set custom pricing for consistent pricing strategy</span></small></div>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="fw-bold text-success">
+                                <i class="bi bi-gear"></i>
+                                <span data-translate="action_required">Action Required</span>
+                            </small>
+                            <div><small class="text-muted"><span data-translate="use_pricing_management">Use vessel pricing management to set custom prices</span></small></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="text-end">
+                    <a href="{% url 'frontend:bulk_pricing_management' %}" class="btn btn-warning btn-sm">
+                        <i class="bi bi-gear"></i> <span data-translate="fix_pricing">Fix Pricing</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Summary Statistics -->
 <div class="row mb-4">
     <div class="col-md-3 col-sm-6 mb-3">
@@ -287,6 +339,14 @@
                                         {{ transaction.unit_price|floatformat:3 }}
                                     </span>
                                     <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+                                    <!-- NEW: Pricing indicator for touristic vessels -->
+                                    {% if transaction.transaction_type == 'SALE' and not transaction.vessel.has_duty_free %}
+                                        {% if transaction.product and not transaction.product.is_duty_free %}
+                                            <small class="pricing-indicator" data-vessel="{{ transaction.vessel.id }}" data-product="{{ transaction.product.id }}">
+                                                <i class="bi bi-info-circle text-muted"></i>
+                                            </small>
+                                        {% endif %}
+                                    {% endif %}                                    
                                 </td>
                                 <td class="text-end">
                                     <span class="fw-bold transaction-amount" data-number data-original="{{ transaction.total_amount|floatformat:3 }}">

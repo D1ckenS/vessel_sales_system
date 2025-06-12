@@ -435,13 +435,16 @@
                     </h5>
                 </div>
                 <div class="card-body">
-                    {% if vessels %}
+                    {% if all_vessels %}
                         <div class="list-group list-group-flush">
-                            {% for vessel in vessels %}
-                            <div class="list-group-item d-flex justify-content-between align-items-center border-0">
+                            {% for vessel in all_vessels %}
+                            <div class="list-group-item d-flex justify-content-between align-items-center border-0 {% if not vessel.active %}opacity-75{% endif %}">
                                 <div>
                                     <h6 class="mb-1">
                                         <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
+                                        {% if not vessel.active %}
+                                        <small class="text-muted ms-2">(<span data-translate="inactive">Inactive</span>)</small>
+                                        {% endif %}
                                     </h6>
                                     <small class="text-muted">
                                         {% if vessel.has_duty_free %}
@@ -451,14 +454,18 @@
                                         {% endif %}
                                     </small>
                                 </div>
-                                <span class="badge bg-success rounded-pill"><span data-translate="active">Active</span></span>
+                                {% if vessel.active %}
+                                    <span class="badge bg-success rounded-pill"><span data-translate="active">Active</span></span>
+                                {% else %}
+                                    <span class="badge bg-secondary rounded-pill"><span data-translate="inactive">Inactive</span></span>
+                                {% endif %}
                             </div>
                             {% endfor %}
                         </div>
                     {% else %}
                         <div class="text-center py-4">
                             <i class="bi bi-ship text-muted" style="font-size: 3rem;"></i>
-                            <p class="text-muted mt-2">No active vessels found</p>
+                            <p class="text-muted mt-2">No vessels found</p>
                         </div>
                     {% endif %}
                 </div>
@@ -611,43 +618,9 @@ setTimeout(function() {
 
 // Add permission-specific translations
 document.addEventListener('DOMContentLoaded', function() {
-    const permissionTranslations = {
-        en: {
-            'vessel_operator_access': 'Vessel Operator Access',
-            'vessel_operator_desc': 'You can record sales, receive stock, manage transfers, and check inventory.',
-            'inventory_staff_access': 'Inventory Staff Access',
-            'inventory_staff_desc': 'You can check inventory and view reports.',
-            'manager_access': 'Manager Access',
-            'manager_desc': 'You can access all reports and inventory features.',
-            'administrator_access': 'Administrator Access',
-            'administrator_desc': 'You have access to all operational features except system setup.',
-            'viewer_access': 'Viewer Access',
-            'viewer_desc': 'You have read-only access to inventory and basic reports.',
-            'limited_access': 'Limited Access',
-            'limited_access_desc': 'Contact your administrator for additional permissions.',
-        },
-        ar: {
-            'vessel_operator_access': 'صلاحية مشغل السفينة',
-            'vessel_operator_desc': 'يمكنك تسجيل المبيعات واستلام المخزون وإدارة التحويلات وفحص المخزون.',
-            'inventory_staff_access': 'صلاحية موظف المخزون',
-            'inventory_staff_desc': 'يمكنك فحص المخزون وعرض التقارير.',
-            'manager_access': 'صلاحية المدير',
-            'manager_desc': 'يمكنك الوصول لجميع التقارير وميزات المخزون.',
-            'administrator_access': 'صلاحية المدير العام',
-            'administrator_desc': 'لديك وصول لجميع الميزات التشغيلية عدا إعداد النظام.',
-            'viewer_access': 'صلاحية المشاهد',
-            'viewer_desc': 'لديك وصول للقراءة فقط للمخزون والتقارير الأساسية.',
-            'limited_access': 'وصول محدود',
-            'limited_access_desc': 'اتصل بالمدير للحصول على صلاحيات إضافية.',
-        }
-    };
-    
-    // Merge with existing translations
-    Object.assign(window.translator.translations.en, permissionTranslations.en);
-    Object.assign(window.translator.translations.ar, permissionTranslations.ar);
     
     // Update page translations
-    updatePageTranslations();
+    window.updatePageTranslations();
 });
 </script>
 {% endblock %}

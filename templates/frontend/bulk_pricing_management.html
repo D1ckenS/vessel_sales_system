@@ -1,0 +1,516 @@
+{% extends 'frontend/base.html' %}
+{% load static %}
+{% load dict_extras %}
+
+{% block title %}Bulk Vessel Pricing Management - Vessel Sales System{% endblock %}
+
+{% block extra_css %}
+<style>
+.pricing-grid {
+    display: grid;
+    grid-template-columns: 200px repeat(auto-fit, minmax(120px, 1fr));
+    gap: 1px;
+    background: #dee2e6;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.pricing-cell {
+    background: white;
+    padding: 8px;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.pricing-header {
+    background: #f8f9fa;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.pricing-product {
+    background: #f8f9fa;
+    justify-content: flex-start;
+    padding-left: 12px;
+    font-weight: 500;
+}
+
+.pricing-input {
+    width: 80px;
+    border: none;
+    text-align: center;
+    background: transparent;
+    font-size: 0.85rem;
+}
+
+.pricing-input:focus {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 4px;
+}
+
+.has-custom-price {
+    background: #d4edda;
+}
+
+.has-default-price {
+    background: #fff3cd;
+}
+
+.price-difference {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    font-size: 0.7rem;
+    padding: 1px 4px;
+    border-radius: 2px;
+}
+
+.diff-positive {
+    background: #d4edda;
+    color: #155724;
+}
+
+.diff-negative {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.pricing-stats-card {
+    background: linear-gradient(135deg, #17a2b8, #138496);
+    color: white;
+    border-radius: 10px;
+    padding: 1.5rem;
+}
+
+@media (max-width: 768px) {
+    .pricing-grid {
+        grid-template-columns: 150px repeat(auto-fit, minmax(100px, 1fr));
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>
+                    <i class="bi bi-grid-3x3 text-warning"></i> 
+                    <span data-translate="bulk_pricing_management">Bulk Vessel Pricing Management</span>
+                </h2>
+                <p class="text-muted mb-0"><span data-translate="manage_vessel_pricing_desc">Manage custom pricing for touristic vessels</span></p>
+            </div>
+            <div class="d-flex gap-2">
+                <a href="{% url 'frontend:product_management' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> <span data-translate="back_to_products">Back to Products</span>
+                </a>
+                <button class="btn btn-success" onclick="saveAllChanges()">
+                    <i class="bi bi-check-circle"></i> <span data-translate="save_all_changes">Save All Changes</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mb-4">
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="stats-card">
+            <div class="stats-number text-info" data-number data-original="{{ stats.total_vessels }}">{{ stats.total_vessels }}</div>
+            <div class="stats-label"><span data-translate="touristic_vessels">Touristic Vessels</span></div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="stats-card">
+            <div class="stats-number text-primary" data-number data-original="{{ stats.total_products }}">{{ stats.total_products }}</div>
+            <div class="stats-label"><span data-translate="general_products">General Products</span></div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="stats-card">
+            <div class="stats-number text-success" data-number data-original="{{ stats.completed_combinations }}">{{ stats.completed_combinations }}</div>
+            <div class="stats-label"><span data-translate="custom_prices_set">Custom Prices Set</span></div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="pricing-stats-card">
+            <div class="stats-number" data-number data-original="{{ stats.completion_percentage|floatformat:1 }}">{{ stats.completion_percentage|floatformat:1 }}%</div>
+            <div class="stats-label"><span data-translate="completion_rate">Completion Rate</span></div>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Actions -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-tools"></i> <span data-translate="bulk_actions">Bulk Actions</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold"><span data-translate="copy_pricing_from">Copy Pricing From:</span></label>
+                        <select class="form-select" id="sourceVessel">
+                            <option value=""><span data-translate="select_vessel">Select vessel...</span></option>
+                            {% for vessel in touristic_vessels %}
+                            <option value="{{ vessel.id }}">
+                                <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold"><span data-translate="to_vessels">To Vessels:</span></label>
+                        <select class="form-select" id="targetVessels" multiple>
+                            {% for vessel in touristic_vessels %}
+                            <option value="{{ vessel.id }}">
+                                <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="overwriteExisting">
+                                <label class="form-check-label" for="overwriteExisting">
+                                    <span data-translate="overwrite_existing">Overwrite existing prices</span>
+                                </label>
+                            </div>
+                            <button class="btn btn-warning w-100" onclick="copyPricing()">
+                                <i class="bi bi-copy"></i> <span data-translate="copy_pricing">Copy Pricing</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Pricing Grid -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-grid"></i> <span data-translate="pricing_matrix">Pricing Matrix</span>
+                </h5>
+                <div class="d-flex gap-2">
+                    <span class="badge bg-success me-2">
+                        <i class="bi bi-square-fill"></i> <span data-translate="custom_price">Custom Price</span>
+                    </span>
+                    <span class="badge bg-warning text-dark">
+                        <i class="bi bi-square-fill"></i> <span data-translate="default_price">Default Price</span>
+                    </span>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div style="overflow-x: auto; max-height: 600px; overflow-y: auto;">
+                    <div class="pricing-grid" id="pricingGrid">
+                        <!-- Header row -->
+                        <div class="pricing-cell pricing-header">
+                            <span data-translate="product">Product</span>
+                        </div>
+                        {% for vessel in touristic_vessels %}
+                        <div class="pricing-cell pricing-header">
+                            <div class="text-center">
+                                <div class="fw-bold">
+                                    <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
+                                </div>
+                                <small class="text-muted"><span data-translate="touristic">Touristic</span></small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        
+                        <!-- Product rows -->
+                        {% for product in general_products %}
+                        <div class="pricing-cell pricing-product">
+                            <div>
+                                <div class="fw-bold">{{ product.name }}</div>
+                                <small class="text-muted">
+                                    <span data-translate="id">ID:</span> <span data-number data-original="{{ product.item_id }}">{{ product.item_id }}</span> |
+                                    <span data-translate="default">Default:</span> <span data-number data-original="{{ product.selling_price|floatformat:3 }}">{{ product.selling_price|floatformat:3 }}</span> <span data-currency-symbol>JOD</span>
+                                </small>
+                            </div>
+                        </div>
+                        {% for vessel in touristic_vessels %}
+                        {% with key=vessel.id|add:"_"|add:product.id %}
+                        <div class="pricing-cell {% if existing_prices|get_item:key %}has-custom-price{% else %}has-default-price{% endif %}" 
+                             id="cell_{{ vessel.id }}_{{ product.id }}">
+                            <input type="number" 
+                                   class="pricing-input"
+                                   id="price_{{ vessel.id }}_{{ product.id }}"
+                                   data-vessel-id="{{ vessel.id }}"
+                                   data-product-id="{{ product.id }}"
+                                   data-default-price="{{ product.selling_price }}"
+                                   value="{% if existing_prices|get_item:key %}{{ existing_prices|get_item:key.price|floatformat:3 }}{% else %}{{ product.selling_price|floatformat:3 }}{% endif %}"
+                                   step="0.001"
+                                   min="0.001"
+                                   onchange="updatePrice(this)"
+                                   placeholder="{{ product.selling_price|floatformat:3 }}">
+                            {% if existing_prices|get_item:key %}
+                            <span class="price-difference diff-{% if existing_prices|get_item:key.price > product.selling_price %}positive{% else %}negative{% endif %}"
+                                  id="diff_{{ vessel.id }}_{{ product.id }}">
+                                {% widthratio existing_prices|get_item:key.price product.selling_price 100|floatformat:0|add:"-100" %}%
+                            </span>
+                            {% endif %}
+                        </div>
+                        {% endwith %}
+                        {% endfor %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Legend -->
+<div class="row mt-3">
+    <div class="col-12">
+        <div class="alert alert-info">
+            <h6><span data-translate="pricing_instructions">Pricing Instructions:</span></h6>
+            <ul class="mb-0">
+                <li><span data-translate="green_cells">Green cells</span>: <span data-translate="green_cells_desc">Custom prices set for this vessel-product combination</span></li>
+                <li><span data-translate="yellow_cells">Yellow cells</span>: <span data-translate="yellow_cells_desc">Using default product price (no custom price set)</span></li>
+                <li><span data-translate="percentage_badge">Percentage badge</span>: <span data-translate="percentage_badge_desc">Shows difference from default price</span></li>
+                <li><span data-translate="modify_prices">Modify prices</span>: <span data-translate="modify_prices_desc">Click on any cell to edit the price, then save changes</span></li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let pendingChanges = new Map();
+
+// Enhanced translations for bulk pricing
+document.addEventListener('DOMContentLoaded', function() {
+    const bulkPricingTranslations = {
+        en: {
+            'bulk_pricing_management': 'Bulk Vessel Pricing Management',
+            'manage_vessel_pricing_desc': 'Manage custom pricing for touristic vessels',
+            'save_all_changes': 'Save All Changes',
+            'touristic_vessels': 'Touristic Vessels',
+            'custom_prices_set': 'Custom Prices Set',
+            'completion_rate': 'Completion Rate',
+            'bulk_actions': 'Bulk Actions',
+            'copy_pricing_from': 'Copy Pricing From:',
+            'to_vessels': 'To Vessels:',
+            'overwrite_existing': 'Overwrite existing prices',
+            'copy_pricing': 'Copy Pricing',
+            'pricing_matrix': 'Pricing Matrix',
+            'custom_price': 'Custom Price',
+            'default_price': 'Default Price',
+            'pricing_instructions': 'Pricing Instructions:',
+            'green_cells': 'Green cells',
+            'green_cells_desc': 'Custom prices set for this vessel-product combination',
+            'yellow_cells': 'Yellow cells',
+            'yellow_cells_desc': 'Using default product price (no custom price set)',
+            'percentage_badge': 'Percentage badge',
+            'percentage_badge_desc': 'Shows difference from default price',
+            'modify_prices': 'Modify prices',
+            'modify_prices_desc': 'Click on any cell to edit the price, then save changes',
+            'changes_saved': 'All changes saved successfully!',
+            'no_changes_to_save': 'No changes to save.',
+            'error_saving_changes': 'Error saving changes: {error}',
+            'pricing_copied': 'Pricing copied successfully!',
+            'select_source_vessel': 'Please select a source vessel.',
+            'select_target_vessels': 'Please select target vessels.',
+            'error_copying_pricing': 'Error copying pricing: {error}',
+        },
+        ar: {
+            'bulk_pricing_management': 'إدارة تسعير السفن الجماعي',
+            'manage_vessel_pricing_desc': 'إدارة التسعير المخصص للسفن السياحية',
+            'save_all_changes': 'حفظ جميع التغييرات',
+            'touristic_vessels': 'السفن السياحية',
+            'custom_prices_set': 'الأسعار المخصصة المعينة',
+            'completion_rate': 'معدل الاكتمال',
+            'bulk_actions': 'الإجراءات الجماعية',
+            'copy_pricing_from': 'نسخ التسعير من:',
+            'to_vessels': 'إلى السفن:',
+            'overwrite_existing': 'استبدال الأسعار الموجودة',
+            'copy_pricing': 'نسخ التسعير',
+            'pricing_matrix': 'مصفوفة التسعير',
+            'custom_price': 'سعر مخصص',
+            'default_price': 'سعر افتراضي',
+            'pricing_instructions': 'تعليمات التسعير:',
+            'green_cells': 'الخلايا الخضراء',
+            'green_cells_desc': 'أسعار مخصصة معينة لهذا المزيج من السفينة والمنتج',
+            'yellow_cells': 'الخلايا الصفراء',
+            'yellow_cells_desc': 'استخدام سعر المنتج الافتراضي (لا يوجد سعر مخصص)',
+            'percentage_badge': 'شارة النسبة المئوية',
+            'percentage_badge_desc': 'تظهر الفرق من السعر الافتراضي',
+            'modify_prices': 'تعديل الأسعار',
+            'modify_prices_desc': 'انقر على أي خلية لتحرير السعر، ثم احفظ التغييرات',
+            'changes_saved': 'تم حفظ جميع التغييرات بنجاح!',
+            'no_changes_to_save': 'لا توجد تغييرات للحفظ.',
+            'error_saving_changes': 'خطأ في حفظ التغييرات: {error}',
+            'pricing_copied': 'تم نسخ التسعير بنجاح!',
+            'select_source_vessel': 'يرجى اختيار سفينة مصدر.',
+            'select_target_vessels': 'يرجى اختيار سفن الهدف.',
+            'error_copying_pricing': 'خطأ في نسخ التسعير: {error}',
+        }
+    };
+    
+    // Merge with existing translations
+    Object.assign(window.translator.translations.en, bulkPricingTranslations.en);
+    Object.assign(window.translator.translations.ar, bulkPricingTranslations.ar);
+    
+    // Update page translations
+    updatePageTranslations();
+});
+
+function updatePrice(input) {
+    const vesselId = input.dataset.vesselId;
+    const productId = input.dataset.productId;
+    const defaultPrice = parseFloat(input.dataset.defaultPrice);
+    const newPrice = parseFloat(input.value);
+    const cell = input.parentElement;
+    const diffElement = document.getElementById(`diff_${vesselId}_${productId}`);
+    
+    // Mark as pending change
+    const key = `${vesselId}_${productId}`;
+    pendingChanges.set(key, {
+        vessel_id: vesselId,
+        product_id: productId,
+        price: newPrice
+    });
+    
+    // Update cell appearance
+    if (newPrice && newPrice !== defaultPrice) {
+        cell.className = 'pricing-cell has-custom-price';
+        
+        // Update or create difference badge
+        const difference = ((newPrice - defaultPrice) / defaultPrice * 100);
+        const diffText = (difference > 0 ? '+' : '') + difference.toFixed(0) + '%';
+        
+        if (diffElement) {
+            diffElement.textContent = diffText;
+            diffElement.className = `price-difference diff-${difference > 0 ? 'positive' : 'negative'}`;
+        } else {
+            const newDiffElement = document.createElement('span');
+            newDiffElement.id = `diff_${vesselId}_${productId}`;
+            newDiffElement.className = `price-difference diff-${difference > 0 ? 'positive' : 'negative'}`;
+            newDiffElement.textContent = diffText;
+            cell.appendChild(newDiffElement);
+        }
+    } else {
+        cell.className = 'pricing-cell has-default-price';
+        if (diffElement) {
+            diffElement.remove();
+        }
+    }
+    
+    // Visual indicator for unsaved changes
+    input.style.border = '2px solid #ffc107';
+}
+
+function saveAllChanges() {
+    if (pendingChanges.size === 0) {
+        alertTranslated('no_changes_to_save');
+        return;
+    }
+    
+    const updates = Array.from(pendingChanges.values());
+    
+    fetch('/pricing/bulk-update/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({ updates: updates })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alertTranslated('changes_saved');
+            pendingChanges.clear();
+            
+            // Remove visual indicators
+            document.querySelectorAll('.pricing-input').forEach(input => {
+                input.style.border = '';
+            });
+        } else {
+            alertTranslated('error_saving_changes', { error: data.error });
+        }
+    })
+    .catch(error => {
+        alertTranslated('error_saving_changes', { error: error.message });
+    });
+}
+
+function copyPricing() {
+    const sourceVessel = document.getElementById('sourceVessel').value;
+    const targetVessels = Array.from(document.getElementById('targetVessels').selectedOptions).map(opt => opt.value);
+    const overwrite = document.getElementById('overwriteExisting').checked;
+    
+    if (!sourceVessel) {
+        alertTranslated('select_source_vessel');
+        return;
+    }
+    
+    if (targetVessels.length === 0) {
+        alertTranslated('select_target_vessels');
+        return;
+    }
+    
+    fetch('/pricing/copy-template/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            source_vessel_id: sourceVessel,
+            target_vessel_ids: targetVessels,
+            overwrite: overwrite
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alertTranslated('pricing_copied');
+            // Reload page to show updated pricing
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            alertTranslated('error_copying_pricing', { error: data.error });
+        }
+    })
+    .catch(error => {
+        alertTranslated('error_copying_pricing', { error: error.message });
+    });
+}
+
+// Helper function to get CSRF token
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+{% endblock %}
