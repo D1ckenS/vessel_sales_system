@@ -125,7 +125,7 @@
                 <!-- Transfers - Administrators & Vessel Operators Only -->
                 {% if user_permissions.can_access_operations %}
                 <div class="quick-action-wrapper">
-                    <a href="{% url 'frontend:transfer_center' %}" class="quick-action">
+                    <a href="{% url 'frontend:transfer_entry' %}" class="quick-action">
                         <i class="bi bi-arrow-left-right text-warning"></i>
                         <h6 data-translate="transfer_items">Transfer Items</h6>
                         <p class="text-muted small mb-0" data-translate="move_stock_desc">Move stock between vessels</p>

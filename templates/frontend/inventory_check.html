@@ -1072,7 +1072,7 @@ function viewDetails(productId, vesselId) {
 }
 
 function quickTransfer(productId, fromVessel) {
-    const transferUrl = "{% url 'frontend:transfer_center' %}";
+    const transferUrl = "{% url 'frontend:transfer_entry' %}";
     window.location.href = `${transferUrl}?product=${productId}&from=${fromVessel}`;
 }
 

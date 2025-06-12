@@ -1247,22 +1247,97 @@ function displayPricingWarnings(warnings) {
     
     if (!warningsSection || !warningsList) return;
     
-    if (warnings && warnings.length > 0) {
-        const warningsHtml = warnings.map(warning => `
+    // Store warnings globally for re-translation on language change
+    window.pendingPricingWarnings = warnings;
+    
+    // Render immediately
+    renderPricingWarnings(warnings);
+}
+
+function renderPricingWarnings(warnings) {
+    const warningsSection = document.getElementById('pricingWarningsSection');
+    const warningsList = document.getElementById('pricingWarningsList');
+    
+    if (!warnings || warnings.length === 0) {
+        warningsSection.style.display = 'none';
+        return;
+    }
+    
+    const warningsHtml = warnings.map(warning => {
+        // Translate the warning message
+        let translatedMessage = translateWarningMessage(warning.message);
+        
+        return `
             <div class="d-flex align-items-center mb-2">
                 <i class="bi bi-exclamation-circle text-warning me-2"></i>
                 <div>
                     <strong>${warning.product_name}:</strong> 
-                    <span class="text-warning">${warning.message}</span>
+                    <span class="text-warning">${translatedMessage}</span>
                 </div>
             </div>
-        `).join('');
-        
-        warningsList.innerHTML = warningsHtml;
-        warningsSection.style.display = 'block';
-    } else {
-        warningsSection.style.display = 'none';
+        `;
+    }).join('');
+    
+    warningsList.innerHTML = warningsHtml;
+    warningsSection.style.display = 'block';
+}
+
+function translateWarningMessage(message) {
+    // Safety check - ensure translator is available
+    if (!window.translator || !window.translator._) {
+        return message;
     }
+    
+    // Check if message matches the vessel pricing warning pattern
+    const vesselPricingMatch = message.match(/Using default price \(([0-9.]+) JOD\) - No custom price set for (.+)/);
+    
+    if (vesselPricingMatch) {
+        const price = vesselPricingMatch[1];
+        const vesselEnglishName = vesselPricingMatch[2];
+        
+        // Get Arabic vessel name if available
+        const vesselName = getVesselTranslatedName(vesselEnglishName);
+        
+        // Translate the price number
+        const translatedPrice = window.translateNumber ? window.translateNumber(price) : price;
+        
+        // Use the translation system with parameters
+        return window.translator._('vessel_pricing_warning', {
+            price: translatedPrice,
+            vessel: vesselName
+        });
+    }
+    
+    // Check for "products missing custom pricing" pattern
+    const missingPricingMatch = message.match(/(\d+)\s+products missing custom pricing/);
+    if (missingPricingMatch) {
+        const count = missingPricingMatch[1];
+        const translatedCount = window.translateNumber ? window.translateNumber(count) : count;
+        
+        return window.translator._('products_missing_pricing', {
+            count: translatedCount
+        });
+    }
+    
+    // If no pattern matches, return the original message
+    return message;
+}
+
+function getVesselTranslatedName(englishName) {
+    // Check DOM vessel elements for translation data from database
+    const vesselElements = document.querySelectorAll('.vessel-name');
+    for (let element of vesselElements) {
+        const enName = element.getAttribute('data-en');
+        const arName = element.getAttribute('data-ar');
+        
+        if (enName === englishName) {
+            const currentLang = window.translator ? window.translator.currentLanguage : 'en';
+            return (currentLang === 'ar' && arName) ? arName : enName;
+        }
+    }
+    
+    // Return original name if not found in DOM
+    return englishName;
 }
 
 function displayVesselPricingOverview(vesselWarnings) {
@@ -1270,9 +1345,28 @@ function displayVesselPricingOverview(vesselWarnings) {
     const overviewMessage = document.getElementById('overviewMessage');
     
     if (vesselWarnings && vesselWarnings.has_warnings && overviewSection && overviewMessage) {
-        overviewMessage.textContent = vesselWarnings.message;
+        // Store for re-translation on language change
+        window.pendingVesselWarnings = vesselWarnings;
+        
+        // Translate the overview message
+        let translatedOverviewMessage = translateWarningMessage(vesselWarnings.message);
+        overviewMessage.textContent = translatedOverviewMessage;
         overviewSection.style.display = 'block';
     }
 }
+
+window.addEventListener('languageChanged', function() {
+    console.log('Language changed - re-translating pricing warnings');
+    
+    // Re-translate pricing warnings
+    if (window.pendingPricingWarnings) {
+        renderPricingWarnings(window.pendingPricingWarnings);
+    }
+    
+    // Re-translate vessel overview
+    if (window.pendingVesselWarnings) {
+        displayVesselPricingOverview(window.pendingVesselWarnings);
+    }
+});
 </script>
 {% endblock %}
