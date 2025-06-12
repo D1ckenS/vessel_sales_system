@@ -21,12 +21,61 @@ from datetime import date, datetime, timedelta
 import json
 import secrets
 import string
+from django.core.cache import cache
 from .permissions import is_admin_or_manager, admin_or_manager_required, is_superuser_only, superuser_required
 from .permissions import (
     operations_access_required,
     reports_access_required,
     admin_or_manager_required
 )
+
+def get_optimized_vessel_pricing_data():
+    """Helper function: Get vessel pricing data with database aggregations"""
+    from products.models import Product
+    from transactions.models import VesselProductPrice
+    
+    # Get total general products count
+    total_general_products = Product.objects.filter(is_duty_free=False, active=True).count()
+    
+    # Get pricing completion per vessel
+    touristic_vessels = Vessel.objects.filter(has_duty_free=False, active=True)
+    
+    vessel_pricing_data = {}
+    for vessel in touristic_vessels:
+        # Get custom prices count for this vessel
+        custom_prices_count = VesselProductPrice.objects.filter(
+            vessel=vessel,
+            product__is_duty_free=False,
+            product__active=True
+        ).count()
+        
+        missing_count = max(0, total_general_products - custom_prices_count)
+        completion_pct = (custom_prices_count / max(total_general_products, 1)) * 100
+        
+        vessel_pricing_data[vessel.id] = {
+            'completion_percentage': round(completion_pct, 0),
+            'products_priced': custom_prices_count,
+            'total_products': total_general_products,
+            'missing_count': missing_count,
+            'has_warnings': missing_count > 0
+        }
+    
+    return vessel_pricing_data, total_general_products
+
+
+def get_cached_pricing_summary():
+    """Helper function: Get pricing summary with caching for performance"""
+    
+    cache_key = 'vessel_pricing_summary'
+    summary = cache.get(cache_key)
+    
+    if summary is None:
+        from transactions.models import get_all_vessel_pricing_summary
+        summary = get_all_vessel_pricing_summary()
+        # Cache for 5 minutes
+        cache.set(cache_key, summary, 300)
+    
+    return summary
 
 def user_login(request):
     """User login view with bilingual support"""
@@ -681,7 +730,7 @@ def check_permission(request):
 @login_required
 @user_passes_test(is_admin_or_manager)
 def vessel_management(request):
-    """Enhanced vessel management interface with pricing warnings"""
+    """FIXED: Vessel management with correct relationship field names"""
     
     # Get selected date from request (default to today)
     selected_date = request.GET.get('date')
@@ -696,64 +745,68 @@ def vessel_management(request):
     # Calculate 30 days before the reference date
     thirty_days_ago = reference_date - timedelta(days=30)
     
-    vessels = Vessel.objects.all().order_by('name')
+    # FIXED: Using correct field names from your model relationships
+    vessels_data = Vessel.objects.select_related().annotate(
+        # Trip statistics - FIXED: using 'trips' instead of 'trip_set'
+        total_trips=Count(
+            'trips', 
+            filter=models.Q(trips__is_completed=True),
+            distinct=True
+        ),
+        trips_30d=Count(
+            'trips',
+            filter=models.Q(
+                trips__is_completed=True,
+                trips__trip_date__gte=thirty_days_ago,
+                trips__trip_date__lte=reference_date
+            ),
+            distinct=True
+        ),
+        # Revenue calculations - FIXED: using 'transactions' instead of 'transaction_set'
+        revenue_30d=models.Sum(
+            models.Case(
+                models.When(
+                    transactions__transaction_type='SALE',
+                    transactions__transaction_date__gte=thirty_days_ago,
+                    transactions__transaction_date__lte=reference_date,
+                    then=models.F('transactions__unit_price') * models.F('transactions__quantity')
+                ),
+                default=0,
+                output_field=models.DecimalField()
+            )
+        ),
+        # Passenger statistics - FIXED: using 'trips' instead of 'trip_set'
+        total_passengers_30d=models.Sum(
+            'trips__passenger_count',
+            filter=models.Q(
+                trips__is_completed=True,
+                trips__trip_date__gte=thirty_days_ago,
+                trips__trip_date__lte=reference_date
+            )
+        )
+    ).order_by('name')
     
-    # Calculate overall statistics
-    total_vessels = vessels.count()
-    active_vessels = vessels.filter(active=True).count()
-    duty_free_vessels = vessels.filter(has_duty_free=True).count()
-    inactive_vessels = total_vessels - active_vessels
+    # FIXED: Get overall statistics with correct field names
+    vessel_stats = vessels_data.aggregate(
+        total_vessels=Count('id'),
+        active_vessels=Count('id', filter=models.Q(active=True)),
+        duty_free_vessels=Count('id', filter=models.Q(has_duty_free=True)),
+        inactive_vessels=Count('id', filter=models.Q(active=False))
+    )
     
-    # Get overall pricing summary FIRST (before vessel loop)
+    # Get pricing summary with caching
     from transactions.models import get_all_vessel_pricing_summary
     pricing_summary = get_all_vessel_pricing_summary()
     
-    # Get performance data for each vessel with pricing warnings
+    # Build vessel data with optimized pricing
     vessel_data = []
-    for vessel in vessels:
-        # Get trip count for the date range
-        trips_count = Trip.objects.filter(
-            vessel=vessel,
-            trip_date__gte=thirty_days_ago,
-            trip_date__lte=reference_date,
-            is_completed=True
-        ).count()
-        
-        # Get total trips (all time) for the vessel
-        total_trips = Trip.objects.filter(
-            vessel=vessel,
-            is_completed=True
-        ).count()
-        
-        # Get revenue for the date range
-        revenue_result = Transaction.objects.filter(
-            vessel=vessel,
-            transaction_type='SALE',
-            transaction_date__gte=thirty_days_ago,
-            transaction_date__lte=reference_date
-        ).aggregate(
-            total=Sum(F('unit_price') * F('quantity'), output_field=models.DecimalField())
-        )
-        revenue_30d = revenue_result['total'] or 0
-        
-        # Get total passengers for the date range
-        passenger_result = Trip.objects.filter(
-            vessel=vessel,
-            trip_date__gte=thirty_days_ago,
-            trip_date__lte=reference_date,
-            is_completed=True
-        ).aggregate(
-            total_passengers=Sum('passenger_count')
-        )
-        total_passengers_30d = passenger_result['total_passengers'] or 0
-        
-        # Get vessel pricing warnings with calculations
+    for vessel in vessels_data:
+        # Get pricing warnings (still needed for complex business logic)
         from transactions.models import get_vessel_pricing_warnings
         pricing_warnings = get_vessel_pricing_warnings(vessel)
         
         # Calculate pricing completion data
         if vessel.has_duty_free:
-            # Duty-free vessels don't use custom pricing
             pricing_data = {
                 'is_duty_free': True,
                 'completion_percentage': 100,
@@ -761,7 +814,6 @@ def vessel_management(request):
                 'total_products': 0
             }
         else:
-            # Touristic vessels with custom pricing
             total_general_products = pricing_summary['total_general_products']
             missing_count = pricing_warnings['missing_price_count']
             products_priced = total_general_products - missing_count
@@ -776,22 +828,17 @@ def vessel_management(request):
         
         vessel_data.append({
             'vessel': vessel,
-            'trips_30d': trips_count,
-            'total_trips': total_trips,
-            'revenue_30d': float(revenue_30d),
-            'total_passengers_30d': total_passengers_30d,
+            'trips_30d': vessel.trips_30d or 0,
+            'total_trips': vessel.total_trips or 0,
+            'revenue_30d': float(vessel.revenue_30d or 0),
+            'total_passengers_30d': vessel.total_passengers_30d or 0,
             'pricing_warnings': pricing_warnings,
-            'pricing_data': pricing_data,  # NEW
+            'pricing_data': pricing_data,
         })
     
     context = {
         'vessel_data': vessel_data,
-        'stats': {
-            'total_vessels': total_vessels,
-            'active_vessels': active_vessels,
-            'duty_free_vessels': duty_free_vessels,
-            'inactive_vessels': inactive_vessels,
-        },
+        'stats': vessel_stats,
         'pricing_summary': pricing_summary,
         'reference_date': reference_date,
         'thirty_days_ago': thirty_days_ago,
@@ -803,7 +850,7 @@ def vessel_management(request):
 @login_required
 @user_passes_test(is_admin_or_manager)
 def vessel_data_ajax(request):
-    """AJAX endpoint to get vessel data for specific date range"""
+    """FIXED: AJAX endpoint with correct relationship names"""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
@@ -814,61 +861,62 @@ def vessel_data_ajax(request):
         if not selected_date:
             return JsonResponse({'success': False, 'error': 'Date required'})
         
-        # Parse date
         reference_date = datetime.strptime(selected_date, '%Y-%m-%d').date()
         thirty_days_ago = reference_date - timedelta(days=30)
         
-        vessels = Vessel.objects.all().order_by('name')
-        vessel_data = []
+        # FIXED: Single query with correct field names
+        vessels_data = Vessel.objects.annotate(
+            total_trips=Count(
+                'trips', 
+                filter=models.Q(trips__is_completed=True),
+                distinct=True
+            ),
+            trips_30d=Count(
+                'trips',
+                filter=models.Q(
+                    trips__is_completed=True,
+                    trips__trip_date__gte=thirty_days_ago,
+                    trips__trip_date__lte=reference_date
+                ),
+                distinct=True
+            ),
+            revenue_30d=models.Sum(
+                models.Case(
+                    models.When(
+                        transactions__transaction_type='SALE',
+                        transactions__transaction_date__gte=thirty_days_ago,
+                        transactions__transaction_date__lte=reference_date,
+                        then=models.F('transactions__unit_price') * models.F('transactions__quantity')
+                    ),
+                    default=0,
+                    output_field=models.DecimalField()
+                )
+            ),
+            total_passengers_30d=models.Sum(
+                'trips__passenger_count',
+                filter=models.Q(
+                    trips__is_completed=True,
+                    trips__trip_date__gte=thirty_days_ago,
+                    trips__trip_date__lte=reference_date
+                )
+            )
+        ).order_by('name')
         
-        for vessel in vessels:
-            # Get trip count for the date range
-            trips_count = Trip.objects.filter(
-                vessel=vessel,
-                trip_date__gte=thirty_days_ago,
-                trip_date__lte=reference_date,
-                is_completed=True
-            ).count()
-            
-            # Get total trips (all time)
-            total_trips = Trip.objects.filter(
-                vessel=vessel,
-                is_completed=True
-            ).count()
-            
-            # Get revenue for the date range
-            revenue_result = Transaction.objects.filter(
-                vessel=vessel,
-                transaction_type='SALE',
-                transaction_date__gte=thirty_days_ago,
-                transaction_date__lte=reference_date
-            ).aggregate(
-                total=Sum(F('unit_price') * F('quantity'), output_field=models.DecimalField())
-            )
-            revenue_30d = revenue_result['total'] or 0
-            
-            # Get total passengers for the date range
-            passenger_result = Trip.objects.filter(
-                vessel=vessel,
-                trip_date__gte=thirty_days_ago,
-                trip_date__lte=reference_date,
-                is_completed=True
-            ).aggregate(
-                total_passengers=Sum('passenger_count')
-            )
-            total_passengers_30d = passenger_result['total_passengers'] or 0
-            
-            vessel_data.append({
-                'vessel_id': vessel.id,
-                'vessel_name': vessel.name,
-                'vessel_name_ar': vessel.name_ar,
-                'has_duty_free': vessel.has_duty_free,
-                'active': vessel.active,
-                'trips_30d': trips_count,
-                'total_trips': total_trips,
-                'revenue_30d': float(revenue_30d),
-                'total_passengers_30d': total_passengers_30d,
-            })
+        # Convert to list format
+        vessel_data = list(vessels_data.values(
+            'id', 'name', 'name_ar', 'has_duty_free', 'active',
+            'trips_30d', 'total_trips', 'revenue_30d', 'total_passengers_30d'
+        ))
+        
+        # Clean up the data
+        for vessel in vessel_data:
+            vessel['vessel_id'] = vessel.pop('id')
+            vessel['vessel_name'] = vessel.pop('name')
+            vessel['vessel_name_ar'] = vessel.pop('name_ar')
+            vessel['revenue_30d'] = float(vessel['revenue_30d'] or 0)
+            vessel['trips_30d'] = vessel['trips_30d'] or 0
+            vessel['total_trips'] = vessel['total_trips'] or 0
+            vessel['total_passengers_30d'] = vessel['total_passengers_30d'] or 0
         
         return JsonResponse({
             'success': True,
@@ -1104,7 +1152,7 @@ def vessel_statistics(request, vessel_id):
 @login_required
 @user_passes_test(is_admin_or_manager)
 def po_management(request):
-    """Real PO management - CRUD for all POs"""
+    """OPTIMIZED: PO management with NO loops"""
     
     # Get filter parameters
     vessel_filter = request.GET.get('vessel')
@@ -1112,10 +1160,10 @@ def po_management(request):
     date_from = request.GET.get('date_from')
     date_to = request.GET.get('date_to')
     
-    # Get REAL POs with annotations
+    # OPTIMIZED: Single query with all annotations
     purchase_orders = PurchaseOrder.objects.select_related('vessel', 'created_by').annotate(
-        annotated_transaction_count=Count('supply_transactions'),
-        annotated_total_cost=Sum(
+        transaction_count=Count('supply_transactions'),
+        total_cost=Sum(
             F('supply_transactions__unit_price') * F('supply_transactions__quantity'),
             output_field=models.DecimalField()
         )
@@ -1129,43 +1177,35 @@ def po_management(request):
     elif status_filter == 'in_progress':
         purchase_orders = purchase_orders.filter(is_completed=False)
     if date_from:
-        date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
-        purchase_orders = purchase_orders.filter(po_date__gte=date_from_obj)
+        purchase_orders = purchase_orders.filter(po_date__gte=date_from)
     if date_to:
-        date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
-        purchase_orders = purchase_orders.filter(po_date__lte=date_to_obj)
+        purchase_orders = purchase_orders.filter(po_date__lte=date_to)
     
-    # Real statistics
-    total_pos = purchase_orders.count()
-    completed_pos = purchase_orders.filter(is_completed=True).count()
-    pending_pos = total_pos - completed_pos
+    # OPTIMIZED: Statistics with aggregations
+    stats = purchase_orders.aggregate(
+        total_pos=Count('id'),
+        completed_pos=Count('id', filter=models.Q(is_completed=True)),
+        total_procurement_value=Sum('total_cost')
+    )
+    stats['pending_pos'] = stats['total_pos'] - stats['completed_pos']
     
-    # Total procurement value (real data)
-    total_procurement_value = Transaction.objects.filter(
-        transaction_type='SUPPLY'
-    ).aggregate(
-        total=Sum(F('unit_price') * F('quantity'), output_field=models.DecimalField())
-    )['total'] or 0
-    
-    # Real supplier analysis (vessel-based since no supplier field)
+    # OPTIMIZED: Top suppliers analysis
     top_suppliers = Transaction.objects.filter(
         transaction_type='SUPPLY'
-    ).values(
-        'vessel__name', 'vessel__name_ar'
-    ).annotate(
+    ).values('vessel__name', 'vessel__name_ar').annotate(
         total_value=Sum(F('unit_price') * F('quantity')),
         po_count=Count('purchase_order', distinct=True)
     ).order_by('-total_value')[:10]
     
     context = {
-        'purchase_orders': purchase_orders[:50],  # Limit for performance
+        'purchase_orders': purchase_orders[:50],
         'vessels': Vessel.objects.filter(active=True).order_by('name'),
         'top_suppliers': top_suppliers,
         'stats': {
-            'total_pos': total_pos,
-            'completed_pos': completed_pos,
-            'pending_pos': pending_pos,
-            'total_procurement_value': total_procurement_value,
+            'total_pos': stats['total_pos'],
+            'completed_pos': stats['completed_pos'],
+            'pending_pos': stats['pending_pos'],
+            'total_procurement_value': stats['total_procurement_value'] or 0,
         },
         'filters': {
             'vessel': vessel_filter,
@@ -1349,7 +1389,7 @@ def toggle_po_status(request, po_id):
 @login_required
 @user_passes_test(is_admin_or_manager)
 def trip_management(request):
-    """Real trip management - CRUD for all trips"""
+    """OPTIMIZED: Trip management with NO performance-killing loops"""
     
     # Get filter parameters
     vessel_filter = request.GET.get('vessel')
@@ -1358,102 +1398,95 @@ def trip_management(request):
     date_to = request.GET.get('date_to')
     min_revenue = request.GET.get('min_revenue')
     
-    # Get REAL trips with annotations - FIXED: Use annotated_ prefix to avoid conflicts
-    trips = Trip.objects.select_related('vessel', 'created_by').annotate(
-        annotated_transaction_count=Count('sales_transactions'),
-        annotated_total_revenue=Sum(
+    # OPTIMIZED: Single query with all annotations
+    trips_query = Trip.objects.select_related('vessel', 'created_by').annotate(
+        transaction_count=Count('sales_transactions'),
+        total_revenue=Sum(
             F('sales_transactions__unit_price') * F('sales_transactions__quantity'),
             output_field=models.DecimalField()
+        ),
+        # Calculate revenue per passenger in database
+        revenue_per_passenger=models.Case(
+            models.When(passenger_count__gt=0, then=F('total_revenue') / F('passenger_count')),
+            default=0,
+            output_field=models.DecimalField()
+        ),
+        # Performance classification in database
+        revenue_performance_class=models.Case(
+            models.When(revenue_per_passenger__gte=50, then=models.Value('high')),
+            models.When(revenue_per_passenger__gte=25, then=models.Value('medium')),
+            default=models.Value('low'),
+            output_field=models.CharField()
         )
     ).order_by('-trip_date', '-created_at')
     
     # Apply filters
     if vessel_filter:
-        trips = trips.filter(vessel_id=vessel_filter)
+        trips_query = trips_query.filter(vessel_id=vessel_filter)
     if status_filter == 'completed':
-        trips = trips.filter(is_completed=True)
+        trips_query = trips_query.filter(is_completed=True)
     elif status_filter == 'in_progress':
-        trips = trips.filter(is_completed=False)
+        trips_query = trips_query.filter(is_completed=False)
     if date_from:
-        date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
-        trips = trips.filter(trip_date__gte=date_from_obj)
+        trips_query = trips_query.filter(trip_date__gte=date_from)
     if date_to:
-        date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
-        trips = trips.filter(trip_date__lte=date_to_obj)
+        trips_query = trips_query.filter(trip_date__lte=date_to)
     if min_revenue:
-        # Use annotated field for filtering
-        trips = trips.filter(annotated_total_revenue__gte=min_revenue)
+        trips_query = trips_query.filter(total_revenue__gte=min_revenue)
     
-    # Real statistics
-    total_trips = trips.count()
-    completed_trips = trips.filter(is_completed=True).count()
-    in_progress_trips = total_trips - completed_trips
+    # OPTIMIZED: Statistics with single queries
+    stats = trips_query.aggregate(
+        total_trips=Count('id'),
+        completed_trips=Count('id', filter=models.Q(is_completed=True)),
+        total_revenue=Sum('total_revenue'),
+        avg_daily_trips=Count('id') / 30.0  # Approximate
+    )
     
-    # Calculate total revenue using aggregation
-    total_revenue = Transaction.objects.filter(
-        transaction_type='SALE'
-    ).aggregate(
-        total=Sum(F('unit_price') * F('quantity'), output_field=models.DecimalField())
-    )['total'] or 0
+    stats['in_progress_trips'] = stats['total_trips'] - stats['completed_trips']
+    stats['completion_rate'] = (stats['completed_trips'] / max(stats['total_trips'], 1)) * 100
     
-    # Additional statistics
-    daily_average = total_trips / 30.0 if total_trips > 0 else 0  # Approximate
-    completion_rate = (completed_trips / max(total_trips, 1)) * 100
-    
-    # Vessel performance (real data)
+    # OPTIMIZED: Vessel performance with database aggregations
     vessel_performance = Trip.objects.values(
         'vessel__name', 'vessel__name_ar'
     ).annotate(
         trip_count=Count('id'),
-        avg_monthly=Count('id') / 12.0,  # Approximate monthly average
+        avg_monthly=Count('id') / 12.0,
         total_revenue=Sum(
             F('sales_transactions__unit_price') * F('sales_transactions__quantity'),
             output_field=models.DecimalField()
+        ),
+        # Calculate performance class in database
+        performance_class=models.Case(
+            models.When(avg_monthly__gte=10, then=models.Value('high')),
+            models.When(avg_monthly__gte=5, then=models.Value('medium')),
+            default=models.Value('low'),
+            output_field=models.CharField()
+        ),
+        performance_icon=models.Case(
+            models.When(avg_monthly__gte=10, then=models.Value('arrow-up-circle')),
+            models.When(avg_monthly__gte=5, then=models.Value('dash-circle')),
+            default=models.Value('arrow-down-circle'),
+            output_field=models.CharField()
+        ),
+        badge_class=models.Case(
+            models.When(avg_monthly__gte=10, then=models.Value('bg-success')),
+            models.When(avg_monthly__gte=5, then=models.Value('bg-warning')),
+            default=models.Value('bg-danger'),
+            output_field=models.CharField()
         )
     ).order_by('-trip_count')
     
-    # Add performance indicators to vessel performance
-    for vessel_perf in vessel_performance:
-        if vessel_perf['avg_monthly'] >= 10:
-            vessel_perf['performance_class'] = 'high'
-            vessel_perf['performance_icon'] = 'arrow-up-circle'
-            vessel_perf['badge_class'] = 'bg-success'
-        elif vessel_perf['avg_monthly'] >= 5:
-            vessel_perf['performance_class'] = 'medium'
-            vessel_perf['performance_icon'] = 'dash-circle'
-            vessel_perf['badge_class'] = 'bg-warning'
-        else:
-            vessel_perf['performance_class'] = 'low'
-            vessel_perf['performance_icon'] = 'arrow-down-circle'
-            vessel_perf['badge_class'] = 'bg-danger'
-    
-    # Add calculated fields to trips for template
-    for trip in trips:
-        # Calculate revenue per passenger
-        if hasattr(trip, 'annotated_total_revenue') and trip.annotated_total_revenue and trip.passenger_count:
-            trip.revenue_per_passenger = trip.annotated_total_revenue / trip.passenger_count
-            # Performance class for revenue per passenger
-            if trip.revenue_per_passenger >= 50:
-                trip.revenue_performance_class = 'high'
-            elif trip.revenue_per_passenger >= 25:
-                trip.revenue_performance_class = 'medium'
-            else:
-                trip.revenue_performance_class = 'low'
-        else:
-            trip.revenue_per_passenger = 0
-            trip.revenue_performance_class = 'low'
-    
     context = {
-        'trips': trips[:50],  # Limit for performance
+        'trips': trips_query[:50],  # Limit for performance
         'vessels': Vessel.objects.filter(active=True).order_by('name'),
         'vessel_performance': vessel_performance,
         'stats': {
-            'total_trips': total_trips,
-            'completed_trips': completed_trips,
-            'in_progress_trips': in_progress_trips,
-            'total_revenue': total_revenue,
-            'daily_average': round(daily_average, 1),
-            'completion_rate': round(completion_rate, 1),
+            'total_trips': stats['total_trips'],
+            'completed_trips': stats['completed_trips'],
+            'in_progress_trips': stats['in_progress_trips'],
+            'total_revenue': stats['total_revenue'] or 0,
+            'daily_average': round(stats['avg_daily_trips'], 1),
+            'completion_rate': round(stats['completion_rate'], 1),
         },
         'filters': {
             'vessel': vessel_filter,

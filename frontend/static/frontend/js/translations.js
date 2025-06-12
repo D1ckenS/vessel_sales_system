@@ -5,6 +5,7 @@
 
 window.VesselSalesTranslations = {
     en: {
+        'vessel_sales_system': 'Vessel Sales System',
         // Auth translations
         'superuser_access': 'Superuser Access',
         'superuser_desc': 'You have full administrative access to all system features.',
@@ -762,6 +763,7 @@ window.VesselSalesTranslations = {
     },
     
     ar: {
+        'vessel_sales_system': 'نظام مبيعات السفن',
         // Auth translations
         'superuser_access': 'الدخول كمدير',
         'superuser_desc': 'لديك الصلاحية للدخول كمدير',

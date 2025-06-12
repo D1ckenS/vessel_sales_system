@@ -7,6 +7,7 @@ from .utils import BilingualMessages
 from products.models import Product, Category
 from .utils import get_vessel_display_name, format_vessel_list
 from transactions.models import VesselProductPrice, get_vessel_pricing_warnings, get_all_vessel_pricing_summary
+from django.db import transaction
 
 @login_required
 @user_passes_test(is_admin_or_manager)

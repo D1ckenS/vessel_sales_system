@@ -1,5 +1,6 @@
 /* =============================================================================
-   Vessel Sales System - Base Styles
+   Vessel Sales System - Complete Base Styles
+   All CSS consolidated in one file for better maintainability
    ============================================================================= */
 
 /* CSS Variables */
@@ -36,7 +37,7 @@
 }
 
 /* =============================================================================
-   RTL Support System
+   🎯 PRECISE RTL SUPPORT SYSTEM 
    ============================================================================= */
 
 /* Enhanced RTL Support */
@@ -44,45 +45,92 @@
     text-align: right;
 }
 
-/* 🎯 CORRECT TARGET: Apply flex-direction to PARENT container */
-.navbar-collapse {
-    display: flex !important;
-    justify-content: space-between !important;
-    align-items: center !important;
+/* Page header content alignment - only in non-card contexts */
+[dir="rtl"] .d-flex.justify-content-between.align-items-center > div:first-child h2,
+[dir="rtl"] .d-flex.justify-content-between.align-items-center > div:first-child p,
+html[dir="rtl"] .d-flex.justify-content-between.align-items-center > div:first-child h2,
+html[dir="rtl"] .d-flex.justify-content-between.align-items-center > div:first-child p {
+    text-align: right !important;
 }
 
-/* LTR: Default order */
-html[dir="ltr"] .navbar-collapse {
-    flex-direction: row !important;
+[dir="rtl"] #userNavItems,
+html[dir="rtl"] #userNavItems {
+    margin-right: auto !important;
+    margin-left: 0 !important;
 }
 
-/* RTL: Reverse the ORDER of the two ul elements */
-html[dir="rtl"] .navbar-collapse {
-    flex-direction: row-reverse !important;
-}
-
-/* Individual navbar-nav items keep normal direction */
-.navbar-nav {
-    flex-direction: row !important;
-}
-
-/* Remove any conflicting margins */
-#mainNavItems,
-#userNavItems {
-    margin: 0 !important;
-}
-
-/* 🔧 COMPREHENSIVE NAVBAR RTL FIXES */
-[dir="rtl"] .navbar-nav {
-    flex-direction: row-reverse;
-}
-
-[dir="rtl"] .navbar-brand {
+[dir="rtl"] #mainNavItems,
+html[dir="rtl"] #mainNavItems {
     margin-left: auto !important;
     margin-right: 0 !important;
 }
 
-/* Fix Bootstrap margin classes for RTL */
+[dir="rtl"] #languageToggle,
+html[dir="rtl"] #languageToggle {
+    margin-left: 0 !important;
+    margin-right: 1rem !important;
+}
+
+[dir="rtl"] .navbar .dropdown-menu,
+html[dir="rtl"] .navbar .dropdown-menu {
+    right: 0 !important;
+    left: auto !important;
+    text-align: right !important;
+}
+
+[dir="rtl"] .navbar .dropdown-item,
+html[dir="rtl"] .navbar .dropdown-item {
+    text-align: right !important;
+}
+
+/* 🔧 PRESERVE DASHBOARD CENTERED CONTENT */
+[dir="rtl"] .text-center,
+[dir="rtl"] .text-center h2,
+[dir="rtl"] .text-center p,
+[dir="rtl"] .card-body.text-center,
+[dir="rtl"] .card-body.text-center h2,
+[dir="rtl"] .card-body.text-center p,
+html[dir="rtl"] .text-center,
+html[dir="rtl"] .text-center h2,
+html[dir="rtl"] .text-center p,
+html[dir="rtl"] .card-body.text-center,
+html[dir="rtl"] .card-body.text-center h2,
+html[dir="rtl"] .card-body.text-center p {
+    text-align: center !important;
+}
+
+[dir="rtl"] .stats-card,
+html[dir="rtl"] .stats-card {
+    text-align: center !important;
+}
+
+[dir="rtl"] .quick-action,
+html[dir="rtl"] .quick-action {
+    text-align: center !important;
+}
+
+/* 🔧 FORM CONTENT RTL */
+[dir="rtl"] .card .form-control,
+[dir="rtl"] .card .form-select,
+html[dir="rtl"] .card .form-control,
+html[dir="rtl"] .card .form-select {
+    text-align: right !important;
+}
+
+[dir="rtl"] .card .table th,
+[dir="rtl"] .card .table td,
+html[dir="rtl"] .card .table th,
+html[dir="rtl"] .card .table td {
+    text-align: right !important;
+}
+
+[dir="rtl"] .card-body .d-grid.gap-2.d-md-flex.justify-content-md-end,
+html[dir="rtl"] .card-body .d-grid.gap-2.d-md-flex.justify-content-md-end {
+    justify-content: flex-start !important;
+    flex-direction: row-reverse !important;
+}
+
+/* Bootstrap margin/padding RTL fixes */
 [dir="rtl"] .me-auto {
     margin-right: 0 !important;
     margin-left: auto !important;
@@ -103,58 +151,10 @@ html[dir="rtl"] .navbar-collapse {
     margin-right: 0.5rem !important;
 }
 
-/* Navbar collapse button positioning */
-[dir="rtl"] .navbar-toggler {
-    margin-left: 0 !important;
-    margin-right: auto !important;
-}
-
-/* Dropdown menu positioning */
-[dir="rtl"] .dropdown-menu {
-    right: 0 !important;
-    left: auto !important;
-    text-align: right;
-}
-
-[dir="rtl"] .dropdown-item {
-    text-align: right;
-    padding-right: 1rem;
-    padding-left: 1rem;
-}
-
-/* Navbar nav items spacing */
-[dir="rtl"] .navbar-nav .nav-item {
-    margin-left: 0.25rem;
-    margin-right: 0.25rem;
-}
-
-/* Button groups and flex containers */
-[dir="rtl"] .btn-group {
-    flex-direction: row-reverse;
-}
-
-[dir="rtl"] .d-flex {
-    flex-direction: row-reverse;
-}
-
 /* Numbers in Arabic */
 [dir="rtl"] .stats-number,
 [dir="rtl"] .fw-bold[data-number] {
     font-family: 'Arabic-Indic', 'Tahoma', sans-serif;
-}
-
-/* 🔧 ENHANCED RTL LAYOUT CLASS */
-.rtl-layout {
-    direction: rtl;
-    text-align: right;
-}
-
-.rtl-layout .navbar {
-    text-align: right;
-}
-
-.rtl-layout .navbar-collapse {
-    text-align: right;
 }
 
 /* =============================================================================
@@ -354,6 +354,58 @@ body {
 }
 
 /* =============================================================================
+   🔧 DASHBOARD SPECIFIC STYLES (moved from dashboard.html)
+   ============================================================================= */
+
+.quick-action-wrapper {
+    flex: 1 1 auto;
+    min-width: 140px;
+    max-width: 160px;
+    margin-bottom: 1rem;
+}
+
+.quick-action {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    background: white;
+    border: 1px solid #e3e6f0;
+    text-align: center;
+    transition: all 0.3s ease;
+    height: 100%;
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+}
+
+.quick-action:hover {
+    color: inherit;
+    text-decoration: none;
+    transform: translateY(-2px);
+    box-shadow: 0 0.25rem 2rem 0 rgba(58, 59, 69, 0.2);
+    border-color: #5a5c69;
+}
+
+.quick-action i {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    display: block;
+}
+
+.quick-action h6 {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #5a5c69;
+}
+
+.quick-action p {
+    font-size: 0.75rem;
+    line-height: 1.2;
+    margin-bottom: 0;
+}
+
+/* =============================================================================
    Product Panel & Inventory Improvements
    ============================================================================= */
 
@@ -504,7 +556,61 @@ body {
 }
 
 /* =============================================================================
-   Responsive Design
+   🔧 DASHBOARD RTL FIXES (moved from dashboard.html)
+   ============================================================================= */
+
+/* RTL Fixes for Recent Activity */
+[dir="rtl"] .list-group-item .d-flex {
+    flex-direction: row-reverse;
+}
+
+[dir="rtl"] .list-group-item .flex-grow-1 {
+    text-align: right;
+}
+
+[dir="rtl"] .list-group-item .justify-content-between {
+    flex-direction: row-reverse;
+}
+
+[dir="rtl"] .list-group-item small.text-muted:last-child {
+    order: -1;
+    margin-left: 0;
+    margin-right: 1rem;
+}
+
+[dir="rtl"] .transaction-type {
+    direction: rtl;
+    text-align: right;
+}
+
+[dir="rtl"] .list-group-item p.small {
+    direction: rtl;
+    text-align: right;
+}
+
+[dir="rtl"] .list-group-item small.text-muted {
+    direction: rtl;
+    text-align: right;
+}
+
+/* Fix bullet separator in RTL */
+[dir="rtl"] .list-group-item small.text-muted {
+    direction: rtl;
+    unicode-bidi: plaintext;
+}
+
+[dir="rtl"] .recent-activity-item {
+    direction: rtl;
+    text-align: right;
+}
+
+[dir="rtl"] .recent-activity-item .flex-grow-1 {
+    margin-left: 1rem;
+    margin-right: 0;
+}
+
+/* =============================================================================
+   Responsive Design & Mobile RTL
    ============================================================================= */
 
 /* Responsive adjustments */
@@ -517,6 +623,53 @@ body {
     
     .scrollable-panel {
         max-height: 300px;
+    }
+}
+
+/* Quick Actions Responsive */
+@media (max-width: 1200px) {
+    .quick-action-wrapper {
+        min-width: 120px;
+        max-width: 140px;
+    }
+    
+    .quick-action i {
+        font-size: 1.75rem;
+    }
+    
+    .quick-action h6 {
+        font-size: 0.85rem;
+    }
+    
+    .quick-action p {
+        font-size: 0.7rem;
+    }
+}
+
+@media (max-width: 992px) {
+    .d-flex.flex-wrap {
+        justify-content: space-around !important;
+    }
+    
+    .quick-action-wrapper {
+        min-width: 110px;
+        max-width: 130px;
+        margin-bottom: 0.75rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .quick-action-wrapper {
+        flex: 1 1 calc(50% - 0.5rem);
+        min-width: 140px;
+        max-width: none;
+    }
+}
+
+@media (max-width: 576px) {
+    .quick-action-wrapper {
+        flex: 1 1 100%;
+        max-width: none;
     }
 }
 
@@ -547,5 +700,50 @@ body {
 
     [dir="rtl"] .navbar-toggler {
         margin-left: 0;
+    }
+}
+
+/* 🔧 MOBILE NAVIGATION RTL FIXES */
+@media (max-width: 991px) {
+    /* Fix collapsed navbar in RTL */
+    [dir="rtl"] .navbar-collapse {
+        direction: rtl;
+        text-align: right;
+    }
+    
+    /* Fix navbar items alignment in mobile */
+    [dir="rtl"] .navbar-nav {
+        flex-direction: column !important;
+        align-items: flex-end;
+    }
+    
+    /* Fix navbar toggler position */
+    [dir="rtl"] .navbar-toggler {
+        order: -1;
+        margin-left: auto;
+        margin-right: 0;
+    }
+    
+    /* Fix brand position in RTL mobile */
+    [dir="rtl"] .navbar-brand {
+        margin-left: 0;
+        margin-right: auto;
+    }
+    
+    /* Ensure proper collapse behavior */
+    .navbar-collapse.show {
+        display: block !important;
+    }
+    
+    .navbar-collapse.collapsing {
+        height: auto !important;
+    }
+}
+
+/* Fix language toggle in mobile */
+@media (max-width: 991px) {
+    [dir="rtl"] .navbar-nav .nav-item {
+        text-align: right;
+        width: 100%;
     }
 }

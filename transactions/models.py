@@ -84,6 +84,10 @@ class Trip(models.Model):
         ordering = ['-trip_date', '-created_at']
         verbose_name = 'Trip'
         verbose_name_plural = 'Trips'
+        indexes = [
+            models.Index(fields=['vessel', 'trip_date', 'is_completed']),
+        ]
+
     
     def __str__(self):
         return f"{self.trip_number} - {self.vessel.name} ({self.passenger_count} passengers)"
@@ -234,6 +238,10 @@ class Transaction(models.Model):
         ordering = ['-transaction_date', '-created_at']
         verbose_name = 'Transaction'
         verbose_name_plural = 'Transactions'
+        indexes = [
+            models.Index(fields=['vessel', 'transaction_type', 'transaction_date']),
+            models.Index(fields=['transaction_date', 'vessel']),
+        ]
     
     def __str__(self):
         return f"{self.vessel.name} - {self.get_transaction_type_display()} - {self.product.item_id} - {self.transaction_date}"

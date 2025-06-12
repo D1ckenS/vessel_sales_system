@@ -71,7 +71,7 @@
                     <!-- Transfers - Administrators & Vessel Operators Only -->
                     {% if user_permissions.can_access_operations %}
                     <li class="nav-item">
-                        <a class="nav-link {% if request.resolver_match.url_name == 'transfer_center' %}active{% endif %}" 
+                        <a class="nav-link {% if 'transfer' in request.resolver_match.url_name %}active{% endif %}" 
                            href="{% url 'frontend:transfer_center' %}">
                             <i class="bi bi-arrow-left-right"></i> <span data-translate="transfers">Transfers</span>
                         </a>
