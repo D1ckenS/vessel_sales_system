@@ -1,7 +1,7 @@
 {% extends 'frontend/base.html' %}
 
 {% block title %}
-    <span data-translate="user_management">User Management</span> - <span data-translate="vessel_sales_system">Vessel Sales System</span>
+    User Management - Vessel Sales System
 {% endblock %}
 
 {% block content %}
@@ -663,6 +663,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Update page translations
     updatePageTranslations();
+    
+    // Update page title
+    updatePageTitle();
 });
 
 function setupGroups() {
@@ -828,5 +831,19 @@ function toggleUserStatus(userId, username, isActive) {
         }
     });
 }
+
+function updatePageTitle() {
+    if (!window.translator || !window.translator._) {
+        return;
+    }
+    
+    const userManagement = window.translator._('user_management');
+    const vesselSalesSystem = window.translator._('vessel_sales_system');
+    
+    document.title = `${userManagement} - ${vesselSalesSystem}`;
+}
+
+// 🔥 **Listen for Language Toggle Event**
+window.addEventListener("languageChanged", updatePageTitle);
 </script>
 {% endblock %}

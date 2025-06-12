@@ -331,14 +331,27 @@ document.addEventListener('DOMContentLoaded', function() {
     window.addEventListener('languageChanged', function() {
         console.log('📢 Sales Entry: Received languageChanged event');
         updateSalesPageTranslations();
+        updatePageTitle();
     });
     
     // Initial call to set up translations
     setTimeout(() => {
         updateSalesPageTranslations();
-    }, 100);
+        updatePageTitle();
+    }, 0);
     
     console.log('✅ Sales Entry: Event-driven translation system initialized');
 });
+
+function updatePageTitle() {
+    if (!window.translator || !window.translator._) {
+        return;
+    }
+    
+    const salesEntry = window.translator._('sales_entry');
+    const vesselSalesSystem = window.translator._('vessel_sales_system');
+    
+    document.title = `${salesEntry} - ${vesselSalesSystem}`;
+}
 </script>
 {% endblock %}

@@ -237,6 +237,7 @@ document.addEventListener('DOMContentLoaded', function() {
     window.addEventListener('languageChanged', function() {
         updateTripPageTranslations();
         calculateRevenuePerPassenger();
+        updatePageTitle();
     });
     
     function updateTripPageTranslations() {
@@ -334,7 +335,8 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(() => {
         updateTripPageTranslations();
         calculateRevenuePerPassenger();
-    }, 100);
+        updatePageTitle();
+    }, 0);
 
 });
 
@@ -355,6 +357,16 @@ function printTrips() {
 
 function viewTripAnalytics(tripId) {
     alertTranslated('feature_coming_soon');
+}
+function updatePageTitle() {
+    if (!window.translator || !window.translator._) {
+        return;
+    }
+    
+    const tripReports = window.translator._('trip_reports');
+    const vesselSalesSystem = window.translator._('vessel_sales_system');
+    
+    document.title = `${tripReports} - ${vesselSalesSystem}`;
 }
 </script>
 {% endblock %}

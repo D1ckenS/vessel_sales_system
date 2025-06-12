@@ -430,5 +430,19 @@ document.addEventListener('DOMContentLoaded', function() {
     // Update page translations
     window.updatePageTranslations();
 });
+
+function updatePageTitle() {
+    if (!window.translator || !window.translator._) {
+        return;
+    }
+    
+    const dashboard = window.translator._('dashboard');
+    const vesselSalesSystem = window.translator._('vessel_sales_system');
+    
+    document.title = `${dashboard} - ${vesselSalesSystem}`;
+}
+
+// 🔥 **Listen for Language Toggle Event**
+window.addEventListener("languageChanged", updatePageTitle);
 </script>
 {% endblock %}

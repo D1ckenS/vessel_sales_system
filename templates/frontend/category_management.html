@@ -1,6 +1,6 @@
 {% extends 'frontend/base.html' %}
 
-{% block title %}<span data-translate="category_management">Category Management</span> - <span data-translate="vessel_sales_system">Vessel Sales System</span>{% endblock %}
+{% block title %}Category Management - Vessel Sales System{% endblock %}
 
 {% block content %}
 <!-- Page Header -->
@@ -234,6 +234,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Update page translations
     updatePageTranslations();
+    updatePageTitle();
 });
 
 function showCreateCategoryModal() {
@@ -294,5 +295,19 @@ function deleteCategory(id, name) {
         }
     });
 }
+
+function updatePageTitle() {
+    if (!window.translator || !window.translator._) {
+        return;
+    }
+    
+    const categoryManagement = window.translator._('category_management');
+    const vesselSalesSystem = window.translator._('vessel_sales_system');
+    
+    document.title = `${categoryManagement} - ${vesselSalesSystem}`;
+}
+
+// 🔥 **Listen for Language Toggle Event**
+window.addEventListener("languageChanged", updatePageTitle);
 </script>
 {% endblock %}

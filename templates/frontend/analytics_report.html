@@ -1,6 +1,6 @@
 {% extends 'frontend/base.html' %}
 
-{% block title %}<span data-translate="analytics_dashboard">Analytics Dashboard</span> - <span data-translate="vessel_sales_system">Vessel Sales System</span>{% endblock %}
+{% block title %}Analytics Dashboard - Vessel Sales System{% endblock %}
 
 {% block content %}
 <!-- Page Header -->
@@ -475,7 +475,8 @@ document.addEventListener('DOMContentLoaded', function() {
     window.addEventListener('languageChanged', function() {
         setTimeout(() => {
             updateAnalyticsPageTranslations();
-        }, 50);
+            updatePageTitle();
+        }, 0);
     });
     
     function updateAnalyticsPageTranslations() {
@@ -638,7 +639,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initial translation call
     setTimeout(() => {
         updateAnalyticsPageTranslations();
-    }, 100);
+        updatePageTitle();
+    }, 0);
     
 });
 
@@ -657,6 +659,17 @@ function printAnalytics() {
     } else {
         alert('Print feature coming soon');
     }
+}
+
+function updatePageTitle() {
+    if (!window.translator || !window.translator._) {
+        return;
+    }
+    
+    const comprehensiveReport = window.translator._('analytics_dashboard');
+    const vesselSalesSystem = window.translator._('vessel_sales_system');
+    
+    document.title = `${comprehensiveReport} - ${vesselSalesSystem}`;
 }
 </script>
 {% endblock %}

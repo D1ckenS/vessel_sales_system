@@ -1,15 +1,7 @@
 {% extends 'frontend/base.html' %}
 {% load dict_extras %}
 
-{% block title %}
-    {% if mode == 'edit' %}
-        <span data-translate="edit_product">Edit Product</span> - {{ product.name }}
-    {% elif mode == 'create' %}
-        <span data-translate="add_new_product">Add New Product</span>
-    {% else %}
-        <span data-translate="product_management">Product Management</span>
-    {% endif %} - <span data-translate="vessel_sales_system">Vessel Sales System</span>
-{% endblock %}
+{% block title %}Product Management - Vessel Sales System{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -125,6 +117,7 @@
 {% endblock %}
 
 {% block content %}
+<body data-mode="{{ mode }}">
 <!-- Product Management Tabs -->
 <div class="row mb-4">
     <div class="col-12">
@@ -814,6 +807,10 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize vessel pricing functionality
     initializeVesselPricingFunctionality();
+
+    setTimeout(() => {
+        updatePageTitle();
+    }, 100);
 });
 
 function updateMissingPriceWarnings() {
@@ -1170,5 +1167,32 @@ function exportProducts() {
 function showComingSoon() {
     alertTranslated('barcode_coming_soon');
 }
+
+function updatePageTitle() {
+    if (!window.translator || !window.translator._) {
+        return;
+    }
+    
+    // Get the mode dynamically
+    const mode = '{{ mode }}';
+    
+    // Get translated strings
+    let translatedTitle = '';
+    if (mode === 'edit') {
+        translatedTitle = window.translator._('edit_product');
+    } else if (mode === 'create') {
+        translatedTitle = window.translator._('add_new_product');
+    } else {
+        translatedTitle = window.translator._('product_management');
+    }
+    
+    const vesselSalesSystem = window.translator._('vessel_sales_system');
+
+    // Update the document title
+    document.title = `${translatedTitle} - ${vesselSalesSystem}`;
+}
+
+// 🔥 **Listen for Language Toggle Event**
+window.addEventListener("languageChanged", updatePageTitle);
 </script>
 {% endblock %}

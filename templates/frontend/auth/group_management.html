@@ -1,7 +1,7 @@
 {% extends 'frontend/base.html' %}
 
 {% block title %}
-    <span data-translate="group_management">Group Management</span> - <span data-translate="vessel_sales_system">Vessel Sales System</span>
+    Group Management - Vessel Sales System
 {% endblock %}
 
 {% block content %}
@@ -389,6 +389,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Update page translations
     updatePageTranslations();
     
+    // Update page title
+    updatePageTitle();
+    
     // Form handlers
     document.getElementById('createGroupForm').addEventListener('submit', function(e) {
         e.preventDefault();
@@ -652,5 +655,19 @@ function showAlert(message, type) {
     document.body.insertBefore(alertDiv, document.body.firstChild);
     setTimeout(() => alertDiv.remove(), 5000);
 }
+
+function updatePageTitle() {
+    if (!window.translator || !window.translator._) {
+        return;
+    }
+    
+    const groupManagement = window.translator._('group_management');
+    const vesselSalesSystem = window.translator._('vessel_sales_system');
+    
+    document.title = `${groupManagement} - ${vesselSalesSystem}`;
+}
+
+// 🔥 **Listen for Language Toggle Event**
+window.addEventListener("languageChanged", updatePageTitle);
 </script>
 {% endblock %}

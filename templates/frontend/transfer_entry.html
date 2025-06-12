@@ -1,6 +1,6 @@
 {% extends 'frontend/base.html' %}
 
-{% block title %}<span data-translate="transfer_entry">Transfer Entry</span> - <span data-translate="vessel_sales_system">Vessel Sales System</span>{% endblock %}
+{% block title %}Transfer Entry - Vessel Sales System{% endblock %}
 
 {% block content %}
 <!-- Page Header -->
@@ -242,6 +242,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Apply translations
     updatePageTranslations();
+    updatePageTitle();
 });
 
 // Populate destination vessel when source is selected
@@ -295,5 +296,19 @@ function viewTransferDetails(transferId) {
     // Implementation for viewing transfer details
     alertTranslated('feature_coming_soon');
 }
+
+function updatePageTitle() {
+    if (!window.translator || !window.translator._) {
+        return;
+    }
+    
+    const transferEntry = window.translator._('transfer_entry');
+    const vesselSalesSystem = window.translator._('vessel_sales_system');
+    
+    document.title = `${transferEntry} - ${vesselSalesSystem}`;
+}
+
+// 🔥 **Listen for Language Toggle Event**
+window.addEventListener("languageChanged", updatePageTitle);
 </script>
 {% endblock %}

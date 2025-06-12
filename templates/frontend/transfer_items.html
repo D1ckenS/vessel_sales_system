@@ -268,7 +268,7 @@ document.addEventListener('DOMContentLoaded', function() {
             'remove_item': 'Remove Item'
         },
         ar: {
-            'transfer_items': 'عناصر التحويل',
+            'transfer_items': 'تحويل العناصر',
             'back_to_transfers': 'الرجوع للتحويلات',
             'complete_transfer': 'إكمال التحويل',
             'items_to_transfer': 'العناصر للتحويل',
@@ -327,6 +327,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Apply translations
     updatePageTranslations();
+    updatePageTitle();
 });
 
 function initializeTransferCart() {
@@ -419,6 +420,7 @@ function displayAvailableProducts() {
     // Apply translations after DOM update
     setTimeout(() => {
         updatePageTranslations();
+        updatePageTitle();
     }, 0);
 }
 
@@ -825,5 +827,19 @@ function showAlert(message, type) {
         }
     }, 5000);
 }
+
+function updatePageTitle() {
+    if (!window.translator || !window.translator._) {
+        return;
+    }
+    
+    const transferItems = window.translator._('transfer_items');
+    const vesselSalesSystem = window.translator._('vessel_sales_system');
+    
+    document.title = `${transferItems} - ${vesselSalesSystem}`;
+}
+
+// 🔥 **Listen for Language Toggle Event**
+window.addEventListener("languageChanged", updatePageTitle);
 </script>
 {% endblock %}

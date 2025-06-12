@@ -7,6 +7,8 @@ window.VesselSalesTranslations = {
     en: {
         'vessel_sales_system': 'Vessel Sales System',
         'comprehensive_report': 'Comprehensive Report',
+        'add_product': 'Add Product',
+        'bulk_pricing_management': 'Bulk Pricing Management',
         // Auth translations
         'superuser_access': 'Superuser Access',
         'superuser_desc': 'You have full administrative access to all system features.',
@@ -251,6 +253,7 @@ window.VesselSalesTranslations = {
         'default_cost': 'Default Cost',
         'all_products': 'All Products',
         'general_products_only': 'General Products Only',
+        'supply_items': 'Supply Items',
         
         // Reports Translations
         'back_to_reports': 'Back to Reports',
@@ -766,6 +769,8 @@ window.VesselSalesTranslations = {
     ar: {
         'vessel_sales_system': 'نظام مبيعات السفن',
         'comprehensive_report': 'التقرير الشامل',
+        'add_product': 'إضافة منتج',
+        'bulk_pricing_management': 'ادارة جميع الأسعار',
         // Auth translations
         'superuser_access': 'الدخول كمدير',
         'superuser_desc': 'لديك الصلاحية للدخول كمدير',
@@ -1040,6 +1045,7 @@ window.VesselSalesTranslations = {
         'default_cost': 'التكلفة الافتراضية',
         'all_products': 'جميع المنتجات',
         'general_products_only': 'منتجات عامة فقط',
+        'supply_items': 'عناصر الشراء',
         
         // Reports translations
         'back_to_reports': 'العودة للتقارير',

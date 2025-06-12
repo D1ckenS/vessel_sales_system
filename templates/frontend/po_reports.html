@@ -1,6 +1,6 @@
 {% extends 'frontend/base.html' %}
 
-{% block title %}<span data-translate="purchase_order_reports">Purchase Order Reports</span> - <span data-translate="vessel_sales_system">Vessel Sales System</span>{% endblock %}
+{% block title %}Purchase Order Reports - Vessel Sales System{% endblock %}
 
 {% block content %}
 <!-- Page Header -->
@@ -221,6 +221,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Update on language change
     window.addEventListener('languageChanged', function() {
         updatePOPageTranslations();
+        updatePageTitle();
     });
     
     function updatePOPageTranslations() {
@@ -294,7 +295,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initial call
     setTimeout(() => {
         updatePOPageTranslations();
-    }, 100);
+        updatePageTitle();
+    }, 0);
  
 });
 
@@ -315,6 +317,17 @@ function printPOs() {
 
 function viewPOAnalytics(poId) {
     alertTranslated('feature_coming_soon');
+}
+
+function updatePageTitle() {
+    if (!window.translator || !window.translator._) {
+        return;
+    }
+    
+    const poReports = window.translator._('purchase_order_reports');
+    const vesselSalesSystem = window.translator._('vessel_sales_system');
+    
+    document.title = `${poReports} - ${vesselSalesSystem}`;
 }
 </script>
 {% endblock %}

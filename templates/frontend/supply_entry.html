@@ -203,6 +203,7 @@ document.addEventListener('DOMContentLoaded', function() {
     window.addEventListener('languageChanged', function() {
         updateSupplyPageTranslations();
         updateTooltips();
+        updatePageTitle();
     });
     
     function updateSupplyPageTranslations() {
@@ -282,7 +283,8 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(() => {
         updateSupplyPageTranslations();
         updateTooltips();
-    }, 100);
+        updatePageTitle();
+    }, 0);
 });
 
 // Form validation with translated messages
@@ -308,5 +310,16 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
+
+function updatePageTitle() {
+    if (!window.translator || !window.translator._) {
+        return;
+    }
+    
+    const receiveStock = window.translator._('receive_stock');
+    const vesselSalesSystem = window.translator._('vessel_sales_system');
+    
+    document.title = `${receiveStock} - ${vesselSalesSystem}`;
+}
 </script>
 {% endblock %}

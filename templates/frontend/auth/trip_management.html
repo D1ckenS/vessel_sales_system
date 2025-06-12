@@ -1,7 +1,7 @@
 {% extends 'frontend/base.html' %}
 
 {% block title %}
-    <span data-translate="trip_management">Trip Management</span> - <span data-translate="vessel_sales_system">Vessel Sales System</span>
+    Trip Management - Vessel Sales System
 {% endblock %}
 
 {% block extra_css %}
@@ -607,6 +607,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Update page translations
     updatePageTranslations();
+    
+    // Update page title
+    updatePageTitle();
 });
 
 function toggleColumn(columnClass) {
@@ -864,5 +867,19 @@ function toggleTripStatus(tripId) {
         showAlert('Error updating trip status', 'danger');
     });
 }
+
+function updatePageTitle() {
+    if (!window.translator || !window.translator._) {
+        return;
+    }
+    
+    const tripManagement = window.translator._('trip_management');
+    const vesselSalesSystem = window.translator._('vessel_sales_system');
+    
+    document.title = `${tripManagement} - ${vesselSalesSystem}`;
+}
+
+// 🔥 **Listen for Language Toggle Event**
+window.addEventListener("languageChanged", updatePageTitle);
 </script>
 {% endblock %}

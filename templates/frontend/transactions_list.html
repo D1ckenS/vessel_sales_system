@@ -201,6 +201,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Update on language change
     window.addEventListener('languageChanged', function() {
         updateTransactionsPageTranslations();
+        updatePageTitle();
     });
     
     function updateTransactionsPageTranslations() {
@@ -350,7 +351,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initial call
     setTimeout(() => {
         updateTransactionsPageTranslations();
-    }, 100);
+        updatePageTitle();
+    }, 0);
 
 });
 
@@ -363,6 +365,17 @@ function exportTransactions() {
     };
     
     showExportModal('transactions', additionalData);
+}
+
+function updatePageTitle() {
+    if (!window.translator || !window.translator._) {
+        return;
+    }
+    
+    const allTransactions = window.translator._('all_transactions');
+    const vesselSalesSystem = window.translator._('vessel_sales_system');
+    
+    document.title = `${allTransactions} - ${vesselSalesSystem}`;
 }
 </script>
 {% endblock %}

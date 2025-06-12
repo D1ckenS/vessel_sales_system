@@ -292,10 +292,25 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Apply translations
     updatePageTranslations();
+    updatePageTitle();
 });
 
 function showComingSoon(feature) {
     alertTranslated('feature_coming_soon');
 }
+
+function updatePageTitle() {
+    if (!window.translator || !window.translator._) {
+        return;
+    }
+    
+    const reportsDashboard = window.translator._('reports_dashboard');
+    const vesselSalesSystem = window.translator._('vessel_sales_system');
+    
+    document.title = `${reportsDashboard} - ${vesselSalesSystem}`;
+}
+
+// 🔥 **Listen for Language Toggle Event**
+window.addEventListener("languageChanged", updatePageTitle);
 </script>
 {% endblock %}

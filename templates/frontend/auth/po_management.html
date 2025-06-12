@@ -1,7 +1,7 @@
 {% extends 'frontend/base.html' %}
 
 {% block title %}
-    <span data-translate="po_management">Purchase Order Management</span> - <span data-translate="vessel_sales_system">Vessel Sales System</span>
+    Purchase Order Management - Vessel Sales System
 {% endblock %}
 
 {% block extra_css %}
@@ -594,6 +594,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Update page translations
     updatePageTranslations();
+    
+    // Update page title
+    updatePageTitle();
 });
 
 function toggleColumn(columnClass) {
@@ -848,5 +851,19 @@ function togglePOStatus(poId) {
         showAlert('Error updating PO status', 'danger');
     });
 }
+
+function updatePageTitle() {
+    if (!window.translator || !window.translator._) {
+        return;
+    }
+    
+    const poManagement = window.translator._('po_management');
+    const vesselSalesSystem = window.translator._('vessel_sales_system');
+    
+    document.title = `${poManagement} - ${vesselSalesSystem}`;
+}
+
+// 🔥 **Listen for Language Toggle Event**
+window.addEventListener("languageChanged", updatePageTitle);
 </script>
 {% endblock %}

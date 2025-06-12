@@ -564,6 +564,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Apply translations
     updatePageTranslations();
+    updatePageTitle();
     
     // Auto-select first vessel
     const firstVesselTab = document.querySelector('.vessel-tab');
@@ -580,6 +581,7 @@ document.addEventListener('DOMContentLoaded', function() {
     window.addEventListener('languageChanged', function() {
         console.log('📢 Inventory: Received languageChanged event');
         updateInventorySpecificTranslations();
+        updatePageTitle();
     });
 
     function updateInventorySpecificTranslations() {
@@ -1096,6 +1098,17 @@ function exportToExcel() {
 
 function showComingSoon() {
     alertTranslated('feature_coming_soon');
+}
+
+function updatePageTitle() {
+    if (!window.translator || !window.translator._) {
+        return;
+    }
+    
+    const inventoryCheck = window.translator._('inventory_management');
+    const vesselSalesSystem = window.translator._('vessel_sales_system');
+    
+    document.title = `${inventoryCheck} - ${vesselSalesSystem}`;
 }
 </script>
 

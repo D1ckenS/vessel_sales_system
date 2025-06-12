@@ -448,6 +448,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Apply translations
     updatePageTranslations();
+    updatePageTitle();
 });
 
 function initializeTripCart() {
@@ -1367,6 +1368,20 @@ window.addEventListener('languageChanged', function() {
     if (window.pendingVesselWarnings) {
         displayVesselPricingOverview(window.pendingVesselWarnings);
     }
+    
+    // Re-translate page title
+    updatePageTitle();
 });
+
+function updatePageTitle() {
+    if (!window.translator || !window.translator._) {
+        return;
+    }
+    
+    const tripSales = window.translator._('trip_sales');
+    const vesselSalesSystem = window.translator._('vessel_sales_system');
+    
+    document.title = `${tripSales} - ${vesselSalesSystem}`;
+}
 </script>
 {% endblock %}
