@@ -1,6 +1,6 @@
 {% extends 'frontend/base.html' %}
 
-{% block title %}<span data-translate="comprehensive_report">Comprehensive Report</span> - <span data-translate="vessel_sales_system">Vessel Sales System</span>{% endblock %}
+{% block title %}Comprehensive Report - Vessel Sales System{% endblock %}
 
 {% block content %}
 <!-- Page Header -->
@@ -434,9 +434,13 @@
 <script>
 // Enhanced translation for comprehensive report
 document.addEventListener('DOMContentLoaded', function() {
+
+    translatePricingWarningsInReport();
     // Update on language change
     window.addEventListener('languageChanged', function() {
         updateComprehensiveReportTranslations();
+        translatePricingWarningsInReport();
+        updatePageTitle();
     });
     
     function updateComprehensiveReportTranslations() {
@@ -598,6 +602,8 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(() => {
         updateComprehensiveReportTranslations();
         updatePageTranslations(); // Call global translation update
+        translatePricingWarningsInReport();
+        updatePageTitle();
     }, 100);
 
 });
@@ -617,5 +623,88 @@ function exportComprehensiveReport() {
 function printComprehensiveReport() {
     alertTranslated('print_feature_coming_soon');
 }
+
+// ✅ ADD THESE FUNCTIONS before the existing DOMContentLoaded
+function translatePricingWarningsInReport() {
+    // Find the pricing warnings message element
+    const warningMessageElement = document.querySelector('.alert-warning .mb-2 small.mb-1');
+    
+    if (warningMessageElement) {
+        // ✅ FIX: Always use original English message, not current display text
+        let originalMessage = warningMessageElement.getAttribute('data-original-message');
+        
+        if (!originalMessage) {
+            // Store original English message on first run
+            originalMessage = warningMessageElement.textContent.trim();
+            warningMessageElement.setAttribute('data-original-message', originalMessage);
+        }
+        
+        // ✅ FIX: Always translate from original English message
+        const translatedMessage = translateWarningMessage(originalMessage);
+        warningMessageElement.textContent = translatedMessage;
+    }
+}
+
+function translateWarningMessage(message) {
+    // Safety check - ensure translator is available
+    if (!window.translator || !window.translator._) {
+        return message;
+    }
+    
+    // ✅ FIX: Check current language and translate accordingly
+    const currentLang = window.translator.currentLanguage;
+    
+    // Check for "products missing custom pricing" pattern
+    const missingPricingMatch = message.match(/(\d+)\s+products missing custom pricing/);
+    if (missingPricingMatch) {
+        const count = missingPricingMatch[1];
+        
+        if (currentLang === 'ar') {
+            const translatedCount = window.translateNumber ? window.translateNumber(count) : count;
+            return window.translator._('products_missing_pricing', {
+                count: translatedCount
+            });
+        } else {
+            // Return English version
+            return `${count} products missing custom pricing`;
+        }
+    }
+    
+    // Check if message matches vessel pricing warning pattern
+    const vesselPricingMatch = message.match(/Using default price \(([0-9.]+) JOD\) - No custom price set for (.+)/);
+    if (vesselPricingMatch) {
+        const price = vesselPricingMatch[1];
+        const vesselEnglishName = vesselPricingMatch[2];
+        
+        if (currentLang === 'ar') {
+            // Get Arabic vessel name if available
+            const vesselName = getVesselTranslatedName(vesselEnglishName);
+            const translatedPrice = window.translateNumber ? window.translateNumber(price) : price;
+            
+            return window.translator._('vessel_pricing_warning', {
+                price: translatedPrice,
+                vessel: vesselName
+            });
+        } else {
+            // Return English version
+            return `Using default price (${price} JOD) - No custom price set for ${vesselEnglishName}`;
+        }
+    }
+    
+    // If no pattern matches, return the original message
+    return message;
+}
+
+function updatePageTitle() {
+    if (!window.translator || !window.translator._) {
+        return;
+    }
+    
+    const comprehensiveReport = window.translator._('comprehensive_report');
+    const vesselSalesSystem = window.translator._('vessel_sales_system');
+    
+    document.title = `${comprehensiveReport} - ${vesselSalesSystem}`;
+}
+
 </script>
 {% endblock %}
