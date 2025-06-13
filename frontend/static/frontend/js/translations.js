@@ -254,6 +254,7 @@ window.VesselSalesTranslations = {
         'all_products': 'All Products',
         'general_products_only': 'General Products Only',
         'supply_items': 'Supply Items',
+        'export_completed_successfully': 'Export completed successfully',
         
         // Reports Translations
         'back_to_reports': 'Back to Reports',
@@ -1046,6 +1047,7 @@ window.VesselSalesTranslations = {
         'all_products': 'جميع المنتجات',
         'general_products_only': 'منتجات عامة فقط',
         'supply_items': 'عناصر الشراء',
+        'export_completed_successfully': 'تم التصدير بنجاح',
         
         // Reports translations
         'back_to_reports': 'العودة للتقارير',

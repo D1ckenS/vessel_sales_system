@@ -100,11 +100,17 @@ urlpatterns = [
     path('reports/purchase-orders/', reports_views.po_reports, name='po_reports'),  # NEW
     path('reports/comprehensive/', reports_views.comprehensive_report, name='comprehensive_report'),
     
-    # Exports
+    # Main export endpoints (List reports)
     path('export/inventory/', export_views.export_inventory, name='export_inventory'),
     path('export/transactions/', export_views.export_transactions, name='export_transactions'),
     path('export/trips/', export_views.export_trips, name='export_trips'),
     path('export/purchase-orders/', export_views.export_purchase_orders, name='export_purchase_orders'),
+
+    # Individual export endpoints (Detail reports for journal entries)
+    path('export/trip/<int:trip_id>/', export_views.export_single_trip, name='export_single_trip'),
+    path('export/po/<int:po_id>/', export_views.export_single_po, name='export_single_po'),
+
+    # Report exports
     path('export/monthly-report/', export_views.export_monthly_report, name='export_monthly_report'),
     path('export/daily-report/', export_views.export_daily_report, name='export_daily_report'),
     path('export/analytics/', export_views.export_analytics, name='export_analytics'),

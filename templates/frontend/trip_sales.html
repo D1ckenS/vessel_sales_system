@@ -262,10 +262,12 @@
                     (<span id="salesListCount">0</span>)
                 </h5>
                 <div class="d-flex gap-2">
-                    <button class="btn btn-outline-success btn-sm" onclick="exportTripSales()">
-                        <i class="bi bi-file-earmark-excel"></i> <span data-translate="export">Export</span>
+                    {% if not can_edit %}
+                    <button class="btn btn-outline-success btn-sm" onclick="showExportModal('single_trip', {trip_id: {{ trip.id }}})">
+                        <i class="bi bi-download"></i> <span data-translate="export">Export</span>
                     </button>
-                    <button class="btn btn-outline-primary btn-sm" onclick="printTripSales()">
+                    {% endif %}
+                    <button class="btn btn-outline-primary btn-sm" onclick="window.print()">
                         <i class="bi bi-printer"></i> <span data-translate="print">Print</span>
                     </button>
                 </div>
@@ -1382,6 +1384,224 @@ function updatePageTitle() {
     const vesselSalesSystem = window.translator._('vessel_sales_system');
     
     document.title = `${tripSales} - ${vesselSalesSystem}`;
+}
+
+function exportSingleTrip(tripId, format) {
+    // Show loading state
+    const loadingHtml = '<span class="spinner-border spinner-border-sm"></span> Exporting...';
+    const buttons = document.querySelectorAll(`[onclick*="exportSingleTrip(${tripId}"]`);
+    const originalHtml = {};
+    
+    buttons.forEach(btn => {
+        originalHtml[btn.innerText] = btn.innerHTML;
+        btn.innerHTML = loadingHtml;
+        btn.disabled = true;
+    });
+    
+    // Make request to export endpoint
+    fetch(`/export/trip/${tripId}/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || getCookie('csrftoken'),
+        },
+        body: JSON.stringify({ format: format })
+    })
+    .then(response => {
+        if (response.ok) {
+            // Handle file download
+            const contentDisposition = response.headers.get('Content-Disposition');
+            const filename = contentDisposition ? 
+                contentDisposition.split('filename=')[1].replace(/"/g, '') : 
+                `trip_${tripId}_export.${format === 'excel' ? 'xlsx' : 'pdf'}`;
+            
+            return response.blob().then(blob => {
+                // Create download link
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+            });
+        } else {
+            return response.json().then(data => {
+                throw new Error(data.error || 'Export failed');
+            });
+        }
+    })
+    .then(() => {
+        // Show success message
+        alert('Export completed successfully!');
+    })
+    .catch(error => {
+        console.error('Export error:', error);
+        alert('Export failed: ' + error.message);
+    })
+    .finally(() => {
+        // Restore button states
+        buttons.forEach(btn => {
+            const originalText = Object.keys(originalHtml).find(key => 
+                originalHtml[key] === btn.innerHTML || 
+                btn.innerHTML.includes('Exporting')
+            );
+            if (originalText) {
+                btn.innerHTML = originalHtml[originalText];
+            }
+            btn.disabled = false;
+        });
+    });
+}
+
+function showExportModal(exportType, additionalData = {}) {
+    if (exportType === 'single_trip') {
+        const tripId = additionalData.trip_id;
+        
+        const modalHtml = `
+        <div class="modal fade" id="exportModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="bi bi-download"></i> <span data-translate="export_trip_data">Export Trip Data</span>
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p><span data-translate="choose_export_format">Choose your preferred export format:</span></p>
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-success" onclick="exportSingleTrip(${tripId}, 'excel'); bootstrap.Modal.getInstance(document.getElementById('exportModal')).hide();">
+                                <i class="bi bi-file-earmark-excel"></i> <span data-translate="export_to_excel">Export to Excel (.xlsx)</span>
+                            </button>
+                            <button class="btn btn-danger" onclick="exportSingleTrip(${tripId}, 'pdf'); bootstrap.Modal.getInstance(document.getElementById('exportModal')).hide();">
+                                <i class="bi bi-file-earmark-pdf"></i> <span data-translate="export_to_pdf">Export to PDF</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <span data-translate="cancel">Cancel</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+        
+        // Remove existing modal if present
+        const existingModal = document.getElementById('exportModal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+        
+        // Add modal to page
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        // Apply translations
+        if (window.updatePageTranslations) {
+            updatePageTranslations();
+        }
+        
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('exportModal'));
+        modal.show();
+        
+        // Clean up when modal is hidden
+        document.getElementById('exportModal').addEventListener('hidden.bs.modal', function() {
+            this.remove();
+        });
+    }
+}
+
+function exportSingleTrip(tripId, format) {
+    // Show loading state
+    const loadingHtml = '<span class="spinner-border spinner-border-sm"></span> <span data-translate="exporting">Exporting</span>...';
+    const buttons = document.querySelectorAll('button[onclick*="exportSingleTrip"]');
+    const originalHtml = {};
+    
+    buttons.forEach(btn => {
+        originalHtml[btn.innerText] = btn.innerHTML;
+        btn.innerHTML = loadingHtml;
+        btn.disabled = true;
+    });
+    
+    // Make request to export endpoint
+    fetch(`/export/trip/${tripId}/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || getCookie('csrftoken'),
+        },
+        body: JSON.stringify({ format: format })
+    })
+    .then(response => {
+        if (response.ok) {
+            // Handle file download
+            const contentDisposition = response.headers.get('Content-Disposition');
+            const filename = contentDisposition ? 
+                contentDisposition.split('filename=')[1].replace(/"/g, '') : 
+                `trip_${tripId}_export.${format === 'excel' ? 'xlsx' : 'pdf'}`;
+            
+            return response.blob().then(blob => {
+                // Create download link
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                
+                // Show success message
+                if (window.alertTranslated) {
+                    alertTranslated('export_completed_successfully');
+                } else {
+                    alert('Export completed successfully!');
+                }
+            });
+        } else {
+            return response.json().then(data => {
+                throw new Error(data.error || 'Export failed');
+            });
+        }
+    })
+    .catch(error => {
+        console.error('Export error:', error);
+        if (window.alertTranslated) {
+            alertTranslated('export_failed', {error: error.message});
+        } else {
+            alert('Export failed: ' + error.message);
+        }
+    })
+    .finally(() => {
+        // Restore button states
+        buttons.forEach(btn => {
+            const originalText = Object.keys(originalHtml).find(key => 
+                btn.innerHTML.includes('Exporting') || btn.innerHTML.includes('spinner-border')
+            );
+            if (originalText) {
+                btn.innerHTML = originalHtml[originalText];
+            }
+            btn.disabled = false;
+        });
+    });
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
 }
 </script>
 {% endblock %}
