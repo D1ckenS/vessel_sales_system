@@ -391,23 +391,33 @@ class WeasyPrintExporter:
         
         .summary-item {
             text-align: center;
-            padding: 10px;
+            padding: 15px 10px;  /* Increased padding for better height */
             background: white;
             border-radius: 3px;
             border: 1px solid #bee5eb;
+            min-height: 80px;  /* Minimum height to accommodate content */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
         }
         
         .summary-label {
             font-weight: bold;
             color: #495057;
             font-size: 10px;
-            margin-bottom: 5px;
+            margin-bottom: 8px;  /* Increased margin */
+            line-height: 1.4;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
         }
         
         .summary-value {
             font-size: 14px;
             font-weight: bold;
             color: #2c3e50;
+            line-height: 1.3;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
         }
         
         .chart-container {

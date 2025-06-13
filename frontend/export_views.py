@@ -31,6 +31,16 @@ def format_currency(value, decimals=3):
     except (ValueError, TypeError):
         return "0.000"
 
+def format_currency_or_none(value, decimals=3):
+    """Format currency or return None for empty/zero values"""
+    try:
+        float_val = float(value)
+        if float_val == 0:
+            return None  # Return None instead of "0.000"
+        return f"{float_val:.{decimals}f}"
+    except (ValueError, TypeError):
+        return None
+    
 def format_percentage(value):
     """Format percentage with 0 decimal places"""
     try:
@@ -43,10 +53,11 @@ def format_negative_if_supply(value, transaction_type):
     try:
         formatted_value = float(value)
         if transaction_type in ['SUPPLY', 'TRANSFER_IN']:
-            return f"({format_currency(abs(formatted_value), 3)})"
-        return format_currency(formatted_value, 3)
+            if formatted_value != 0:  # Only bracket non-zero values
+                return f"({format_currency(abs(formatted_value), 3)})"
+        return format_currency(abs(formatted_value), 3)
     except (ValueError, TypeError):
-        return "0.000"
+        return None  # Return None instead of "0.000" for empty values
 
 def get_fifo_cost_for_transfer(vessel, product, quantity):
     """Get FIFO cost for transfer without actually consuming inventory"""
@@ -393,28 +404,59 @@ def export_transactions(request):
         table_data = []
         
         for transaction in transaction_list:
-            # Calculate amount based on transaction type
+            # Calculate amounts based on transaction type
             if transaction.transaction_type in ['TRANSFER_OUT', 'TRANSFER_IN']:
                 amount = calculate_transfer_amounts(transaction)
             else:
                 amount = safe_float(transaction.quantity) * safe_float(transaction.unit_price)
             
-            # Format amount (negative for supplies and transfer ins)
+            # Determine Unit Cost and Unit Price based on transaction type
+            unit_cost = None
+            unit_price = None
+            
+            if transaction.transaction_type == 'SALE':
+                unit_price = safe_float(transaction.unit_price)
+                # For sales, unit cost would be the FIFO cost (if available)
+                # For now, we'll leave unit_cost as None for sales
+            elif transaction.transaction_type == 'SUPPLY':
+                unit_cost = safe_float(transaction.unit_price)
+                # For supplies, unit_price is None
+            elif transaction.transaction_type == 'TRANSFER_OUT':
+                # For transfer out, use FIFO cost as unit_cost
+                fifo_cost = get_fifo_cost_for_transfer(transaction.vessel, transaction.product, transaction.quantity)
+                unit_cost = fifo_cost
+            elif transaction.transaction_type == 'TRANSFER_IN':
+                # For transfer in, use the same cost as the related transfer out
+                if hasattr(transaction, 'related_transfer') and transaction.related_transfer:
+                    fifo_cost = get_fifo_cost_for_transfer(transaction.related_transfer.vessel, transaction.product, transaction.quantity)
+                    unit_cost = fifo_cost
+            
+            # Format amounts (negative for supplies and transfer ins)
             formatted_amount = format_negative_if_supply(amount, transaction.transaction_type)
+            
+            # Format vessel, product names (remove N/A)
+            vessel_name = transaction.vessel.name if transaction.vessel else None
+            product_name = transaction.product.name if transaction.product else None
+            category_name = transaction.product.category.name if transaction.product and transaction.product.category else None
+            trip_number = transaction.trip.trip_number if transaction.trip else None
+            po_number = transaction.purchase_order.po_number if transaction.purchase_order else None
+            created_by = transaction.created_by.username if transaction.created_by else None
+            notes = transaction.notes if transaction.notes else None
             
             table_data.append([
                 format_date(transaction.transaction_date),
                 transaction.get_transaction_type_display() if hasattr(transaction, 'get_transaction_type_display') else transaction.transaction_type,
-                transaction.vessel.name if transaction.vessel else 'N/A',
-                transaction.product.name if transaction.product else 'N/A',
-                transaction.product.category.name if transaction.product and transaction.product.category else 'N/A',
+                vessel_name,
+                product_name,
+                category_name,
                 format_currency(transaction.quantity, 3),
-                format_currency(transaction.unit_price, 3),
-                formatted_amount,  # This will show negative for supplies
-                transaction.trip.trip_number if transaction.trip else 'N/A',
-                transaction.purchase_order.po_number if transaction.purchase_order else 'N/A',
-                transaction.created_by.username if transaction.created_by else 'System',
-                transaction.notes or ''
+                format_currency_or_none(unit_price, 3),  # Unit Price
+                format_currency_or_none(unit_cost, 3),   # Unit Cost  
+                formatted_amount,  # Total Amount (negative for supplies)
+                trip_number,
+                po_number,
+                created_by,
+                notes
             ])
         
         # Generate filename
@@ -435,7 +477,7 @@ def export_transactions(request):
         
         headers = [
             'Date', 'Type', 'Vessel', 'Product', 'Category', 
-            'Quantity', 'Unit Price (JOD)', 'Total Amount (JOD)', 
+            'Quantity', 'Unit Price (JOD)', 'Unit Cost (JOD)', 'Total Amount (JOD)', 
             'Trip #', 'PO #', 'Created By', 'Notes'
         ]
         
@@ -483,7 +525,7 @@ def export_transactions(request):
                     # Add product summary data
                     for row in product_summary:
                         for col_idx, value in enumerate(row, 1):
-                            cell = exporter.worksheet.cell(row=exporter.current_row, column=col_idx, value=str(value))
+                            cell = exporter.worksheet.cell(row=exporter.current_row, column=col_idx, value=value)
                             cell.border = exporter.border
                             if col_idx >= 3:  # Numeric columns
                                 cell.alignment = Alignment(horizontal='right', vertical='center')
@@ -1334,8 +1376,7 @@ def export_analytics(request):
                 transaction_date__lte=end_date
             ).aggregate(
                 revenue=Sum(F('quantity') * F('unit_price')),
-                sales_count=Count('id'),
-                avg_transaction=Sum(F('quantity') * F('unit_price')) / Count('id')
+                sales_count=Count('id')
             )
             
             # Get supply data
@@ -1355,14 +1396,24 @@ def export_analytics(request):
                 po_date__gte=start_date,
                 po_date__lte=end_date
             ).aggregate(
-                po_count=Count('id'),
-                total_po_cost=Sum('total_cost')
+                po_count=Count('id')
             )
+            
+            # Calculate PO costs from related transactions
+            po_cost = Transaction.objects.filter(
+                vessel=vessel,
+                transaction_type='SUPPLY',
+                transaction_date__gte=start_date,
+                transaction_date__lte=end_date,
+                purchase_order__isnull=False
+            ).aggregate(
+                total=Sum(F('quantity') * F('unit_price'))
+            )['total'] or 0
             
             revenue = safe_float(sales_stats['revenue'])
             costs = safe_float(supply_stats['costs'])
-            po_cost = safe_float(po_stats['total_po_cost'])
             profit_margin = ((revenue - costs) / revenue * 100) if revenue > 0 else 0
+            avg_transaction = revenue / safe_int(sales_stats['sales_count']) if safe_int(sales_stats['sales_count']) > 0 else 0
             
             total_revenue += revenue
             total_costs += costs
@@ -1372,13 +1423,13 @@ def export_analytics(request):
             if revenue > 0 or costs > 0 or po_cost > 0:
                 vessel_analytics.append([
                     vessel.name,
-                    format_currency(revenue, 3),
-                    format_currency(costs, 3),
-                    format_percentage(profit_margin),
+                    revenue,  # Store as number, not formatted string
+                    costs,    # Store as number, not formatted string
+                    profit_margin,  # Store as number, not formatted string
                     safe_int(sales_stats['sales_count']),
-                    format_currency(safe_float(sales_stats['avg_transaction']), 3),
+                    avg_transaction,  # Store as number
                     safe_int(po_stats['po_count']),
-                    format_currency(po_cost, 3)
+                    po_cost   # Store as number
                 ])
                 
                 # For PO chart data
@@ -1386,7 +1437,7 @@ def export_analytics(request):
                     po_analytics.append((vessel.name[:15], po_cost))
         
         # Sort by revenue (descending)
-        vessel_analytics.sort(key=lambda x: float(x[1].replace(',', '')), reverse=True)
+        vessel_analytics.sort(key=lambda x: float(x[1]), reverse=True)
         
         total_profit = total_revenue - total_costs
         
@@ -1425,7 +1476,7 @@ def export_analytics(request):
             'Analysis Period': f"{(end_date - start_date).days} days",
             'Total Revenue (JOD)': format_currency(total_revenue, 3),
             'Overall Profit Margin': format_percentage((total_profit / total_revenue * 100) if total_revenue > 0 else 0),
-            'Best Performing Vessel': vessel_analytics[0][0] if vessel_analytics else 'N/A',
+            'Best Performing Vessel': vessel_analytics[0][0] if vessel_analytics else None,
             'Total Purchase Orders': total_pos
         }
         
@@ -1435,7 +1486,7 @@ def export_analytics(request):
                 exporter.add_title("Analytics Report", f"Generated on {datetime.now().strftime('%d/%m/%Y %H:%M')}")
                 exporter.add_metadata(metadata)
                 exporter.add_headers(headers)
-                exporter.add_data_rows(vessel_analytics)
+                exporter.add_data_rows(vessel_analytics)  # Now contains raw numbers
                 exporter.add_summary(summary_data)
                 
                 return exporter.get_response(f"{filename_base}.xlsx")
@@ -1451,34 +1502,14 @@ def export_analytics(request):
                 
                 # Add charts for analytics
                 if vessel_analytics:
-                    # Extract numeric values for charts
                     try:
-                        # Revenue chart - extract vessel names and revenue values
-                        revenue_data = []
-                        profit_data = []
-                        
-                        for row in vessel_analytics[:8]:  # Limit to top 8 vessels for readability
-                            vessel_name = str(row[0])[:15]  # Truncate long names
-                            
-                            # Extract revenue (column 1) - handle formatted numbers
-                            revenue_str = str(row[1]).replace(',', '').replace('JOD', '').strip()
-                            try:
-                                revenue_val = float(revenue_str)
-                                revenue_data.append((vessel_name, revenue_val))
-                            except ValueError:
-                                pass
-                            
-                            # Extract profit margin (column 3) - handle percentage
-                            profit_str = str(row[3]).replace('%', '').replace(',', '').strip()
-                            try:
-                                profit_val = float(profit_str)
-                                profit_data.append((vessel_name, profit_val))
-                            except ValueError:
-                                pass
-                        
+                        # Revenue chart - use raw numbers
+                        revenue_data = [(row[0][:15], float(row[1])) for row in vessel_analytics[:8]]
                         if revenue_data:
                             exporter.add_chart(revenue_data, 'bar', 'Revenue by Vessel (JOD)', 'revenue_chart')
                         
+                        # Profit margin chart - use raw numbers  
+                        profit_data = [(row[0][:15], float(row[3])) for row in vessel_analytics[:8]]
                         if profit_data:
                             exporter.add_chart(profit_data, 'bar', 'Profit Margin by Vessel (%)', 'profit_chart')
                         
@@ -1492,7 +1523,22 @@ def export_analytics(request):
                     except Exception as chart_error:
                         logger.warning(f"Could not create charts for analytics: {chart_error}")
                 
-                exporter.add_table(headers, vessel_analytics, table_title="Vessel Performance Analytics")
+                # Format data for PDF display
+                formatted_vessel_analytics = []
+                for row in vessel_analytics:
+                    formatted_row = [
+                        row[0],  # Vessel name
+                        format_currency(row[1], 3),  # Revenue
+                        format_currency(row[2], 3),  # Costs
+                        format_percentage(row[3]),   # Profit margin
+                        row[4],  # Sales count
+                        format_currency(row[5], 3),  # Avg transaction
+                        row[6],  # PO count
+                        format_currency(row[7], 3)   # PO cost
+                    ]
+                    formatted_vessel_analytics.append(formatted_row)
+                
+                exporter.add_table(headers, formatted_vessel_analytics, table_title="Vessel Performance Analytics")
                 exporter.add_summary(summary_data)
                 
                 return exporter.get_response(f"{filename_base}.pdf")

@@ -113,7 +113,20 @@ class ExcelExporter:
                     
                     # Value in column B
                     value_cell = self.worksheet[f'B{self.current_row}']
-                    value_cell.value = str(value)
+                    # Handle numeric values properly
+                    if isinstance(value, (int, float)):
+                        value_cell.value = float(value)
+                        value_cell.number_format = '#,##0.000'
+                    elif isinstance(value, str) and value.startswith('(') and value.endswith(')'):
+                        # Handle negative values in brackets
+                        try:
+                            numeric_value = -float(value.strip('()').replace(',', ''))
+                            value_cell.value = numeric_value
+                            value_cell.number_format = '_-[Red](#,##0.000_);#,##0.000'  # Accounting format
+                        except ValueError:
+                            value_cell.value = str(value)
+                    else:
+                        value_cell.value = str(value)
                     value_cell.border = self.border
                     
                     self.current_row += 1
@@ -162,21 +175,56 @@ class ExcelExporter:
             pass
 
     def add_data_rows(self, data):
-        """Add data rows with proper formatting"""
+        """Add data rows with proper number formatting"""
         try:
             if not data:
                 return
                 
             for row in data:
                 for col_idx, value in enumerate(row, 1):
-                    cell = self.worksheet.cell(row=self.current_row, column=col_idx, value=str(value) if value is not None else '')
+                    cell = self.worksheet.cell(row=self.current_row, column=col_idx)
+                    
+                    # Handle empty values (convert N/A to empty)
+                    if value in ['N/A', 'n/a', None]:
+                        cell.value = None
+                    # Handle negative values in brackets
+                    elif isinstance(value, str) and value.startswith('(') and value.endswith(')'):
+                        try:
+                            # Extract numeric value and make it negative
+                            numeric_value = -float(value.strip('()').replace(',', ''))
+                            cell.value = numeric_value
+                            cell.number_format = '_-[Red](#,##0.000_);#,##0.000'  # Accounting format for negatives
+                        except ValueError:
+                            cell.value = str(value)
+                    # Handle regular numbers
+                    elif isinstance(value, (int, float)):
+                        cell.value = float(value)
+                        # Format based on column type
+                        if col_idx >= 5:  # Assuming numeric columns start from 5th
+                            cell.number_format = '#,##0.000'
+                    else:
+                        # Try to convert string numbers to actual numbers
+                        try:
+                            # Check if it's a formatted currency string
+                            clean_value = str(value).replace(',', '').replace('JOD', '').replace('%', '').strip()
+                            if clean_value and clean_value.replace('.', '').replace('-', '').isdigit():
+                                numeric_value = float(clean_value)
+                                cell.value = numeric_value
+                                if '%' in str(value):
+                                    cell.number_format = '0%'
+                                elif col_idx >= 5:
+                                    cell.number_format = '#,##0.000'
+                            else:
+                                cell.value = str(value) if value is not None else None
+                        except (ValueError, AttributeError):
+                            cell.value = str(value) if value is not None else None
+                    
                     cell.border = self.border
                     cell.alignment = Alignment(horizontal='left', vertical='center')
                     
-                    # Format numeric columns (currency and quantities)
-                    if col_idx >= 5 and isinstance(value, (int, float)):  # Assuming numeric columns start from 5th
+                    # Right-align numeric columns
+                    if col_idx >= 5 and isinstance(cell.value, (int, float)):
                         cell.alignment = Alignment(horizontal='right', vertical='center')
-                        cell.number_format = '#,##0.000'
                         
                 self.current_row += 1
                 
@@ -185,7 +233,7 @@ class ExcelExporter:
             pass
 
     def add_summary(self, summary_data):
-        """Add summary section"""
+        """Add summary section with proper number formatting"""
         try:
             if not summary_data:
                 return
@@ -219,7 +267,35 @@ class ExcelExporter:
                     
                     # Value in column B
                     value_cell = self.worksheet[f'B{self.current_row}']
-                    value_cell.value = str(value)
+                    
+                    # Handle different value types
+                    if isinstance(value, (int, float)):
+                        value_cell.value = float(value)
+                        value_cell.number_format = '#,##0.000'
+                    elif isinstance(value, str) and value.startswith('(') and value.endswith(')'):
+                        # Handle negative values in brackets
+                        try:
+                            numeric_value = -float(value.strip('()').replace(',', ''))
+                            value_cell.value = numeric_value
+                            value_cell.number_format = '_-[Red](#,##0.000_);#,##0.000'
+                        except ValueError:
+                            value_cell.value = str(value)
+                    else:
+                        # Try to parse numbers from formatted strings
+                        try:
+                            clean_value = str(value).replace(',', '').replace('JOD', '').replace('%', '').strip()
+                            if clean_value and clean_value.replace('.', '').replace('-', '').isdigit():
+                                numeric_value = float(clean_value)
+                                value_cell.value = numeric_value
+                                if '%' in str(value):
+                                    value_cell.number_format = '0%'
+                                else:
+                                    value_cell.number_format = '#,##0.000'
+                            else:
+                                value_cell.value = str(value)
+                        except (ValueError, AttributeError):
+                            value_cell.value = str(value)
+                    
                     value_cell.border = self.border
                     value_cell.fill = PatternFill(start_color="E3F2FD", end_color="E3F2FD", fill_type="solid")
                     
