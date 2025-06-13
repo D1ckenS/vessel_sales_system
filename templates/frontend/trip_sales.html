@@ -360,6 +360,9 @@ document.addEventListener('DOMContentLoaded', function() {
             'custom_price': 'Custom',
             'default_price': 'Default',
             'pricing_info': 'Pricing Info',
+            'export_trip_data': 'Export Trip Data',
+            'choose_export_format': 'Choose Export Format',
+            'exporting': 'Exporting...',
         },
         ar: {
             'total_cogs': 'إجمالي تكلفة البضاعة المباعة',
@@ -397,6 +400,9 @@ document.addEventListener('DOMContentLoaded', function() {
             'custom_price': 'مخصص',
             'default_price': 'افتراضي',
             'pricing_info': 'معلومات التسعير',
+            'export_trip_data': 'تصدير بيانات الرحلة',
+            'choose_export_format': 'حدد نوع التصدير',
+            'exporting': 'جاري التصدير...',
         }
     };
     
@@ -1212,14 +1218,6 @@ async function completeTripSales() {
     });
 }
 
-function exportTripSales() {
-    alertTranslated('export_coming_soon');
-}
-
-function printTripSales() {
-    alertTranslated('print_coming_soon');
-}
-
 function showAlert(message, type) {
     const container = document.querySelector('.container') || document.querySelector('body');
     const firstRow = container.querySelector('.row');
@@ -1512,81 +1510,6 @@ function showExportModal(exportType, additionalData = {}) {
             this.remove();
         });
     }
-}
-
-function exportSingleTrip(tripId, format) {
-    // Show loading state
-    const loadingHtml = '<span class="spinner-border spinner-border-sm"></span> <span data-translate="exporting">Exporting</span>...';
-    const buttons = document.querySelectorAll('button[onclick*="exportSingleTrip"]');
-    const originalHtml = {};
-    
-    buttons.forEach(btn => {
-        originalHtml[btn.innerText] = btn.innerHTML;
-        btn.innerHTML = loadingHtml;
-        btn.disabled = true;
-    });
-    
-    // Make request to export endpoint
-    fetch(`/export/trip/${tripId}/`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || getCookie('csrftoken'),
-        },
-        body: JSON.stringify({ format: format })
-    })
-    .then(response => {
-        if (response.ok) {
-            // Handle file download
-            const contentDisposition = response.headers.get('Content-Disposition');
-            const filename = contentDisposition ? 
-                contentDisposition.split('filename=')[1].replace(/"/g, '') : 
-                `trip_${tripId}_export.${format === 'excel' ? 'xlsx' : 'pdf'}`;
-            
-            return response.blob().then(blob => {
-                // Create download link
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = filename;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                window.URL.revokeObjectURL(url);
-                
-                // Show success message
-                if (window.alertTranslated) {
-                    alertTranslated('export_completed_successfully');
-                } else {
-                    alert('Export completed successfully!');
-                }
-            });
-        } else {
-            return response.json().then(data => {
-                throw new Error(data.error || 'Export failed');
-            });
-        }
-    })
-    .catch(error => {
-        console.error('Export error:', error);
-        if (window.alertTranslated) {
-            alertTranslated('export_failed', {error: error.message});
-        } else {
-            alert('Export failed: ' + error.message);
-        }
-    })
-    .finally(() => {
-        // Restore button states
-        buttons.forEach(btn => {
-            const originalText = Object.keys(originalHtml).find(key => 
-                btn.innerHTML.includes('Exporting') || btn.innerHTML.includes('spinner-border')
-            );
-            if (originalText) {
-                btn.innerHTML = originalHtml[originalText];
-            }
-            btn.disabled = false;
-        });
-    });
 }
 
 function getCookie(name) {
