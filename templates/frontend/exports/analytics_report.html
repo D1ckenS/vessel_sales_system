@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>{{ title }}</title>
+</head>
+<body class="landscape">
+    <div class="header">
+        {% if has_logo %}
+            <div class="logo">
+                <!-- Logo will be inserted here when available -->
+            </div>
+        {% else %}
+            <div class="logo-placeholder">
+                COMPANY LOGO
+            </div>
+        {% endif %}
+        
+        <h1 class="title">{{ title }}</h1>
+        <p class="subtitle">Generated on {{ generation_date }}</p>
+    </div>
+
+    {% if metadata %}
+    <div class="metadata no-break">
+        <h3>Analytics Information</h3>
+        <div class="metadata-grid">
+            {% for key, value in metadata.items %}
+            <div class="metadata-item">
+                <span class="metadata-label">{{ key }}:</span>
+                <span class="metadata-value">{{ value }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if summary_data %}
+    <div class="summary no-break">
+        <h3>Key Performance Indicators</h3>
+        <div class="summary-grid">
+            {% for key, value in summary_data.items %}
+            <div class="summary-item">
+                <div class="summary-label">{{ key }}</div>
+                <div class="summary-value">{{ value }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% for chart in charts %}
+    <div class="chart-container">
+        <h2 class="chart-title">{{ chart.title }}</h2>
+        <img src="data:image/png;base64,{{ chart.data }}" alt="{{ chart.title }}" class="chart-image">
+    </div>
+    {% endfor %}
+
+    {% for table in tables %}
+    <div class="table-container page-break">
+        {% if table.title %}
+        <h2 class="table-title">{{ table.title }}</h2>
+        {% endif %}
+        
+        <table id="{{ table.id }}" class="wide">
+            {% if table.headers %}
+            <thead>
+                <tr>
+                    {% for header in table.headers %}
+                    <th>{{ header }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            {% endif %}
+            
+            <tbody>
+                {% for row in table.rows %}
+                <tr>
+                    {% for cell in row %}
+                    <td{% if forloop.counter0 >= 1 and forloop.counter0 <= 7 %} class="numeric"{% endif %}>
+                        {{ cell }}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+                
+                {% if not table.rows %}
+                <tr>
+                    <td colspan="{{ table.headers|length|default:1 }}" class="center">
+                        No data available
+                    </td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+    {% endfor %}
+</body>
+</html>

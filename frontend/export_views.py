@@ -8,7 +8,8 @@ from .utils import BilingualMessages
 from django.http import JsonResponse, HttpResponse
 from transactions.models import Transaction, InventoryLot, Trip, PurchaseOrder
 from vessels.models import Vessel
-from .utils.exports import ExcelExporter, PDFExporter, create_pdf_exporter_for_data
+from .utils.exports import ExcelExporter
+from .utils.weasy_exporter import create_weasy_exporter_for_data, create_weasy_exporter
 from django.views.decorators.http import require_http_methods
 from django.shortcuts import get_object_or_404
 import logging
@@ -20,6 +21,104 @@ logger = logging.getLogger(__name__)
 # ===============================================================================
 # HELPER FUNCTIONS
 # ===============================================================================
+
+def format_currency(value, decimals=3):
+    """Format currency with specified decimal places"""
+    try:
+        return f"{float(value):.{decimals}f}"
+    except (ValueError, TypeError):
+        return "0.000"
+
+def format_percentage(value):
+    """Format percentage with 0 decimal places"""
+    try:
+        return f"{float(value):.0f}%"
+    except (ValueError, TypeError):
+        return "0%"
+
+def format_negative_if_supply(value, transaction_type):
+    """Format value as negative if it's a supply transaction"""
+    try:
+        formatted_value = float(value)
+        if transaction_type in ['SUPPLY', 'TRANSFER_IN']:
+            return f"({format_currency(abs(formatted_value), 3)})"
+        return format_currency(formatted_value, 3)
+    except (ValueError, TypeError):
+        return "0.000"
+
+def calculate_transfer_amounts(transaction):
+    """Calculate proper amounts for transfer transactions using FIFO"""
+    if transaction.transaction_type == 'TRANSFER_OUT':
+        # Use FIFO cost as "revenue" for transfer out
+        try:
+            # Get FIFO cost for this product from vessel inventory
+            fifo_cost = get_fifo_cost_for_transfer(
+                transaction.vessel, 
+                transaction.product, 
+                transaction.quantity
+            )
+            return fifo_cost * transaction.quantity
+        except:
+            return 0
+    elif transaction.transaction_type == 'TRANSFER_IN':
+        # Use the same FIFO cost as "supply cost" for transfer in
+        try:
+            # Get the related transfer out to use same cost
+            if transaction.related_transfer:
+                return calculate_transfer_amounts(transaction.related_transfer)
+            return 0
+        except:
+            return 0
+    return transaction.quantity * transaction.unit_price
+
+def get_fifo_cost_for_transfer(vessel, product, quantity):
+    """Get FIFO cost for transfer without actually consuming inventory"""
+    from transactions.models import InventoryLot
+    
+    lots = InventoryLot.objects.filter(
+        vessel=vessel,
+        product=product,
+        remaining_quantity__gt=0
+    ).order_by('purchase_date', 'created_at')
+    
+    remaining_to_transfer = float(quantity)
+    total_cost = 0
+    
+    for lot in lots:
+        if remaining_to_transfer <= 0:
+            break
+            
+        available = float(lot.remaining_quantity)
+        to_take = min(available, remaining_to_transfer)
+        
+        total_cost += to_take * float(lot.purchase_price)
+        remaining_to_transfer -= to_take
+    
+    if remaining_to_transfer > 0:
+        # Not enough inventory, use product's purchase price as fallback
+        total_cost += remaining_to_transfer * float(product.purchase_price)
+    
+    return total_cost / float(quantity) if quantity > 0 else 0
+
+def calculate_totals_by_type(transactions):
+    """Calculate totals split by transaction type"""
+    totals = {
+        'total_sales': 0,
+        'total_supplies': 0,
+        'total_transfers': 0
+    }
+    
+    for transaction in transactions:
+        if transaction.transaction_type == 'SALE':
+            totals['total_sales'] += transaction.quantity * transaction.unit_price
+        elif transaction.transaction_type == 'SUPPLY':
+            totals['total_supplies'] += transaction.quantity * transaction.unit_price
+        elif transaction.transaction_type in ['TRANSFER_OUT', 'TRANSFER_IN']:
+            # Only count transfer out to avoid double counting
+            if transaction.transaction_type == 'TRANSFER_OUT':
+                totals['total_transfers'] += calculate_transfer_amounts(transaction)
+    
+    return totals
 
 def safe_float(value, default=0.0):
     """Safely convert value to float"""
@@ -77,6 +176,120 @@ def create_safe_response(content, content_type, filename):
     return response
 
 # ===============================================================================
+# INVENTORY EXPORT
+# ===============================================================================
+
+@login_required
+@require_http_methods(["POST"])
+def export_inventory(request):
+    """Export current inventory status to Excel or PDF"""
+    try:
+        data = json.loads(request.body)
+        export_format = data.get('format', 'excel')
+        
+        # Get filters
+        category_id = data.get('category_id')
+        low_stock_only = data.get('low_stock_only', False)
+        
+        # Build query
+        inventory_lots = InventoryLot.objects.select_related(
+            'product', 'product__category', 'vessel'
+        ).filter(
+            quantity__gt=0  # Only active inventory
+        ).order_by('product__name', 'vessel__name')
+        
+        # Apply filters
+        if category_id:
+            inventory_lots = inventory_lots.filter(product__category_id=category_id)
+        if low_stock_only:
+            inventory_lots = inventory_lots.filter(quantity__lte=F('product__minimum_stock_level'))
+        
+        # Prepare inventory data
+        inventory_data = []
+        total_value = 0
+        
+        for lot in inventory_lots[:2000]:  # Limit to prevent memory issues
+            unit_cost = safe_float(getattr(lot, 'unit_cost', lot.product.cost_price if lot.product else 0))
+            total_cost = safe_float(lot.quantity) * unit_cost
+            total_value += total_cost
+            
+            inventory_data.append([
+                lot.product.name if lot.product else 'N/A',
+                lot.product.product_id if lot.product else 'N/A',
+                lot.product.category.name if lot.product and lot.product.category else 'N/A',
+                lot.vessel.name if lot.vessel else 'N/A',
+                format_currency(lot.quantity, 3),
+                format_currency(getattr(lot.product, 'minimum_stock_level', 0) if lot.product else 0, 3),
+                format_currency(unit_cost, 3),
+                format_currency(total_cost, 3),
+                format_date(lot.created_at.date()) if hasattr(lot, 'created_at') and lot.created_at else 'N/A'
+            ])
+        
+        # Generate filename
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename_base = f"inventory_export_{timestamp}"
+        
+        # Metadata
+        metadata = {
+            'Export Date': datetime.now().strftime('%d/%m/%Y %H:%M'),
+            'Total Records': len(inventory_data),
+            'Total Inventory Value (JOD)': format_currency(total_value, 3),
+            'Generated By': request.user.username,
+            'Category Filter': category_id or 'All',
+            'Low Stock Only': 'Yes' if low_stock_only else 'No'
+        }
+        
+        headers = [
+            'Product Name', 'Product ID', 'Category', 'Vessel', 
+            'Current Stock', 'Minimum Level', 'Unit Cost (JOD)', 
+            'Total Value (JOD)', 'Last Updated'
+        ]
+        
+        # Create summary data
+        low_stock_count = len([item for item in inventory_data if safe_float(item[4].replace(',', '')) <= safe_float(item[5].replace(',', ''))]) if inventory_data else 0
+        
+        summary_data = {
+            'Total Products': len(inventory_data),
+            'Total Value (JOD)': format_currency(total_value, 3),
+            'Average Value per Item (JOD)': format_currency((total_value / len(inventory_data)) if inventory_data else 0, 3),
+            'Low Stock Items': low_stock_count
+        }
+        
+        if export_format == 'excel':
+            try:
+                exporter = ExcelExporter(title="Inventory Export")
+                exporter.add_title("Inventory Report", f"Generated on {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+                exporter.add_metadata(metadata)
+                exporter.add_headers(headers)
+                exporter.add_data_rows(inventory_data)
+                exporter.add_summary(summary_data)
+                
+                return exporter.get_response(f"{filename_base}.xlsx")
+                
+            except Exception as e:
+                logger.error(f"Excel inventory export error: {e}")
+                return JsonResponse({'success': False, 'error': f'Excel export failed: {str(e)}'})
+        
+        else:  # PDF
+            try:
+                exporter = create_weasy_exporter_for_data("Inventory Report", "wide")
+                exporter.add_metadata(metadata)
+                exporter.add_table(headers, inventory_data, table_title="Current Inventory Status")
+                exporter.add_summary(summary_data)
+                
+                return exporter.get_response(f"{filename_base}.pdf")
+                
+            except Exception as e:
+                logger.error(f"PDF inventory export error: {e}")
+                return JsonResponse({'success': False, 'error': f'PDF export failed: {str(e)}'})
+                
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON data'})
+    except Exception as e:
+        logger.error(f"Inventory export error: {e}")
+        return JsonResponse({'success': False, 'error': f'Export failed: {str(e)}'})
+
+# ===============================================================================
 # TRANSACTION EXPORTS
 # ===============================================================================
 
@@ -113,13 +326,22 @@ def export_transactions(request):
         if product_id:
             transactions = transactions.filter(product_id=product_id)
             
-        # Prepare table data
-        table_data = []
-        total_amount = 0
+        # Calculate totals by type
+        transaction_list = list(transactions[:5000])  # Limit to prevent memory issues
+        totals_by_type = calculate_totals_by_type(transaction_list)
         
-        for transaction in transactions[:5000]:  # Limit to prevent memory issues
-            amount = safe_float(transaction.quantity) * safe_float(transaction.unit_price)
-            total_amount += amount
+        # Prepare table data with new formatting
+        table_data = []
+        
+        for transaction in transaction_list:
+            # Calculate amount based on transaction type
+            if transaction.transaction_type in ['TRANSFER_OUT', 'TRANSFER_IN']:
+                amount = calculate_transfer_amounts(transaction)
+            else:
+                amount = safe_float(transaction.quantity) * safe_float(transaction.unit_price)
+            
+            # Format amount (negative for supplies and transfer ins)
+            formatted_amount = format_negative_if_supply(amount, transaction.transaction_type)
             
             table_data.append([
                 format_date(transaction.transaction_date),
@@ -127,9 +349,9 @@ def export_transactions(request):
                 transaction.vessel.name if transaction.vessel else 'N/A',
                 transaction.product.name if transaction.product else 'N/A',
                 transaction.product.category.name if transaction.product and transaction.product.category else 'N/A',
-                safe_float(transaction.quantity),
-                safe_float(transaction.unit_price),
-                amount,
+                format_currency(transaction.quantity, 3),
+                format_currency(transaction.unit_price, 3),
+                formatted_amount,  # This will show negative for supplies
                 transaction.trip.trip_number if transaction.trip else 'N/A',
                 transaction.purchase_order.po_number if transaction.purchase_order else 'N/A',
                 transaction.created_by.username if transaction.created_by else 'System',
@@ -140,12 +362,14 @@ def export_transactions(request):
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         filename_base = f"transactions_export_{timestamp}"
         
-        # Metadata
+        # Metadata with split totals
         metadata = {
             'Export Date': datetime.now().strftime('%d/%m/%Y %H:%M'),
             'Date Range': f"{format_date(start_date)} to {format_date(end_date)}",
             'Total Records': len(table_data),
-            'Total Amount (JOD)': f"{total_amount:.3f}",
+            'Total Sales (JOD)': format_currency(totals_by_type['total_sales'], 3),
+            'Total Supplies (JOD)': f"({format_currency(totals_by_type['total_supplies'], 3)})",
+            'Total Transfers (JOD)': format_currency(totals_by_type['total_transfers'], 3),
             'Generated By': request.user.username,
             'Filters Applied': f"Vessel: {vessel_id or 'All'}, Type: {transaction_type or 'All'}, Product: {product_id or 'All'}"
         }
@@ -156,6 +380,9 @@ def export_transactions(request):
             'Trip #', 'PO #', 'Created By', 'Notes'
         ]
         
+        # Create product-level summary
+        product_summary = calculate_product_level_summary(transaction_list)
+        
         if export_format == 'excel':
             try:
                 exporter = ExcelExporter(title="Transactions Export")
@@ -164,13 +391,11 @@ def export_transactions(request):
                 exporter.add_headers(headers)
                 exporter.add_data_rows(table_data)
                 
-                # Add summary
-                summary_data = {
-                    'Total Records': len(table_data),
-                    'Total Amount (JOD)': f"{total_amount:.3f}",
-                    'Date Range': f"{format_date(start_date)} to {format_date(end_date)}"
-                }
-                exporter.add_summary(summary_data)
+                # Add product-level summary
+                if product_summary:
+                    exporter.add_summary_title("Product Summary")
+                    exporter.add_summary_headers(['Item Name', 'Item ID', 'Qty Supplied', 'Qty Sold', 'Total Cost', 'Total Revenue', 'Net Profit'])
+                    exporter.add_summary_data(product_summary)
                 
                 return exporter.get_response(f"{filename_base}.xlsx")
                 
@@ -180,10 +405,14 @@ def export_transactions(request):
         
         else:  # PDF
             try:
-                exporter = create_pdf_exporter_for_data("Transactions Report", "wide")
-                exporter.add_title("Transactions Report", f"Generated on {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+                exporter = create_weasy_exporter_for_data("Transactions Report", "wide")
                 exporter.add_metadata(metadata)
-                exporter.add_table(headers, table_data, auto_size_columns=True)
+                exporter.add_table(headers, table_data, table_title="Transaction History")
+                
+                # Add product summary instead of redundant summary
+                if product_summary:
+                    summary_headers = ['Item Name', 'Item ID', 'Qty Supplied', 'Qty Sold', 'Total Cost', 'Total Revenue', 'Net Profit']
+                    exporter.add_table(summary_headers, product_summary, table_title="Product Summary")
                 
                 return exporter.get_response(f"{filename_base}.pdf")
                 
@@ -197,151 +426,60 @@ def export_transactions(request):
         logger.error(f"Transaction export error: {e}")
         return JsonResponse({'success': False, 'error': f'Export failed: {str(e)}'})
 
-# ===============================================================================
-# INVENTORY EXPORTS
-# ===============================================================================
 
-@login_required
-@require_http_methods(["POST"])
-def export_inventory(request):
-    """Export current inventory status to Excel or PDF"""
-    try:
-        data = json.loads(request.body)
-        export_format = data.get('format', 'excel')
-        
-        # Get filters
-        vessel_id = data.get('vessel_id')
-        category_id = data.get('category_id')
-        low_stock_only = data.get('low_stock_only', False)
-        
-        # Get all products
-        products = Product.objects.select_related('category').filter(active=True)
-        
-        if category_id:
-            products = products.filter(category_id=category_id)
-        
-        # Calculate current stock for each product
-        inventory_data = []
-        total_value = 0
-        
-        for product in products:
-            # Calculate current stock based on transactions
-            stock_query = Transaction.objects.filter(product=product)
+def calculate_product_level_summary(transactions):
+    """Calculate product-level summary for reports"""
+    from collections import defaultdict
+    
+    products = defaultdict(lambda: {
+        'name': '',
+        'product_id': '',
+        'qty_supplied': 0,
+        'qty_sold': 0, 
+        'total_cost': 0,
+        'total_revenue': 0
+    })
+    
+    for transaction in transactions:
+        if not transaction.product:
+            continue
             
-            if vessel_id:
-                stock_query = stock_query.filter(vessel_id=vessel_id)
-            
-            # Calculate stock: supplies - sales
-            supplies = stock_query.filter(
-                transaction_type='SUPPLY'
-            ).aggregate(
-                total=Sum('quantity')
-            )['total'] or 0
-            
-            sales = stock_query.filter(
-                transaction_type='SALE'
-            ).aggregate(
-                total=Sum('quantity')
-            )['total'] or 0
-            
-            current_stock = supplies - sales
-            
-            # Skip products with no stock if requested
-            min_stock = getattr(product, 'min_stock_level', 10) or 10
-            if low_stock_only and current_stock >= min_stock:
-                continue
-                
-            # Calculate value
-            unit_price = safe_float(getattr(product, 'current_price', None) or getattr(product, 'default_price', 0))
-            total_item_value = current_stock * unit_price
-            total_value += total_item_value
-            
-            # Get vessel name if filtered by vessel
-            vessel_name = 'All Vessels'
-            if vessel_id:
-                try:
-                    vessel = Vessel.objects.get(id=vessel_id)
-                    vessel_name = vessel.name
-                except Vessel.DoesNotExist:
-                    vessel_name = 'Unknown Vessel'
-            
-            inventory_data.append([
-                product.name,
-                getattr(product, 'product_id', 'N/A') or 'N/A',
-                product.category.name if product.category else 'Uncategorized',
-                safe_float(current_stock),
-                unit_price,
-                total_item_value,
-                vessel_name,
-                min_stock,
-                'Low Stock' if current_stock < min_stock else 'OK',
-                format_datetime(getattr(product, 'updated_at', None) or getattr(product, 'created_at', None))
-            ])
+        product_key = transaction.product.id
+        product_data = products[product_key]
         
-        # Sort by total value descending
-        inventory_data.sort(key=lambda x: safe_float(x[5]), reverse=True)
+        # Set product info
+        product_data['name'] = transaction.product.name
+        product_data['product_id'] = transaction.product.product_id
         
-        # Generate filename
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename_base = f"inventory_export_{timestamp}"
+        # Calculate quantities and amounts
+        quantity = safe_float(transaction.quantity)
         
-        # Metadata
-        metadata = {
-            'Export Date': datetime.now().strftime('%d/%m/%Y %H:%M'),
-            'Total Items': len(inventory_data),
-            'Total Inventory Value (JOD)': f"{total_value:.3f}",
-            'Generated By': request.user.username,
-            'Vessel Filter': vessel_name if vessel_id else 'All Vessels',
-            'Category Filter': f"Category ID: {category_id}" if category_id else 'All Categories',
-            'Low Stock Only': 'Yes' if low_stock_only else 'No'
-        }
-        
-        headers = [
-            'Product Name', 'Product ID', 'Category', 'Current Stock', 
-            'Unit Price (JOD)', 'Total Value (JOD)', 'Vessel', 
-            'Min Stock Level', 'Stock Status', 'Last Updated'
-        ]
-        
-        if export_format == 'excel':
-            try:
-                exporter = ExcelExporter(title="Inventory Export")
-                exporter.add_title("Inventory Report", f"Generated on {datetime.now().strftime('%d/%m/%Y %H:%M')}")
-                exporter.add_metadata(metadata)
-                exporter.add_headers(headers)
-                exporter.add_data_rows(inventory_data)
-                
-                # Add summary
-                summary_data = {
-                    'Total Items': len(inventory_data),
-                    'Total Value (JOD)': f"{total_value:.3f}",
-                    'Low Stock Items': len([item for item in inventory_data if item[8] == 'Low Stock'])
-                }
-                exporter.add_summary(summary_data)
-                
-                return exporter.get_response(f"{filename_base}.xlsx")
-                
-            except Exception as e:
-                logger.error(f"Excel inventory export error: {e}")
-                return JsonResponse({'success': False, 'error': f'Excel export failed: {str(e)}'})
-        
-        else:  # PDF
-            try:
-                exporter = create_pdf_exporter_for_data("Inventory Report", "wide")
-                exporter.add_title("Inventory Report", f"Generated on {datetime.now().strftime('%d/%m/%Y %H:%M')}")
-                exporter.add_metadata(metadata)
-                exporter.add_table(headers, inventory_data, auto_size_columns=True)
-                
-                return exporter.get_response(f"{filename_base}.pdf")
-                
-            except Exception as e:
-                logger.error(f"PDF inventory export error: {e}")
-                return JsonResponse({'success': False, 'error': f'PDF export failed: {str(e)}'})
-                
-    except json.JSONDecodeError:
-        return JsonResponse({'success': False, 'error': 'Invalid JSON data'})
-    except Exception as e:
-        logger.error(f"Inventory export error: {e}")
-        return JsonResponse({'success': False, 'error': f'Export failed: {str(e)}'})
+        if transaction.transaction_type == 'SUPPLY':
+            product_data['qty_supplied'] += quantity
+            product_data['total_cost'] += quantity * safe_float(transaction.unit_price)
+        elif transaction.transaction_type == 'SALE':
+            product_data['qty_sold'] += quantity
+            product_data['total_revenue'] += quantity * safe_float(transaction.unit_price)
+        # Note: Transfers are not included in product summary as they don't change overall inventory
+    
+    # Convert to list format for export
+    summary_data = []
+    for product_data in products.values():
+        net_profit = product_data['total_revenue'] - product_data['total_cost']
+        summary_data.append([
+            product_data['name'],
+            product_data['product_id'],
+            format_currency(product_data['qty_supplied'], 3),
+            format_currency(product_data['qty_sold'], 3),
+            format_currency(product_data['total_cost'], 3),
+            format_currency(product_data['total_revenue'], 3),
+            format_currency(net_profit, 3)
+        ])
+    
+    # Sort by net profit descending
+    summary_data.sort(key=lambda x: float(x[6].replace(',', '')), reverse=True)
+    
+    return summary_data
 
 # ===============================================================================
 # TRIP EXPORTS (LIST AND INDIVIDUAL)
@@ -350,7 +488,7 @@ def export_inventory(request):
 @login_required
 @require_http_methods(["POST"])
 def export_trips(request):
-    """Export trips list to Excel or PDF - FIXED VERSION"""
+    """Export trips list to Excel or PDF - Updated with simplified status"""
     try:
         data = json.loads(request.body)
         export_format = data.get('format', 'excel')
@@ -395,16 +533,17 @@ def export_trips(request):
             # Get transaction count
             transaction_count = Transaction.objects.filter(trip=trip).count()
             
+            # Determine trip status (Completed/Pending)
+            trip_status = "Completed" if getattr(trip, 'is_completed', False) or getattr(trip, 'status', '') == 'completed' else "Pending"
+            
             table_data.append([
                 trip.trip_number,
                 format_date(trip.trip_date),
                 trip.vessel.name if trip.vessel else 'N/A',
-                trip.get_status_display() if hasattr(trip, 'get_status_display') else getattr(trip, 'status', 'N/A'),
-                safe_float(trip_revenue),
+                trip_status,
+                format_currency(trip_revenue, 3),
                 safe_int(transaction_count),
                 safe_int(getattr(trip, 'passenger_count', 0)),
-                format_datetime(trip.start_time) if hasattr(trip, 'start_time') and trip.start_time else 'N/A',
-                format_datetime(trip.end_time) if hasattr(trip, 'end_time') and trip.end_time else 'Ongoing',
                 trip.created_by.username if trip.created_by else 'System'
             ])
         
@@ -417,7 +556,7 @@ def export_trips(request):
             'Export Date': datetime.now().strftime('%d/%m/%Y %H:%M'),
             'Date Range': f"{format_date(start_date)} to {format_date(end_date)}",
             'Total Records': len(table_data),
-            'Total Revenue (JOD)': f"{total_revenue:.3f}",
+            'Total Revenue (JOD)': format_currency(total_revenue, 3),
             'Generated By': request.user.username,
             'Vessel Filter': vessel_id or 'All',
             'Status Filter': status or 'All'
@@ -425,9 +564,15 @@ def export_trips(request):
         
         headers = [
             'Trip Number', 'Date', 'Vessel', 'Status', 
-            'Revenue (JOD)', 'Transactions', 'Passengers', 'Start Time', 
-            'End Time', 'Created By'
+            'Revenue (JOD)', 'Transactions', 'Passengers', 'Created By'
         ]
+        
+        # Create summary data
+        summary_data = {
+            'Total Trips': len(table_data),
+            'Total Revenue (JOD)': format_currency(total_revenue, 3),
+            'Average Revenue per Trip (JOD)': format_currency((total_revenue / len(table_data)) if table_data else 0, 3)
+        }
         
         if export_format == 'excel':
             try:
@@ -436,13 +581,6 @@ def export_trips(request):
                 exporter.add_metadata(metadata)
                 exporter.add_headers(headers)
                 exporter.add_data_rows(table_data)
-                
-                # Add summary
-                summary_data = {
-                    'Total Trips': len(table_data),
-                    'Total Revenue (JOD)': f"{total_revenue:.3f}",
-                    'Average Revenue per Trip (JOD)': f"{(total_revenue / len(table_data)) if table_data else 0:.3f}"
-                }
                 exporter.add_summary(summary_data)
                 
                 return exporter.get_response(f"{filename_base}.xlsx")
@@ -453,10 +591,10 @@ def export_trips(request):
         
         else:  # PDF
             try:
-                exporter = create_pdf_exporter_for_data("Trips Report", "wide")
-                exporter.add_title("Trips Report", f"Generated on {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+                exporter = create_weasy_exporter_for_data("Trips Report", "wide")
                 exporter.add_metadata(metadata)
-                exporter.add_table(headers, table_data, auto_size_columns=True)
+                exporter.add_table(headers, table_data, table_title="Trips Overview")
+                exporter.add_summary(summary_data)
                 
                 return exporter.get_response(f"{filename_base}.pdf")
                 
@@ -472,7 +610,7 @@ def export_trips(request):
 
 @require_http_methods(["POST"])
 def export_single_trip(request, trip_id):
-    """Export individual trip details for journal entries"""
+    """Export individual trip details - Updated with proper formatting"""
     try:
         data = json.loads(request.body)
         export_format = data.get('format', 'excel')
@@ -504,12 +642,12 @@ def export_single_trip(request, trip_id):
                 format_datetime(transaction.transaction_date),
                 transaction.product.name if transaction.product else 'N/A',
                 transaction.product.product_id if transaction.product else 'N/A',
-                safe_float(transaction.quantity),
-                safe_float(transaction.unit_price),
-                cogs / safe_float(transaction.quantity) if safe_float(transaction.quantity) > 0 else 0,
-                revenue,
-                cogs,
-                profit,
+                format_currency(transaction.quantity, 3),
+                format_currency(transaction.unit_price, 3),
+                format_currency(cogs / safe_float(transaction.quantity) if safe_float(transaction.quantity) > 0 else 0, 3),
+                format_currency(revenue, 3),
+                format_currency(cogs, 3),
+                format_currency(profit, 3),
                 transaction.notes or ''
             ])
         
@@ -519,18 +657,21 @@ def export_single_trip(request, trip_id):
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         filename_base = f"trip_{trip.trip_number}_{timestamp}"
         
+        # Determine trip status
+        trip_status = "Completed" if getattr(trip, 'is_completed', False) or getattr(trip, 'status', '') == 'completed' else "Pending"
+        
         # Metadata
         metadata = {
             'Export Date': datetime.now().strftime('%d/%m/%Y %H:%M'),
             'Trip Number': trip.trip_number,
             'Vessel': trip.vessel.name if trip.vessel else 'N/A',
             'Trip Date': format_date(trip.trip_date),
-            'Status': trip.get_status_display() if hasattr(trip, 'get_status_display') else getattr(trip, 'status', 'N/A'),
+            'Status': trip_status,
             'Passengers': safe_int(getattr(trip, 'passenger_count', 0)),
-            'Total Revenue (JOD)': f"{total_revenue:.3f}",
-            'Total COGS (JOD)': f"{total_cogs:.3f}",
-            'Total Profit (JOD)': f"{total_profit:.3f}",
-            'Profit Margin (%)': f"{(total_profit/total_revenue*100) if total_revenue > 0 else 0:.1f}%",
+            'Total Revenue (JOD)': format_currency(total_revenue, 3),
+            'Total COGS (JOD)': format_currency(total_cogs, 3),
+            'Total Profit (JOD)': format_currency(total_profit, 3),
+            'Profit Margin': format_percentage((total_profit/total_revenue*100) if total_revenue > 0 else 0),
             'Generated By': request.user.username
         }
         
@@ -540,6 +681,15 @@ def export_single_trip(request, trip_id):
             'Revenue (JOD)', 'COGS (JOD)', 'Profit (JOD)', 'Notes'
         ]
         
+        # Create summary data
+        summary_data = {
+            'Total Items Sold': len(transaction_data),
+            'Total Revenue (JOD)': format_currency(total_revenue, 3),
+            'Total COGS (JOD)': format_currency(total_cogs, 3),
+            'Total Profit (JOD)': format_currency(total_profit, 3),
+            'Profit Margin': format_percentage((total_profit/total_revenue*100) if total_revenue > 0 else 0)
+        }
+        
         if export_format == 'excel':
             try:
                 exporter = ExcelExporter(title=f"Trip {trip.trip_number}")
@@ -547,15 +697,6 @@ def export_single_trip(request, trip_id):
                 exporter.add_metadata(metadata)
                 exporter.add_headers(headers)
                 exporter.add_data_rows(transaction_data)
-                
-                # Add summary
-                summary_data = {
-                    'Total Items Sold': len(transaction_data),
-                    'Total Revenue (JOD)': f"{total_revenue:.3f}",
-                    'Total COGS (JOD)': f"{total_cogs:.3f}",
-                    'Total Profit (JOD)': f"{total_profit:.3f}",
-                    'Profit Margin (%)': f"{(total_profit/total_revenue*100) if total_revenue > 0 else 0:.1f}%"
-                }
                 exporter.add_summary(summary_data)
                 
                 return exporter.get_response(f"{filename_base}.xlsx")
@@ -566,10 +707,10 @@ def export_single_trip(request, trip_id):
         
         else:  # PDF
             try:
-                exporter = create_pdf_exporter_for_data(f"Trip {trip.trip_number} Report", "wide")
-                exporter.add_title(f"Trip Sales Report - {trip.trip_number}", f"Generated on {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+                exporter = create_weasy_exporter_for_data(f"Trip {trip.trip_number} Report", "wide")
                 exporter.add_metadata(metadata)
-                exporter.add_table(headers, transaction_data, auto_size_columns=True)
+                exporter.add_table(headers, transaction_data, table_title=f"Trip {trip.trip_number} - Transaction Details")
+                exporter.add_summary(summary_data)
                 
                 return exporter.get_response(f"{filename_base}.pdf")
                 
@@ -590,7 +731,7 @@ def export_single_trip(request, trip_id):
 @login_required
 @require_http_methods(["POST"])
 def export_purchase_orders(request):
-    """Export purchase orders list to Excel or PDF - FIXED VERSION"""
+    """Export purchase orders list to Excel or PDF"""
     try:
         data = json.loads(request.body)
         export_format = data.get('format', 'excel')
@@ -641,16 +782,18 @@ def export_purchase_orders(request):
             # Get item count
             item_count = Transaction.objects.filter(purchase_order=po).count()
             
+            # Determine PO status
+            po_status = "Completed" if getattr(po, 'is_completed', False) else "Pending"
+            
             table_data.append([
                 po.po_number,
                 format_date(po.po_date),
                 po.vessel.name if po.vessel else 'N/A',
                 getattr(po, 'supplier_name', 'N/A'),
-                'Completed' if getattr(po, 'is_completed', False) else 'Pending',
-                safe_float(po_cost),
+                po_status,
+                format_currency(po_cost, 3),
                 safe_int(item_count),
                 format_date(getattr(po, 'expected_delivery_date', None)) if hasattr(po, 'expected_delivery_date') else 'N/A',
-                format_date(getattr(po, 'actual_delivery_date', None)) if hasattr(po, 'actual_delivery_date') else 'Pending',
                 po.created_by.username if po.created_by else 'System',
                 getattr(po, 'notes', '') or ''
             ])
@@ -664,7 +807,7 @@ def export_purchase_orders(request):
             'Export Date': datetime.now().strftime('%d/%m/%Y %H:%M'),
             'Date Range': f"{format_date(start_date)} to {format_date(end_date)}",
             'Total Records': len(table_data),
-            'Total Cost (JOD)': f"{total_cost:.3f}",
+            'Total Cost (JOD)': format_currency(total_cost, 3),
             'Generated By': request.user.username,
             'Status Filter': status or 'All',
             'Vessel Filter': vessel_id or 'All'
@@ -673,8 +816,17 @@ def export_purchase_orders(request):
         headers = [
             'PO Number', 'Date Created', 'Vessel', 'Supplier', 'Status',
             'Total Cost (JOD)', 'Total Items', 'Expected Delivery', 
-            'Actual Delivery', 'Created By', 'Notes'
+            'Created By', 'Notes'
         ]
+        
+        # Create summary data
+        summary_data = {
+            'Total POs': len(table_data),
+            'Total Cost (JOD)': format_currency(total_cost, 3),
+            'Average Cost (JOD)': format_currency((total_cost / len(table_data)) if table_data else 0, 3),
+            'Completed POs': len([row for row in table_data if row[4] == 'Completed']),
+            'Pending POs': len([row for row in table_data if row[4] == 'Pending'])
+        }
         
         if export_format == 'excel':
             try:
@@ -683,13 +835,6 @@ def export_purchase_orders(request):
                 exporter.add_metadata(metadata)
                 exporter.add_headers(headers)
                 exporter.add_data_rows(table_data)
-                
-                # Add summary
-                summary_data = {
-                    'Total POs': len(table_data),
-                    'Total Cost (JOD)': f"{total_cost:.3f}",
-                    'Average Cost (JOD)': f"{(total_cost / len(table_data)) if table_data else 0:.3f}"
-                }
                 exporter.add_summary(summary_data)
                 
                 return exporter.get_response(f"{filename_base}.xlsx")
@@ -700,10 +845,10 @@ def export_purchase_orders(request):
         
         else:  # PDF
             try:
-                exporter = create_pdf_exporter_for_data("Purchase Orders Report", "wide")
-                exporter.add_title("Purchase Orders Report", f"Generated on {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+                exporter = create_weasy_exporter_for_data("Purchase Orders Report", "wide")
                 exporter.add_metadata(metadata)
-                exporter.add_table(headers, table_data, auto_size_columns=True)
+                exporter.add_table(headers, table_data, table_title="Purchase Orders Overview")
+                exporter.add_summary(summary_data)
                 
                 return exporter.get_response(f"{filename_base}.pdf")
                 
@@ -714,10 +859,9 @@ def export_purchase_orders(request):
     except json.JSONDecodeError:
         return JsonResponse({'success': False, 'error': 'Invalid JSON data'})
     except Exception as e:
-        logger.error(f"PO export error: {e}")
+        logger.error(f"Purchase orders export error: {e}")
         return JsonResponse({'success': False, 'error': f'Export failed: {str(e)}'})
 
-@login_required
 @require_http_methods(["POST"])
 def export_single_po(request, po_id):
     """Export individual purchase order details for journal entries"""
@@ -728,12 +872,13 @@ def export_single_po(request, po_id):
         # Get PO
         po = get_object_or_404(PurchaseOrder, id=po_id)
         
-        # Get PO transactions
+        # Get PO transactions (supply transactions)
         transactions = Transaction.objects.filter(
-            purchase_order=po
+            purchase_order=po,
+            transaction_type='SUPPLY'
         ).select_related('product', 'product__category').order_by('transaction_date')
         
-        # Calculate totals
+        # Calculate total cost
         total_cost = 0
         
         # Prepare transaction data
@@ -762,11 +907,9 @@ def export_single_po(request, po_id):
             'PO Number': po.po_number,
             'Vessel': po.vessel.name if po.vessel else 'N/A',
             'PO Date': format_date(po.po_date),
-            'Status': 'Completed' if getattr(po, 'is_completed', False) else 'Pending',
             'Supplier': getattr(po, 'supplier_name', 'N/A'),
+            'Status': 'Completed' if getattr(po, 'is_completed', False) else 'Pending',
             'Total Cost (JOD)': f"{total_cost:.3f}",
-            'Total Items': len(transaction_data),
-            'Average Cost per Item (JOD)': f"{(total_cost / len(transaction_data)) if transaction_data else 0:.3f}",
             'Generated By': request.user.username
         }
         
@@ -775,6 +918,13 @@ def export_single_po(request, po_id):
             'Unit Cost (JOD)', 'Total Cost (JOD)', 'Notes'
         ]
         
+        # Create summary data (used by both Excel and PDF)
+        summary_data = {
+            'Total Items Received': len(transaction_data),
+            'Total Cost (JOD)': f"{total_cost:.3f}",
+            'Average Cost per Item (JOD)': f"{(total_cost / len(transaction_data)) if transaction_data else 0:.3f}"
+        }
+        
         if export_format == 'excel':
             try:
                 exporter = ExcelExporter(title=f"PO {po.po_number}")
@@ -782,13 +932,6 @@ def export_single_po(request, po_id):
                 exporter.add_metadata(metadata)
                 exporter.add_headers(headers)
                 exporter.add_data_rows(transaction_data)
-                
-                # Add summary
-                summary_data = {
-                    'Total Items Received': len(transaction_data),
-                    'Total Cost (JOD)': f"{total_cost:.3f}",
-                    'Average Cost per Item (JOD)': f"{(total_cost / len(transaction_data)) if transaction_data else 0:.3f}"
-                }
                 exporter.add_summary(summary_data)
                 
                 return exporter.get_response(f"{filename_base}.xlsx")
@@ -799,10 +942,10 @@ def export_single_po(request, po_id):
         
         else:  # PDF
             try:
-                exporter = create_pdf_exporter_for_data(f"PO {po.po_number} Report", "normal")
-                exporter.add_title(f"Purchase Order Supply Report - {po.po_number}", f"Generated on {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+                exporter = create_weasy_exporter_for_data(f"PO {po.po_number} Report", "normal")
                 exporter.add_metadata(metadata)
-                exporter.add_table(headers, transaction_data, auto_size_columns=True)
+                exporter.add_table(headers, transaction_data, table_title=f"PO {po.po_number} - Item Details")
+                exporter.add_summary(summary_data)
                 
                 return exporter.get_response(f"{filename_base}.pdf")
                 
@@ -823,7 +966,7 @@ def export_single_po(request, po_id):
 @login_required
 @require_http_methods(["POST"])
 def export_monthly_report(request):
-    """Export monthly performance report"""
+    """Export monthly performance report with transfer tracking"""
     try:
         data = json.loads(request.body)
         export_format = data.get('format', 'excel')
@@ -842,74 +985,114 @@ def export_monthly_report(request):
         else:
             end_date = datetime(selected_year, selected_month + 1, 1).date() - timedelta(days=1)
         
-        # Get all vessels
-        vessels = Vessel.objects.filter(active=True)
+        # Get month name
+        month_name = calendar.month_name[selected_month]
         
-        # Calculate vessel performance
+        # Calculate performance for each vessel
+        vessels = Vessel.objects.filter(active=True)
         vessel_performance = []
         monthly_revenue = 0
         monthly_costs = 0
-        monthly_profit = 0
+        monthly_transfer_out = 0
+        monthly_transfer_in = 0
         
         for vessel in vessels:
-            # Get vessel transactions for the month
-            vessel_transactions = Transaction.objects.filter(
+            # Get sales (revenue) for the month
+            sales = Transaction.objects.filter(
                 vessel=vessel,
-                created_at__date__gte=start_date,
-                created_at__date__lte=end_date
+                transaction_type='SALE',
+                transaction_date__gte=start_date,
+                transaction_date__lte=end_date
+            ).aggregate(
+                revenue=Sum(F('quantity') * F('unit_price')),
+                count=Count('id')
             )
             
-            vessel_stats = vessel_transactions.aggregate(
-                revenue=Sum(F('unit_price') * F('quantity'), filter=Q(transaction_type='SALE')),
-                costs=Sum(F('unit_price') * F('quantity'), filter=Q(transaction_type='SUPPLY')),
-                sales_count=Count('id', filter=Q(transaction_type='SALE')),
-                supply_count=Count('id', filter=Q(transaction_type='SUPPLY'))
+            # Get supplies (costs) for the month
+            supplies = Transaction.objects.filter(
+                vessel=vessel,
+                transaction_type='SUPPLY',
+                transaction_date__gte=start_date,
+                transaction_date__lte=end_date
+            ).aggregate(
+                costs=Sum(F('quantity') * F('unit_price')),
+                count=Count('id')
             )
             
-            vessel_revenue = safe_float(vessel_stats['revenue'])
-            vessel_costs = safe_float(vessel_stats['costs'])
-            vessel_profit = vessel_revenue - vessel_costs
+            # Get transfer out for the month
+            transfers_out = Transaction.objects.filter(
+                vessel=vessel,
+                transaction_type='TRANSFER_OUT',
+                transaction_date__gte=start_date,
+                transaction_date__lte=end_date
+            )
+            transfer_out_total = sum(calculate_transfer_amounts(t) for t in transfers_out)
             
-            monthly_revenue += vessel_revenue
-            monthly_costs += vessel_costs
-            monthly_profit += vessel_profit
+            # Get transfer in for the month
+            transfers_in = Transaction.objects.filter(
+                vessel=vessel,
+                transaction_type='TRANSFER_IN',
+                transaction_date__gte=start_date,
+                transaction_date__lte=end_date
+            )
+            transfer_in_total = sum(calculate_transfer_amounts(t) for t in transfers_in)
             
-            # Calculate profit margin
-            profit_margin = (vessel_profit / vessel_revenue * 100) if vessel_revenue > 0 else 0
+            revenue = safe_float(sales['revenue'])
+            costs = safe_float(supplies['costs'])
+            profit = revenue - costs
+            profit_margin = (profit / revenue * 100) if revenue > 0 else 0
+            
+            monthly_revenue += revenue
+            monthly_costs += costs
+            monthly_transfer_out += transfer_out_total
+            monthly_transfer_in += transfer_in_total
             
             vessel_performance.append([
                 vessel.name,
-                vessel_revenue,
-                vessel_costs,
-                vessel_profit,
-                f"{profit_margin:.1f}%",
-                safe_int(vessel_stats['sales_count']),
-                safe_int(vessel_stats['supply_count'])
+                format_currency(revenue, 3),
+                format_currency(costs, 3),
+                format_currency(profit, 3),
+                format_percentage(profit_margin),
+                safe_int(sales['count']),
+                safe_int(supplies['count']),
+                format_currency(transfer_out_total, 3),
+                format_currency(transfer_in_total, 3)
             ])
         
-        # Sort by profit descending
-        vessel_performance.sort(key=lambda x: safe_float(x[3]), reverse=True)
+        monthly_profit = monthly_revenue - monthly_costs
         
         # Generate filename
-        month_name = calendar.month_name[selected_month]
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename_base = f"monthly_report_{month_name}_{selected_year}_{timestamp}"
+        filename_base = f"monthly_report_{selected_year}_{selected_month:02d}_{timestamp}"
         
         # Metadata
         metadata = {
+            'Report Period': f"{month_name} {selected_year}",
             'Export Date': datetime.now().strftime('%d/%m/%Y %H:%M'),
-            'Report Month': f"{month_name} {selected_year}",
-            'Total Revenue (JOD)': f"{monthly_revenue:.3f}",
-            'Total Costs (JOD)': f"{monthly_costs:.3f}",
-            'Total Profit (JOD)': f"{monthly_profit:.3f}",
-            'Profit Margin (%)': f"{(monthly_profit / monthly_revenue * 100) if monthly_revenue > 0 else 0:.1f}%",
+            'Date Range': f"{format_date(start_date)} to {format_date(end_date)}",
+            'Total Revenue (JOD)': format_currency(monthly_revenue, 3),
+            'Total Costs (JOD)': format_currency(monthly_costs, 3),
+            'Total Profit (JOD)': format_currency(monthly_profit, 3),
+            'Total Transfer Out (JOD)': format_currency(monthly_transfer_out, 3),
+            'Total Transfer In (JOD)': format_currency(monthly_transfer_in, 3),
+            'Overall Profit Margin': format_percentage((monthly_profit / monthly_revenue * 100) if monthly_revenue > 0 else 0),
             'Generated By': request.user.username
         }
         
         headers = [
             'Vessel', 'Revenue (JOD)', 'Costs (JOD)', 'Profit (JOD)', 
-            'Profit Margin (%)', 'Sales Count', 'Supply Count'
+            'Profit Margin (%)', 'Sales Count', 'Supply Count',
+            'Transfer Out (JOD)', 'Transfer In (JOD)'
         ]
+        
+        # Create summary data 
+        summary_data = {
+            'Total Vessels': len(vessel_performance),
+            'Total Revenue (JOD)': format_currency(monthly_revenue, 3),
+            'Total Profit (JOD)': format_currency(monthly_profit, 3),
+            'Overall Profit Margin': format_percentage((monthly_profit / monthly_revenue * 100) if monthly_revenue > 0 else 0),
+            'Net Transfers': format_currency(monthly_transfer_out - monthly_transfer_in, 3)
+        }
         
         if export_format == 'excel':
             try:
@@ -918,14 +1101,6 @@ def export_monthly_report(request):
                 exporter.add_metadata(metadata)
                 exporter.add_headers(headers)
                 exporter.add_data_rows(vessel_performance)
-                
-                # Add summary
-                summary_data = {
-                    'Total Vessels': len(vessel_performance),
-                    'Total Revenue (JOD)': f"{monthly_revenue:.3f}",
-                    'Total Profit (JOD)': f"{monthly_profit:.3f}",
-                    'Overall Profit Margin (%)': f"{(monthly_profit / monthly_revenue * 100) if monthly_revenue > 0 else 0:.1f}%"
-                }
                 exporter.add_summary(summary_data)
                 
                 return exporter.get_response(f"{filename_base}.xlsx")
@@ -936,10 +1111,10 @@ def export_monthly_report(request):
         
         else:  # PDF
             try:
-                exporter = create_pdf_exporter_for_data("Monthly Report", "normal")
-                exporter.add_title(f"Monthly Report - {month_name} {selected_year}", f"Generated on {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+                exporter = create_weasy_exporter_for_data("Monthly Report", "normal")
                 exporter.add_metadata(metadata)
-                exporter.add_table(headers, vessel_performance, auto_size_columns=True)
+                exporter.add_table(headers, vessel_performance, table_title=f"Monthly Performance - {month_name} {selected_year}")
+                exporter.add_summary(summary_data)
                 
                 return exporter.get_response(f"{filename_base}.pdf")
                 
@@ -972,69 +1147,82 @@ def export_daily_report(request):
         else:
             selected_date = timezone.now().date()
         
-        # Get all vessels
+        # Calculate performance for each vessel for the selected day
         vessels = Vessel.objects.filter(active=True)
-        
-        # Calculate vessel performance for the day
         vessel_performance = []
         daily_revenue = 0
         daily_costs = 0
         
         for vessel in vessels:
-            # Get vessel transactions for the day
-            vessel_transactions = Transaction.objects.filter(
+            # Get sales (revenue) for the day
+            sales = Transaction.objects.filter(
                 vessel=vessel,
-                created_at__date=selected_date
+                transaction_type='SALE',
+                transaction_date=selected_date
+            ).aggregate(
+                revenue=Sum(F('quantity') * F('unit_price')),
+                count=Count('id')
             )
             
-            vessel_stats = vessel_transactions.aggregate(
-                revenue=Sum(F('unit_price') * F('quantity'), filter=Q(transaction_type='SALE')),
-                costs=Sum(F('unit_price') * F('quantity'), filter=Q(transaction_type='SUPPLY')),
-                sales_count=Count('id', filter=Q(transaction_type='SALE')),
-                supply_count=Count('id', filter=Q(transaction_type='SUPPLY'))
+            # Get supplies (costs) for the day
+            supplies = Transaction.objects.filter(
+                vessel=vessel,
+                transaction_type='SUPPLY',
+                transaction_date=selected_date
+            ).aggregate(
+                costs=Sum(F('quantity') * F('unit_price')),
+                count=Count('id')
             )
             
-            vessel_revenue = safe_float(vessel_stats['revenue'])
-            vessel_costs = safe_float(vessel_stats['costs'])
-            vessel_profit = vessel_revenue - vessel_costs
-            
-            daily_revenue += vessel_revenue
-            daily_costs += vessel_costs
+            revenue = safe_float(sales['revenue'])
+            costs = safe_float(supplies['costs'])
+            profit = revenue - costs
+            profit_margin = (profit / revenue * 100) if revenue > 0 else 0
             
             # Only include vessels with activity
-            if vessel_revenue > 0 or vessel_costs > 0:
+            if revenue > 0 or costs > 0:
+                daily_revenue += revenue
+                daily_costs += costs
+                
                 vessel_performance.append([
                     vessel.name,
-                    vessel_revenue,
-                    vessel_costs,
-                    vessel_profit,
-                    safe_int(vessel_stats['sales_count']),
-                    safe_int(vessel_stats['supply_count'])
+                    format_currency(revenue, 3),
+                    format_currency(costs, 3),
+                    format_currency(profit, 3),
+                    format_percentage(profit_margin),
+                    safe_int(sales['count']),
+                    safe_int(supplies['count'])
                 ])
         
-        # Sort by revenue descending
-        vessel_performance.sort(key=lambda x: safe_float(x[1]), reverse=True)
+        daily_profit = daily_revenue - daily_costs
         
         # Generate filename
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         filename_base = f"daily_report_{selected_date.strftime('%Y%m%d')}_{timestamp}"
         
         # Metadata
-        daily_profit = daily_revenue - daily_costs
         metadata = {
-            'Export Date': datetime.now().strftime('%d/%m/%Y %H:%M'),
             'Report Date': format_date(selected_date),
-            'Total Revenue (JOD)': f"{daily_revenue:.3f}",
-            'Total Costs (JOD)': f"{daily_costs:.3f}",
-            'Total Profit (JOD)': f"{daily_profit:.3f}",
-            'Active Vessels': len(vessel_performance),
+            'Export Date': datetime.now().strftime('%d/%m/%Y %H:%M'),
+            'Total Revenue (JOD)': format_currency(daily_revenue, 3),
+            'Total Costs (JOD)': format_currency(daily_costs, 3),
+            'Total Profit (JOD)': format_currency(daily_profit, 3),
+            'Overall Profit Margin': format_percentage((daily_profit / daily_revenue * 100) if daily_revenue > 0 else 0),
             'Generated By': request.user.username
         }
         
         headers = [
             'Vessel', 'Revenue (JOD)', 'Costs (JOD)', 'Profit (JOD)', 
-            'Sales Count', 'Supply Count'
+            'Profit Margin (%)', 'Sales Count', 'Supply Count'
         ]
+        
+        # Create summary data
+        summary_data = {
+            'Active Vessels': len(vessel_performance),
+            'Total Revenue (JOD)': format_currency(daily_revenue, 3),
+            'Total Profit (JOD)': format_currency(daily_profit, 3),
+            'Overall Profit Margin': format_percentage((daily_profit / daily_revenue * 100) if daily_revenue > 0 else 0)
+        }
         
         if export_format == 'excel':
             try:
@@ -1043,13 +1231,6 @@ def export_daily_report(request):
                 exporter.add_metadata(metadata)
                 exporter.add_headers(headers)
                 exporter.add_data_rows(vessel_performance)
-                
-                # Add summary
-                summary_data = {
-                    'Active Vessels': len(vessel_performance),
-                    'Total Revenue (JOD)': f"{daily_revenue:.3f}",
-                    'Total Profit (JOD)': f"{daily_profit:.3f}"
-                }
                 exporter.add_summary(summary_data)
                 
                 return exporter.get_response(f"{filename_base}.xlsx")
@@ -1060,10 +1241,10 @@ def export_daily_report(request):
         
         else:  # PDF
             try:
-                exporter = create_pdf_exporter_for_data("Daily Report", "normal")
-                exporter.add_title(f"Daily Report - {format_date(selected_date)}", f"Generated on {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+                exporter = create_weasy_exporter_for_data("Daily Report", "normal")
                 exporter.add_metadata(metadata)
-                exporter.add_table(headers, vessel_performance, auto_size_columns=True)
+                exporter.add_table(headers, vessel_performance, table_title=f"Daily Performance - {format_date(selected_date)}")
+                exporter.add_summary(summary_data)
                 
                 return exporter.get_response(f"{filename_base}.pdf")
                 
@@ -1084,7 +1265,7 @@ def export_daily_report(request):
 @login_required
 @require_http_methods(["POST"])
 def export_analytics(request):
-    """Export analytics report with performance metrics"""
+    """Export analytics report with performance metrics and charts"""
     try:
         data = json.loads(request.body)
         export_format = data.get('format', 'excel')
@@ -1099,77 +1280,117 @@ def export_analytics(request):
         if data.get('end_date'):
             end_date = datetime.strptime(data.get('end_date'), '%Y-%m-%d').date()
         
-        # Get overall statistics
-        total_stats = Transaction.objects.filter(
-            created_at__date__gte=start_date,
-            created_at__date__lte=end_date
-        ).aggregate(
-            total_revenue=Sum(F('unit_price') * F('quantity'), filter=Q(transaction_type='SALE')),
-            total_costs=Sum(F('unit_price') * F('quantity'), filter=Q(transaction_type='SUPPLY')),
-            transaction_count=Count('id'),
-            sales_count=Count('id', filter=Q(transaction_type='SALE')),
-            supply_count=Count('id', filter=Q(transaction_type='SUPPLY'))
-        )
-        
-        # Get vessel analytics
+        # Calculate comprehensive analytics for each vessel
         vessels = Vessel.objects.filter(active=True)
         vessel_analytics = []
+        total_revenue = 0
+        total_costs = 0
+        total_pos = 0
+        po_analytics = []
         
         for vessel in vessels:
-            vessel_transactions = Transaction.objects.filter(
+            # Get sales data
+            sales_stats = Transaction.objects.filter(
                 vessel=vessel,
-                created_at__date__gte=start_date,
-                created_at__date__lte=end_date
+                transaction_type='SALE',
+                transaction_date__gte=start_date,
+                transaction_date__lte=end_date
+            ).aggregate(
+                revenue=Sum(F('quantity') * F('unit_price')),
+                sales_count=Count('id'),
+                avg_transaction=Sum(F('quantity') * F('unit_price')) / Count('id')
             )
             
-            vessel_stats = vessel_transactions.aggregate(
-                revenue=Sum(F('unit_price') * F('quantity'), filter=Q(transaction_type='SALE')),
-                costs=Sum(F('unit_price') * F('quantity'), filter=Q(transaction_type='SUPPLY')),
-                sales_count=Count('id', filter=Q(transaction_type='SALE')),
-                avg_transaction_value=Sum(F('unit_price') * F('quantity'), filter=Q(transaction_type='SALE')) / Count('id', filter=Q(transaction_type='SALE'))
+            # Get supply data
+            supply_stats = Transaction.objects.filter(
+                vessel=vessel,
+                transaction_type='SUPPLY',
+                transaction_date__gte=start_date,
+                transaction_date__lte=end_date
+            ).aggregate(
+                costs=Sum(F('quantity') * F('unit_price')),
+                supply_count=Count('id')
             )
             
-            vessel_revenue = safe_float(vessel_stats['revenue'])
-            vessel_costs = safe_float(vessel_stats['costs'])
-            profit_margin = ((vessel_revenue - vessel_costs) / vessel_revenue * 100) if vessel_revenue > 0 else 0
+            # Get PO data
+            po_stats = PurchaseOrder.objects.filter(
+                vessel=vessel,
+                po_date__gte=start_date,
+                po_date__lte=end_date
+            ).aggregate(
+                po_count=Count('id'),
+                total_po_cost=Sum('total_cost')
+            )
             
-            vessel_analytics.append([
-                vessel.name,
-                vessel_revenue,
-                vessel_costs,
-                f"{profit_margin:.1f}%",
-                safe_int(vessel_stats['sales_count']),
-                safe_float(vessel_stats['avg_transaction_value']),
-                'Duty-Free' if vessel.has_duty_free else 'Regular'
-            ])
+            revenue = safe_float(sales_stats['revenue'])
+            costs = safe_float(supply_stats['costs'])
+            po_cost = safe_float(po_stats['total_po_cost'])
+            profit_margin = ((revenue - costs) / revenue * 100) if revenue > 0 else 0
+            
+            total_revenue += revenue
+            total_costs += costs
+            total_pos += safe_int(po_stats['po_count'])
+            
+            # Only include vessels with activity
+            if revenue > 0 or costs > 0 or po_cost > 0:
+                vessel_analytics.append([
+                    vessel.name,
+                    format_currency(revenue, 3),
+                    format_currency(costs, 3),
+                    format_percentage(profit_margin),
+                    safe_int(sales_stats['sales_count']),
+                    format_currency(safe_float(sales_stats['avg_transaction']), 3),
+                    safe_int(po_stats['po_count']),
+                    format_currency(po_cost, 3)
+                ])
+                
+                # For PO chart data
+                if po_cost > 0:
+                    po_analytics.append((vessel.name[:15], po_cost))
         
-        # Sort by revenue descending
-        vessel_analytics.sort(key=lambda x: safe_float(x[1]), reverse=True)
+        # Sort by revenue (descending)
+        vessel_analytics.sort(key=lambda x: float(x[1].replace(',', '')), reverse=True)
+        
+        total_profit = total_revenue - total_costs
+        
+        # Calculate additional statistics
+        total_stats = Transaction.objects.filter(
+            transaction_date__gte=start_date,
+            transaction_date__lte=end_date
+        ).aggregate(
+            transaction_count=Count('id')
+        )
         
         # Generate filename
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         filename_base = f"analytics_report_{timestamp}"
         
         # Metadata
-        total_revenue = safe_float(total_stats['total_revenue'])
-        total_costs = safe_float(total_stats['total_costs'])
-        total_profit = total_revenue - total_costs
-        
         metadata = {
-            'Export Date': datetime.now().strftime('%d/%m/%Y %H:%M'),
             'Analysis Period': f"{format_date(start_date)} to {format_date(end_date)}",
-            'Total Revenue (JOD)': f"{total_revenue:.3f}",
-            'Total Costs (JOD)': f"{total_costs:.3f}",
-            'Total Profit (JOD)': f"{total_profit:.3f}",
+            'Total Revenue (JOD)': format_currency(total_revenue, 3),
+            'Total Costs (JOD)': format_currency(total_costs, 3),
+            'Total Profit (JOD)': format_currency(total_profit, 3),
             'Total Transactions': safe_int(total_stats['transaction_count']),
-            'Average Daily Revenue (JOD)': f"{(total_revenue / (end_date - start_date).days):.3f}",
+            'Total Purchase Orders': total_pos,
+            'Average Daily Revenue (JOD)': format_currency((total_revenue / (end_date - start_date).days), 3),
+            'Overall Profit Margin': format_percentage((total_profit / total_revenue * 100) if total_revenue > 0 else 0),
             'Generated By': request.user.username
         }
         
         headers = [
             'Vessel', 'Revenue (JOD)', 'Costs (JOD)', 'Profit Margin (%)', 
-            'Sales Count', 'Avg Transaction Value (JOD)', 'Type'
+            'Sales Count', 'Avg Transaction Value (JOD)', 'PO Count', 'PO Total Cost (JOD)'
         ]
+        
+        # Create summary data
+        summary_data = {
+            'Analysis Period': f"{(end_date - start_date).days} days",
+            'Total Revenue (JOD)': format_currency(total_revenue, 3),
+            'Overall Profit Margin': format_percentage((total_profit / total_revenue * 100) if total_revenue > 0 else 0),
+            'Best Performing Vessel': vessel_analytics[0][0] if vessel_analytics else 'N/A',
+            'Total Purchase Orders': total_pos
+        }
         
         if export_format == 'excel':
             try:
@@ -1178,14 +1399,6 @@ def export_analytics(request):
                 exporter.add_metadata(metadata)
                 exporter.add_headers(headers)
                 exporter.add_data_rows(vessel_analytics)
-                
-                # Add summary
-                summary_data = {
-                    'Analysis Period': f"{(end_date - start_date).days} days",
-                    'Total Revenue (JOD)': f"{total_revenue:.3f}",
-                    'Overall Profit Margin (%)': f"{(total_profit / total_revenue * 100) if total_revenue > 0 else 0:.1f}%",
-                    'Best Performing Vessel': vessel_analytics[0][0] if vessel_analytics else 'N/A'
-                }
                 exporter.add_summary(summary_data)
                 
                 return exporter.get_response(f"{filename_base}.xlsx")
@@ -1194,12 +1407,56 @@ def export_analytics(request):
                 logger.error(f"Excel analytics export error: {e}")
                 return JsonResponse({'success': False, 'error': f'Excel export failed: {str(e)}'})
         
-        else:  # PDF
+        else:  # PDF - Now landscape with charts
             try:
-                exporter = create_pdf_exporter_for_data("Analytics Report", "wide")
-                exporter.add_title("Analytics Report", f"Generated on {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+                exporter = create_weasy_exporter(title="Analytics Report", template_type="analytics", orientation="landscape")
                 exporter.add_metadata(metadata)
-                exporter.add_table(headers, vessel_analytics, auto_size_columns=True)
+                
+                # Add charts for analytics
+                if vessel_analytics:
+                    # Extract numeric values for charts
+                    try:
+                        # Revenue chart - extract vessel names and revenue values
+                        revenue_data = []
+                        profit_data = []
+                        
+                        for row in vessel_analytics[:8]:  # Limit to top 8 vessels for readability
+                            vessel_name = str(row[0])[:15]  # Truncate long names
+                            
+                            # Extract revenue (column 1) - handle formatted numbers
+                            revenue_str = str(row[1]).replace(',', '').replace('JOD', '').strip()
+                            try:
+                                revenue_val = float(revenue_str)
+                                revenue_data.append((vessel_name, revenue_val))
+                            except ValueError:
+                                pass
+                            
+                            # Extract profit margin (column 3) - handle percentage
+                            profit_str = str(row[3]).replace('%', '').replace(',', '').strip()
+                            try:
+                                profit_val = float(profit_str)
+                                profit_data.append((vessel_name, profit_val))
+                            except ValueError:
+                                pass
+                        
+                        if revenue_data:
+                            exporter.add_chart(revenue_data, 'bar', 'Revenue by Vessel (JOD)', 'revenue_chart')
+                        
+                        if profit_data:
+                            exporter.add_chart(profit_data, 'bar', 'Profit Margin by Vessel (%)', 'profit_chart')
+                        
+                        # Add PO chart
+                        if po_analytics:
+                            # Sort PO data by cost (descending) and take top 8
+                            po_analytics.sort(key=lambda x: x[1], reverse=True)
+                            po_chart_data = po_analytics[:8]
+                            exporter.add_chart(po_chart_data, 'bar', 'Purchase Order Costs by Vessel (JOD)', 'po_chart')
+                            
+                    except Exception as chart_error:
+                        logger.warning(f"Could not create charts for analytics: {chart_error}")
+                
+                exporter.add_table(headers, vessel_analytics, table_title="Vessel Performance Analytics")
+                exporter.add_summary(summary_data)
                 
                 return exporter.get_response(f"{filename_base}.pdf")
                 
