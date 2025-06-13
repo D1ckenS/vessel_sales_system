@@ -32,6 +32,7 @@ class ExcelExporter:
             
             self.title = title
             self.current_row = 1
+            self.header_count = 0  # Track number of headers for merging
             
             # Set up styles
             self._setup_styles()
@@ -50,42 +51,26 @@ class ExcelExporter:
         # Header style
         self.header_font = Font(size=11, bold=True, color="FFFFFF")
         self.header_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-        self.header_fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
-        self.header_border = Border(
-            left=Side(style='thin'),
-            right=Side(style='thin'),
-            top=Side(style='thin'),
-            bottom=Side(style='thin')
-        )
+        self.header_fill = PatternFill(start_color="2C3E50", end_color="2C3E50", fill_type="solid")
         
-        # Data style
-        self.data_font = Font(size=10)
-        self.data_alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
-        self.data_border = Border(
-            left=Side(style='thin', color="CCCCCC"),
-            right=Side(style='thin', color="CCCCCC"),
-            top=Side(style='thin', color="CCCCCC"),
-            bottom=Side(style='thin', color="CCCCCC")
-        )
-        
-        # Metadata style
-        self.metadata_font = Font(size=10, bold=True)
-        self.metadata_value_font = Font(size=10)
-        
+        # Border style
+        thin_border = Side(border_style="thin", color="000000")
+        self.border = Border(top=thin_border, left=thin_border, right=thin_border, bottom=thin_border)
+
     def add_title(self, title, subtitle=None):
         """Add title with proper column merging based on number of headers"""
         try:
-            # Store title info for later use when we know the column count
+            # Store title and subtitle for later merging when headers are added
             self.report_title = title
             self.report_subtitle = subtitle
             
-            # Add title row (will be merged later when headers are added)
+            # Add title row
             self.worksheet[f'A{self.current_row}'] = title
             self.worksheet[f'A{self.current_row}'].font = self.title_font
             self.worksheet[f'A{self.current_row}'].alignment = self.title_alignment
             self.worksheet[f'A{self.current_row}'].fill = self.title_fill
             
-            title_row = self.current_row
+            self.title_row = self.current_row
             self.current_row += 1
             
             # Add subtitle if provided
@@ -94,12 +79,10 @@ class ExcelExporter:
                 self.worksheet[f'A{self.current_row}'].font = Font(size=12, italic=True, color="666666")
                 self.worksheet[f'A{self.current_row}'].alignment = self.title_alignment
                 
-                subtitle_row = self.current_row
+                self.subtitle_row = self.current_row
                 self.current_row += 1
-            
-            # Store row numbers for later merging
-            self.title_row = title_row
-            self.subtitle_row = subtitle_row if subtitle else None
+            else:
+                self.subtitle_row = None
             
             # Add spacing
             self.current_row += 1
@@ -107,46 +90,49 @@ class ExcelExporter:
         except Exception as e:
             logger.error(f"Error adding Excel title: {e}")
             pass
-        
+
     def add_metadata(self, metadata):
-        """Add metadata with proper formatting"""
+        """Add metadata section"""
         try:
             if not metadata:
                 return
                 
-            # Metadata header
-            self.worksheet[f'A{self.current_row}'].value = "Report Information"
-            self.worksheet[f'A{self.current_row}'].font = Font(size=12, bold=True, color="1F4E79")
+            # Add metadata title
+            self.worksheet[f'A{self.current_row}'] = "Report Information"
+            self.worksheet[f'A{self.current_row}'].font = Font(size=12, bold=True, color="2C3E50")
             self.current_row += 1
             
-            # Add metadata rows
+            # Add metadata key-value pairs
             for key, value in metadata.items():
                 if key and value is not None:
+                    # Key in column A
                     key_cell = self.worksheet[f'A{self.current_row}']
+                    key_cell.value = f"{key}:"
+                    key_cell.font = Font(bold=True)
+                    key_cell.border = self.border
+                    
+                    # Value in column B
                     value_cell = self.worksheet[f'B{self.current_row}']
-                    
-                    key_cell.value = str(key) + ":"
-                    key_cell.font = self.metadata_font
-                    
                     value_cell.value = str(value)
-                    value_cell.font = self.metadata_value_font
+                    value_cell.border = self.border
                     
                     self.current_row += 1
-                    
+            
             # Add spacing
             self.current_row += 1
             
         except Exception as e:
-            logger.error(f"Error adding metadata: {e}")
-            # Don't fail entirely, just skip metadata
+            logger.error(f"Error adding Excel metadata: {e}")
             pass
-            
+
     def add_headers(self, headers):
         """Add headers and merge title rows to match header count"""
         try:
             if not headers:
                 return
                 
+            self.header_count = len(headers)
+            
             # Add headers
             for col_idx, header in enumerate(headers, 1):
                 cell = self.worksheet.cell(row=self.current_row, column=col_idx, value=str(header))
@@ -155,174 +141,28 @@ class ExcelExporter:
                 cell.fill = self.header_fill
                 cell.border = self.border
             
-            # Now merge title rows to match the number of header columns
-            if hasattr(self, 'title_row'):
-                end_column = get_column_letter(len(headers))
-                self.worksheet.merge_cells(f'A{self.title_row}:{end_column}{self.title_row}')
+            # NOW merge title rows to match the number of header columns
+            if hasattr(self, 'title_row') and self.header_count > 1:
+                end_column = get_column_letter(self.header_count)
+                try:
+                    self.worksheet.merge_cells(f'A{self.title_row}:{end_column}{self.title_row}')
+                except:
+                    pass  # Skip if merge fails
                 
                 if hasattr(self, 'subtitle_row') and self.subtitle_row:
-                    self.worksheet.merge_cells(f'A{self.subtitle_row}:{end_column}{self.subtitle_row}')
+                    try:
+                        self.worksheet.merge_cells(f'A{self.subtitle_row}:{end_column}{self.subtitle_row}')
+                    except:
+                        pass  # Skip if merge fails
             
             self.current_row += 1
             
         except Exception as e:
             logger.error(f"Error adding Excel headers: {e}")
             pass
-            
-    def add_data_rows(self, data_rows):
-        """Add data rows with proper formatting and error handling"""
-        try:
-            if not data_rows:
-                # Add "No data" message
-                self.worksheet[f'A{self.current_row}'].value = "No data available"
-                self.worksheet[f'A{self.current_row}'].font = Font(italic=True, color="666666")
-                self.current_row += 1
-                return
-                
-            # Track alternating row colors
-            alternate_fill = PatternFill(start_color="F8F9FA", end_color="F8F9FA", fill_type="solid")
-            
-            for row_idx, row_data in enumerate(data_rows):
-                if not row_data:
-                    continue
-                    
-                # Determine if this should be an alternate row
-                use_alternate = row_idx % 2 == 1
-                
-                # Add each cell in the row
-                for col_idx, cell_value in enumerate(row_data, 1):
-                    try:
-                        cell = self.worksheet.cell(row=self.current_row, column=col_idx)
-                        
-                        # Handle different data types
-                        if cell_value is None:
-                            cell.value = ''
-                        elif isinstance(cell_value, (int, float)):
-                            # For numeric values, store as number
-                            try:
-                                cell.value = float(cell_value)
-                                # Format numbers with appropriate decimal places
-                                if isinstance(cell_value, float) and abs(cell_value - int(cell_value)) > 0.001:
-                                    cell.number_format = '0.000'
-                                else:
-                                    cell.number_format = '0'
-                            except (ValueError, TypeError):
-                                cell.value = str(cell_value)
-                        else:
-                            # For text values, ensure it's a string and not too long
-                            str_value = str(cell_value)
-                            cell.value = str_value[:32000]  # Excel cell limit
-                        
-                        # Apply formatting
-                        cell.font = self.data_font
-                        cell.alignment = self.data_alignment
-                        cell.border = self.data_border
-                        
-                        if use_alternate:
-                            cell.fill = alternate_fill
-                            
-                    except Exception as cell_error:
-                        logger.error(f"Error setting cell value: {cell_error}")
-                        # Set a default value if individual cell fails
-                        cell = self.worksheet.cell(row=self.current_row, column=col_idx)
-                        cell.value = "Error"
-                        
-                self.current_row += 1
-                
-        except Exception as e:
-            logger.error(f"Error adding data rows: {e}")
-            # Add error message instead of failing completely
-            self.worksheet[f'A{self.current_row}'].value = f"Error loading data: {str(e)}"
-            self.current_row += 1
-            
-    def add_summary(self, summary_data):
-        """Add summary statistics with proper formatting"""
-        try:
-            if not summary_data:
-                return
-                
-            # Add spacing
-            self.current_row += 1
-            
-            # Summary header
-            self.worksheet[f'A{self.current_row}'].value = "Summary"
-            self.worksheet[f'A{self.current_row}'].font = Font(size=14, bold=True, color="1F4E79")
-            self.current_row += 1
-            
-            # Add summary rows
-            for key, value in summary_data.items():
-                if key and value is not None:
-                    key_cell = self.worksheet[f'A{self.current_row}']
-                    value_cell = self.worksheet[f'B{self.current_row}']
-                    
-                    key_cell.value = str(key) + ":"
-                    key_cell.font = Font(bold=True)
-                    
-                    # Handle numeric values in summary
-                    if isinstance(value, (int, float)):
-                        try:
-                            value_cell.value = float(value)
-                            if isinstance(value, float) and abs(value - int(value)) > 0.001:
-                                value_cell.number_format = '0.000'
-                        except (ValueError, TypeError):
-                            value_cell.value = str(value)
-                    else:
-                        value_cell.value = str(value)
-                    
-                    value_cell.font = Font(bold=True, color="1F4E79")
-                    
-                    self.current_row += 1
-                    
-        except Exception as e:
-            logger.error(f"Error adding summary: {e}")
-            # Don't fail entirely, just skip summary
-            pass
 
-    def add_summary_title(self, title):
-        """Add a summary section title"""
-        try:
-            # Add spacing before summary
-            self.current_row += 2
-            
-            # Add summary title
-            self.worksheet[f'A{self.current_row}'] = title
-            self.worksheet[f'A{self.current_row}'].font = Font(size=14, bold=True, color="1F4E79")
-            self.worksheet[f'A{self.current_row}'].alignment = Alignment(horizontal='left', vertical='center')
-            
-            self.summary_title_row = self.current_row
-            self.current_row += 1
-            
-        except Exception as e:
-            logger.error(f"Error adding summary title: {e}")
-            pass
-
-    def add_summary_headers(self, headers):
-        """Add summary headers"""
-        try:
-            if not headers:
-                return
-                
-            # Add summary headers
-            for col_idx, header in enumerate(headers, 1):
-                cell = self.worksheet.cell(row=self.current_row, column=col_idx, value=str(header))
-                cell.font = self.header_font
-                cell.alignment = self.header_alignment
-                cell.fill = PatternFill(start_color="E3F2FD", end_color="E3F2FD", fill_type="solid")
-                cell.border = self.border
-            
-            # Merge summary title to match summary headers
-            if hasattr(self, 'summary_title_row'):
-                end_column = get_column_letter(len(headers))
-                self.worksheet.merge_cells(f'A{self.summary_title_row}:{end_column}{self.summary_title_row}')
-            
-            self.current_row += 1
-            
-        except Exception as e:
-            logger.error(f"Error adding summary headers: {e}")
-            pass
-
-    def add_summary_data(self, data):
-        """Add summary data rows"""
+    def add_data_rows(self, data):
+        """Add data rows with proper formatting"""
         try:
             if not data:
                 return
@@ -333,60 +173,86 @@ class ExcelExporter:
                     cell.border = self.border
                     cell.alignment = Alignment(horizontal='left', vertical='center')
                     
-                    # Format numeric columns
-                    if col_idx >= 3:  # Quantity and currency columns
+                    # Format numeric columns (currency and quantities)
+                    if col_idx >= 5 and isinstance(value, (int, float)):  # Assuming numeric columns start from 5th
                         cell.alignment = Alignment(horizontal='right', vertical='center')
-                        if isinstance(value, (int, float)) or (isinstance(value, str) and value.replace('.', '').replace('-', '').isdigit()):
-                            cell.number_format = '#,##0.000'
-                            
+                        cell.number_format = '#,##0.000'
+                        
                 self.current_row += 1
                 
         except Exception as e:
-            logger.error(f"Error adding summary data: {e}")
+            logger.error(f"Error adding Excel data rows: {e}")
             pass
-            
-    def auto_adjust_columns(self):
-        """Auto-adjust column widths based on content"""
+
+    def add_summary(self, summary_data):
+        """Add summary section"""
         try:
-            for column in self.worksheet.columns:
-                if not column:
-                    continue
+            if not summary_data:
+                return
+                
+            # Add spacing before summary
+            self.current_row += 1
+            
+            # Add summary title
+            self.worksheet[f'A{self.current_row}'] = "Summary"
+            self.worksheet[f'A{self.current_row}'].font = Font(size=14, bold=True, color="2C3E50")
+            
+            # Merge summary title across available columns
+            if self.header_count > 1:
+                end_column = get_column_letter(self.header_count)
+                try:
+                    self.worksheet.merge_cells(f'A{self.current_row}:{end_column}{self.current_row}')
+                except:
+                    pass
+            
+            self.current_row += 1
+            
+            # Add summary data
+            for key, value in summary_data.items():
+                if key and value is not None:
+                    # Key in column A
+                    key_cell = self.worksheet[f'A{self.current_row}']
+                    key_cell.value = f"{key}:"
+                    key_cell.font = Font(bold=True)
+                    key_cell.fill = PatternFill(start_color="E3F2FD", end_color="E3F2FD", fill_type="solid")
+                    key_cell.border = self.border
                     
-                # Calculate max length for this column
+                    # Value in column B
+                    value_cell = self.worksheet[f'B{self.current_row}']
+                    value_cell.value = str(value)
+                    value_cell.border = self.border
+                    value_cell.fill = PatternFill(start_color="E3F2FD", end_color="E3F2FD", fill_type="solid")
+                    
+                    self.current_row += 1
+                    
+        except Exception as e:
+            logger.error(f"Error adding Excel summary: {e}")
+            pass
+
+    def get_response(self, filename):
+        """Generate HTTP response with Excel file"""
+        try:
+            # Auto-fit column widths
+            for column in self.worksheet.columns:
                 max_length = 0
                 column_letter = get_column_letter(column[0].column)
                 
                 for cell in column:
-                    if cell.value:
-                        try:
-                            cell_length = len(str(cell.value))
-                            if cell_length > max_length:
-                                max_length = cell_length
-                        except:
-                            pass
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
                 
-                # Set column width (with limits)
-                adjusted_width = min(max_length + 2, 50)  # Max 50 chars
-                adjusted_width = max(adjusted_width, 8)   # Min 8 chars
-                
+                adjusted_width = min(max_length + 2, 50)  # Cap at 50 characters
                 self.worksheet.column_dimensions[column_letter].width = adjusted_width
-                
-        except Exception as e:
-            logger.error(f"Error auto-adjusting columns: {e}")
-            # Don't raise exception for this - it's not critical
-            
-    def get_response(self, filename):
-        """Generate HTTP response with Excel file - FIXED VERSION"""
-        try:
-            # Auto-adjust columns before saving
-            self.auto_adjust_columns()
             
             # Clean filename
-            clean_filename = "".join(c for c in filename if c.isalnum() or c in (' ', '-', '_', '.')).rstrip()
+            clean_filename = "".join(c for c in filename if c.isalnum() or c in (' ', '-', '_', '.'))
             if not clean_filename.endswith('.xlsx'):
                 clean_filename += '.xlsx'
             
-            # Create response using BytesIO buffer - THIS FIXES THE CORRUPTION
+            # Create response using BytesIO buffer
             buffer = io.BytesIO()
             self.workbook.save(buffer)
             buffer.seek(0)

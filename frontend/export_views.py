@@ -14,6 +14,8 @@ from django.views.decorators.http import require_http_methods
 from django.shortcuts import get_object_or_404
 import logging
 from products.models import Product, Category
+from openpyxl.utils import get_column_letter
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -46,35 +48,8 @@ def format_negative_if_supply(value, transaction_type):
     except (ValueError, TypeError):
         return "0.000"
 
-def calculate_transfer_amounts(transaction):
-    """Calculate proper amounts for transfer transactions using FIFO"""
-    if transaction.transaction_type == 'TRANSFER_OUT':
-        # Use FIFO cost as "revenue" for transfer out
-        try:
-            # Get FIFO cost for this product from vessel inventory
-            fifo_cost = get_fifo_cost_for_transfer(
-                transaction.vessel, 
-                transaction.product, 
-                transaction.quantity
-            )
-            return fifo_cost * transaction.quantity
-        except:
-            return 0
-    elif transaction.transaction_type == 'TRANSFER_IN':
-        # Use the same FIFO cost as "supply cost" for transfer in
-        try:
-            # Get the related transfer out to use same cost
-            if transaction.related_transfer:
-                return calculate_transfer_amounts(transaction.related_transfer)
-            return 0
-        except:
-            return 0
-    return transaction.quantity * transaction.unit_price
-
 def get_fifo_cost_for_transfer(vessel, product, quantity):
     """Get FIFO cost for transfer without actually consuming inventory"""
-    from transactions.models import InventoryLot
-    
     lots = InventoryLot.objects.filter(
         vessel=vessel,
         product=product,
@@ -96,9 +71,39 @@ def get_fifo_cost_for_transfer(vessel, product, quantity):
     
     if remaining_to_transfer > 0:
         # Not enough inventory, use product's purchase price as fallback
-        total_cost += remaining_to_transfer * float(product.purchase_price)
+        if hasattr(product, 'purchase_price'):
+            total_cost += remaining_to_transfer * float(product.purchase_price)
+        else:
+            total_cost += remaining_to_transfer * float(product.cost_price or 0)
     
     return total_cost / float(quantity) if quantity > 0 else 0
+
+def calculate_transfer_amounts(transaction):
+    """Calculate proper amounts for transfer transactions using FIFO"""
+    if transaction.transaction_type == 'TRANSFER_OUT':
+        # Use FIFO cost as "revenue" for transfer out
+        try:
+            fifo_cost = get_fifo_cost_for_transfer(
+                transaction.vessel, 
+                transaction.product, 
+                transaction.quantity
+            )
+            return fifo_cost * float(transaction.quantity)
+        except Exception as e:
+            logger.warning(f"Error calculating FIFO cost for transfer: {e}")
+            return float(transaction.quantity) * float(transaction.unit_price)
+    elif transaction.transaction_type == 'TRANSFER_IN':
+        # Use the same FIFO cost as "supply cost" for transfer in
+        try:
+            if hasattr(transaction, 'related_transfer') and transaction.related_transfer:
+                return calculate_transfer_amounts(transaction.related_transfer)
+            else:
+                # Fallback: use the transaction's unit price
+                return float(transaction.quantity) * float(transaction.unit_price)
+        except Exception as e:
+            logger.warning(f"Error calculating transfer in cost: {e}")
+            return float(transaction.quantity) * float(transaction.unit_price)
+    return float(transaction.quantity) * float(transaction.unit_price)
 
 def calculate_totals_by_type(transactions):
     """Calculate totals split by transaction type"""
@@ -110,15 +115,69 @@ def calculate_totals_by_type(transactions):
     
     for transaction in transactions:
         if transaction.transaction_type == 'SALE':
-            totals['total_sales'] += transaction.quantity * transaction.unit_price
+            totals['total_sales'] += float(transaction.quantity) * float(transaction.unit_price)
         elif transaction.transaction_type == 'SUPPLY':
-            totals['total_supplies'] += transaction.quantity * transaction.unit_price
+            totals['total_supplies'] += float(transaction.quantity) * float(transaction.unit_price)
         elif transaction.transaction_type in ['TRANSFER_OUT', 'TRANSFER_IN']:
             # Only count transfer out to avoid double counting
             if transaction.transaction_type == 'TRANSFER_OUT':
                 totals['total_transfers'] += calculate_transfer_amounts(transaction)
     
     return totals
+
+def calculate_product_level_summary(transactions):
+    """Calculate product-level summary for reports"""
+    from collections import defaultdict
+    
+    products = defaultdict(lambda: {
+        'name': '',
+        'product_id': '',
+        'qty_supplied': 0,
+        'qty_sold': 0, 
+        'total_cost': 0,
+        'total_revenue': 0
+    })
+    
+    for transaction in transactions:
+        if not transaction.product:
+            continue
+            
+        product_key = transaction.product.id
+        product_data = products[product_key]
+        
+        # Set product info
+        product_data['name'] = transaction.product.name
+        product_data['product_id'] = getattr(transaction.product, 'product_id', 'N/A')
+        
+        # Calculate quantities and amounts
+        quantity = safe_float(transaction.quantity)
+        
+        if transaction.transaction_type == 'SUPPLY':
+            product_data['qty_supplied'] += quantity
+            product_data['total_cost'] += quantity * safe_float(transaction.unit_price)
+        elif transaction.transaction_type == 'SALE':
+            product_data['qty_sold'] += quantity
+            product_data['total_revenue'] += quantity * safe_float(transaction.unit_price)
+        # Note: Transfers are not included in product summary as they don't change overall inventory
+    
+    # Convert to list format for export
+    summary_data = []
+    for product_data in products.values():
+        net_profit = product_data['total_revenue'] - product_data['total_cost']
+        summary_data.append([
+            product_data['name'],
+            product_data['product_id'],
+            format_currency(product_data['qty_supplied'], 3),
+            format_currency(product_data['qty_sold'], 3),
+            format_currency(product_data['total_cost'], 3),
+            format_currency(product_data['total_revenue'], 3),
+            format_currency(net_profit, 3)
+        ])
+    
+    # Sort by net profit descending
+    summary_data.sort(key=lambda x: float(x[6].replace(',', '').replace('(', '-').replace(')', '')), reverse=True)
+    
+    return summary_data
 
 def safe_float(value, default=0.0):
     """Safely convert value to float"""
@@ -380,7 +439,7 @@ def export_transactions(request):
             'Trip #', 'PO #', 'Created By', 'Notes'
         ]
         
-        # Create product-level summary
+        # Create product-level summary (replaces redundant summary)
         product_summary = calculate_product_level_summary(transaction_list)
         
         if export_format == 'excel':
@@ -391,11 +450,44 @@ def export_transactions(request):
                 exporter.add_headers(headers)
                 exporter.add_data_rows(table_data)
                 
-                # Add product-level summary
-                if product_summary:
-                    exporter.add_summary_title("Product Summary")
-                    exporter.add_summary_headers(['Item Name', 'Item ID', 'Qty Supplied', 'Qty Sold', 'Total Cost', 'Total Revenue', 'Net Profit'])
-                    exporter.add_summary_data(product_summary)
+                # Only add product summary if we have data and it's not the same as metadata
+                if product_summary and len(product_summary) > 0:
+                    # Add spacing
+                    exporter.current_row += 1
+                    
+                    # Add product summary title
+                    exporter.worksheet[f'A{exporter.current_row}'] = "Product Summary"
+                    exporter.worksheet[f'A{exporter.current_row}'].font = Font(size=14, bold=True, color="2C3E50")
+                    
+                    # Merge across all columns
+                    if exporter.header_count > 1:
+                        end_column = get_column_letter(exporter.header_count)
+                        try:
+                            exporter.worksheet.merge_cells(f'A{exporter.current_row}:{end_column}{exporter.current_row}')
+                        except:
+                            pass
+                    
+                    exporter.current_row += 1
+                    
+                    # Add product summary headers
+                    summary_headers = ['Item Name', 'Item ID', 'Qty Supplied', 'Qty Sold', 'Total Cost', 'Total Revenue', 'Net Profit']
+                    for col_idx, header in enumerate(summary_headers, 1):
+                        cell = exporter.worksheet.cell(row=exporter.current_row, column=col_idx, value=header)
+                        cell.font = exporter.header_font
+                        cell.alignment = exporter.header_alignment
+                        cell.fill = PatternFill(start_color="E3F2FD", end_color="E3F2FD", fill_type="solid")
+                        cell.border = exporter.border
+                    
+                    exporter.current_row += 1
+                    
+                    # Add product summary data
+                    for row in product_summary:
+                        for col_idx, value in enumerate(row, 1):
+                            cell = exporter.worksheet.cell(row=exporter.current_row, column=col_idx, value=str(value))
+                            cell.border = exporter.border
+                            if col_idx >= 3:  # Numeric columns
+                                cell.alignment = Alignment(horizontal='right', vertical='center')
+                        exporter.current_row += 1
                 
                 return exporter.get_response(f"{filename_base}.xlsx")
                 
@@ -410,7 +502,7 @@ def export_transactions(request):
                 exporter.add_table(headers, table_data, table_title="Transaction History")
                 
                 # Add product summary instead of redundant summary
-                if product_summary:
+                if product_summary and len(product_summary) > 0:
                     summary_headers = ['Item Name', 'Item ID', 'Qty Supplied', 'Qty Sold', 'Total Cost', 'Total Revenue', 'Net Profit']
                     exporter.add_table(summary_headers, product_summary, table_title="Product Summary")
                 
@@ -425,61 +517,6 @@ def export_transactions(request):
     except Exception as e:
         logger.error(f"Transaction export error: {e}")
         return JsonResponse({'success': False, 'error': f'Export failed: {str(e)}'})
-
-
-def calculate_product_level_summary(transactions):
-    """Calculate product-level summary for reports"""
-    from collections import defaultdict
-    
-    products = defaultdict(lambda: {
-        'name': '',
-        'product_id': '',
-        'qty_supplied': 0,
-        'qty_sold': 0, 
-        'total_cost': 0,
-        'total_revenue': 0
-    })
-    
-    for transaction in transactions:
-        if not transaction.product:
-            continue
-            
-        product_key = transaction.product.id
-        product_data = products[product_key]
-        
-        # Set product info
-        product_data['name'] = transaction.product.name
-        product_data['product_id'] = transaction.product.product_id
-        
-        # Calculate quantities and amounts
-        quantity = safe_float(transaction.quantity)
-        
-        if transaction.transaction_type == 'SUPPLY':
-            product_data['qty_supplied'] += quantity
-            product_data['total_cost'] += quantity * safe_float(transaction.unit_price)
-        elif transaction.transaction_type == 'SALE':
-            product_data['qty_sold'] += quantity
-            product_data['total_revenue'] += quantity * safe_float(transaction.unit_price)
-        # Note: Transfers are not included in product summary as they don't change overall inventory
-    
-    # Convert to list format for export
-    summary_data = []
-    for product_data in products.values():
-        net_profit = product_data['total_revenue'] - product_data['total_cost']
-        summary_data.append([
-            product_data['name'],
-            product_data['product_id'],
-            format_currency(product_data['qty_supplied'], 3),
-            format_currency(product_data['qty_sold'], 3),
-            format_currency(product_data['total_cost'], 3),
-            format_currency(product_data['total_revenue'], 3),
-            format_currency(net_profit, 3)
-        ])
-    
-    # Sort by net profit descending
-    summary_data.sort(key=lambda x: float(x[6].replace(',', '')), reverse=True)
-    
-    return summary_data
 
 # ===============================================================================
 # TRIP EXPORTS (LIST AND INDIVIDUAL)

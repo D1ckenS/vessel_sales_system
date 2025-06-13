@@ -142,7 +142,7 @@ class WeasyPrintExporter:
         try:
             # Select template based on type and orientation
             if self.template_type == 'analytics':
-                template_name = 'frontend/exports/analytics_report.html'
+                template_name = 'frontend/exports/analytics_export.html'
             elif self.orientation == 'landscape' or self.template_type == 'wide':
                 template_name = 'frontend/exports/wide_report.html'
             else:
