@@ -1400,6 +1400,10 @@ function exportSingleTrip(tripId, format) {
     const csrfToken = window.getCookie ? window.getCookie('csrftoken') : 
                       document.querySelector('[name=csrfmiddlewaretoken]')?.value;
     
+    // Get current language
+    const currentLanguage = window.translator ? window.translator.currentLanguage : 
+                           localStorage.getItem('preferred_language') || 'en';
+    
     // Make request to export endpoint
     fetch(`/export/trip/${tripId}/`, {
         method: 'POST',
@@ -1407,7 +1411,10 @@ function exportSingleTrip(tripId, format) {
             'Content-Type': 'application/json',
             'X-CSRFToken': csrfToken,
         },
-        body: JSON.stringify({ format: format })
+        body: JSON.stringify({
+            format: format,
+            language: currentLanguage
+        })
     })
     .then(response => {
         if (response.ok) {

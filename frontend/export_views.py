@@ -193,11 +193,20 @@ def calculate_product_level_summary(transactions):
     
     return summary_data
 
-def get_translated_labels(request):
+def get_translated_labels(request, data=None):
     """Get translated labels based on user's language preference"""
     
     # Get user's language from session
-    user_language = request.session.get('preferred_language', 'en')
+    user_language = 'en'
+    if data and 'language' in data:
+        user_language = data.get('language', 'en')
+    else:
+        # Fallback to session
+        user_language = request.session.get('preferred_language', 'en')
+    
+    # Ensure it's a valid language
+    if user_language not in ['en', 'ar']:
+        user_language = 'en'
     
     # Define translations
     translations = {
@@ -777,11 +786,12 @@ def export_trips(request):
 def export_single_trip(request, trip_id):
     """Export individual trip details - Updated with proper formatting"""
     try:
-        # Get translated labels
-        labels = get_translated_labels(request)
         
         data = json.loads(request.body)
         export_format = data.get('format', 'excel')
+        
+        # Get translated labels
+        labels = get_translated_labels(request, data)
         
         # Get trip
         trip = get_object_or_404(Trip, id=trip_id)
