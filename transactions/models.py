@@ -251,7 +251,7 @@ class Transaction(models.Model):
         """Calculate total transaction amount"""
         if self.unit_price is not None and self.quantity is not None:
             return self.quantity * self.unit_price
-        return Decimal('0')
+        return 0
     
     def clean(self):
         """Validate transaction data and auto-set unit price for transfers"""

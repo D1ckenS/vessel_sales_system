@@ -4,6 +4,8 @@ from django.contrib.auth.decorators import login_required
 import calendar
 from django.db.models import Sum, Count, F, Q
 import json
+
+from products import models
 from .utils import BilingualMessages
 from django.http import JsonResponse, HttpResponse
 from transactions.models import Transaction, InventoryLot, Trip, PurchaseOrder
@@ -688,6 +690,7 @@ def export_trips(request):
         logger.error(f"Trips export error: {e}")
         return JsonResponse({'success': False, 'error': f'Export failed: {str(e)}'})
 
+@login_required
 @require_http_methods(["POST"])
 def export_single_trip(request, trip_id):
     """Export individual trip details - Updated with proper formatting"""
@@ -721,7 +724,7 @@ def export_single_trip(request, trip_id):
             transaction_data.append([
                 format_datetime(transaction.transaction_date),
                 transaction.product.name if transaction.product else 'N/A',
-                transaction.product.product_id if transaction.product else 'N/A',
+                transaction.product.item_id if transaction.product else 'N/A',
                 format_currency(transaction.quantity, 3),
                 format_currency(transaction.unit_price, 3),
                 format_currency(cogs / safe_float(transaction.quantity) if safe_float(transaction.quantity) > 0 else 0, 3),

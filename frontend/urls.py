@@ -1,7 +1,7 @@
 from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.urls import path
-from . import views, auth_views, test_views, reports_views, export_views, product_views, category_views, supply_views, transfer_views, sales_views, inventory_views, pricing_views
+from . import views, auth_views, reports_views, export_views, product_views, category_views, supply_views, transfer_views, sales_views, inventory_views, pricing_views
 
 app_name = 'frontend'
 
