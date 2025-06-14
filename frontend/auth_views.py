@@ -23,6 +23,10 @@ import secrets
 import string
 from django.core.cache import cache
 from .permissions import is_admin_or_manager, admin_or_manager_required, is_superuser_only, superuser_required
+import traceback
+from products.models import Product
+from transactions.models import VesselProductPrice, get_all_vessel_pricing_summary, get_vessel_pricing_warnings
+from .permissions import get_user_role, UserRoles
 from .permissions import (
     operations_access_required,
     reports_access_required,
@@ -31,8 +35,6 @@ from .permissions import (
 
 def get_optimized_vessel_pricing_data():
     """Helper function: Get vessel pricing data with database aggregations"""
-    from products.models import Product
-    from transactions.models import VesselProductPrice
     
     # Get total general products count
     total_general_products = Product.objects.filter(is_duty_free=False, active=True).count()
@@ -70,7 +72,7 @@ def get_cached_pricing_summary():
     summary = cache.get(cache_key)
     
     if summary is None:
-        from transactions.models import get_all_vessel_pricing_summary
+        
         summary = get_all_vessel_pricing_summary()
         # Cache for 5 minutes
         cache.set(cache_key, summary, 300)
@@ -469,7 +471,6 @@ def setup_groups(request):
         })
         
     except Exception as e:
-        import traceback
         error_details = str(e)
         print(f"Setup groups error: {error_details}")
         print(traceback.format_exc())
@@ -511,7 +512,7 @@ def create_group(request):
     """Create new user group"""
     if request.method == 'POST':
         try:
-            import json
+            
             data = json.loads(request.body)
             
             name = data.get('name', '').strip()
@@ -564,7 +565,6 @@ def edit_group(request, group_id):
     
     elif request.method == 'POST':
         try:
-            import json
             data = json.loads(request.body)
             
             group = Group.objects.get(id=group_id)
@@ -706,8 +706,7 @@ def check_permission(request):
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
     try:
-        import json
-        from .permissions import get_user_role, UserRoles
+        
         
         data = json.loads(request.body)
         permission_name = data.get('permission')
@@ -795,14 +794,12 @@ def vessel_management(request):
     )
     
     # Get pricing summary with caching
-    from transactions.models import get_all_vessel_pricing_summary
     pricing_summary = get_all_vessel_pricing_summary()
     
     # Build vessel data with optimized pricing
     vessel_data = []
     for vessel in vessels_data:
         # Get pricing warnings (still needed for complex business logic)
-        from transactions.models import get_vessel_pricing_warnings
         pricing_warnings = get_vessel_pricing_warnings(vessel)
         
         # Calculate pricing completion data
@@ -1053,7 +1050,6 @@ def vessel_statistics(request, vessel_id):
         vessel = get_object_or_404(Vessel, id=vessel_id)
         
         # Calculate statistics
-        from datetime import timedelta
         thirty_days_ago = timezone.now().date() - timedelta(days=30)
         ninety_days_ago = timezone.now().date() - timedelta(days=90)
         
@@ -1240,7 +1236,6 @@ def edit_po(request, po_id):
     
     elif request.method == 'POST':
         try:
-            import json
             data = json.loads(request.body)
             
             po = PurchaseOrder.objects.get(id=po_id)
@@ -1328,7 +1323,6 @@ def delete_po(request, po_id):
                     # If we couldn't remove exact lots, create a reversal sale transaction
                     if removed_count < supply_txn.quantity:
                         remaining_to_remove = supply_txn.quantity - removed_count
-                        from transactions.models import Transaction
                         Transaction.objects.create(
                             vessel=supply_txn.vessel,
                             product=supply_txn.product,
@@ -1361,7 +1355,6 @@ def delete_po(request, po_id):
     except PurchaseOrder.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Purchase Order not found'})
     except Exception as e:
-        import traceback
         print(f"Delete PO error: {str(e)}")
         print(traceback.format_exc())
         return JsonResponse({'success': False, 'error': str(e)})
@@ -1523,7 +1516,6 @@ def edit_trip(request, trip_id):
     
     elif request.method == 'POST':
         try:
-            import json
             data = json.loads(request.body)
             
             trip = Trip.objects.get(id=trip_id)
@@ -1590,7 +1582,6 @@ def delete_trip(request, trip_id):
                 for sale_txn in trip.sales_transactions.all():
                     # Restore inventory by creating a new supply transaction (reversal)
                     # This maintains proper FIFO tracking
-                    from transactions.models import Transaction
                     Transaction.objects.create(
                         vessel=sale_txn.vessel,
                         product=sale_txn.product,
@@ -1623,7 +1614,6 @@ def delete_trip(request, trip_id):
     except Trip.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Trip not found'})
     except Exception as e:
-        import traceback
         print(f"Delete trip error: {str(e)}")
         print(traceback.format_exc())
         return JsonResponse({'success': False, 'error': str(e)})

@@ -1,20 +1,13 @@
-from django.forms import ValidationError
-from django.shortcuts import render, redirect
-from django.contrib.auth.decorators import login_required, user_passes_test
-from django.db.models import Sum, Count, Q, F
+from django.shortcuts import render
+from django.contrib.auth.decorators import login_required
+from django.db.models import Sum, Count, F
 from django.http import JsonResponse
 from datetime import date, datetime
-from decimal import Decimal
-import decimal
 from vessels.models import Vessel
-from products.models import Product
-from transactions.models import Transaction, InventoryLot, Trip, PurchaseOrder
-from .utils import BilingualMessages
+from transactions.models import Transaction
 from django.db import models
-from products.models import Product
-from django.core.exceptions import ValidationError
-import json
 from .permissions import is_admin_or_manager, admin_or_manager_required
+import json
 from .permissions import (
     operations_access_required,
     reports_access_required,
@@ -76,7 +69,6 @@ def set_language(request):
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
     try:
-        import json
         data = json.loads(request.body)
         language = data.get('language', 'en')
         

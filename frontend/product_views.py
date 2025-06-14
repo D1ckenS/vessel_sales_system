@@ -1,13 +1,17 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Sum
 from frontend.views import is_admin_or_manager
-from products.models import Product
 from .utils import BilingualMessages
 from products.models import Product, Category
 from .utils import get_vessel_display_name, format_vessel_list
-from transactions.models import VesselProductPrice, get_vessel_pricing_warnings, get_all_vessel_pricing_summary
+from transactions.models import VesselProductPrice, InventoryLot, Transaction, get_vessel_pricing_warnings, get_all_vessel_pricing_summary
 from django.db import transaction
+from vessels.models import Vessel
+from decimal import Decimal
+from datetime import date
+import decimal
+from datetime import datetime
 
 @login_required
 @user_passes_test(is_admin_or_manager)
@@ -70,17 +74,7 @@ def product_management(request):
 @user_passes_test(is_admin_or_manager)
 def add_product(request, product_id=None):
     """Enhanced product management: list, create, edit products with vessel-specific pricing"""
-    
-    # FIXED: Import at function level - MOVED TO TOP OF FUNCTION
-    from products.models import Category, Product
-    from vessels.models import Vessel
-    from transactions.models import Transaction, VesselProductPrice
-    from decimal import Decimal
-    from datetime import date
-    from django.db.models import Q
-    from django.shortcuts import get_object_or_404
-    import decimal
-    
+        
     # Determine operation mode with enhanced detection
     if product_id:
         mode = 'edit'
@@ -119,8 +113,6 @@ def add_product(request, product_id=None):
         # For list mode, get products with filtering and pricing info
         if mode == 'list':
             # ENHANCED: Calculate total inventory for each product
-            from django.db.models import Sum, F
-            from transactions.models import InventoryLot
             
             products = Product.objects.select_related('category', 'created_by').order_by('item_id')
             
@@ -368,7 +360,7 @@ def add_product(request, product_id=None):
                     product.delete()
                     return redirect('frontend:add_product_form')
                 
-                from datetime import datetime
+                
                 purchase_date = datetime.strptime(purchase_date_str, '%Y-%m-%d').date()
                 
                 # Process each vessel

@@ -1,13 +1,16 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.http import JsonResponse
 from datetime import date, datetime
 from vessels.models import Vessel
 from products.models import Product
-from transactions.models import Transaction, InventoryLot
+from transactions.models import Transaction, InventoryLot, get_available_inventory
 from .utils import BilingualMessages
 from products.models import Product
+from django.db import transaction
+import json
+import uuid
 from .permissions import (
     operations_access_required,
     reports_access_required,
@@ -21,7 +24,7 @@ def transfer_search_products(request):
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
     try:
-        import json
+        
         data = json.loads(request.body)
         search_term = data.get('search', '').strip()
         vessel_id = data.get('vessel_id')
@@ -44,7 +47,6 @@ def transfer_search_products(request):
         ).select_related('product')
         
         # Group by product and calculate totals
-        from django.db.models import Sum
         product_summaries = available_lots.values(
             'product__id', 'product__name', 'product__item_id', 
             'product__barcode', 'product__is_duty_free'
@@ -135,11 +137,10 @@ def transfer_entry(request):
                 BilingualMessages.error(request, 'same_vessel_error')
                 return redirect('frontend:transfer_entry')
             
-            from datetime import datetime
             transfer_date_obj = datetime.strptime(transfer_date, '%Y-%m-%d').date()
             
             # Create transfer session (stored in localStorage on frontend)
-            import uuid
+            
             session_id = str(uuid.uuid4())
             
             # Store in session for backend reference
@@ -206,7 +207,6 @@ def transfer_available_products(request):
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
     try:
-        import json
         data = json.loads(request.body)
         vessel_id = data.get('vessel_id')
         
@@ -224,7 +224,6 @@ def transfer_available_products(request):
         ).select_related('product')
         
         # Group by product and calculate totals
-        from django.db.models import Sum
         product_summaries = available_lots.values(
             'product__id', 'product__name', 'product__item_id', 
             'product__barcode', 'product__is_duty_free'
@@ -260,7 +259,6 @@ def transfer_bulk_complete(request):
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
     try:
-        import json
         data = json.loads(request.body)
         
         transfer_session_id = data.get('transfer_session_id')
@@ -306,7 +304,6 @@ def transfer_bulk_complete(request):
                 })
             
             # Check inventory availability
-            from transactions.models import get_available_inventory
             available_quantity, lots = get_available_inventory(from_vessel, product)
             
             if quantity > available_quantity:
@@ -322,7 +319,7 @@ def transfer_bulk_complete(request):
             })
         
         # All items validated - create transactions atomically
-        from django.db import transaction
+        
         with transaction.atomic():
             created_transfers = []
             
@@ -363,7 +360,6 @@ def transfer_execute(request):
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
     try:
-        import json
         data = json.loads(request.body)
         
         # Get and validate data
@@ -394,7 +390,6 @@ def transfer_execute(request):
             })
         
         # Check available inventory
-        from transactions.models import get_available_inventory
         available_quantity, lots = get_available_inventory(from_vessel, product)
         
         if quantity > available_quantity:
@@ -404,7 +399,6 @@ def transfer_execute(request):
             })
         
         # Parse transfer date
-        from datetime import datetime
         transfer_date_obj = datetime.strptime(transfer_date, '%Y-%m-%d').date()
         
         # Create TRANSFER_OUT transaction (your existing system handles the rest!)

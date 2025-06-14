@@ -1,20 +1,25 @@
 from django.forms import ValidationError
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.http import JsonResponse
 from datetime import date
 from vessels.models import Vessel
 from products.models import Product
-from transactions.models import Transaction, InventoryLot, Trip, VesselProductPrice, get_vessel_product_price, get_vessel_pricing_warnings
+from transactions.models import Transaction, InventoryLot, Trip, VesselProductPrice, get_vessel_product_price, get_vessel_pricing_warnings, get_available_inventory
 from .utils import BilingualMessages
 from products.models import Product
 from django.core.exceptions import ValidationError
 import json
+from django.db import transaction
+import re
+from datetime import datetime
 from .permissions import (
     operations_access_required,
     reports_access_required,
-    admin_or_manager_required
+    admin_or_manager_required,
+    get_user_role,
+    UserRoles
 )
 
 @operations_access_required
@@ -23,10 +28,7 @@ def sales_entry(request):
     
     if request.method == 'GET':
         vessels = Vessel.objects.filter(active=True).order_by('name')
-        
-        # Import permission functions
-        from .permissions import get_user_role, UserRoles
-        
+                
         # Get user's role
         user_role = get_user_role(request.user)
         print(f"DEBUG: User role detected: {user_role}")  # Debug print
@@ -83,7 +85,7 @@ def sales_entry(request):
                 BilingualMessages.error(request, 'passenger_count_positive')
                 return redirect('frontend:sales_entry')
             
-            from datetime import datetime
+            
             trip_date_obj = datetime.strptime(trip_date, '%Y-%m-%d').date()
             
             # Create trip
@@ -162,7 +164,7 @@ def trip_sales(request, trip_id):
                 if sale.notes and 'FIFO consumption:' in sale.notes:
                     # Parse the FIFO breakdown from notes
                     # Example: "FIFO consumption: 50 units @ 1.200 JOD; 50 units @ 1.150 JOD"
-                    import re
+                    
                     fifo_pattern = r'(\d+(?:\.\d+)?)\s+units\s+@\s+(\d+(?:\.\d+)?)\s+JOD'
                     matches = re.findall(fifo_pattern, sale.notes)
                     
@@ -172,7 +174,6 @@ def trip_sales(request, trip_id):
                         total_cogs += consumed_qty * unit_cost
                 else:
                     # Fallback: estimate COGS using current available lots (not perfect but better than 0)
-                    from transactions.models import get_available_inventory
                     _, lots = get_available_inventory(sale.vessel, sale.product)
                     
                     if lots:
@@ -225,7 +226,6 @@ def sales_search_products(request):
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
     try:
-        import json
         data = json.loads(request.body)
         search_term = data.get('search', '').strip()
         vessel_id = data.get('vessel_id')
@@ -252,7 +252,6 @@ def sales_search_products(request):
             available_lots = available_lots.filter(product__is_duty_free=False)
         
         # Group by product and calculate totals
-        from django.db.models import Sum
         product_summaries = available_lots.values(
             'product__id', 'product__name', 'product__item_id', 
             'product__barcode', 'product__is_duty_free',
@@ -314,7 +313,6 @@ def sales_validate_inventory(request):
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
     try:
-        import json
         data = json.loads(request.body)
         vessel_id = data.get('vessel_id')
         product_id = data.get('product_id')
@@ -328,7 +326,6 @@ def sales_validate_inventory(request):
         product = Product.objects.get(id=product_id, active=True)
         
         # Get available inventory and FIFO lots
-        from transactions.models import get_available_inventory, consume_inventory_fifo
         available_quantity, lots = get_available_inventory(vessel, product)
         
         if quantity > available_quantity:
@@ -386,7 +383,6 @@ def trip_bulk_complete(request):
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
     try:
-        import json
         data = json.loads(request.body)
         
         trip_id = data.get('trip_id')
@@ -438,7 +434,6 @@ def trip_bulk_complete(request):
                 })
             
             # Check inventory availability
-            from transactions.models import get_available_inventory
             available_quantity, lots = get_available_inventory(trip.vessel, product)
             
             if quantity > available_quantity:
@@ -459,7 +454,7 @@ def trip_bulk_complete(request):
             total_revenue += quantity * actual_selling_price
         
         # All items validated - now create transactions atomically
-        from django.db import transaction
+        
         with transaction.atomic():
             created_transactions = []
             
@@ -516,7 +511,6 @@ def trip_cancel(request):
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
     try:
-        import json
         data = json.loads(request.body)
         trip_id = data.get('trip_id')
         
@@ -561,7 +555,6 @@ def sales_available_products(request):
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
     try:
-        import json
         data = json.loads(request.body)
         vessel_id = data.get('vessel_id')
         
@@ -583,7 +576,6 @@ def sales_available_products(request):
             available_lots = available_lots.filter(product__is_duty_free=False)
         
         # Group by product and calculate totals
-        from django.db.models import Sum
         product_summaries = available_lots.values(
             'product__id', 'product__name', 'product__item_id', 
             'product__barcode', 'product__is_duty_free',
@@ -654,7 +646,6 @@ def sales_calculate_cogs(request):
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
     try:
-        import json
         data = json.loads(request.body)
         vessel_id = data.get('vessel_id')
         product_id = data.get('product_id')
@@ -671,7 +662,6 @@ def sales_calculate_cogs(request):
         actual_selling_price, is_custom_price, warning_message = get_vessel_product_price(vessel, product)
         
         # Get available inventory and FIFO lots
-        from transactions.models import get_available_inventory
         available_quantity, lots = get_available_inventory(vessel, product)
         
         if quantity > available_quantity:
@@ -738,7 +728,6 @@ def sales_execute(request):
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
     try:
-        import json
         data = json.loads(request.body)
         
         # Get and validate data
@@ -763,7 +752,6 @@ def sales_execute(request):
             })
         
         # Check available inventory
-        from transactions.models import get_available_inventory
         available_quantity, lots = get_available_inventory(vessel, product)
         
         if quantity > available_quantity:
@@ -773,7 +761,6 @@ def sales_execute(request):
             })
         
         # Parse sale date
-        from datetime import datetime
         sale_date_obj = datetime.strptime(sale_date, '%Y-%m-%d').date()
         
         # Create SALE transaction (your existing system handles FIFO consumption!)

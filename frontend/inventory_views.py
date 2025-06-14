@@ -1,12 +1,13 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.http import JsonResponse
 from vessels.models import Vessel
 from products.models import Product
 from transactions.models import Transaction, InventoryLot
 from .utils import BilingualMessages
 from products.models import Product
+import json
 
 @login_required
 def inventory_check(request):
@@ -71,7 +72,7 @@ def inventory_check(request):
         )
     
     # Group by product and calculate vessel-specific stats
-    from django.db.models import Sum
+    
     inventory_summary = available_lots.values(
         'product__id', 'product__name', 'product__item_id', 
         'product__barcode', 'product__is_duty_free'
@@ -269,7 +270,7 @@ def inventory_data_ajax(request):
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
     try:
-        import json
+        
         data = json.loads(request.body)
         vessel_id = data.get('vessel_id')
         search_term = data.get('search', '').strip()
@@ -297,7 +298,6 @@ def inventory_data_ajax(request):
             )
         
         # Group by product and calculate vessel-specific stats
-        from django.db.models import Sum
         inventory_summary = available_lots.values(
             'product__id', 'product__name', 'product__item_id', 
             'product__barcode', 'product__is_duty_free'

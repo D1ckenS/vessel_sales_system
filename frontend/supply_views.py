@@ -1,6 +1,7 @@
 from django.forms import ValidationError
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 from django.db.models import Q
 from django.http import JsonResponse
 from datetime import date
@@ -10,6 +11,7 @@ from transactions.models import Transaction, PurchaseOrder
 from .utils import BilingualMessages
 from products.models import Product
 from django.core.exceptions import ValidationError
+from datetime import datetime
 import json
 from decimal import Decimal
 import decimal
@@ -56,7 +58,7 @@ def supply_entry(request):
                 BilingualMessages.error(request, 'po_number_exists', po_number=po_number)
                 return redirect('frontend:supply_entry')
             
-            from datetime import datetime
+            
             po_date_obj = datetime.strptime(po_date, '%Y-%m-%d').date()
             
             # Create purchase order
@@ -181,7 +183,6 @@ def supply_search_products(request):
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
     try:
-        import json
         data = json.loads(request.body)
         search_term = data.get('search', '').strip()
         
@@ -225,7 +226,6 @@ def po_bulk_complete(request):
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
     try:
-        import json
         data = json.loads(request.body)
         
         po_id = data.get('po_id')
@@ -288,7 +288,7 @@ def po_bulk_complete(request):
             total_cost += quantity_val * cost_val
         
         # All items validated - now create transactions atomically
-        from django.db import transaction
+        
         with transaction.atomic():
             created_transactions = []
             
@@ -334,7 +334,6 @@ def po_cancel(request):
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
     try:
-        import json
         data = json.loads(request.body)
         po_id = data.get('po_id')
         
@@ -379,7 +378,6 @@ def supply_product_catalog(request):
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
     try:
-        import json
         data = json.loads(request.body)
         vessel_id = data.get('vessel_id')
         
@@ -457,7 +455,6 @@ def supply_execute(request):
             return JsonResponse({'success': False, 'error': 'Quantity and cost must be positive values'})
         
         # Parse supply date
-        from datetime import datetime
         supply_date = datetime.strptime(supply_date_str, '%Y-%m-%d').date()
         
         # Build notes

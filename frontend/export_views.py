@@ -16,6 +16,7 @@ import logging
 from products.models import Product, Category
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from collections import defaultdict
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -138,7 +139,7 @@ def calculate_totals_by_type(transactions):
 
 def calculate_product_level_summary(transactions):
     """Calculate product-level summary for reports"""
-    from collections import defaultdict
+    
     
     products = defaultdict(lambda: {
         'name': '',

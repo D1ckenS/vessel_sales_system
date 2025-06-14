@@ -5,7 +5,7 @@ from django.contrib.auth.decorators import login_required
 import calendar
 from django.db.models import Avg, Sum, Count, F, Q, Case, When
 from .utils import BilingualMessages
-from transactions.models import Transaction, InventoryLot, Trip, PurchaseOrder
+from transactions.models import Transaction, InventoryLot, Trip, PurchaseOrder, get_vessel_pricing_warnings
 from django.shortcuts import render
 from vessels.models import Vessel
 from products.models import Product
@@ -32,11 +32,9 @@ def trip_reports(request):
     if vessel_filter:
         trips = trips.filter(vessel_id=vessel_filter)
     if date_from:
-        from datetime import datetime
         date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
         trips = trips.filter(trip_date__gte=date_from_obj)
     if date_to:
-        from datetime import datetime
         date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
         trips = trips.filter(trip_date__lte=date_to_obj)
     if status_filter == 'completed':
@@ -93,11 +91,9 @@ def po_reports(request):
     if vessel_filter:
         purchase_orders = purchase_orders.filter(vessel_id=vessel_filter)
     if date_from:
-        from datetime import datetime
         date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
         purchase_orders = purchase_orders.filter(po_date__gte=date_from_obj)
     if date_to:
-        from datetime import datetime
         date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
         purchase_orders = purchase_orders.filter(po_date__lte=date_to_obj)
     if status_filter == 'completed':
@@ -154,11 +150,9 @@ def transactions_list(request):
     if vessel_filter:
         transactions = transactions.filter(vessel_id=vessel_filter)
     if date_from:
-        from datetime import datetime
         date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
         transactions = transactions.filter(transaction_date__gte=date_from_obj)
     if date_to:
-        from datetime import datetime
         date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
         transactions = transactions.filter(transaction_date__lte=date_to_obj)
     
@@ -337,7 +331,7 @@ def comprehensive_report(request):
         try:
             filtered_vessel = Vessel.objects.get(id=vessel_filter)
             if not filtered_vessel.has_duty_free:
-                from transactions.models import get_vessel_pricing_warnings
+                
                 vessel_warnings = get_vessel_pricing_warnings(filtered_vessel)
                 if vessel_warnings['has_warnings']:
                     pricing_warnings_count = vessel_warnings['missing_price_count']
