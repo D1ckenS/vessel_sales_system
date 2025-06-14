@@ -234,7 +234,7 @@
                 </h5>
                 <div class="d-flex gap-2">
                     {% if not can_edit %}
-                    <button class="btn btn-outline-success btn-sm" onclick="showExportModal('single_po', {po_id: {{ po.id }}})">
+                    <button class="btn btn-outline-success btn-sm" onclick="showPOExportModal({{ po.id }})">
                         <i class="bi bi-download"></i> <span data-translate="export">Export</span>
                     </button>
                     {% endif %}
@@ -1074,63 +1074,59 @@ function updatePageTitle() {
 // 🔥 **Listen for Language Toggle Event**
 window.addEventListener("languageChanged", updatePageTitle);
 
-function showExportModal(exportType, additionalData = {}) {
-    if (exportType === 'single_po') {
-        const poId = additionalData.po_id;
-        
-        const modalHtml = `
-        <div class="modal fade" id="exportModal" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">
-                            <i class="bi bi-download"></i> <span data-translate="export_po_data">Export PO Data</span>
-                        </h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <p><span data-translate="choose_export_format">Choose your preferred export format:</span></p>
-                        <div class="d-grid gap-2">
-                            <button class="btn btn-success" onclick="exportSinglePO(${poId}, 'excel'); bootstrap.Modal.getInstance(document.getElementById('exportModal')).hide();">
-                                <i class="bi bi-file-earmark-excel"></i> <span data-translate="export_to_excel">Export to Excel (.xlsx)</span>
-                            </button>
-                            <button class="btn btn-danger" onclick="exportSinglePO(${poId}, 'pdf'); bootstrap.Modal.getInstance(document.getElementById('exportModal')).hide();">
-                                <i class="bi bi-file-earmark-pdf"></i> <span data-translate="export_to_pdf">Export to PDF</span>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                            <span data-translate="cancel">Cancel</span>
+function showPOExportModal(poId) {
+    const modalHtml = `
+    <div class="modal fade" id="poExportModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-download"></i> <span data-translate="export_po_data">Export PO Data</span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p><span data-translate="choose_export_format">Choose your preferred export format:</span></p>
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-success" onclick="exportSinglePO(${poId}, 'excel'); bootstrap.Modal.getInstance(document.getElementById('poExportModal')).hide();">
+                            <i class="bi bi-file-earmark-excel"></i> <span data-translate="export_to_excel">Export to Excel (.xlsx)</span>
+                        </button>
+                        <button class="btn btn-danger" onclick="exportSinglePO(${poId}, 'pdf'); bootstrap.Modal.getInstance(document.getElementById('poExportModal')).hide();">
+                            <i class="bi bi-file-earmark-pdf"></i> <span data-translate="export_to_pdf">Export to PDF</span>
                         </button>
                     </div>
                 </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <span data-translate="cancel">Cancel</span>
+                    </button>
+                </div>
             </div>
-        </div>`;
-        
-        // Remove existing modal if present
-        const existingModal = document.getElementById('exportModal');
-        if (existingModal) {
-            existingModal.remove();
-        }
-        
-        // Add modal to page
-        document.body.insertAdjacentHTML('beforeend', modalHtml);
-        
-        // Apply translations
-        if (window.updatePageTranslations) {
-            updatePageTranslations();
-        }
-        
-        // Show modal
-        const modal = new bootstrap.Modal(document.getElementById('exportModal'));
-        modal.show();
-        
-        // Clean up when modal is hidden
-        document.getElementById('exportModal').addEventListener('hidden.bs.modal', function() {
-            this.remove();
-        });
+        </div>
+    </div>`;
+    
+    // Remove existing modal if present
+    const existingModal = document.getElementById('poExportModal');
+    if (existingModal) {
+        existingModal.remove();
     }
+    
+    // Add modal to page
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Apply translations using the global translation system
+    if (window.updatePageTranslations) {
+        window.updatePageTranslations();
+    }
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('poExportModal'));
+    modal.show();
+    
+    // Clean up when modal is hidden
+    document.getElementById('poExportModal').addEventListener('hidden.bs.modal', function() {
+        this.remove();
+    });
 }
 
 function exportSinglePO(poId, format) {
@@ -1140,17 +1136,21 @@ function exportSinglePO(poId, format) {
     const originalHtml = {};
     
     buttons.forEach(btn => {
-        originalHtml[btn.innerText] = btn.innerHTML;
+        originalHtml[btn.innerHTML] = btn.innerHTML;
         btn.innerHTML = loadingHtml;
         btn.disabled = true;
     });
+    
+    // Use the global CSRF token function from base_scripts.js
+    const csrfToken = window.getCookie ? window.getCookie('csrftoken') : 
+                      document.querySelector('[name=csrfmiddlewaretoken]')?.value;
     
     // Make request to export endpoint
     fetch(`/export/po/${poId}/`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || getCookie('csrftoken'),
+            'X-CSRFToken': csrfToken,
         },
         body: JSON.stringify({ format: format })
     })
@@ -1173,9 +1173,11 @@ function exportSinglePO(poId, format) {
                 document.body.removeChild(a);
                 window.URL.revokeObjectURL(url);
                 
-                // Show success message
+                // Show success message using global translation system
                 if (window.alertTranslated) {
-                    alertTranslated('export_completed_successfully');
+                    window.alertTranslated('export_completed_successfully');
+                } else if (window.translator && window.translator._) {
+                    alert(window.translator._('export_completed_successfully'));
                 } else {
                     alert('Export completed successfully!');
                 }
@@ -1188,8 +1190,9 @@ function exportSinglePO(poId, format) {
     })
     .catch(error => {
         console.error('Export error:', error);
+        // Show error message using global translation system
         if (window.alertTranslated) {
-            alertTranslated('export_failed', {error: error.message});
+            window.alertTranslated('export_failed', {error: error.message});
         } else {
             alert('Export failed: ' + error.message);
         }
@@ -1197,30 +1200,21 @@ function exportSinglePO(poId, format) {
     .finally(() => {
         // Restore button states
         buttons.forEach(btn => {
-            const originalText = Object.keys(originalHtml).find(key => 
-                btn.innerHTML.includes('Exporting') || btn.innerHTML.includes('spinner-border')
-            );
-            if (originalText) {
-                btn.innerHTML = originalHtml[originalText];
+            if (originalHtml[btn.innerHTML]) {
+                btn.innerHTML = originalHtml[btn.innerHTML];
+            } else {
+                // Fallback: restore based on format
+                if (btn.innerHTML.includes('spinner-border')) {
+                    if (format === 'excel') {
+                        btn.innerHTML = '<i class="bi bi-file-earmark-excel"></i> Export to Excel';
+                    } else {
+                        btn.innerHTML = '<i class="bi bi-file-earmark-pdf"></i> Export to PDF';
+                    }
+                }
             }
             btn.disabled = false;
         });
     });
-}
-
-function getCookie(name) {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-            const cookie = cookies[i].trim();
-            if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                break;
-            }
-        }
-    }
-    return cookieValue;
 }
 </script>
 {% endblock %}

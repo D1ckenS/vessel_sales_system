@@ -821,35 +821,41 @@ window.exportData = function(exportType, format, additionalData = {}) {
 
 // Export modal function
 window.showExportModal = function(exportType, additionalData = {}) {
+    // Avoid conflicts with trip/po specific modals
+    if (exportType === 'single_trip' || exportType === 'single_po') {
+        console.warn('Use showTripExportModal or showPOExportModal for single exports');
+        return;
+    }
+    
     const modalHtml = `
-        <div class="modal fade" id="exportModal" tabindex="-1">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">
-                            <i class="bi bi-download"></i> <span data-translate="export_data">Export Data</span>
-                        </h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <p><span data-translate="choose_export_format">Choose your preferred export format:</span></p>
-                        <div class="d-grid gap-2">
-                            <button class="btn btn-success" onclick="exportData('${exportType}', 'excel', ${JSON.stringify(additionalData).replace(/"/g, '&quot;')}); bootstrap.Modal.getInstance(document.getElementById('exportModal')).hide();">
-                                <i class="bi bi-file-earmark-excel"></i> <span data-translate="export_to_excel">Export to Excel (.xlsx)</span>
-                            </button>
-                            <button class="btn btn-danger" onclick="exportData('${exportType}', 'pdf', ${JSON.stringify(additionalData).replace(/"/g, '&quot;')}); bootstrap.Modal.getInstance(document.getElementById('exportModal')).hide();">
-                                <i class="bi bi-file-earmark-pdf"></i> <span data-translate="export_to_pdf">Export to PDF</span>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                            <span data-translate="cancel">Cancel</span>
+    <div class="modal fade" id="exportModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-download"></i> <span data-translate="export_data">Export Data</span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p><span data-translate="choose_export_format">Choose your preferred export format:</span></p>
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-success" onclick="exportData('${exportType}', 'excel', ${JSON.stringify(additionalData).replace(/"/g, '&quot;')}); bootstrap.Modal.getInstance(document.getElementById('exportModal')).hide();">
+                            <i class="bi bi-file-earmark-excel"></i> <span data-translate="export_to_excel">Export to Excel (.xlsx)</span>
+                        </button>
+                        <button class="btn btn-danger" onclick="exportData('${exportType}', 'pdf', ${JSON.stringify(additionalData).replace(/"/g, '&quot;')}); bootstrap.Modal.getInstance(document.getElementById('exportModal')).hide();">
+                            <i class="bi bi-file-earmark-pdf"></i> <span data-translate="export_to_pdf">Export to PDF</span>
                         </button>
                     </div>
                 </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <span data-translate="cancel">Cancel</span>
+                    </button>
+                </div>
             </div>
         </div>
+    </div>
     `;
     
     // Remove existing modal if present
@@ -862,7 +868,9 @@ window.showExportModal = function(exportType, additionalData = {}) {
     document.body.insertAdjacentHTML('beforeend', modalHtml);
     
     // Apply translations
-    updatePageTranslations();
+    if (window.updatePageTranslations) {
+        window.updatePageTranslations();
+    }
     
     // Show modal
     const modal = new bootstrap.Modal(document.getElementById('exportModal'));
@@ -939,3 +947,20 @@ document.addEventListener('DOMContentLoaded', function() {
     
     console.log('🎯 Language system initialized successfully');
 });
+
+window.cleanupModal = function(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        // Hide modal if it's still showing
+        const bsModal = bootstrap.Modal.getInstance(modal);
+        if (bsModal) {
+            bsModal.hide();
+        }
+        // Remove from DOM after a short delay
+        setTimeout(() => {
+            if (modal.parentNode) {
+                modal.parentNode.removeChild(modal);
+            }
+        }, 300);
+    }
+};

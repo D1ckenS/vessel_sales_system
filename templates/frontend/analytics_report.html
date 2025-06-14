@@ -646,9 +646,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Export and Print functions
 function exportAnalytics() {
+    // Use the global export modal system
     if (window.showExportModal) {
-        showExportModal('analytics_report');
+        window.showExportModal('analytics_report');
     } else {
+        console.error('Global export system not available');
         alert('Export functionality is not available');
     }
 }
