@@ -6,12 +6,6 @@ from . import views, auth_views, test_views, reports_views, export_views, produc
 app_name = 'frontend'
 
 urlpatterns = [
-    # 🧪 TEMPORARY: Test authentication styling
-    path('test-login/', test_views.test_login, name='test_login'),
-    path('test-users/', test_views.test_user_management, name='test_user_management'),
-    path('test-password/', test_views.test_change_password, name='test_change_password'),
-    path('test-profile/', test_views.test_user_profile, name='test_user_profile'),    
-
     # Authentication
     path('login/', auth_views.user_login, name='login'),
     path('logout/', auth_views.user_logout, name='logout'),
