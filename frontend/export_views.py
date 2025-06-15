@@ -4,7 +4,9 @@ from django.contrib.auth.decorators import login_required
 import calendar
 from django.db.models import Sum, Count, F, Q
 import json
-
+from django.template.loader import render_to_string
+import weasyprint
+import io
 from products import models
 from .utils import BilingualMessages
 from django.http import JsonResponse, HttpResponse
@@ -236,11 +238,12 @@ def get_translated_labels(request, data=None):
             'total_items_sold': 'Total Items Sold',
             'completed': 'Completed',
             'pending': 'Pending',
+            'supplies': 'Supplies',
             
             'period': 'Period',
             'total_trips': 'Total Trips',
             'trips_overview': 'Trips Overview',
-            'total_pos': 'Total Purchase Orders',
+            'total_pos': 'Total Number of Purchase Orders',
             'pos_overview': 'Purchase Orders Overview',
             'total_quantity': 'Total Quantity',
             'currency': 'Currency',
@@ -248,6 +251,7 @@ def get_translated_labels(request, data=None):
             
             # Report Titles
             'trip_sales_report': 'Trip Sales Report',
+            'trips_report': 'Trips Sales Report',
             'purchase_order_supply_report': 'Purchase Order Supply Report',
             
             # Template Elements
@@ -299,7 +303,6 @@ def get_translated_labels(request, data=None):
             'total_transfers_jod': 'Total Transfers',
             
             # Report Exports
-            'trips_report': 'Trips Sales Report',
             'monthly_report': 'Monthly Report',
             'daily_report': 'Daily Report',
             'analytics_report': 'Analytics Report',
@@ -342,11 +345,12 @@ def get_translated_labels(request, data=None):
             'total_items_sold': 'إجمالي العناصر المباعة',
             'completed': 'مكتمل',
             'pending': 'معلق',
+            'supplies': 'توريدات',
             
             'period': 'الفترة',
             'total_trips': 'إجمالي الرحلات',
             'trips_overview': 'نظرة عامة على الرحلات',
-            'total_pos': 'إجمالي أوامر الشراء',
+            'total_pos': 'عدد أوامر الشراء',
             'pos_overview': 'نظرة عامة على أوامر الشراء',
             'total_quantity': 'إجمالي الكمية',
             'currency': 'العملة',
@@ -354,7 +358,8 @@ def get_translated_labels(request, data=None):
             
             # Report Titles (Arabic)
             'trip_sales_report': 'تقرير مبيعات الرحلة',
-            'purchase_order_supply_report': 'تقرير توريد أمر الشراء',
+            'trips_report': 'تقرير مبيعات الرحلات',
+            'purchase_order_supply_report': 'تقرير أوامر الشراء',
             
             # Template Elements (Arabic)
             'generated_on': 'تم إنشاؤه في',
@@ -405,7 +410,6 @@ def get_translated_labels(request, data=None):
             'total_transfers_jod': 'إجمالي التحويلات',
             
             # Report Exports
-            'trips_report': 'تقرير مبيعات الرحلات',
             'monthly_report': 'تقرير شهري',
             'daily_report': 'تقرير يومي',
             'analytics_report': 'تقرير تحليلي',
@@ -998,9 +1002,7 @@ def export_trips(request):
                 }
                 
                 # Use the same pattern as working individual exports
-                from django.template.loader import render_to_string
-                import weasyprint
-                import io
+                
                 
                 template_name = 'frontend/exports/wide_report.html'
                 html_string = render_to_string(template_name, context)
@@ -1248,35 +1250,45 @@ def export_purchase_orders(request):
         # Prepare data
         table_data = []
         total_cost = 0
+        total_items = 0
         
-        for po in pos:
+        for po in pos[:2000]:
             # Calculate PO total cost
-            supplies = Transaction.objects.filter(
+            po_stats = Transaction.objects.filter(
                 purchase_order=po,
                 transaction_type='SUPPLY'
             ).aggregate(
                 total_cost=Sum(F('quantity') * F('unit_price')),
-                total_quantity=Sum('quantity')
+                total_quantity=Sum('quantity'),
+                transaction_count=Count('id')
             )
             
-            cost = safe_float(supplies['total_cost'])
+            cost = safe_float(po_stats['total_cost'])
+            quantity = safe_int(po_stats['total_quantity'])
+            transaction_count = safe_int(po_stats['transaction_count'])
+            
             total_cost += cost
+            total_items += quantity
             
             # Get vessel name in appropriate language
             vessel_name = get_vessel_name_by_language(po.vessel, language)
             
-            # Format data with number translation for Arabic
-            po_status = labels.get('completed' if getattr(po, 'status', '') == 'COMPLETED' else 'pending', 
-                                 getattr(po, 'status', 'N/A'))
+            # Determine PO status with translation
+            po_status_key = 'completed' if getattr(po, 'is_completed', False) or getattr(po, 'status', '') == 'completed' else 'pending'
+            po_status = labels[po_status_key]
+            
+            # Get current datetime for trip date metadata formatting
+            local_dt = timezone.localtime(po.created_at).replace(tzinfo=None) if hasattr(po, 'created_at') else timezone.now().replace(tzinfo=None)
             
             formatted_data = [
                 translate_numbers_to_arabic(str(po.po_number), language),
                 vessel_name,
-                format_date_for_language(po.po_date, language),
+                format_date_for_language(local_dt, language),
                 po_status,
-                translate_numbers_to_arabic(str(safe_int(supplies['total_quantity'])), language),
+                translate_numbers_to_arabic(str(quantity), language),
                 translate_numbers_to_arabic(format_currency(cost, 3), language),
-                po.created_by.username if po.created_by else 'N/A'
+                translate_numbers_to_arabic(str(transaction_count), language),
+                po.created_by.username if po.created_by else labels.get('system', 'System')
             ]
             table_data.append(formatted_data)
         
@@ -1284,12 +1296,17 @@ def export_purchase_orders(request):
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         filename_base = f"purchase_orders_export_{timestamp}"
         
+        # Get current datetime for metadata
+        local_dt = timezone.localtime(timezone.now()).replace(tzinfo=None)
+        
         # Metadata with translation
         metadata = {
-            labels['export_date']: format_datetime_for_language(datetime.now(), language),
-            labels.get('period', 'Period'): f"{format_date_for_language(start_date, language)} - {format_date_for_language(end_date, language)}",
-            labels.get('total_pos', 'Total Purchase Orders'): translate_numbers_to_arabic(str(len(table_data)), language),
+            labels['export_date']: format_datetime_for_language(local_dt, language),
+            labels['period']: f"{format_date_for_language(start_date, language)} - {format_date_for_language(end_date, language)}",
+            labels['total_pos']: translate_numbers_to_arabic(str(len(table_data)), language),
             labels['total_cost_jod']: translate_numbers_to_arabic(format_currency(total_cost, 3), language),
+            labels['currency']: labels['jod'],  # Apply new currency pattern
+            labels['total_items_received']: translate_numbers_to_arabic(str(total_items), language),
             labels['generated_by']: request.user.username
         }
         
@@ -1299,23 +1316,24 @@ def export_purchase_orders(request):
             labels['vessel'],
             labels['po_date'],
             labels['status'],
-            labels.get('total_quantity', 'Total Quantity'),
+            labels['total_quantity'],
             labels['total_cost_jod'],
+            labels.get('transactions', 'Transactions'),
             labels['generated_by']
         ]
         
         # Summary data with translation
         summary_data = {
-            labels.get('total_pos', 'Total Purchase Orders'): translate_numbers_to_arabic(str(len(table_data)), language),
+            labels['total_pos']: translate_numbers_to_arabic(str(len(table_data)), language),
             labels['total_cost_jod']: translate_numbers_to_arabic(format_currency(total_cost, 3), language),
-            labels['average_cost_per_item_jod']: translate_numbers_to_arabic(format_currency((total_cost / len(table_data)) if table_data else 0, 3), language)
+            labels['total_items_received']: translate_numbers_to_arabic(str(total_items), language),
         }
         
         # Generate report title with translation
         if language == 'ar':
-            report_title = "تقرير أوامر الشراء"
+            report_title = labels['purchase_order_supply_report']
         else:
-            report_title = "Purchase Orders Report"
+            report_title = labels['purchase_order_supply_report']
         
         if export_format == 'excel':
             try:
@@ -1341,7 +1359,6 @@ def export_purchase_orders(request):
                     'title': report_title,
                     'metadata': metadata,
                     'tables': [{'title': f"{report_title} - {labels.get('pos_overview', 'Purchase Orders Overview')}", 'id': 'pos_table', 'headers': headers, 'rows': table_data}],
-                    'charts': [],
                     'summary_data': summary_data,
                     'orientation': 'landscape',
                     'language': language,  # KEY: This enables RTL
