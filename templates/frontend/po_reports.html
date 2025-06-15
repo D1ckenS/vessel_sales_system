@@ -305,7 +305,10 @@ function exportPOReports() {
         vessel_filter: document.querySelector('[name="vessel"]')?.value || '',
         date_from: document.querySelector('[name="date_from"]')?.value || '',
         date_to: document.querySelector('[name="date_to"]')?.value || '',
-        status_filter: document.querySelector('[name="status"]')?.value || ''
+        status_filter: document.querySelector('[name="status"]')?.value || '',
+        // Add language support
+        language: window.translator ? window.translator.currentLanguage : 
+                 localStorage.getItem('preferred_language') || 'en'
     };
     
     showExportModal('purchase_orders', additionalData);

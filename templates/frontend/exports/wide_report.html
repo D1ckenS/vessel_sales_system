@@ -76,10 +76,20 @@
         .metadata-item {
             display: flex;
             justify-content: space-between;
-            padding: 3px 0;
+            padding: 8px 0;  /* Increased from 3px to 8px for better spacing */
+            border-bottom: 1px solid #e9ecef;  /* Add separator line */
             {% if language == 'ar' %}
             flex-direction: row-reverse !important;
             {% endif %}
+        }
+
+        .metadata-item:last-child {
+            border-bottom: none;  /* Remove line from last item */
+        }
+
+        /* Optional: Add slight background alternation for better readability */
+        .metadata-item:nth-child(even) {
+            background-color: rgba(248, 249, 250, 0.5);  /* Very subtle alternating background */
         }
         
         .metadata-label {
@@ -190,10 +200,15 @@
         .summary-item {
             display: flex;
             justify-content: space-between;
-            padding: 5px 0;
+            padding: 8px 0;  /* Increased from 5px to 8px for consistency */
+            border-bottom: 1px solid #e9ecef;  /* Add separator line */
             {% if language == 'ar' %}
             flex-direction: row-reverse !important;
             {% endif %}
+        }
+
+        .summary-item:last-child {
+            border-bottom: none;  /* Remove line from last item */
         }
         
         .summary-label {

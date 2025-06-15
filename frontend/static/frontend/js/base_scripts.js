@@ -735,6 +735,10 @@ window.exportData = function(exportType, format, additionalData = {}) {
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> ' + _('exporting');
     btn.disabled = true;
     
+    // Get current language
+    const currentLanguage = window.translator ? window.translator.currentLanguage : 
+                           localStorage.getItem('preferred_language') || 'en';
+    
     // Determine endpoint based on export type
     let endpoint;
     switch(exportType) {
@@ -766,9 +770,10 @@ window.exportData = function(exportType, format, additionalData = {}) {
             return;
     }
     
-    // Prepare request data
+    // Prepare request data with language support
     const requestData = {
         format: format, // 'excel' or 'pdf'
+        language: currentLanguage,  // ADD THIS LINE
         ...additionalData
     };
     

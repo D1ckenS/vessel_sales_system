@@ -270,6 +270,51 @@ def get_translated_labels(request, data=None):
             # Report Titles with Dynamic Content
             'trip_report_title': 'Trip {trip_number} Report',
             'po_report_title': 'PO {po_number} Report',
+            
+            # Inventory Export
+            'inventory_report': 'Inventory Report',
+            'current_inventory': 'Current Inventory Status',
+            'product_name': 'Product Name',
+            'category': 'Category',
+            'current_stock': 'Current Stock',
+            'minimum_level': 'Minimum Level',
+            'unit_cost_jod': 'Unit Cost',
+            'total_value_jod': 'Total Value',
+            'last_updated': 'Last Updated',
+            'total_products': 'Total Products',
+            'low_stock_items': 'Low Stock Items',
+            'average_value_per_item': 'Average Value per Item',
+            
+            # Transactions Export  
+            'transactions_report': 'Transactions Report',
+            'transaction_history': 'Transaction History',
+            'date': 'Date',
+            'type': 'Type',
+            'unit_price_jod': 'Unit Price',
+            'total_amount_jod': 'Total Amount',
+            'created_by': 'Created By',
+            'total_records': 'Total Records',
+            'total_sales_jod': 'Total Sales',
+            'total_supplies_jod': 'Total Supplies',
+            'total_transfers_jod': 'Total Transfers',
+            
+            # Report Exports
+            'trips_report': 'Trips Sales Report',
+            'monthly_report': 'Monthly Report',
+            'daily_report': 'Daily Report',
+            'analytics_report': 'Analytics Report',
+            'analysis_period': 'Analysis Period',
+            'vessel_performance': 'Vessel Performance',
+            'revenue_jod': 'Revenue',
+            'costs_jod': 'Costs',
+            'profit_margin_percent': 'Profit Margin (%)',
+            'sales_count': 'Sales Count',
+            'avg_transaction_value': 'Avg Transaction Value',
+            'po_count': 'PO Count',
+            'best_performing_vessel': 'Best Performing Vessel',
+            'daily_performance': 'Daily Performance',
+            'average_per_trip': 'Average per Trip',
+            'transactions': 'Transactions',
         },
         'ar': {
             # Basic Labels (Arabic)
@@ -331,6 +376,51 @@ def get_translated_labels(request, data=None):
             # Report Titles with Dynamic Content (Arabic)
             'trip_report_title': 'تقرير رحلة {trip_number}',
             'po_report_title': 'تقرير أمر شراء {po_number}',
+            
+            # Inventory Export
+            'inventory_report': 'تقرير المخزون',
+            'current_inventory': 'حالة المخزون الحالية',
+            'product_name': 'اسم المنتج',
+            'category': 'الفئة',
+            'current_stock': 'المخزون الحالي',
+            'minimum_level': 'الحد الأدنى',
+            'unit_cost_jod': 'تكلفة الوحدة',
+            'total_value_jod': 'القيمة الإجمالية',
+            'last_updated': 'آخر تحديث',
+            'total_products': 'إجمالي المنتجات',
+            'low_stock_items': 'العناصر منخفضة المخزون',
+            'average_value_per_item': 'متوسط القيمة لكل عنصر',
+            
+            # Transactions Export
+            'transactions_report': 'تقرير المعاملات',
+            'transaction_history': 'تاريخ المعاملات',
+            'date': 'التاريخ',
+            'type': 'النوع',
+            'unit_price_jod': 'سعر الوحدة',
+            'total_amount_jod': 'المبلغ الإجمالي',
+            'created_by': 'تم إنشاؤه بواسطة',
+            'total_records': 'إجمالي السجلات',
+            'total_sales_jod': 'إجمالي المبيعات',
+            'total_supplies_jod': 'إجمالي التوريدات',
+            'total_transfers_jod': 'إجمالي التحويلات',
+            
+            # Report Exports
+            'trips_report': 'تقرير مبيعات الرحلات',
+            'monthly_report': 'تقرير شهري',
+            'daily_report': 'تقرير يومي',
+            'analytics_report': 'تقرير تحليلي',
+            'analysis_period': 'فترة التحليل',
+            'vessel_performance': 'أداء السفن',
+            'revenue_jod': 'الإيرادات',
+            'costs_jod': 'التكاليف',
+            'profit_margin_percent': 'هامش الربح (%)',
+            'sales_count': 'عدد المبيعات',
+            'avg_transaction_value': 'متوسط قيمة المعاملة',
+            'po_count': 'عدد أوامر الشراء',
+            'best_performing_vessel': 'أفضل سفينة أداءً',
+            'daily_performance': 'الأداء اليومي',
+            'average_per_trip': 'متوسط لكل رحلة',
+            'transactions': 'المعاملات',
         }
     }
     
@@ -793,40 +883,39 @@ def export_trips(request):
         # Prepare data
         table_data = []
         total_revenue = 0
-        total_profit = 0
         
-        for trip in trips:
+        for trip in trips[:2000]:
             # Calculate trip financials
-            sales = Transaction.objects.filter(
+            trip_revenue = Transaction.objects.filter(
                 trip=trip,
                 transaction_type='SALE'
             ).aggregate(
-                revenue=Sum(F('quantity') * F('unit_price')),
-                quantity=Sum('quantity')
-            )
+                total=Sum(F('quantity') * F('unit_price'))
+            )['total'] or 0
             
-            revenue = safe_float(sales['revenue'])
-            total_revenue += revenue
+            total_revenue += trip_revenue
             
-            # Estimate profit (simplified)
-            estimated_profit = revenue * 0.3  # 30% profit margin estimate
-            total_profit += estimated_profit
-            
+             # Get transaction count
+            transaction_count = Transaction.objects.filter(trip=trip).count()
+                        
             # Get vessel name in appropriate language
             vessel_name = get_vessel_name_by_language(trip.vessel, language)
             
             # Format data with number translation for Arabic
-            trip_status = labels.get('completed' if getattr(trip, 'status', '') == 'COMPLETED' else 'pending', 
-                                   getattr(trip, 'status', 'N/A'))
+            trip_status_key = 'completed' if getattr(trip, 'is_completed', False) or getattr(trip, 'status', '') == 'completed' else 'pending'
+            trip_status = labels[trip_status_key]
+            
+            # Get current datetime for trip date metadata formatting
+            local_dt = timezone.localtime(trip.created_at).replace(tzinfo=None) if hasattr(trip, 'created_at') else timezone.now().replace(tzinfo=None)
             
             formatted_data = [
                 translate_numbers_to_arabic(str(trip.trip_number), language),
                 vessel_name,
-                format_date_for_language(trip.trip_date, language),
+                format_date_for_language(local_dt, language),
                 trip_status,
-                translate_numbers_to_arabic(str(getattr(trip, 'passenger_count', 0) or 0), language),
-                translate_numbers_to_arabic(format_currency(revenue, 3), language),
-                translate_numbers_to_arabic(format_currency(estimated_profit, 3), language),
+                translate_numbers_to_arabic(format_currency(trip_revenue, 3), language),
+                translate_numbers_to_arabic(str(safe_int(transaction_count)), language),
+                translate_numbers_to_arabic(str(safe_int(getattr(trip, 'passenger_count', 0))), language),
                 trip.created_by.username if trip.created_by else 'N/A'
             ]
             table_data.append(formatted_data)
@@ -838,10 +927,11 @@ def export_trips(request):
         # Metadata with translation
         metadata = {
             labels['export_date']: format_datetime_for_language(datetime.now(), language),
-            labels.get('period', 'Period'): f"{format_date_for_language(start_date, language)} - {format_date_for_language(end_date, language)}",
-            labels.get('total_trips', 'Total Trips'): translate_numbers_to_arabic(str(len(table_data)), language),
+            labels['period']: f"{format_date_for_language(start_date, language)} - {format_date_for_language(end_date, language)}",
+            labels['total_trips']: translate_numbers_to_arabic(str(len(table_data)), language),
             labels['total_revenue_jod']: translate_numbers_to_arabic(format_currency(total_revenue, 3), language),
-            labels['total_profit_jod']: translate_numbers_to_arabic(format_currency(total_profit, 3), language),
+            labels['currency']: labels['jod'],  # Apply new currency pattern
+            labels['average_per_trip']: translate_numbers_to_arabic(format_currency((total_revenue / len(table_data)) if table_data else 0, 3), language),
             labels['generated_by']: request.user.username
         }
         
@@ -851,31 +941,31 @@ def export_trips(request):
             labels['vessel'],
             labels['trip_date'],
             labels['status'],
-            labels['passengers'],
             labels['total_revenue_jod'],
-            labels['total_profit_jod'],
+            labels.get('transactions', 'Transactions'),
+            labels['passengers'],
             labels['generated_by']
         ]
         
         # Summary data with translation
         summary_data = {
-            labels.get('total_trips', 'Total Trips'): translate_numbers_to_arabic(str(len(table_data)), language),
+            labels['total_trips']: translate_numbers_to_arabic(str(len(table_data)), language),
             labels['total_revenue_jod']: translate_numbers_to_arabic(format_currency(total_revenue, 3), language),
-            labels['total_profit_jod']: translate_numbers_to_arabic(format_currency(total_profit, 3), language),
-            labels['profit_margin']: translate_numbers_to_arabic(f"{round((total_profit/total_revenue*100) if total_revenue > 0 else 0, 1)}%", language)
+            labels['average_per_trip']: translate_numbers_to_arabic(format_currency((total_revenue / len(table_data)) if table_data else 0, 3), language),
+            labels['currency']: labels['jod']
         }
         
         # Generate report title with translation
         if language == 'ar':
-            report_title = "تقرير مبيعات الرحلات"
+            report_title = labels['trips_report']
         else:
-            report_title = "Trips Sales Report"
+            report_title = labels['trips_report']
         
         if export_format == 'excel':
             try:
                 exporter = ExcelExporter(title=report_title)
                 
-                generation_text = f"{labels['generated_on']} {format_datetime_for_language(datetime.now(), language)}"
+                generation_text = f"{labels['generated_on']} {format_datetime_for_language(local_dt, language)}"
                 exporter.add_title(report_title, generation_text)
                 exporter.add_metadata(metadata)
                 exporter.add_headers(headers)
@@ -895,7 +985,6 @@ def export_trips(request):
                     'title': report_title,
                     'metadata': metadata,
                     'tables': [{'title': f"{report_title} - {labels.get('trips_overview', 'Trips Overview')}", 'id': 'trips_table', 'headers': headers, 'rows': table_data}],
-                    'charts': [],
                     'summary_data': summary_data,
                     'orientation': 'landscape',
                     'language': language,  # KEY: This enables RTL
@@ -970,9 +1059,7 @@ def export_single_trip(request, trip_id):
             cost_per_unit = safe_float(transaction.product.purchase_price) if transaction.product else safe_float(transaction.unit_price * 0.7)
             cogs = safe_float(transaction.quantity) * cost_per_unit
             profit = revenue - cogs
-            
-            local_dt = timezone.localtime(transaction.created_at).replace(tzinfo=None)
-            
+                        
             total_revenue += revenue
             total_cogs += cogs
             
