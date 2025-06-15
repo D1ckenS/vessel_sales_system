@@ -196,7 +196,7 @@ def calculate_product_level_summary(transactions):
 def get_translated_labels(request, data=None):
     """Get translated labels based on user's language preference"""
     
-    # Get user's language from session
+    # Try to get language from request data first (sent by JavaScript)
     user_language = 'en'
     if data and 'language' in data:
         user_language = data.get('language', 'en')
@@ -211,6 +211,7 @@ def get_translated_labels(request, data=None):
     # Define translations
     translations = {
         'en': {
+            # Basic Labels
             'export_date': 'Export Date',
             'trip_number': 'Trip Number',
             'vessel': 'Vessel',
@@ -235,17 +236,34 @@ def get_translated_labels(request, data=None):
             'total_items_sold': 'Total Items Sold',
             'completed': 'Completed',
             'pending': 'Pending',
+            
+            # Report Titles
             'trip_sales_report': 'Trip Sales Report',
+            'purchase_order_supply_report': 'Purchase Order Supply Report',
+            
+            # Template Elements
             'generated_on': 'Generated on',
+            'report_information': 'Report Information',
+            'summary': 'Summary',
+            'company_logo': 'COMPANY LOGO',
+            'no_data_available': 'No data available',
+            'transaction_details': 'Transaction Details',
+            'item_details': 'Item Details',
+            
+            # PO Specific
             'po_number': 'PO Number',
             'po_date': 'PO Date',
             'unit_cost_jod': 'Unit Cost (JOD)',
             'total_cost_jod': 'Total Cost (JOD)',
             'total_items_received': 'Total Items Received',
             'average_cost_per_item_jod': 'Average Cost per Item (JOD)',
-            'purchase_order_supply_report': 'Purchase Order Supply Report',
+            
+            # Report Titles with Dynamic Content
+            'trip_report_title': 'Trip {trip_number} Report',
+            'po_report_title': 'PO {po_number} Report',
         },
         'ar': {
+            # Basic Labels (Arabic)
             'export_date': 'تاريخ التصدير',
             'trip_number': 'رقم الرحلة',
             'vessel': 'السفينة',
@@ -270,19 +288,87 @@ def get_translated_labels(request, data=None):
             'total_items_sold': 'إجمالي العناصر المباعة',
             'completed': 'مكتمل',
             'pending': 'معلق',
+            
+            # Report Titles (Arabic)
             'trip_sales_report': 'تقرير مبيعات الرحلة',
+            'purchase_order_supply_report': 'تقرير توريد أمر الشراء',
+            
+            # Template Elements (Arabic)
             'generated_on': 'تم إنشاؤه في',
+            'report_information': 'معلومات التقرير',
+            'summary': 'الملخص',
+            'company_logo': 'شعار الشركة',
+            'no_data_available': 'لا توجد بيانات متاحة',
+            'transaction_details': 'تفاصيل المعاملات',
+            'item_details': 'تفاصيل العناصر',
+            
+            # PO Specific (Arabic)
             'po_number': 'رقم أمر الشراء',
             'po_date': 'تاريخ أمر الشراء',
             'unit_cost_jod': 'تكلفة الوحدة (دينار)',
             'total_cost_jod': 'التكلفة الإجمالية (دينار)',
             'total_items_received': 'إجمالي العناصر المستلمة',
             'average_cost_per_item_jod': 'متوسط التكلفة لكل عنصر (دينار)',
-            'purchase_order_supply_report': 'تقرير توريد أمر الشراء',
+            
+            # Report Titles with Dynamic Content (Arabic)
+            'trip_report_title': 'تقرير رحلة {trip_number}',
+            'po_report_title': 'تقرير أمر شراء {po_number}',
         }
     }
     
-    return translations.get(user_language, translations['en'])
+    labels = translations.get(user_language, translations['en'])
+    labels['language'] = user_language  # Add language info
+    return labels
+
+def translate_numbers_to_arabic(text, language):
+    """Convert Western numerals to Arabic-Indic numerals if language is Arabic"""
+    if language != 'ar':
+        return text
+    
+    # Arabic-Indic numerals mapping
+    arabic_numerals = {
+        '0': '٠', '1': '١', '2': '٢', '3': '٣', '4': '٤',
+        '5': '٥', '6': '٦', '7': '٧', '8': '٨', '9': '٩'
+    }
+    
+    # Convert numbers in text
+    result = str(text)
+    for western, arabic in arabic_numerals.items():
+        result = result.replace(western, arabic)
+    
+    return result
+
+def get_vessel_name_by_language(vessel, language):
+    """Get vessel name in appropriate language"""
+    if language == 'ar' and vessel and hasattr(vessel, 'name_ar') and vessel.name_ar:
+        return vessel.name_ar
+    return vessel.name if vessel else 'N/A'
+
+def format_date_for_language(date_obj, language):
+    """Format date according to language preference"""
+    if not date_obj:
+        return ''
+    
+    if language == 'ar':
+        # Arabic date format: DD/MM/YYYY with Arabic numerals
+        formatted = date_obj.strftime('%d/%m/%Y')
+        return translate_numbers_to_arabic(formatted, 'ar')
+    else:
+        # English date format
+        return date_obj.strftime('%d/%m/%Y')
+
+def format_datetime_for_language(datetime_obj, language):
+    """Format datetime according to language preference"""
+    if not datetime_obj:
+        return ''
+    
+    if language == 'ar':
+        # Arabic datetime format with Arabic numerals
+        formatted = datetime_obj.strftime('%d/%m/%Y %H:%M')
+        return translate_numbers_to_arabic(formatted, 'ar')
+    else:
+        # English datetime format
+        return datetime_obj.strftime('%d/%m/%Y %H:%M')
 
 def safe_float(value, default=0.0):
     """Safely convert value to float"""
@@ -784,14 +870,14 @@ def export_trips(request):
 @login_required
 @require_http_methods(["POST"])
 def export_single_trip(request, trip_id):
-    """Export individual trip details - Updated with proper formatting"""
+    """Export individual trip details - Fully translated with RTL support"""
     try:
-        
         data = json.loads(request.body)
         export_format = data.get('format', 'excel')
         
-        # Get translated labels
+        # Get translated labels with language from request
         labels = get_translated_labels(request, data)
+        language = labels['language']
         
         # Get trip
         trip = get_object_or_404(Trip, id=trip_id)
@@ -809,52 +895,58 @@ def export_single_trip(request, trip_id):
         transaction_data = []
         for transaction in transactions:
             revenue = safe_float(transaction.quantity) * safe_float(transaction.unit_price)
-            # Calculate COGS - you may need to adjust this based on your cost calculation
-            
             cost_per_unit = safe_float(transaction.product.purchase_price) if transaction.product else safe_float(transaction.unit_price * 0.7)
-            cogs = safe_float(transaction.quantity) * cost_per_unit  # Example: 70% cost ratio
+            cogs = safe_float(transaction.quantity) * cost_per_unit
             profit = revenue - cogs
             
             total_revenue += revenue
             total_cogs += cogs
             
-            transaction_data.append([
-                format_datetime(transaction.transaction_date),
+            # Format data with number translation
+            formatted_data = [
+                format_datetime_for_language(transaction.transaction_date, language),
                 transaction.product.name if transaction.product else 'N/A',
-                transaction.product.item_id if transaction.product else 'N/A',
-                safe_float(transaction.quantity),
-                safe_float(transaction.unit_price),
-                round(cost_per_unit,3),
-                revenue,
-                round(cogs,3),
-                round(profit,3),
+                translate_numbers_to_arabic(transaction.product.item_id, language) if transaction.product else 'N/A',
+                round(safe_float(transaction.quantity), 3),
+                round(safe_float(transaction.unit_price), 3),
+                round(cost_per_unit, 3),
+                round(revenue, 3),
+                round(cogs, 3),
+                round(profit, 3),
                 transaction.notes or ''
-            ])
+            ]
+            
+            transaction_data.append(formatted_data)
         
         total_profit = total_revenue - total_cogs
         
         # Generate filename
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        trip_number_for_filename = translate_numbers_to_arabic(str(trip.trip_number), language)
         filename_base = f"trip_{trip.trip_number}_{timestamp}"
         
-        # Determine trip status
-        trip_status = "Completed" if getattr(trip, 'is_completed', False) or getattr(trip, 'status', '') == 'completed' else "Pending"
+        # Determine trip status with translation
+        trip_status = labels['completed'] if getattr(trip, 'is_completed', False) else labels['pending']
         
-        # Metadata
+        # Get vessel name in appropriate language
+        vessel_name = get_vessel_name_by_language(trip.vessel, language)
+        
+        # Translated metadata with number conversion
         metadata = {
-            labels['export_date']: datetime.now().strftime('%d/%m/%Y %H:%M'),
-            labels['trip_number']: trip.trip_number,
-            labels['vessel']: trip.vessel.name if trip.vessel else 'N/A',
-            labels['trip_date']: format_date(trip.trip_date),
-            labels['status']: labels['completed'] if getattr(trip, 'is_completed', False) else labels['pending'],
-            labels['passengers']: safe_int(getattr(trip, 'passenger_count', 0)),
-            labels['total_revenue_jod']: round(total_revenue, 3),
-            labels['total_cogs_jod']: round(total_cogs, 3),
-            labels['total_profit_jod']: round(total_profit, 3),
-            labels['profit_margin']: format_percentage((total_profit/total_revenue*100) if total_revenue > 0 else 0),
+            labels['export_date']: format_datetime_for_language(datetime.now(), language),
+            labels['trip_number']: translate_numbers_to_arabic(str(trip.trip_number), language),
+            labels['vessel']: vessel_name,
+            labels['trip_date']: format_date_for_language(trip.trip_date, language),
+            labels['status']: trip_status,
+            labels['passengers']: translate_numbers_to_arabic(str(safe_int(getattr(trip, 'passenger_count', 0))), language),
+            labels['total_revenue_jod']: translate_numbers_to_arabic(f"{round(total_revenue, 3)}", language),
+            labels['total_cogs_jod']: translate_numbers_to_arabic(f"{round(total_cogs, 3)}", language),
+            labels['total_profit_jod']: translate_numbers_to_arabic(f"{round(total_profit, 3)}", language),
+            labels['profit_margin']: translate_numbers_to_arabic(f"{round((total_profit/total_revenue*100) if total_revenue > 0 else 0, 0)}%", language),
             labels['generated_by']: request.user.username
         }
         
+        # Translated headers
         headers = [
             labels['time'],
             labels['product'], 
@@ -868,20 +960,29 @@ def export_single_trip(request, trip_id):
             labels['notes']
         ]
         
-        # Create summary data
+        # Translated summary data with number conversion
         summary_data = {
-            labels['total_items_sold']: len(transaction_data),
-            labels['total_revenue_jod']: round(total_revenue, 3),
-            labels['total_cogs_jod']: round(total_cogs, 3),
-            labels['total_profit_jod']: round(total_profit, 3),
-            labels['profit_margin']: format_percentage((total_profit/total_revenue*100) if total_revenue > 0 else 0)
+            labels['total_items_sold']: translate_numbers_to_arabic(str(len(transaction_data)), language),
+            labels['total_revenue_jod']: translate_numbers_to_arabic(f"{round(total_revenue, 3)}", language),
+            labels['total_cogs_jod']: translate_numbers_to_arabic(f"{round(total_cogs, 3)}", language),
+            labels['total_profit_jod']: translate_numbers_to_arabic(f"{round(total_profit, 3)}", language),
+            labels['profit_margin']: translate_numbers_to_arabic(f"{round((total_profit/total_revenue*100) if total_revenue > 0 else 0, 0)}%", language)
         }
+        
+        # Generate dynamic title
+        trip_number_translated = translate_numbers_to_arabic(str(trip.trip_number), language)
+        if language == 'ar':
+            report_title = f"تقرير رحلة {trip_number_translated}"
+        else:
+            report_title = f"Trip {trip.trip_number} Report"
         
         if export_format == 'excel':
             try:
-                exporter = ExcelExporter(title=f"{labels['trip_sales_report']} - {trip.trip_number}")
-                exporter.add_title(f"{labels['trip_sales_report']} - {trip.trip_number}", 
-                                 f"{labels['generated_on']} {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+                exporter = ExcelExporter(title=report_title)
+                
+                # Add title with generation date
+                generation_text = f"{labels['generated_on']} {format_datetime_for_language(datetime.now(), language)}"
+                exporter.add_title(report_title, generation_text)
                 exporter.add_metadata(metadata)
                 exporter.add_headers(headers)
                 exporter.add_data_rows(transaction_data)
@@ -895,12 +996,64 @@ def export_single_trip(request, trip_id):
         
         else:  # PDF
             try:
-                exporter = create_weasy_exporter_for_data(f"Trip {trip.trip_number} Report", "wide")
+                exporter = create_weasy_exporter_for_data(report_title, "wide")
                 exporter.add_metadata(metadata)
-                exporter.add_table(headers, transaction_data, table_title=f"Trip {trip.trip_number} - Transaction Details")
+                
+                # Table title with translation
+                table_title = f"{report_title} - {labels['transaction_details']}"
+                exporter.add_table(headers, transaction_data, table_title=table_title)
                 exporter.add_summary(summary_data)
                 
-                return exporter.get_response(f"{filename_base}.pdf")
+                # Enhanced context for RTL template
+                template_context = {
+                    'title': report_title,
+                    'metadata': metadata,
+                    'tables': exporter.tables,
+                    'charts': exporter.charts,
+                    'summary_data': summary_data,
+                    'orientation': 'landscape',
+                    'language': language,
+                    'generation_date': format_datetime_for_language(datetime.now(), language),
+                    'has_logo': False,
+                    # Template text translations
+                    'generated_on_text': labels['generated_on'],
+                    'report_info_text': labels['report_information'],
+                    'summary_text': labels['summary'],
+                    'company_logo_text': labels['company_logo'],
+                    'no_data_text': labels['no_data_available'],
+                }
+                
+                # Override get_response to pass custom context
+                from django.template.loader import render_to_string
+                import weasyprint
+                import io
+                
+                # Select template based on type and orientation
+                template_name = 'frontend/exports/wide_report.html'
+                
+                # Render HTML with our enhanced context
+                html_string = render_to_string(template_name, template_context)
+                
+                # Create PDF
+                html = weasyprint.HTML(string=html_string)
+                css_string = exporter._get_css_styles()
+                css = weasyprint.CSS(string=css_string)
+                
+                # Generate PDF
+                buffer = io.BytesIO()
+                html.write_pdf(target=buffer, stylesheets=[css])
+                buffer.seek(0)
+                
+                # Clean filename
+                clean_filename = "".join(c for c in f"{filename_base}.pdf" if c.isalnum() or c in (' ', '-', '_', '.'))
+                
+                # Create response
+                response = HttpResponse(content_type='application/pdf')
+                response['Content-Disposition'] = f'attachment; filename="{clean_filename}"'
+                response['Content-Length'] = len(buffer.getvalue())
+                response.write(buffer.getvalue())
+                
+                return response
                 
             except Exception as e:
                 logger.error(f"PDF single trip export error: {e}")
@@ -1050,12 +1203,17 @@ def export_purchase_orders(request):
         logger.error(f"Purchase orders export error: {e}")
         return JsonResponse({'success': False, 'error': f'Export failed: {str(e)}'})
 
+@login_required
 @require_http_methods(["POST"])
 def export_single_po(request, po_id):
-    """Export individual purchase order details for journal entries"""
+    """Export individual purchase order details - Fully translated with RTL support"""
     try:
         data = json.loads(request.body)
         export_format = data.get('format', 'excel')
+        
+        # Get translated labels with language from request
+        labels = get_translated_labels(request, data)
+        language = labels['language']
         
         # Get PO
         po = get_object_or_404(PurchaseOrder, id=po_id)
@@ -1075,48 +1233,72 @@ def export_single_po(request, po_id):
             cost = safe_float(transaction.quantity) * safe_float(transaction.unit_price)
             total_cost += cost
             
-            transaction_data.append([
-                format_datetime(transaction.transaction_date),
+            # Format data with number translation
+            formatted_data = [
+                format_datetime_for_language(transaction.transaction_date, language),
                 transaction.product.name if transaction.product else 'N/A',
-                transaction.product.item_id if transaction.product else 'N/A',
-                safe_float(transaction.quantity),
-                safe_float(transaction.unit_price),
-                round(cost,3),
+                translate_numbers_to_arabic(transaction.product.item_id, language) if transaction.product else 'N/A',
+                round(safe_float(transaction.quantity), 3),
+                round(safe_float(transaction.unit_price), 3),
+                round(cost, 3),
                 transaction.notes or ''
-            ])
+            ]
+            
+            transaction_data.append(formatted_data)
         
         # Generate filename
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         filename_base = f"po_{po.po_number}_{timestamp}"
         
-        # Metadata
+        # Determine PO status with translation
+        po_status = labels['completed'] if getattr(po, 'is_completed', False) else labels['pending']
+        
+        # Get vessel name in appropriate language
+        vessel_name = get_vessel_name_by_language(po.vessel, language)
+        
+        # Translated metadata with number conversion
         metadata = {
-            'Export Date': datetime.now().strftime('%d/%m/%Y %H:%M'),
-            'PO Number': po.po_number,
-            'Vessel': po.vessel.name if po.vessel else 'N/A',
-            'PO Date': format_date(po.po_date),
-            'Supplier': getattr(po, 'supplier_name', 'N/A'),
-            'Status': 'Completed' if getattr(po, 'is_completed', False) else 'Pending',
-            'Total Cost (JOD)': f"{total_cost:.3f}",
-            'Generated By': request.user.username
+            labels['export_date']: format_datetime_for_language(datetime.now(), language),
+            labels['po_number']: translate_numbers_to_arabic(str(po.po_number), language),
+            labels['vessel']: vessel_name,
+            labels['po_date']: format_date_for_language(po.po_date, language),
+            labels['status']: po_status,
+            labels['total_cost_jod']: translate_numbers_to_arabic(f"{total_cost:.3f}", language),
+            labels['generated_by']: request.user.username
         }
         
+        # Translated headers
         headers = [
-            'Time', 'Product', 'Product ID', 'Quantity', 
-            'Unit Cost (JOD)', 'Total Cost (JOD)', 'Notes'
+            labels['time'],
+            labels['product'],
+            labels['product_id'], 
+            labels['quantity'],
+            labels['unit_cost_jod'],
+            labels['total_cost_jod'],
+            labels['notes']
         ]
         
-        # Create summary data (used by both Excel and PDF)
+        # Translated summary with number conversion
         summary_data = {
-            'Total Items Received': len(transaction_data),
-            'Total Cost (JOD)': f"{total_cost:.3f}",
-            'Average Cost per Item (JOD)': f"{(total_cost / len(transaction_data)) if transaction_data else 0:.3f}"
+            labels['total_items_received']: translate_numbers_to_arabic(str(len(transaction_data)), language),
+            labels['total_cost_jod']: translate_numbers_to_arabic(f"{total_cost:.3f}", language),
+            labels['average_cost_per_item_jod']: translate_numbers_to_arabic(f"{(total_cost / len(transaction_data)) if transaction_data else 0:.3f}", language)
         }
+        
+        # Generate dynamic title
+        po_number_translated = translate_numbers_to_arabic(str(po.po_number), language)
+        if language == 'ar':
+            report_title = f"تقرير أمر شراء {po_number_translated}"
+        else:
+            report_title = f"PO {po.po_number} Report"
         
         if export_format == 'excel':
             try:
-                exporter = ExcelExporter(title=f"PO {po.po_number}")
-                exporter.add_title(f"Purchase Order Supply Report - {po.po_number}", f"Generated on {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+                exporter = ExcelExporter(title=report_title)
+                
+                # Add title with generation date
+                generation_text = f"{labels['generated_on']} {format_datetime_for_language(datetime.now(), language)}"
+                exporter.add_title(report_title, generation_text)
                 exporter.add_metadata(metadata)
                 exporter.add_headers(headers)
                 exporter.add_data_rows(transaction_data)
@@ -1130,12 +1312,64 @@ def export_single_po(request, po_id):
         
         else:  # PDF
             try:
-                exporter = create_weasy_exporter_for_data(f"PO {po.po_number} Report", "normal")
+                exporter = create_weasy_exporter_for_data(report_title, "normal")
                 exporter.add_metadata(metadata)
-                exporter.add_table(headers, transaction_data, table_title=f"PO {po.po_number} - Item Details")
+                
+                # Table title with translation
+                table_title = f"{report_title} - {labels['item_details']}"
+                exporter.add_table(headers, transaction_data, table_title=table_title)
                 exporter.add_summary(summary_data)
                 
-                return exporter.get_response(f"{filename_base}.pdf")
+                # Enhanced context for RTL template
+                template_context = {
+                    'title': report_title,
+                    'metadata': metadata,
+                    'tables': exporter.tables,
+                    'charts': exporter.charts,
+                    'summary_data': summary_data,
+                    'orientation': 'portrait',
+                    'language': language,
+                    'generation_date': format_datetime_for_language(datetime.now(), language),
+                    'has_logo': False,
+                    # Template text translations
+                    'generated_on_text': labels['generated_on'],
+                    'report_info_text': labels['report_information'],
+                    'summary_text': labels['summary'],
+                    'company_logo_text': labels['company_logo'],
+                    'no_data_text': labels['no_data_available'],
+                }
+                
+                # Override get_response to pass custom context
+                from django.template.loader import render_to_string
+                import weasyprint
+                import io
+                
+                # Select template based on orientation (use standard for portrait)
+                template_name = 'frontend/exports/standard_report.html'
+                
+                # Render HTML with our enhanced context
+                html_string = render_to_string(template_name, template_context)
+                
+                # Create PDF
+                html = weasyprint.HTML(string=html_string)
+                css_string = exporter._get_css_styles()
+                css = weasyprint.CSS(string=css_string)
+                
+                # Generate PDF
+                buffer = io.BytesIO()
+                html.write_pdf(target=buffer, stylesheets=[css])
+                buffer.seek(0)
+                
+                # Clean filename
+                clean_filename = "".join(c for c in f"{filename_base}.pdf" if c.isalnum() or c in (' ', '-', '_', '.'))
+                
+                # Create response
+                response = HttpResponse(content_type='application/pdf')
+                response['Content-Disposition'] = f'attachment; filename="{clean_filename}"'
+                response['Content-Length'] = len(buffer.getvalue())
+                response.write(buffer.getvalue())
+                
+                return response
                 
             except Exception as e:
                 logger.error(f"PDF single PO export error: {e}")

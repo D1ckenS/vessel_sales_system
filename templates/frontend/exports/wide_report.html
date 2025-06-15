@@ -1,10 +1,221 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ language|default:'en' }}" dir="{{ 'rtl' if language == 'ar' else 'ltr' }}">
 <head>
     <meta charset="utf-8">
     <title>{{ title }}</title>
+    <style>
+        /* Base RTL Support */
+        body {
+            font-family: {{ "'Tahoma', 'Arial Unicode MS', 'Arial', sans-serif" if language == 'ar' else "'Arial', sans-serif" }};
+            direction: {{ 'rtl' if language == 'ar' else 'ltr' }};
+            text-align: {{ 'right' if language == 'ar' else 'left' }};
+        }
+        
+        /* Header styling */
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #2c3e50;
+            padding-bottom: 20px;
+        }
+        
+        .logo-placeholder {
+            background: #f8f9fa;
+            border: 2px dashed #dee2e6;
+            padding: 20px;
+            margin-bottom: 15px;
+            color: #6c757d;
+            font-weight: bold;
+        }
+        
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin: 10px 0;
+        }
+        
+        .subtitle {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        /* Metadata styling with RTL support */
+        .metadata {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 25px;
+        }
+        
+        .metadata h3 {
+            margin: 0 0 10px 0;
+            font-size: 16px;
+            color: #2c3e50;
+            border-bottom: 1px solid #dee2e6;
+            padding-bottom: 5px;
+            text-align: {{ 'right' if language == 'ar' else 'left' }};
+        }
+        
+        .metadata-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+        }
+        
+        .metadata-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 0;
+            {% if language == 'ar' %}
+            flex-direction: row-reverse;
+            {% endif %}
+        }
+        
+        .metadata-label {
+            font-weight: bold;
+            color: #495057;
+            {% if language == 'ar' %}
+            margin-left: 10px;
+            {% else %}
+            margin-right: 10px;
+            {% endif %}
+        }
+        
+        .metadata-value {
+            color: #6c757d;
+        }
+        
+        /* Table styling with RTL support */
+        .table-container {
+            margin-bottom: 30px;
+            page-break-inside: avoid;
+        }
+        
+        .table-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 10px;
+            text-align: {{ 'right' if language == 'ar' else 'left' }};
+            {% if language == 'ar' %}
+            border-right: 4px solid #2c3e50;
+            padding-right: 10px;
+            {% else %}
+            border-left: 4px solid #2c3e50;
+            padding-left: 10px;
+            {% endif %}
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 10px;
+            margin-bottom: 15px;
+            background: white;
+            direction: {{ 'rtl' if language == 'ar' else 'ltr' }};
+        }
+        
+        table.wide {
+            font-size: 9px;
+        }
+        
+        th {
+            background: #2c3e50;
+            color: white;
+            font-weight: bold;
+            padding: 8px 4px;
+            text-align: {{ 'right' if language == 'ar' else 'center' }};
+            border: 1px solid #34495e;
+            font-size: 10px;
+        }
+        
+        td {
+            padding: 6px 4px;
+            border: 1px solid #dee2e6;
+            text-align: {{ 'right' if language == 'ar' else 'left' }};
+            vertical-align: top;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+        
+        td.numeric {
+            text-align: {{ 'left' if language == 'ar' else 'right' }};
+            font-family: 'Courier New', monospace;
+        }
+        
+        td.center {
+            text-align: center;
+        }
+        
+        /* Summary styling with RTL support */
+        .summary {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 25px;
+        }
+        
+        .summary h3 {
+            margin: 0 0 10px 0;
+            font-size: 16px;
+            color: #2c3e50;
+            border-bottom: 1px solid #dee2e6;
+            padding-bottom: 5px;
+            text-align: {{ 'right' if language == 'ar' else 'left' }};
+        }
+        
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+        }
+        
+        .summary-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            {% if language == 'ar' %}
+            flex-direction: row-reverse;
+            {% endif %}
+        }
+        
+        .summary-label {
+            font-weight: bold;
+            color: #495057;
+            {% if language == 'ar' %}
+            margin-left: 10px;
+            {% else %}
+            margin-right: 10px;
+            {% endif %}
+        }
+        
+        .summary-value {
+            color: #2c3e50;
+            font-weight: bold;
+        }
+        
+        /* Page break utilities */
+        .page-break {
+            page-break-before: always;
+        }
+        
+        .no-break {
+            page-break-inside: avoid;
+        }
+        
+        /* Arabic number support */
+        .arabic-numbers {
+            {% if language == 'ar' %}
+            font-feature-settings: "lnum";
+            {% endif %}
+        }
+    </style>
 </head>
-<body class="landscape">
+<body>
     <div class="header">
         {% if has_logo %}
             <div class="logo">
@@ -12,22 +223,22 @@
             </div>
         {% else %}
             <div class="logo-placeholder">
-                COMPANY LOGO
+                {{ company_logo_text|default:"COMPANY LOGO" }}
             </div>
         {% endif %}
         
         <h1 class="title">{{ title }}</h1>
-        <p class="subtitle">Generated on {{ generation_date }}</p>
+        <p class="subtitle">{{ generated_on_text|default:"Generated on" }} {{ generation_date }}</p>
     </div>
 
     {% if metadata %}
     <div class="metadata no-break">
-        <h3>Report Information</h3>
+        <h3>{{ report_info_text|default:"Report Information" }}</h3>
         <div class="metadata-grid">
             {% for key, value in metadata.items %}
             <div class="metadata-item">
                 <span class="metadata-label">{{ key }}:</span>
-                <span class="metadata-value">{{ value }}</span>
+                <span class="metadata-value arabic-numbers">{{ value }}</span>
             </div>
             {% endfor %}
         </div>
@@ -55,7 +266,7 @@
                 {% for row in table.rows %}
                 <tr>
                     {% for cell in row %}
-                    <td{% if forloop.counter0 >= 4 and forloop.counter0 <= 9 %} class="numeric"{% endif %}>
+                    <td{% if forloop.counter0 >= 4 and forloop.counter0 <= 9 %} class="numeric arabic-numbers"{% else %} class="arabic-numbers"{% endif %}>
                         {{ cell }}
                     </td>
                     {% endfor %}
@@ -65,7 +276,7 @@
                 {% if not table.rows %}
                 <tr>
                     <td colspan="{{ table.headers|length|default:1 }}" class="center">
-                        No data available
+                        {{ no_data_text|default:"No data available" }}
                     </td>
                 </tr>
                 {% endif %}
@@ -76,12 +287,12 @@
 
     {% if summary_data %}
     <div class="summary no-break">
-        <h3>Summary</h3>
+        <h3>{{ summary_text|default:"Summary" }}</h3>
         <div class="summary-grid">
             {% for key, value in summary_data.items %}
             <div class="summary-item">
                 <div class="summary-label">{{ key }}</div>
-                <div class="summary-value">{{ value }}</div>
+                <div class="summary-value arabic-numbers">{{ value }}</div>
             </div>
             {% endfor %}
         </div>
