@@ -902,7 +902,7 @@ def export_single_trip(request, trip_id):
             total_revenue += revenue
             total_cogs += cogs
             
-            # Format data with number translation for Arabic
+            # Format data with number translation
             formatted_data = [
                 format_datetime_for_language(transaction.transaction_date, language),
                 transaction.product.name if transaction.product else 'N/A',
@@ -978,6 +978,8 @@ def export_single_trip(request, trip_id):
         if export_format == 'excel':
             try:
                 exporter = ExcelExporter(title=report_title)
+                
+                # Add title with generation date
                 generation_text = f"{labels['generated_on']} {format_datetime_for_language(datetime.now(), language)}"
                 exporter.add_title(report_title, generation_text)
                 exporter.add_metadata(metadata)
@@ -991,24 +993,16 @@ def export_single_trip(request, trip_id):
                 logger.error(f"Excel single trip export error: {e}")
                 return JsonResponse({'success': False, 'error': f'Excel export failed: {str(e)}'})
         
-        else:  # PDF with enhanced context
+        else:  # PDF
             try:
                 exporter = create_weasy_exporter_for_data(report_title, "wide")
-                exporter.add_metadata(metadata)
-                table_title = f"{report_title} - {labels['transaction_details']}"
-                exporter.add_table(headers, transaction_data, table_title=table_title)
-                exporter.add_summary(summary_data)
                 
-                # Create custom context for RTL template
-                from django.template.loader import render_to_string
-                import weasyprint
-                import io
-                
-                template_context = {
+                # Enhanced context for RTL template
+                context = {
                     'title': report_title,
                     'metadata': metadata,
-                    'tables': exporter.tables,
-                    'charts': exporter.charts,
+                    'tables': [{'title': f"{report_title} - {labels['transaction_details']}", 'id': 'trip_table', 'headers': headers, 'rows': transaction_data}],
+                    'charts': [],
                     'summary_data': summary_data,
                     'orientation': 'landscape',
                     'language': language,
@@ -1018,24 +1012,26 @@ def export_single_trip(request, trip_id):
                     'report_info_text': labels['report_information'],
                     'summary_text': labels['summary'],
                     'company_logo_text': labels['company_logo'],
+                    'no_data_text': labels['no_data_available'],
                 }
                 
-                # Render with wide template
-                html_string = render_to_string('frontend/exports/wide_report.html', template_context)
+                # Override to use custom context
+                from django.template.loader import render_to_string
+                import weasyprint
+                import io
                 
-                # Create PDF
+                template_name = 'frontend/exports/wide_report.html'
+                html_string = render_to_string(template_name, context)
+                
                 html = weasyprint.HTML(string=html_string)
-                css_string = exporter._get_css_styles()
-                css = weasyprint.CSS(string=css_string)
+                css = weasyprint.CSS(string=exporter._get_css_styles())
                 
                 buffer = io.BytesIO()
                 html.write_pdf(target=buffer, stylesheets=[css])
                 buffer.seek(0)
                 
-                clean_filename = "".join(c for c in f"{filename_base}.pdf" if c.isalnum() or c in (' ', '-', '_', '.'))
-                
                 response = HttpResponse(content_type='application/pdf')
-                response['Content-Disposition'] = f'attachment; filename="{clean_filename}"'
+                response['Content-Disposition'] = f'attachment; filename="{filename_base}.pdf"'
                 response['Content-Length'] = len(buffer.getvalue())
                 response.write(buffer.getvalue())
                 
@@ -1281,6 +1277,8 @@ def export_single_po(request, po_id):
         if export_format == 'excel':
             try:
                 exporter = ExcelExporter(title=report_title)
+                
+                # Add title with generation date
                 generation_text = f"{labels['generated_on']} {format_datetime_for_language(datetime.now(), language)}"
                 exporter.add_title(report_title, generation_text)
                 exporter.add_metadata(metadata)
@@ -1294,24 +1292,14 @@ def export_single_po(request, po_id):
                 logger.error(f"Excel single PO export error: {e}")
                 return JsonResponse({'success': False, 'error': f'Excel export failed: {str(e)}'})
         
-        else:  # PDF with enhanced context
+        else:  # PDF
             try:
-                exporter = create_weasy_exporter_for_data(report_title, "normal")
-                exporter.add_metadata(metadata)
-                table_title = f"{report_title} - {labels['item_details']}"
-                exporter.add_table(headers, transaction_data, table_title=table_title)
-                exporter.add_summary(summary_data)
-                
-                # Create custom context for RTL template  
-                from django.template.loader import render_to_string
-                import weasyprint
-                import io
-                
-                template_context = {
+                # Enhanced context for RTL template
+                context = {
                     'title': report_title,
                     'metadata': metadata,
-                    'tables': exporter.tables,
-                    'charts': exporter.charts,
+                    'tables': [{'title': f"{report_title} - {labels['item_details']}", 'id': 'po_table', 'headers': headers, 'rows': transaction_data}],
+                    'charts': [],
                     'summary_data': summary_data,
                     'orientation': 'portrait',
                     'language': language,
@@ -1321,24 +1309,25 @@ def export_single_po(request, po_id):
                     'report_info_text': labels['report_information'],
                     'summary_text': labels['summary'],
                     'company_logo_text': labels['company_logo'],
+                    'no_data_text': labels['no_data_available'],
                 }
                 
-                # Use standard template for portrait
-                html_string = render_to_string('frontend/exports/standard_report.html', template_context)
+                # Override to use custom context
+                from django.template.loader import render_to_string
+                import weasyprint
+                import io
                 
-                # Create PDF
+                template_name = 'frontend/exports/standard_report.html'
+                html_string = render_to_string(template_name, context)
+                
                 html = weasyprint.HTML(string=html_string)
-                css_string = exporter._get_css_styles()
-                css = weasyprint.CSS(string=css_string)
                 
                 buffer = io.BytesIO()
-                html.write_pdf(target=buffer, stylesheets=[css])
+                html.write_pdf(target=buffer)
                 buffer.seek(0)
                 
-                clean_filename = "".join(c for c in f"{filename_base}.pdf" if c.isalnum() or c in (' ', '-', '_', '.'))
-                
                 response = HttpResponse(content_type='application/pdf')
-                response['Content-Disposition'] = f'attachment; filename="{clean_filename}"'
+                response['Content-Disposition'] = f'attachment; filename="{filename_base}.pdf"'
                 response['Content-Length'] = len(buffer.getvalue())
                 response.write(buffer.getvalue())
                 

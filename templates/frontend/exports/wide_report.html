@@ -1,22 +1,25 @@
 <!DOCTYPE html>
-<html lang="{% if language == 'ar' %}ar{% else %}en{% endif %}" dir="{% if language == 'ar' %}rtl{% else %}ltr{% endif %}">
+<html lang="en" dir="ltr">
 <head>
     <meta charset="utf-8">
     <title>{{ title }}</title>
     <style>
-        body {
-            {% if language == 'ar' %}
-            font-family: 'Tahoma', 'Arial Unicode MS', 'Arial', sans-serif;
+        /* Detect Arabic language and apply RTL */
+        {% if language == 'ar' %}
+        html {
             direction: rtl;
             text-align: right;
-            {% else %}
-            font-family: 'Arial', sans-serif;
-            direction: ltr;
-            text-align: left;
-            {% endif %}
+        }
+        {% endif %}
+        
+        body {
+            font-family: {% if language == 'ar' %}'Tahoma', 'Arial Unicode MS', 'Arial', sans-serif{% else %}'Arial', sans-serif{% endif %};
+            direction: {% if language == 'ar' %}rtl{% else %}ltr{% endif %};
+            text-align: {% if language == 'ar' %}right{% else %}left{% endif %};
             font-size: 12px;
         }
         
+        /* Header styling */
         .header {
             text-align: center;
             margin-bottom: 30px;
@@ -46,6 +49,7 @@
             margin-bottom: 5px;
         }
         
+        /* Metadata styling with RTL support */
         .metadata {
             background: #f8f9fa;
             border: 1px solid #dee2e6;
@@ -60,11 +64,7 @@
             color: #2c3e50;
             border-bottom: 1px solid #dee2e6;
             padding-bottom: 5px;
-            {% if language == 'ar' %}
-            text-align: right;
-            {% else %}
-            text-align: left;
-            {% endif %}
+            text-align: {% if language == 'ar' %}right{% else %}left{% endif %};
         }
         
         .metadata-grid {
@@ -96,6 +96,7 @@
             color: #6c757d;
         }
         
+        /* Table styling with RTL support */
         .table-container {
             margin-bottom: 30px;
             page-break-inside: avoid;
@@ -106,12 +107,11 @@
             font-weight: bold;
             color: #2c3e50;
             margin-bottom: 10px;
+            text-align: {% if language == 'ar' %}right{% else %}left{% endif %};
             {% if language == 'ar' %}
-            text-align: right;
             border-right: 4px solid #2c3e50;
             padding-right: 10px;
             {% else %}
-            text-align: left;
             border-left: 4px solid #2c3e50;
             padding-left: 10px;
             {% endif %}
@@ -120,18 +120,14 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 9px;
+            font-size: 10px;
             margin-bottom: 15px;
             background: white;
-            {% if language == 'ar' %}
-            direction: rtl;
-            {% else %}
-            direction: ltr;
-            {% endif %}
+            direction: {% if language == 'ar' %}rtl{% else %}ltr{% endif %};
         }
         
         table.wide {
-            font-size: 8px;
+            font-size: 9px;
         }
         
         th {
@@ -139,34 +135,22 @@
             color: white;
             font-weight: bold;
             padding: 8px 4px;
-            {% if language == 'ar' %}
-            text-align: right;
-            {% else %}
-            text-align: center;
-            {% endif %}
+            text-align: {% if language == 'ar' %}right{% else %}center{% endif %};
             border: 1px solid #34495e;
-            font-size: 9px;
+            font-size: 10px;
         }
         
         td {
             padding: 6px 4px;
             border: 1px solid #dee2e6;
-            {% if language == 'ar' %}
-            text-align: right;
-            {% else %}
-            text-align: left;
-            {% endif %}
+            text-align: {% if language == 'ar' %}right{% else %}left{% endif %};
             vertical-align: top;
             word-wrap: break-word;
             overflow-wrap: break-word;
         }
         
         td.numeric {
-            {% if language == 'ar' %}
-            text-align: left;
-            {% else %}
-            text-align: right;
-            {% endif %}
+            text-align: {% if language == 'ar' %}left{% else %}right{% endif %};
             font-family: 'Courier New', monospace;
         }
         
@@ -174,6 +158,7 @@
             text-align: center;
         }
         
+        /* Summary styling with RTL support */
         .summary {
             background: #f8f9fa;
             border: 1px solid #dee2e6;
@@ -188,11 +173,7 @@
             color: #2c3e50;
             border-bottom: 1px solid #dee2e6;
             padding-bottom: 5px;
-            {% if language == 'ar' %}
-            text-align: right;
-            {% else %}
-            text-align: left;
-            {% endif %}
+            text-align: {% if language == 'ar' %}right{% else %}left{% endif %};
         }
         
         .summary-grid {
@@ -225,6 +206,7 @@
             font-weight: bold;
         }
         
+        /* Page break utilities */
         .page-break {
             page-break-before: always;
         }
@@ -242,17 +224,17 @@
             </div>
         {% else %}
             <div class="logo-placeholder">
-                {{ company_logo_text|default:"COMPANY LOGO" }}
+                {% if company_logo_text %}{{ company_logo_text }}{% else %}COMPANY LOGO{% endif %}
             </div>
         {% endif %}
         
         <h1 class="title">{{ title }}</h1>
-        <p class="subtitle">{{ generated_on_text|default:"Generated on" }} {{ generation_date }}</p>
+        <p class="subtitle">{% if generated_on_text %}{{ generated_on_text }}{% else %}Generated on{% endif %} {{ generation_date }}</p>
     </div>
 
     {% if metadata %}
     <div class="metadata no-break">
-        <h3>{{ report_info_text|default:"Report Information" }}</h3>
+        <h3>{% if report_info_text %}{{ report_info_text }}{% else %}Report Information{% endif %}</h3>
         <div class="metadata-grid">
             {% for key, value in metadata.items %}
             <div class="metadata-item">
@@ -295,7 +277,7 @@
                 {% if not table.rows %}
                 <tr>
                     <td colspan="{{ table.headers|length|default:1 }}" class="center">
-                        No data available
+                        {% if no_data_text %}{{ no_data_text }}{% else %}No data available{% endif %}
                     </td>
                 </tr>
                 {% endif %}
@@ -306,7 +288,7 @@
 
     {% if summary_data %}
     <div class="summary no-break">
-        <h3>{{ summary_text|default:"Summary" }}</h3>
+        <h3>{% if summary_text %}{{ summary_text }}{% else %}Summary{% endif %}</h3>
         <div class="summary-grid">
             {% for key, value in summary_data.items %}
             <div class="summary-item">
