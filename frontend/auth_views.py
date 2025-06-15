@@ -726,27 +726,19 @@ def check_permission(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
     
+# Update frontend/auth_views.py - Clean up the vessel_management and vessel_data_ajax views
+
 @login_required
 @user_passes_test(is_admin_or_manager)
 def vessel_management(request):
-    """FIXED: Vessel management with correct relationship field names"""
+    """CLEANED: Vessel management - removed unused pricing warnings collection"""
     
-    # Get selected date from request (default to today)
-    selected_date = request.GET.get('date')
-    if selected_date:
-        try:
-            reference_date = datetime.strptime(selected_date, '%Y-%m-%d').date()
-        except ValueError:
-            reference_date = date.today()
-    else:
-        reference_date = date.today()
-    
-    # Calculate 30 days before the reference date
+    # Date handling for 30-day revenue calculation
+    reference_date = date.today()
     thirty_days_ago = reference_date - timedelta(days=30)
     
-    # FIXED: Using correct field names from your model relationships
-    vessels_data = Vessel.objects.select_related().annotate(
-        # Trip statistics - FIXED: using 'trips' instead of 'trip_set'
+    # FIXED: Single query with correct relationship names
+    vessels_data = Vessel.objects.annotate(
         total_trips=Count(
             'trips', 
             filter=models.Q(trips__is_completed=True),
@@ -793,13 +785,14 @@ def vessel_management(request):
         inactive_vessels=Count('id', filter=models.Q(active=False))
     )
     
-    # Get pricing summary with caching
+    # Get pricing summary with caching (KEEP THIS - needed for the single warning)
     pricing_summary = get_all_vessel_pricing_summary()
     
     # Build vessel data with optimized pricing
     vessel_data = []
+    
     for vessel in vessels_data:
-        # Get pricing warnings (still needed for complex business logic)
+        # Get pricing warnings (still needed for individual vessel cards)
         pricing_warnings = get_vessel_pricing_warnings(vessel)
         
         # Calculate pricing completion data
@@ -833,10 +826,11 @@ def vessel_management(request):
             'pricing_data': pricing_data,
         })
     
+    # CLEANED: Removed overall_pricing_warnings and vessel_warnings_summary collection
     context = {
         'vessel_data': vessel_data,
         'stats': vessel_stats,
-        'pricing_summary': pricing_summary,
+        'pricing_summary': pricing_summary,  # KEEP THIS - needed for single warning
         'reference_date': reference_date,
         'thirty_days_ago': thirty_days_ago,
         'today': date.today(),
@@ -846,10 +840,9 @@ def vessel_management(request):
 
 @login_required
 @user_passes_test(is_admin_or_manager)
+@require_http_methods(["POST"])
 def vessel_data_ajax(request):
-    """FIXED: AJAX endpoint with correct relationship names"""
-    if request.method != 'POST':
-        return JsonResponse({'success': False, 'error': 'POST method required'})
+    """CLEANED: AJAX endpoint - removed unused pricing warnings"""
     
     try:
         data = json.loads(request.body)
@@ -861,7 +854,7 @@ def vessel_data_ajax(request):
         reference_date = datetime.strptime(selected_date, '%Y-%m-%d').date()
         thirty_days_ago = reference_date - timedelta(days=30)
         
-        # FIXED: Single query with correct field names
+        # FIXED: Single query with correct relationship names
         vessels_data = Vessel.objects.annotate(
             total_trips=Count(
                 'trips', 
@@ -915,11 +908,12 @@ def vessel_data_ajax(request):
             vessel['total_trips'] = vessel['total_trips'] or 0
             vessel['total_passengers_30d'] = vessel['total_passengers_30d'] or 0
         
+        # CLEANED: Removed pricing warnings collection since we don't use them in AJAX
         return JsonResponse({
             'success': True,
             'vessel_data': vessel_data,
             'reference_date': reference_date.strftime('%Y-%m-%d'),
-            'date_range': f"{thirty_days_ago.strftime('%d/%m/%Y')} - {reference_date.strftime('%d/%m/%Y')}"
+            'date_range': f"{thirty_days_ago.strftime('%d/%m/%Y')} - {reference_date.strftime('%d/%m/%Y')}",
         })
         
     except Exception as e:

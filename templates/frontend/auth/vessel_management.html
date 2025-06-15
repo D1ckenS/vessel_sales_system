@@ -108,6 +108,21 @@
 .pricing-completion-incomplete .pricing-completion-fill {
     background: linear-gradient(90deg, var(--warning-orange), #ffc107);
 }
+
+/* Loading overlay */
+.loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    border-radius: 8px;
+}
 </style>
 {% endblock %}
 
@@ -224,7 +239,7 @@
         </div>
     </div>
 
-    <!-- OPTIMIZED: Vessel Pricing Status Alert -->
+    <!-- SINGLE WARNING: Vessel Pricing Status Alert (KEEP THIS ONE ONLY) -->
     {% if pricing_summary.vessels_with_incomplete_pricing > 0 %}
     <div class="row mb-4">
         <div class="col-12">
@@ -261,7 +276,7 @@
                         <span data-translate="vessel_fleet">Vessel Fleet</span>
                     </h5>
                 </div>
-                <div class="card-body">
+                <div class="card-body position-relative">
                     <!-- Loading overlay -->
                     <div class="loading-overlay d-none" id="loadingOverlay">
                         <div class="spinner-border text-primary" role="status">
@@ -308,10 +323,11 @@
                                         </span>
                                     </div>
                                     
+                                    <!-- FIXED: Show 30-day data instead of total -->
                                     <div class="row text-center mb-3">
                                         <div class="col-6">
-                                            <small class="text-muted d-block" data-translate="total_trips">Total Trips</small>
-                                            <strong class="vessel-total-trips" data-number data-original="{{ vessel_info.total_trips }}">{{ vessel_info.total_trips }}</strong>
+                                            <small class="text-muted d-block" data-translate="trips_30d">Trips (30d)</small>
+                                            <strong class="vessel-total-trips" data-number data-original="{{ vessel_info.trips_30d }}">{{ vessel_info.trips_30d }}</strong>
                                         </div>
                                         <div class="col-6">
                                             <small class="text-muted d-block">
@@ -564,29 +580,25 @@
                 <div class="row mb-4">
                     <div class="col-md-3">
                         <div class="stats-card">
-                            <div class="stats-number text-primary" data-number data-original="45">45</div>
+                            <div class="stats-number text-primary" id="statsTotalTrips" data-number>-</div>
                             <div class="stats-label" data-translate="total_trips">Total Trips</div>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="stats-card">
-                            <div class="stats-number text-success">
-                                <span data-number data-original="12,450.500">12,450.500</span> <span data-currency-symbol>JOD</span>
-                            </div>
+                            <div class="stats-number text-success" id="statsTotalRevenue">-</div>
                             <div class="stats-label" data-translate="total_revenue">Total Revenue</div>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="stats-card">
-                            <div class="stats-number text-info" data-number data-original="1,247">1,247</div>
+                            <div class="stats-number text-info" id="statsTotalPassengers" data-number>-</div>
                             <div class="stats-label" data-translate="total_passengers">Total Passengers</div>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="stats-card">
-                            <div class="stats-number text-warning">
-                                <span data-number data-original="9.980">9.980</span> <span data-currency-symbol>JOD</span>
-                            </div>
+                            <div class="stats-number text-warning" id="statsAvgRevenue">-</div>
                             <div class="stats-label" data-translate="avg_revenue_per_passenger">Avg Revenue/Passenger</div>
                         </div>
                     </div>
@@ -608,21 +620,8 @@
                             <div class="card-header">
                                 <h6 class="mb-0" data-translate="top_products">Top Products</h6>
                             </div>
-                            <div class="card-body">
-                                <div class="list-group list-group-flush">
-                                    <div class="list-group-item d-flex justify-content-between">
-                                        <span>Pepsi 250ml</span>
-                                        <strong><span data-number data-original="156">156</span> <span data-translate="units">units</span></strong>
-                                    </div>
-                                    <div class="list-group-item d-flex justify-content-between">
-                                        <span>Water 500ml</span>
-                                        <strong><span data-number data-original="142">142</span> <span data-translate="units">units</span></strong>
-                                    </div>
-                                    <div class="list-group-item d-flex justify-content-between">
-                                        <span>Chips</span>
-                                        <strong><span data-number data-original="98">98</span> <span data-translate="units">units</span></strong>
-                                    </div>
-                                </div>
+                            <div class="card-body" id="topProductsList">
+                                <p class="text-muted">Loading...</p>
                             </div>
                         </div>
                     </div>
@@ -632,7 +631,7 @@
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                     <span data-translate="close">Close</span>
                 </button>
-                <button type="button" class="btn btn-primary" onclick="showExportModal('vessel_stats', {vessel_id: currentStatsVesselId})">
+                <button type="button" class="btn btn-primary" onclick="exportVesselStats()">
                     <i class="bi bi-download me-1"></i>
                     <span data-translate="export_stats">Export Stats</span>
                 </button>
@@ -647,29 +646,53 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     
-    // FIXED: Corrected translation function structure
-    function updateVesselTranslations() {
-        // Use global translation system
-        window.updatePageTranslations();
-        
-        // Handle vessel names with RTL support
-        const currentLang = window.translator.currentLanguage;
-        document.querySelectorAll('.vessel-name').forEach(element => {
-            const enName = element.getAttribute('data-en');
-            const arName = element.getAttribute('data-ar');
-            
-            if (currentLang === 'ar' && arName && arName !== enName) {
-                element.textContent = arName;
-            } else {
-                element.textContent = enName;
-            }
-        });
-    }
+    // MINIMAL page-specific translations - ONLY NEW KEYS NOT IN translations.js
+    const pageTranslations = {
+        en: {
+            'add_new_vessel': 'Add New Vessel',
+            'vessel_name_english': 'Vessel Name (English)',
+            'vessel_name_arabic': 'Vessel Name (Arabic)', 
+            'duty_free_enabled': 'Duty-Free Enabled',
+            'vessel_can_sell_duty_free': 'Vessel can sell duty-free products',
+            'active_vessel': 'Active Vessel',
+            'vessel_available_operations': 'Vessel available for operations',
+            'create_vessel': 'Create Vessel',
+            'edit_vessel': 'Edit Vessel',
+            'update_vessel': 'Update Vessel',
+            'recent_performance': 'Recent Performance',
+            'export_stats': 'Export Stats',
+            'no_duty_free': 'No Duty-Free'
+        },
+        ar: {
+            'add_new_vessel': 'إضافة سفينة جديدة',
+            'vessel_name_english': 'اسم السفينة (الإنجليزية)',
+            'vessel_name_arabic': 'اسم السفينة (العربية)',
+            'duty_free_enabled': 'معفاة من الرسوم مفعلة',
+            'vessel_can_sell_duty_free': 'يمكن للسفينة بيع منتجات معفاة من الرسوم',
+            'active_vessel': 'سفينة نشطة',
+            'vessel_available_operations': 'السفينة متاحة للعمليات',
+            'create_vessel': 'إنشاء سفينة',
+            'edit_vessel': 'تحرير السفينة',
+            'update_vessel': 'تحديث السفينة',
+            'recent_performance': 'الأداء الحديث',
+            'export_stats': 'تصدير الإحصائيات',
+            'no_duty_free': 'غير معفاة من الرسوم'
+        }
+    };
+
+    // Merge with global translations - EXACT SAME PATTERN AS OTHER TEMPLATES
+    const currentTranslations = window.translator.translations;
+    Object.keys(pageTranslations).forEach(lang => {
+        if (currentTranslations[lang]) {
+            Object.assign(currentTranslations[lang], pageTranslations[lang]);
+        }
+    });
     
-    // Initial translation
-    updateVesselTranslations();
+    // Apply translations - USE THE GLOBAL FUNCTION
+    window.updatePageTranslations();
+    updatePageTitle();
     
-    // OPTIMIZED: Date picker functionality
+    // Date picker functionality
     const datePicker = document.getElementById('referenceDatePicker');
     const dateRangeDisplay = document.getElementById('dateRangeDisplay');
     const loadingOverlay = document.getElementById('loadingOverlay');
@@ -679,7 +702,49 @@ document.addEventListener('DOMContentLoaded', function() {
         if (selectedDate) updateVesselData(selectedDate);
     });
     
-    // OPTIMIZED: AJAX update function
+     // Handle modal focus properly
+    const modals = document.querySelectorAll('.modal');
+    
+    modals.forEach(modal => {
+        // When modal is shown, ensure proper focus management
+        modal.addEventListener('shown.bs.modal', function() {
+            // Remove aria-hidden when modal is shown
+            this.removeAttribute('aria-hidden');
+            
+            // Focus on the first focusable element or close button
+            const firstFocusable = this.querySelector('input, button, select, textarea, [tabindex]:not([tabindex="-1"])');
+            if (firstFocusable) {
+                setTimeout(() => firstFocusable.focus(), 100);
+            }
+        });
+        
+        // When modal is hidden, ensure aria-hidden is set and focus is cleared
+        modal.addEventListener('hidden.bs.modal', function() {
+            // Set aria-hidden when modal is hidden
+            this.setAttribute('aria-hidden', 'true');
+            
+            // Clear any lingering focus from modal elements
+            const focusedElement = this.querySelector(':focus');
+            if (focusedElement) {
+                focusedElement.blur();
+            }
+            
+            // Return focus to the trigger element if it exists
+            const triggerElement = document.activeElement;
+            if (triggerElement && triggerElement !== document.body) {
+                triggerElement.focus();
+            }
+        });
+        
+        // When modal is being hidden, clear focus immediately
+        modal.addEventListener('hide.bs.modal', function() {
+            // Clear focus from any elements inside the modal
+            const focusedElements = this.querySelectorAll(':focus');
+            focusedElements.forEach(el => el.blur());
+        });
+    });
+
+    // AJAX update function
     function updateVesselData(selectedDate) {
         loadingOverlay?.classList.remove('d-none');
         
@@ -703,7 +768,7 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(data => {
             if (data.success) {
                 updateVesselCards(data.vessel_data);
-                updateVesselTranslations();
+                window.updatePageTranslations(); // Use global function
             } else {
                 console.error('Error:', data.error);
                 alert('Error updating vessel data: ' + data.error);
@@ -718,16 +783,16 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // OPTIMIZED: Update vessel cards function
+    // Update vessel cards function - FIXED to use 30-day data
     function updateVesselCards(vesselData) {
         vesselData.forEach(vessel => {
             const vesselCard = document.querySelector(`[data-vessel-id="${vessel.vessel_id}"]`);
             if (vesselCard) {
-                // Update total trips
+                // Update 30-day trips (NOT total trips)
                 const totalTripsEl = vesselCard.querySelector('.vessel-total-trips');
                 if (totalTripsEl) {
-                    totalTripsEl.setAttribute('data-original', vessel.total_trips);
-                    totalTripsEl.textContent = translateNumber(vessel.total_trips);
+                    totalTripsEl.setAttribute('data-original', vessel.trips_30d);
+                    totalTripsEl.textContent = window.translateNumber ? window.translateNumber(vessel.trips_30d) : vessel.trips_30d;
                 }
                 
                 // Update revenue
@@ -735,14 +800,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (revenueEl) {
                     const formattedRevenue = Math.round(vessel.revenue_30d);
                     revenueEl.setAttribute('data-original', formattedRevenue);
-                    revenueEl.textContent = translateNumber(formattedRevenue);
+                    revenueEl.textContent = window.translateNumber ? window.translateNumber(formattedRevenue) : formattedRevenue;
                 }
             }
         });
     }
     
-    // Global functions for modal operations
+    // Enhanced modal functions with proper focus management
     window.editVessel = function(vesselId, name, nameAr, hasDutyFree, active) {
+        // Clear any existing focus
+        document.activeElement?.blur();
+        
         document.getElementById('editVesselId').value = vesselId;
         document.getElementById('editName').value = name;
         document.getElementById('editNameAr').value = nameAr || '';
@@ -752,8 +820,19 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('editVesselForm').action = 
             `{% url 'frontend:edit_vessel' 0 %}`.replace('0', vesselId);
         
-        new bootstrap.Modal(document.getElementById('editVesselModal')).show();
-        setTimeout(updateVesselTranslations, 100);
+        // Show modal with proper focus management
+        const modal = new bootstrap.Modal(document.getElementById('editVesselModal'));
+        modal.show();
+        
+        // Apply translations after modal is shown
+        setTimeout(() => {
+            window.updatePageTranslations();
+            // Focus on the first input after translations are applied
+            const firstInput = document.getElementById('editName');
+            if (firstInput) {
+                firstInput.focus();
+            }
+        }, 150);
     };
     
     window.toggleVesselStatus = function(vesselId, vesselName, isActive) {
@@ -783,10 +862,74 @@ document.addEventListener('DOMContentLoaded', function() {
     };
     
     window.viewVesselStats = function(vesselId, vesselName) {
+        // Clear any existing focus
+        document.activeElement?.blur();
+        
         window.currentStatsVesselId = vesselId;
         document.getElementById('statsVesselName').textContent = vesselName;
-        new bootstrap.Modal(document.getElementById('vesselStatsModal')).show();
-        setTimeout(updateVesselTranslations, 100);
+        
+        // Load vessel statistics
+        fetch(`{% url 'frontend:vessel_statistics' 0 %}`.replace('0', vesselId))
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update statistics display with proper number translation
+                    const statsTotalTrips = document.getElementById('statsTotalTrips');
+                    if (statsTotalTrips) {
+                        statsTotalTrips.setAttribute('data-original', data.statistics.total_trips);
+                        statsTotalTrips.textContent = window.translateNumber ? window.translateNumber(data.statistics.total_trips) : data.statistics.total_trips;
+                    }
+                    
+                    document.getElementById('statsTotalRevenue').textContent = data.statistics.total_revenue.toFixed(2) + ' JOD';
+                    
+                    const statsTotalPassengers = document.getElementById('statsTotalPassengers');
+                    if (statsTotalPassengers) {
+                        statsTotalPassengers.setAttribute('data-original', data.statistics.total_passengers);
+                        statsTotalPassengers.textContent = window.translateNumber ? window.translateNumber(data.statistics.total_passengers) : data.statistics.total_passengers;
+                    }
+                    
+                    document.getElementById('statsAvgRevenue').textContent = data.statistics.avg_revenue_per_passenger.toFixed(2) + ' JOD';
+                    
+                    // Update top products
+                    const topProductsList = document.getElementById('topProductsList');
+                    if (data.top_products.length > 0) {
+                        topProductsList.innerHTML = data.top_products.map(product => `
+                            <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                                <span>${product.product__name}</span>
+                                <span class="badge bg-primary">${window.translateNumber ? window.translateNumber(product.total_quantity) : product.total_quantity} <span data-translate="units">units</span></span>
+                            </div>
+                        `).join('');
+                        // Apply translations to newly added content
+                        setTimeout(window.updatePageTranslations, 0);
+                    } else {
+                        topProductsList.innerHTML = '<p class="text-muted">No product data available</p>';
+                    }
+                } else {
+                    console.error('Error loading vessel statistics:', data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error loading vessel statistics:', error);
+            });
+        
+        // Show modal with proper focus management
+        const modal = new bootstrap.Modal(document.getElementById('vesselStatsModal'));
+        modal.show();
+        
+        setTimeout(() => {
+            window.updatePageTranslations();
+            // Focus on close button for stats modal
+            const closeBtn = document.querySelector('#vesselStatsModal .btn-close');
+            if (closeBtn) {
+                closeBtn.focus();
+            }
+        }, 150);
+    };
+    
+    window.exportVesselStats = function() {
+        if (window.currentStatsVesselId) {
+            window.open(`{% url 'frontend:vessel_statistics' 0 %}`.replace('0', window.currentStatsVesselId) + '?export=1');
+        }
     };
     
     // Form handlers
@@ -822,6 +965,23 @@ document.addEventListener('DOMContentLoaded', function() {
             alert('Error processing request');
         });
     }
+    
+    // Listen for language changes - EXACT SAME PATTERN AS OTHER TEMPLATES
+    window.addEventListener('languageChanged', function() {
+        console.log('📢 Vessel Management: Received languageChanged event');
+        updatePageTitle();
+    });
 });
+
+function updatePageTitle() {
+    if (!window.translator || !window.translator._) {
+        return;
+    }
+    
+    const vesselManagement = window.translator._('vessel_management');
+    const vesselSalesSystem = window.translator._('vessel_sales_system');
+    
+    document.title = `${vesselManagement} - ${vesselSalesSystem}`;
+}
 </script>
 {% endblock %}
