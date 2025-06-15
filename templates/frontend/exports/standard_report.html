@@ -1,18 +1,22 @@
 <!DOCTYPE html>
-<html lang="{{ language|default:'en' }}" dir="{{ 'rtl' if language == 'ar' else 'ltr' }}">
+<html lang="{% if language == 'ar' %}ar{% else %}en{% endif %}" dir="{% if language == 'ar' %}rtl{% else %}ltr{% endif %}">
 <head>
     <meta charset="utf-8">
     <title>{{ title }}</title>
     <style>
-        /* Base RTL Support */
         body {
-            font-family: {{ "'Tahoma', 'Arial Unicode MS', 'Arial', sans-serif" if language == 'ar' else "'Arial', sans-serif" }};
-            direction: {{ 'rtl' if language == 'ar' else 'ltr' }};
-            text-align: {{ 'right' if language == 'ar' else 'left' }};
+            {% if language == 'ar' %}
+            font-family: 'Tahoma', 'Arial Unicode MS', 'Arial', sans-serif;
+            direction: rtl;
+            text-align: right;
+            {% else %}
+            font-family: 'Arial', sans-serif;
+            direction: ltr;
+            text-align: left;
+            {% endif %}
             font-size: 12px;
         }
         
-        /* Header styling */
         .header {
             text-align: center;
             margin-bottom: 30px;
@@ -42,7 +46,6 @@
             margin-bottom: 5px;
         }
         
-        /* Metadata styling with RTL support */
         .metadata {
             background: #f8f9fa;
             border: 1px solid #dee2e6;
@@ -57,7 +60,11 @@
             color: #2c3e50;
             border-bottom: 1px solid #dee2e6;
             padding-bottom: 5px;
-            text-align: {{ 'right' if language == 'ar' else 'left' }};
+            {% if language == 'ar' %}
+            text-align: right;
+            {% else %}
+            text-align: left;
+            {% endif %}
         }
         
         .metadata-grid {
@@ -89,7 +96,6 @@
             color: #6c757d;
         }
         
-        /* Table styling with RTL support */
         .table-container {
             margin-bottom: 30px;
             page-break-inside: avoid;
@@ -100,11 +106,12 @@
             font-weight: bold;
             color: #2c3e50;
             margin-bottom: 10px;
-            text-align: {{ 'right' if language == 'ar' else 'left' }};
             {% if language == 'ar' %}
+            text-align: right;
             border-right: 4px solid #2c3e50;
             padding-right: 10px;
             {% else %}
+            text-align: left;
             border-left: 4px solid #2c3e50;
             padding-left: 10px;
             {% endif %}
@@ -116,7 +123,11 @@
             font-size: 9px;
             margin-bottom: 15px;
             background: white;
-            direction: {{ 'rtl' if language == 'ar' else 'ltr' }};
+            {% if language == 'ar' %}
+            direction: rtl;
+            {% else %}
+            direction: ltr;
+            {% endif %}
         }
         
         th {
@@ -124,7 +135,11 @@
             color: white;
             font-weight: bold;
             padding: 8px 4px;
-            text-align: {{ 'right' if language == 'ar' else 'center' }};
+            {% if language == 'ar' %}
+            text-align: right;
+            {% else %}
+            text-align: center;
+            {% endif %}
             border: 1px solid #34495e;
             font-size: 9px;
         }
@@ -132,14 +147,22 @@
         td {
             padding: 6px 4px;
             border: 1px solid #dee2e6;
-            text-align: {{ 'right' if language == 'ar' else 'left' }};
+            {% if language == 'ar' %}
+            text-align: right;
+            {% else %}
+            text-align: left;
+            {% endif %}
             vertical-align: top;
             word-wrap: break-word;
             overflow-wrap: break-word;
         }
         
         td.numeric {
-            text-align: {{ 'left' if language == 'ar' else 'right' }};
+            {% if language == 'ar' %}
+            text-align: left;
+            {% else %}
+            text-align: right;
+            {% endif %}
             font-family: 'Courier New', monospace;
         }
         
@@ -147,7 +170,6 @@
             text-align: center;
         }
         
-        /* Summary styling with RTL support */
         .summary {
             background: #f8f9fa;
             border: 1px solid #dee2e6;
@@ -162,7 +184,11 @@
             color: #2c3e50;
             border-bottom: 1px solid #dee2e6;
             padding-bottom: 5px;
-            text-align: {{ 'right' if language == 'ar' else 'left' }};
+            {% if language == 'ar' %}
+            text-align: right;
+            {% else %}
+            text-align: left;
+            {% endif %}
         }
         
         .summary-grid {
@@ -195,20 +221,12 @@
             font-weight: bold;
         }
         
-        /* Page break utilities */
         .page-break {
             page-break-before: always;
         }
         
         .no-break {
             page-break-inside: avoid;
-        }
-        
-        /* Arabic number support */
-        .arabic-numbers {
-            {% if language == 'ar' %}
-            font-feature-settings: "lnum";
-            {% endif %}
         }
     </style>
 </head>
@@ -235,7 +253,7 @@
             {% for key, value in metadata.items %}
             <div class="metadata-item">
                 <span class="metadata-label">{{ key }}:</span>
-                <span class="metadata-value arabic-numbers">{{ value }}</span>
+                <span class="metadata-value">{{ value }}</span>
             </div>
             {% endfor %}
         </div>
@@ -263,7 +281,7 @@
                 {% for row in table.rows %}
                 <tr>
                     {% for cell in row %}
-                    <td{% if forloop.counter0 >= 4 and forloop.counter0 <= 7 %} class="numeric arabic-numbers"{% else %} class="arabic-numbers"{% endif %}>
+                    <td{% if forloop.counter0 >= 4 and forloop.counter0 <= 7 %} class="numeric"{% endif %}>
                         {{ cell }}
                     </td>
                     {% endfor %}
@@ -273,7 +291,7 @@
                 {% if not table.rows %}
                 <tr>
                     <td colspan="{{ table.headers|length|default:1 }}" class="center">
-                        {{ no_data_text|default:"No data available" }}
+                        No data available
                     </td>
                 </tr>
                 {% endif %}
@@ -289,7 +307,7 @@
             {% for key, value in summary_data.items %}
             <div class="summary-item">
                 <div class="summary-label">{{ key }}</div>
-                <div class="summary-value arabic-numbers">{{ value }}</div>
+                <div class="summary-value">{{ value }}</div>
             </div>
             {% endfor %}
         </div>
