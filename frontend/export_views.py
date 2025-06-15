@@ -266,7 +266,6 @@ def get_translated_labels(request, data=None):
             # PO Specific
             'po_number': 'PO Number',
             'po_date': 'PO Date',
-            'unit_cost': 'Purchase price/unit',
             'total_cost_jod': 'Total Cost (JOD)',
             'total_items_received': 'Total Items Received',
             'average_cost_per_item_jod': 'Average Cost per Item (JOD)',
@@ -282,13 +281,16 @@ def get_translated_labels(request, data=None):
             'category': 'Category',
             'current_stock': 'Current Stock',
             'minimum_level': 'Minimum Level',
-            'unit_cost': 'Unit Cost',
-            'total_value_jod': 'Total Value',
+            'unit_cost': 'Unit Purchase Price',
+            'total_value': 'Total Value',
             'last_updated': 'Last Updated',
             'total_products': 'Total Products',
             'low_stock_items': 'Low Stock Items',
+            'out_of_stock_items': 'Out of Stock Items',
             'average_value_per_item': 'Average Value per Item',
             'uncategorized': 'Uncategorized',
+            'all_items': 'All Items',
+            'filter_type': 'Filter Type',
             'all': 'All',
             'system': 'System',
             'yes': 'Yes',
@@ -380,7 +382,6 @@ def get_translated_labels(request, data=None):
             # PO Specific (Arabic)
             'po_number': 'رقم أمر الشراء',
             'po_date': 'تاريخ أمر الشراء',
-            'unit_cost': 'تكلفة الوحدة (دينار)',
             'total_cost_jod': 'التكلفة الإجمالية (دينار)',
             'total_items_received': 'إجمالي العناصر المستلمة',
             'average_cost_per_item_jod': 'متوسط التكلفة لكل عنصر (دينار)',
@@ -396,14 +397,17 @@ def get_translated_labels(request, data=None):
             'category': 'الفئة',
             'current_stock': 'المخزون الحالي',
             'minimum_level': 'الحد الأدنى',
-            'unit_cost': 'تكلفة الوحدة',
-            'total_value_jod': 'القيمة الإجمالية',
+            'unit_cost': 'سعر شراء الوحدة',
+            'total_value': 'القيمة الإجمالية',
             'last_updated': 'آخر تحديث',
             'total_products': 'إجمالي المنتجات',
             'low_stock_items': 'العناصر منخفضة المخزون',
+            'out_of_stock_items': 'العناصر المنتهية من المخزون',
             'average_value_per_item': 'متوسط القيمة لكل عنصر',
             'uncategorized': 'Uncategorized',
             'uncategorized': 'غير مصنف',
+            'all_items': 'جميع العناصر',
+            'filter_type': 'نوع التصفية',
             'all': 'الكل',
             'system': 'النظام',
             'yes': 'نعم',
@@ -553,7 +557,7 @@ def create_safe_response(content, content_type, filename):
 @login_required
 @require_http_methods(["POST"])
 def export_inventory(request):
-    """Export current inventory status to Excel or PDF - Enhanced with RTL support"""
+    """Export current inventory status to Excel or PDF - Fixed with product aggregation"""
     try:
         data = json.loads(request.body)
         export_format = data.get('format', 'excel')
@@ -563,107 +567,136 @@ def export_inventory(request):
         language = labels['language']
         
         # Get filters
-        vessel_id = data.get('vessel_id')  # Add vessel filter support
+        vessel_id = data.get('vessel_id')
         category_id = data.get('category_id')
         low_stock_only = data.get('low_stock_only', False)
         
-        # Build query for inventory lots
-        inventory_lots = InventoryLot.objects.select_related(
+        # Build query for inventory lots and aggregate by product
+        base_query = InventoryLot.objects.select_related(
             'product', 'product__category', 'vessel'
         ).filter(
             remaining_quantity__gt=0  # Only active inventory with remaining stock
-        ).order_by('product__name', 'vessel__name')
+        )
         
-        # Apply filters
+        # Apply vessel filter
         if vessel_id:
-            inventory_lots = inventory_lots.filter(vessel_id=vessel_id)
+            base_query = base_query.filter(vessel_id=vessel_id)
+            
+        # Apply category filter
         if category_id:
-            inventory_lots = inventory_lots.filter(product__category_id=category_id)
-        if low_stock_only:
-            inventory_lots = inventory_lots.filter(
-                remaining_quantity__lte=F('product__minimum_stock_level')
-            )
+            base_query = base_query.filter(product__category_id=category_id)
         
-        # Prepare inventory data
-        inventory_data = []
+        # Group by product and vessel, sum quantities
+        inventory_summary = defaultdict(lambda: {
+            'product': None,
+            'vessel': None,
+            'total_quantity': 0,
+            'total_value': 0,
+            'last_updated': None,
+            'unit_cost': 0
+        })
+        
+        lots = base_query.values(
+            'product__id', 'product__name', 'product__item_id', 
+            'product__category__name', 'vessel__id', 'vessel__name', 'vessel__name_ar',
+            'remaining_quantity', 'purchase_price', 'created_at'
+        ).order_by('product__name')
+        
         total_value = 0
-        low_stock_count = 0
+        product_count = 0
         
-        for lot in inventory_lots[:2000]:  # Limit to prevent memory issues
-            # Get unit cost (use purchase_price from lot or product cost_price as fallback)
-            unit_cost = safe_float(lot.purchase_price if hasattr(lot, 'purchase_price') else 
-                                 (lot.product.cost_price if lot.product else 0))
+        for lot in lots:
+            # Create unique key for product-vessel combination
+            key = f"{lot['product__id']}_{lot['vessel__id']}"
             
-            # Calculate total cost for this lot
-            total_cost = safe_float(lot.remaining_quantity) * unit_cost
-            total_value += total_cost
+            # Initialize if first time seeing this product-vessel combo
+            if inventory_summary[key]['product'] is None:
+                inventory_summary[key]['product'] = {
+                    'name': lot['product__name'],
+                    'item_id': lot['product__item_id'],
+                    'category_name': lot['product__category__name']
+                }
+                inventory_summary[key]['vessel'] = {
+                    'name': lot['vessel__name'],
+                    'name_ar': lot['vessel__name_ar']
+                }
+                inventory_summary[key]['last_updated'] = lot['created_at']
+                inventory_summary[key]['unit_cost'] = safe_float(lot['purchase_price'])
             
-            # Check if low stock
-            min_level = safe_float(getattr(lot.product, 'minimum_stock_level', 0)) if lot.product else 0
-            if lot.remaining_quantity <= min_level:
-                low_stock_count += 1
+            # Add to totals
+            quantity = safe_float(lot['remaining_quantity'])
+            unit_cost = safe_float(lot['purchase_price'])
+            value = quantity * unit_cost
+            
+            inventory_summary[key]['total_quantity'] += quantity
+            inventory_summary[key]['total_value'] += value
+            
+            # Keep most recent date
+            if lot['created_at'] > inventory_summary[key]['last_updated']:
+                inventory_summary[key]['last_updated'] = lot['created_at']
+                inventory_summary[key]['unit_cost'] = unit_cost
+        
+        # Convert to list format for export
+        inventory_data = []
+        for summary in inventory_summary.values():
+            product = summary['product']
+            vessel = summary['vessel'] 
+            
+            if not product:  # Skip if no product data
+                continue
+                
+            total_value += summary['total_value']
+            product_count += 1
+        
             
             # Get vessel name in appropriate language
-            vessel_name = get_vessel_name_by_language(lot.vessel, language)
+            vessel_name = vessel['name_ar'] if language == 'ar' and vessel['name_ar'] else vessel['name']
             
             # Format data with RTL number translation
             formatted_data = [
-                lot.product.name if lot.product else 'N/A',
-                translate_numbers_to_arabic(lot.product.item_id, language) if lot.product else 'N/A',
-                lot.product.category.name if lot.product and lot.product.category else 'N/A',
+                product['name'] if product['name'] else 'N/A',
+                translate_numbers_to_arabic(product['item_id'], language) if product['item_id'] else 'N/A',
+                product['category_name'] if product['category_name'] else 'N/A',
                 vessel_name,
-                translate_numbers_to_arabic(format_currency(lot.remaining_quantity, 3), language),
-                translate_numbers_to_arabic(format_currency(min_level, 3), language),
-                translate_numbers_to_arabic(format_currency(unit_cost, 3), language),
-                translate_numbers_to_arabic(format_currency(total_cost, 3), language),
-                format_date_for_language(lot.purchase_date if hasattr(lot, 'purchase_date') else 
-                                       (lot.created_at.date() if hasattr(lot, 'created_at') else datetime.now().date()), language)
+                translate_numbers_to_arabic(format_currency(summary['total_quantity'], 0), language),
+                translate_numbers_to_arabic(format_currency(summary['unit_cost'], 3), language),
+                translate_numbers_to_arabic(format_currency(summary['total_value'], 3), language),
+                format_date_for_language(summary['last_updated'].date() if summary['last_updated'] else datetime.now().date(), language)
             ]
             inventory_data.append(formatted_data)
+
         
         # Generate filename
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         filename_base = f"inventory_export_{timestamp}"
         
         # Get current datetime for metadata
-        from django.utils import timezone
         local_dt = timezone.localtime(timezone.now()).replace(tzinfo=None)
         
-        # Metadata with translation and currency pattern
+        # Metadata with translation and currency pattern (FIXED translation keys)
         metadata = {
             labels['export_date']: format_datetime_for_language(local_dt, language),
             labels['total_products']: translate_numbers_to_arabic(str(len(inventory_data)), language),
+            labels['currency']: labels['jod'],
             labels['total_value']: translate_numbers_to_arabic(format_currency(total_value, 3), language),
-            labels['currency']: labels['jod'],  # Apply new currency pattern
-            labels['low_stock_items']: translate_numbers_to_arabic(str(low_stock_count), language),
-            labels['average_value_per_item']: translate_numbers_to_arabic(format_currency((total_value / len(inventory_data)) if inventory_data else 0, 3), language),
             labels['generated_by']: request.user.username,
-            labels['vessel']: vessel_id or labels.get('all', 'All'),
-            labels.get('category', 'Category'): category_id or labels.get('all', 'All'),
-            labels.get('filter_type', 'Filter'): labels['low_stock_only'] if low_stock_only else labels.get('all_items', 'All Items')
+            labels['vessel']: get_vessel_name_by_language(
+                Vessel.objects.get(id=vessel_id) if vessel_id else None, language
+            ) if vessel_id else labels.get('all', 'All'),
+            labels.get('category', 'Category'): category_id or labels.get('all', 'All')
         }
         
-        # Headers with translation (no JOD/دينار in headers)
+        # Headers with translation (REMOVED minimum_level column)
         headers = [
             labels['product_name'],
             labels['product_id'],
             labels['category'],
             labels['vessel'],
             labels['current_stock'],
-            labels['minimum_level'],
-            labels['unit_cost'],  # No (JOD) suffix
-            labels['total_value'],  # No (JOD) suffix
+            labels['unit_cost'],
+            labels['total_value'],
             labels['last_updated']
         ]
-        
-        # Summary data with translation and currency pattern
-        summary_data = {
-            labels['total_products']: translate_numbers_to_arabic(str(len(inventory_data)), language),
-            labels['total_value']: translate_numbers_to_arabic(format_currency(total_value, 3), language),
-            labels['low_stock_items']: translate_numbers_to_arabic(str(low_stock_count), language),
-            labels['average_value_per_item']: translate_numbers_to_arabic(format_currency((total_value / len(inventory_data)) if inventory_data else 0, 3), language),
-            labels['currency']: labels['jod']  # Apply new currency pattern
-        }
         
         # Generate report title with translation
         report_title = labels['inventory_report']
@@ -677,7 +710,6 @@ def export_inventory(request):
                 exporter.add_metadata(metadata)
                 exporter.add_headers(headers)
                 exporter.add_data_rows(inventory_data)
-                exporter.add_summary(summary_data)
                 
                 return exporter.get_response(f"{filename_base}.xlsx")
                 
@@ -692,10 +724,8 @@ def export_inventory(request):
                     'title': report_title,
                     'metadata': metadata,
                     'tables': [{'title': f"{report_title} - {labels['current_inventory']}", 'id': 'inventory_table', 'headers': headers, 'rows': inventory_data}],
-                    'charts': [],
-                    'summary_data': summary_data,
                     'orientation': 'landscape',
-                    'language': language,  # This enables all RTL styling
+                    'language': language,
                     'generation_date': format_datetime_for_language(local_dt, language),
                     'has_logo': False,
                     'generated_on_text': labels['generated_on'],
@@ -706,10 +736,6 @@ def export_inventory(request):
                 }
                 
                 # Use same pattern as working individual exports
-                from django.template.loader import render_to_string
-                import weasyprint
-                import io
-                
                 template_name = 'frontend/exports/wide_report.html'
                 html_string = render_to_string(template_name, context)
                 

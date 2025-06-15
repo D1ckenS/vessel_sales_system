@@ -1100,28 +1100,28 @@ function exportInventoryData() {
     const currentLanguage = window.translator ? window.translator.currentLanguage : 
                            localStorage.getItem('preferred_language') || 'en';
     
-    // Extract vessel ID properly (currentVessel might be an object or string)
+    // Extract vessel ID properly
     let vesselId;
     if (typeof currentVessel === 'object' && currentVessel.id) {
-        vesselId = currentVessel.id;  // Extract ID from vessel object
+        vesselId = currentVessel.id;
     } else if (typeof currentVessel === 'string' || typeof currentVessel === 'number') {
-        vesselId = currentVessel;  // Already an ID
+        vesselId = currentVessel;
     } else {
         console.error('Invalid currentVessel format:', currentVessel);
         alertTranslated('please_select_vessel');
         return;
     }
     
-    // Prepare additional data with filters
+    // Prepare additional data with filters (REMOVED min level logic)
     const additionalData = {
-        vessel_id: vesselId,  // Send just the ID, not the whole object
+        vessel_id: vesselId,
         stock_filter: stockFilter,
         search_filter: searchFilter,
-        low_stock_only: stockFilter === 'low',
+        low_stock_only: stockFilter === 'low',  // Low stock = quantity < 10 (defined in backend)
         language: currentLanguage
     };
     
-    console.log('Exporting inventory with data:', additionalData);  // Debug log
+    console.log('Exporting inventory with data:', additionalData);
     
     // Show export modal using the global function
     showExportModal('inventory', additionalData);

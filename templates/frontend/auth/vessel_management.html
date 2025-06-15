@@ -404,7 +404,242 @@
     </div>
 </div>
 
-<!-- Modals remain the same... -->
+<!-- Create Vessel Modal -->
+<div class="modal fade" id="createVesselModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-ship me-2"></i>
+                    <span data-translate="add_new_vessel">Add New Vessel</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="createVesselForm" method="POST" action="{% url 'frontend:create_vessel' %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-ship me-1"></i>
+                                <span data-translate="vessel_name_english">Vessel Name (English)</span> *
+                            </label>
+                            <input type="text" class="form-control" name="name" required 
+                                   placeholder="e.g., Amman, Aylah, Sinaa"
+                                   data-placeholder-en="e.g., Amman, Aylah, Sinaa"
+                                   data-placeholder-ar="مثال: Amman, Aylah, Sinaa">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-translate me-1"></i>
+                                <span data-translate="vessel_name_arabic">Vessel Name (Arabic)</span>
+                            </label>
+                            <input type="text" class="form-control" name="name_ar" 
+                                   placeholder="e.g., عمان، أيلة، سيناء"
+                                   data-placeholder-en="e.g., عمان، أيلة، سيناء"
+                                   data-placeholder-ar="مثال: عمان، أيلة، سيناء">
+                        </div>
+                        <div class="col-12 mb-3">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" name="has_duty_free" id="createHasDutyFree">
+                                        <label class="form-check-label fw-bold" for="createHasDutyFree">
+                                            <i class="bi bi-star me-1"></i>
+                                            <span data-translate="duty_free_enabled">Duty-Free Enabled</span>
+                                        </label>
+                                        <small class="text-muted d-block"><span data-translate="vessel_can_sell_duty_free">Vessel can sell duty-free products</span></small>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" name="active" id="createActive" checked>
+                                        <label class="form-check-label fw-bold" for="createActive">
+                                            <i class="bi bi-check-circle me-1"></i>
+                                            <span data-translate="active_vessel">Active Vessel</span>
+                                        </label>
+                                        <small class="text-muted d-block"><span data-translate="vessel_available_operations">Vessel available for operations</span></small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <span data-translate="cancel">Cancel</span>
+                    </button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-ship me-1"></i>
+                        <span data-translate="create_vessel">Create Vessel</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Vessel Modal -->
+<div class="modal fade" id="editVesselModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-pencil me-2"></i>
+                    <span data-translate="edit_vessel">Edit Vessel</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="editVesselForm" method="POST">
+                {% csrf_token %}
+                <input type="hidden" id="editVesselId" name="vessel_id">
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-ship me-1"></i>
+                                <span data-translate="vessel_name_english">Vessel Name (English)</span> *
+                            </label>
+                            <input type="text" class="form-control" id="editName" name="name" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-translate me-1"></i>
+                                <span data-translate="vessel_name_arabic">Vessel Name (Arabic)</span>
+                            </label>
+                            <input type="text" class="form-control" id="editNameAr" name="name_ar">
+                        </div>
+                        <div class="col-12 mb-3">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" name="has_duty_free" id="editHasDutyFree">
+                                        <label class="form-check-label fw-bold" for="editHasDutyFree">
+                                            <i class="bi bi-star me-1"></i>
+                                            <span data-translate="duty_free_enabled">Duty-Free Enabled</span>
+                                        </label>
+                                        <small class="text-muted d-block"><span data-translate="vessel_can_sell_duty_free">Vessel can sell duty-free products</span></small>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" name="active" id="editActive">
+                                        <label class="form-check-label fw-bold" for="editActive">
+                                            <i class="bi bi-check-circle me-1"></i>
+                                            <span data-translate="active_vessel">Active Vessel</span>
+                                        </label>
+                                        <small class="text-muted d-block"><span data-translate="vessel_available_operations">Vessel available for operations</span></small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <span data-translate="cancel">Cancel</span>
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle me-1"></i>
+                        <span data-translate="update_vessel">Update Vessel</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Vessel Stats Modal -->
+<div class="modal fade" id="vesselStatsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-graph-up me-2"></i>
+                    <span id="statsVesselName">Vessel</span> <span data-translate="statistics">Statistics</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="stats-card">
+                            <div class="stats-number text-primary" data-number data-original="45">45</div>
+                            <div class="stats-label" data-translate="total_trips">Total Trips</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stats-card">
+                            <div class="stats-number text-success">
+                                <span data-number data-original="12,450.500">12,450.500</span> <span data-currency-symbol>JOD</span>
+                            </div>
+                            <div class="stats-label" data-translate="total_revenue">Total Revenue</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stats-card">
+                            <div class="stats-number text-info" data-number data-original="1,247">1,247</div>
+                            <div class="stats-label" data-translate="total_passengers">Total Passengers</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stats-card">
+                            <div class="stats-number text-warning">
+                                <span data-number data-original="9.980">9.980</span> <span data-currency-symbol>JOD</span>
+                            </div>
+                            <div class="stats-label" data-translate="avg_revenue_per_passenger">Avg Revenue/Passenger</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0" data-translate="recent_performance">Recent Performance</h6>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="vesselPerformanceChart" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0" data-translate="top_products">Top Products</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="list-group list-group-flush">
+                                    <div class="list-group-item d-flex justify-content-between">
+                                        <span>Pepsi 250ml</span>
+                                        <strong><span data-number data-original="156">156</span> <span data-translate="units">units</span></strong>
+                                    </div>
+                                    <div class="list-group-item d-flex justify-content-between">
+                                        <span>Water 500ml</span>
+                                        <strong><span data-number data-original="142">142</span> <span data-translate="units">units</span></strong>
+                                    </div>
+                                    <div class="list-group-item d-flex justify-content-between">
+                                        <span>Chips</span>
+                                        <strong><span data-number data-original="98">98</span> <span data-translate="units">units</span></strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <span data-translate="close">Close</span>
+                </button>
+                <button type="button" class="btn btn-primary" onclick="showExportModal('vessel_stats', {vessel_id: currentStatsVesselId})">
+                    <i class="bi bi-download me-1"></i>
+                    <span data-translate="export_stats">Export Stats</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
 {% endblock %}
 
