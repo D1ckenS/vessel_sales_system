@@ -256,7 +256,7 @@
                         <span id="tableDutyFreeBadge" class="badge bg-warning text-dark ms-2" style="display: none;"><span data-translate="duty_free_vessel">Duty-Free Vessel</span></span>
                     </h5>
                     <div class="d-flex gap-2">
-                        <button class="btn btn-outline-success btn-sm" onclick="exportToExcel()">
+                        <button class="btn btn-outline-success btn-sm" onclick="exportInventoryData()">
                             <i class="bi bi-file-earmark-excel"></i> <span data-translate="export">Export</span>
                         </button>
                         <button class="btn btn-outline-primary btn-sm" onclick="showComingSoon()">
@@ -1085,15 +1085,46 @@ function urgentRestock(productId, vessel) {
     }
 }
 
-function exportToExcel() {
+function exportInventoryData() {
+    // Check if vessel is selected
     if (!currentVessel) {
         alertTranslated('please_select_vessel');
         return;
     }
     
-    showExportModal('inventory', {
-        vessel_id: currentVessel.id
-    });
+    // Get current filters
+    const stockFilter = document.getElementById('stockFilter')?.value || '';
+    const searchFilter = document.getElementById('searchInput')?.value || '';
+    
+    // Get current language
+    const currentLanguage = window.translator ? window.translator.currentLanguage : 
+                           localStorage.getItem('preferred_language') || 'en';
+    
+    // Extract vessel ID properly (currentVessel might be an object or string)
+    let vesselId;
+    if (typeof currentVessel === 'object' && currentVessel.id) {
+        vesselId = currentVessel.id;  // Extract ID from vessel object
+    } else if (typeof currentVessel === 'string' || typeof currentVessel === 'number') {
+        vesselId = currentVessel;  // Already an ID
+    } else {
+        console.error('Invalid currentVessel format:', currentVessel);
+        alertTranslated('please_select_vessel');
+        return;
+    }
+    
+    // Prepare additional data with filters
+    const additionalData = {
+        vessel_id: vesselId,  // Send just the ID, not the whole object
+        stock_filter: stockFilter,
+        search_filter: searchFilter,
+        low_stock_only: stockFilter === 'low',
+        language: currentLanguage
+    };
+    
+    console.log('Exporting inventory with data:', additionalData);  // Debug log
+    
+    // Show export modal using the global function
+    showExportModal('inventory', additionalData);
 }
 
 function showComingSoon() {
