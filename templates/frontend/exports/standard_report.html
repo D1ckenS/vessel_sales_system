@@ -78,7 +78,7 @@
             justify-content: space-between;
             padding: 3px 0;
             {% if language == 'ar' %}
-            flex-direction: row-reverse;
+            flex-direction: row-reverse !important;
             {% endif %}
         }
         
@@ -86,7 +86,9 @@
             font-weight: bold;
             color: #495057;
             {% if language == 'ar' %}
-            margin-left: 10px;
+            margin-left: 10px !important;
+            margin-right: 0 !important;
+            order: 2 !important;
             {% else %}
             margin-right: 10px;
             {% endif %}
@@ -94,6 +96,9 @@
         
         .metadata-value {
             color: #6c757d;
+            {% if language == 'ar' %}
+            order: 1 !important;
+            {% endif %}
         }
         
         /* Table styling with RTL support */
@@ -183,7 +188,7 @@
             justify-content: space-between;
             padding: 5px 0;
             {% if language == 'ar' %}
-            flex-direction: row-reverse;
+            flex-direction: row-reverse !important;
             {% endif %}
         }
         
@@ -191,7 +196,9 @@
             font-weight: bold;
             color: #495057;
             {% if language == 'ar' %}
-            margin-left: 10px;
+            margin-left: 10px !important;
+            margin-right: 0 !important;
+            order: 2 !important;
             {% else %}
             margin-right: 10px;
             {% endif %}
@@ -200,6 +207,9 @@
         .summary-value {
             color: #2c3e50;
             font-weight: bold;
+            {% if language == 'ar' %}
+            order: 1 !important;
+            {% endif %}
         }
         
         /* Page break utilities */
@@ -263,7 +273,7 @@
                 {% for row in table.rows %}
                 <tr>
                     {% for cell in row %}
-                    <td{% if forloop.counter0 >= 4 and forloop.counter0 <= 7 %} class="numeric"{% endif %}>
+                    <td {% if forloop.counter0 >= 4 and forloop.counter0 <= 7 %} class="numeric"{% endif %}>
                         {{ cell }}
                     </td>
                     {% endfor %}
