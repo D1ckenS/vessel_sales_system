@@ -236,6 +236,12 @@ def get_translated_labels(request, data=None):
             'total_items_sold': 'Total Items Sold',
             'completed': 'Completed',
             'pending': 'Pending',
+            'period': 'Period',
+            'total_trips': 'Total Trips',
+            'trips_overview': 'Trips Overview',
+            'total_pos': 'Total Purchase Orders',
+            'pos_overview': 'Purchase Orders Overview',
+            'total_quantity': 'Total Quantity',
             
             # Report Titles
             'trip_sales_report': 'Trip Sales Report',
@@ -288,6 +294,13 @@ def get_translated_labels(request, data=None):
             'total_items_sold': 'إجمالي العناصر المباعة',
             'completed': 'مكتمل',
             'pending': 'معلق',
+            
+            'period': 'الفترة',
+            'total_trips': 'إجمالي الرحلات',
+            'trips_overview': 'نظرة عامة على الرحلات',
+            'total_pos': 'إجمالي أوامر الشراء',
+            'pos_overview': 'نظرة عامة على أوامر الشراء',
+            'total_quantity': 'إجمالي الكمية',
             
             # Report Titles (Arabic)
             'trip_sales_report': 'تقرير مبيعات الرحلة',
@@ -747,10 +760,14 @@ def export_transactions(request):
 @login_required
 @require_http_methods(["POST"])
 def export_trips(request):
-    """Export trips list to Excel or PDF - Updated with simplified status"""
+    """Export trips list to Excel or PDF - Fixed with RTL support following individual export pattern"""
     try:
         data = json.loads(request.body)
         export_format = data.get('format', 'excel')
+        
+        # Get translated labels with language from request (for RTL support)
+        labels = get_translated_labels(request, data)
+        language = labels['language']
         
         # Get filters
         start_date, end_date = get_date_range_from_request(data)
@@ -774,69 +791,93 @@ def export_trips(request):
         if status:
             trips = trips.filter(status=status)
             
-        # Prepare table data
+        # Prepare data
         table_data = []
         total_revenue = 0
+        total_profit = 0
         
-        for trip in trips[:2000]:  # Limit to prevent memory issues
-            # Calculate trip revenue from transactions
-            trip_revenue = Transaction.objects.filter(
+        for trip in trips:
+            # Calculate trip financials
+            sales = Transaction.objects.filter(
                 trip=trip,
                 transaction_type='SALE'
             ).aggregate(
-                total=Sum(F('quantity') * F('unit_price'))
-            )['total'] or 0
+                revenue=Sum(F('quantity') * F('unit_price')),
+                quantity=Sum('quantity')
+            )
             
-            total_revenue += trip_revenue
+            revenue = safe_float(sales['revenue'])
+            total_revenue += revenue
             
-            # Get transaction count
-            transaction_count = Transaction.objects.filter(trip=trip).count()
+            # Estimate profit (simplified)
+            estimated_profit = revenue * 0.3  # 30% profit margin estimate
+            total_profit += estimated_profit
             
-            # Determine trip status (Completed/Pending)
-            trip_status = "Completed" if getattr(trip, 'is_completed', False) or getattr(trip, 'status', '') == 'completed' else "Pending"
+            # Get vessel name in appropriate language
+            vessel_name = get_vessel_name_by_language(trip.vessel, language)
             
-            table_data.append([
-                trip.trip_number,
-                format_date(trip.trip_date),
-                trip.vessel.name if trip.vessel else 'N/A',
+            # Format data with number translation for Arabic
+            trip_status = labels.get('completed' if getattr(trip, 'status', '') == 'COMPLETED' else 'pending', 
+                                   getattr(trip, 'status', 'N/A'))
+            
+            formatted_data = [
+                translate_numbers_to_arabic(str(trip.trip_number), language),
+                vessel_name,
+                format_date_for_language(trip.trip_date, language),
                 trip_status,
-                format_currency(trip_revenue, 3),
-                safe_int(transaction_count),
-                safe_int(getattr(trip, 'passenger_count', 0)),
-                trip.created_by.username if trip.created_by else 'System'
-            ])
+                translate_numbers_to_arabic(str(getattr(trip, 'passenger_count', 0) or 0), language),
+                translate_numbers_to_arabic(format_currency(revenue, 3), language),
+                translate_numbers_to_arabic(format_currency(estimated_profit, 3), language),
+                trip.created_by.username if trip.created_by else 'N/A'
+            ]
+            table_data.append(formatted_data)
         
         # Generate filename
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         filename_base = f"trips_export_{timestamp}"
         
-        # Metadata
+        # Metadata with translation
         metadata = {
-            'Export Date': datetime.now().strftime('%d/%m/%Y %H:%M'),
-            'Date Range': f"{format_date(start_date)} to {format_date(end_date)}",
-            'Total Records': len(table_data),
-            'Total Revenue (JOD)': format_currency(total_revenue, 3),
-            'Generated By': request.user.username,
-            'Vessel Filter': vessel_id or 'All',
-            'Status Filter': status or 'All'
+            labels['export_date']: format_datetime_for_language(datetime.now(), language),
+            labels.get('period', 'Period'): f"{format_date_for_language(start_date, language)} - {format_date_for_language(end_date, language)}",
+            labels.get('total_trips', 'Total Trips'): translate_numbers_to_arabic(str(len(table_data)), language),
+            labels['total_revenue_jod']: translate_numbers_to_arabic(format_currency(total_revenue, 3), language),
+            labels['total_profit_jod']: translate_numbers_to_arabic(format_currency(total_profit, 3), language),
+            labels['generated_by']: request.user.username
         }
         
+        # Headers with translation
         headers = [
-            'Trip Number', 'Date', 'Vessel', 'Status', 
-            'Revenue (JOD)', 'Transactions', 'Passengers', 'Created By'
+            labels['trip_number'],
+            labels['vessel'],
+            labels['trip_date'],
+            labels['status'],
+            labels['passengers'],
+            labels['total_revenue_jod'],
+            labels['total_profit_jod'],
+            labels['generated_by']
         ]
         
-        # Create summary data
+        # Summary data with translation
         summary_data = {
-            'Total Trips': len(table_data),
-            'Total Revenue (JOD)': format_currency(total_revenue, 3),
-            'Average Revenue per Trip (JOD)': format_currency((total_revenue / len(table_data)) if table_data else 0, 3)
+            labels.get('total_trips', 'Total Trips'): translate_numbers_to_arabic(str(len(table_data)), language),
+            labels['total_revenue_jod']: translate_numbers_to_arabic(format_currency(total_revenue, 3), language),
+            labels['total_profit_jod']: translate_numbers_to_arabic(format_currency(total_profit, 3), language),
+            labels['profit_margin']: translate_numbers_to_arabic(f"{round((total_profit/total_revenue*100) if total_revenue > 0 else 0, 1)}%", language)
         }
+        
+        # Generate report title with translation
+        if language == 'ar':
+            report_title = "تقرير مبيعات الرحلات"
+        else:
+            report_title = "Trips Sales Report"
         
         if export_format == 'excel':
             try:
-                exporter = ExcelExporter(title="Trips Export")
-                exporter.add_title("Trips Report", f"Generated on {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+                exporter = ExcelExporter(title=report_title)
+                
+                generation_text = f"{labels['generated_on']} {format_datetime_for_language(datetime.now(), language)}"
+                exporter.add_title(report_title, generation_text)
                 exporter.add_metadata(metadata)
                 exporter.add_headers(headers)
                 exporter.add_data_rows(table_data)
@@ -848,14 +889,46 @@ def export_trips(request):
                 logger.error(f"Excel trips export error: {e}")
                 return JsonResponse({'success': False, 'error': f'Excel export failed: {str(e)}'})
         
-        else:  # PDF
+        else:  # PDF - Use the SAME pattern as working individual exports
             try:
-                exporter = create_weasy_exporter_for_data("Trips Report", "wide")
-                exporter.add_metadata(metadata)
-                exporter.add_table(headers, table_data, table_title="Trips Overview")
-                exporter.add_summary(summary_data)
+                # Create context manually like the working individual exports
+                context = {
+                    'title': report_title,
+                    'metadata': metadata,
+                    'tables': [{'title': f"{report_title} - {labels.get('trips_overview', 'Trips Overview')}", 'id': 'trips_table', 'headers': headers, 'rows': table_data}],
+                    'charts': [],
+                    'summary_data': summary_data,
+                    'orientation': 'landscape',
+                    'language': language,  # KEY: This enables RTL
+                    'generation_date': format_datetime_for_language(datetime.now(), language),
+                    'has_logo': False,
+                    'generated_on_text': labels['generated_on'],
+                    'report_info_text': labels['report_information'],
+                    'summary_text': labels['summary'],
+                    'company_logo_text': labels['company_logo'],
+                    'no_data_text': labels['no_data_available'],
+                }
                 
-                return exporter.get_response(f"{filename_base}.pdf")
+                # Use the same pattern as working individual exports
+                from django.template.loader import render_to_string
+                import weasyprint
+                import io
+                
+                template_name = 'frontend/exports/wide_report.html'
+                html_string = render_to_string(template_name, context)
+                
+                html = weasyprint.HTML(string=html_string)
+                
+                buffer = io.BytesIO()
+                html.write_pdf(target=buffer)
+                buffer.seek(0)
+                
+                response = HttpResponse(content_type='application/pdf')
+                response['Content-Disposition'] = f'attachment; filename="{filename_base}.pdf"'
+                response['Content-Length'] = len(buffer.getvalue())
+                response.write(buffer.getvalue())
+                
+                return response
                 
             except Exception as e:
                 logger.error(f"PDF trips export error: {e}")
@@ -870,7 +943,7 @@ def export_trips(request):
 @login_required
 @require_http_methods(["POST"])
 def export_single_trip(request, trip_id):
-    """Export individual trip details - Fully translated with RTL support"""
+    """Export individual trip details - Enhanced RTL support for metadata and summary sections"""
     try:
         data = json.loads(request.body)
         export_format = data.get('format', 'excel')
@@ -993,11 +1066,9 @@ def export_single_trip(request, trip_id):
                 logger.error(f"Excel single trip export error: {e}")
                 return JsonResponse({'success': False, 'error': f'Excel export failed: {str(e)}'})
         
-        else:  # PDF
+        else:  # PDF - Enhanced RTL support for metadata and summary
             try:
-                exporter = create_weasy_exporter_for_data(report_title, "wide")
-                
-                # Enhanced context for RTL template
+                # Enhanced context with custom CSS for RTL metadata and summary
                 context = {
                     'title': report_title,
                     'metadata': metadata,
@@ -1013,21 +1084,112 @@ def export_single_trip(request, trip_id):
                     'summary_text': labels['summary'],
                     'company_logo_text': labels['company_logo'],
                     'no_data_text': labels['no_data_available'],
+                    
+                    # Enhanced RTL CSS for metadata and summary
+                    'custom_rtl_css': '''
+                    <style>
+                    /* Enhanced RTL support for metadata and summary sections */
+                    {% if language == 'ar' %}
+                    .metadata-item {
+                        display: flex !important;
+                        flex-direction: row-reverse !important;
+                        justify-content: space-between !important;
+                        text-align: right !important;
+                        direction: rtl !important;
+                    }
+                    
+                    .metadata-label {
+                        order: 2 !important;
+                        text-align: right !important;
+                        margin-left: 10px !important;
+                        margin-right: 0 !important;
+                    }
+                    
+                    .metadata-value {
+                        order: 1 !important;
+                        text-align: left !important;
+                        direction: ltr !important;
+                    }
+                    
+                    .summary-item {
+                        display: flex !important;
+                        flex-direction: row-reverse !important;
+                        justify-content: space-between !important;
+                        text-align: right !important;
+                        direction: rtl !important;
+                    }
+                    
+                    .summary-label {
+                        order: 2 !important;
+                        text-align: right !important;
+                        margin-left: 10px !important;
+                        margin-right: 0 !important;
+                    }
+                    
+                    .summary-value {
+                        order: 1 !important;
+                        text-align: left !important;
+                        direction: ltr !important;
+                    }
+                    {% endif %}
+                    </style>
+                    '''
                 }
                 
-                # Override to use custom context
+                # Override to use custom context with enhanced RTL template
                 from django.template.loader import render_to_string
                 import weasyprint
                 import io
                 
+                # Create a custom template content with enhanced RTL CSS
                 template_name = 'frontend/exports/wide_report.html'
                 html_string = render_to_string(template_name, context)
                 
+                # Inject additional RTL CSS if Arabic
+                if language == 'ar':
+                    rtl_css = '''
+                    <style>
+                    /* Force RTL for metadata and summary items */
+                    .metadata-item {
+                        display: flex !important;
+                        flex-direction: row-reverse !important;
+                        justify-content: space-between !important;
+                    }
+                    
+                    .metadata-label {
+                        order: 2 !important;
+                        margin-left: 10px !important;
+                        margin-right: 0 !important;
+                    }
+                    
+                    .metadata-value {
+                        order: 1 !important;
+                    }
+                    
+                    .summary-item {
+                        display: flex !important;
+                        flex-direction: row-reverse !important;
+                        justify-content: space-between !important;
+                    }
+                    
+                    .summary-label {
+                        order: 2 !important;
+                        margin-left: 10px !important;
+                        margin-right: 0 !important;
+                    }
+                    
+                    .summary-value {
+                        order: 1 !important;
+                    }
+                    </style>
+                    '''
+                    # Inject the CSS before </head>
+                    html_string = html_string.replace('</head>', rtl_css + '</head>')
+                
                 html = weasyprint.HTML(string=html_string)
-                css = weasyprint.CSS(string=exporter._get_css_styles())
                 
                 buffer = io.BytesIO()
-                html.write_pdf(target=buffer, stylesheets=[css])
+                html.write_pdf(target=buffer)
                 buffer.seek(0)
                 
                 response = HttpResponse(content_type='application/pdf')
@@ -1054,10 +1216,14 @@ def export_single_trip(request, trip_id):
 @login_required
 @require_http_methods(["POST"])
 def export_purchase_orders(request):
-    """Export purchase orders list to Excel or PDF"""
+    """Export purchase orders list to Excel or PDF - Fixed with RTL support following individual export pattern"""
     try:
         data = json.loads(request.body)
         export_format = data.get('format', 'excel')
+        
+        # Get translated labels with language from request (for RTL support)
+        labels = get_translated_labels(request, data)
+        language = labels['language']
         
         # Get filters
         start_date, end_date = get_date_range_from_request(data)
@@ -1076,85 +1242,89 @@ def export_purchase_orders(request):
         ).order_by('-po_date')
         
         # Apply filters
-        if status:
-            if hasattr(PurchaseOrder, 'status'):
-                pos = pos.filter(status=status)
-            elif hasattr(PurchaseOrder, 'is_completed'):
-                if status == 'completed':
-                    pos = pos.filter(is_completed=True)
-                elif status == 'pending':
-                    pos = pos.filter(is_completed=False)
         if vessel_id:
             pos = pos.filter(vessel_id=vessel_id)
+        if status:
+            pos = pos.filter(status=status)
             
-        # Prepare table data
+        # Prepare data
         table_data = []
         total_cost = 0
         
-        for po in pos[:2000]:  # Limit to prevent memory issues
-            # Calculate PO cost from transactions
-            po_cost = Transaction.objects.filter(
+        for po in pos:
+            # Calculate PO total cost
+            supplies = Transaction.objects.filter(
                 purchase_order=po,
                 transaction_type='SUPPLY'
             ).aggregate(
-                total=Sum(F('quantity') * F('unit_price'))
-            )['total'] or 0
+                total_cost=Sum(F('quantity') * F('unit_price')),
+                total_quantity=Sum('quantity')
+            )
             
-            total_cost += po_cost
+            cost = safe_float(supplies['total_cost'])
+            total_cost += cost
             
-            # Get item count
-            item_count = Transaction.objects.filter(purchase_order=po).count()
+            # Get vessel name in appropriate language
+            vessel_name = get_vessel_name_by_language(po.vessel, language)
             
-            # Determine PO status
-            po_status = "Completed" if getattr(po, 'is_completed', False) else "Pending"
+            # Format data with number translation for Arabic
+            po_status = labels.get('completed' if getattr(po, 'status', '') == 'COMPLETED' else 'pending', 
+                                 getattr(po, 'status', 'N/A'))
             
-            table_data.append([
-                po.po_number,
-                format_date(po.po_date),
-                po.vessel.name if po.vessel else 'N/A',
-                getattr(po, 'supplier_name', 'N/A'),
+            formatted_data = [
+                translate_numbers_to_arabic(str(po.po_number), language),
+                vessel_name,
+                format_date_for_language(po.po_date, language),
                 po_status,
-                format_currency(po_cost, 3),
-                safe_int(item_count),
-                format_date(getattr(po, 'expected_delivery_date', None)) if hasattr(po, 'expected_delivery_date') else 'N/A',
-                po.created_by.username if po.created_by else 'System',
-                getattr(po, 'notes', '') or ''
-            ])
+                translate_numbers_to_arabic(str(safe_int(supplies['total_quantity'])), language),
+                translate_numbers_to_arabic(format_currency(cost, 3), language),
+                po.created_by.username if po.created_by else 'N/A'
+            ]
+            table_data.append(formatted_data)
         
         # Generate filename
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         filename_base = f"purchase_orders_export_{timestamp}"
         
-        # Metadata
+        # Metadata with translation
         metadata = {
-            'Export Date': datetime.now().strftime('%d/%m/%Y %H:%M'),
-            'Date Range': f"{format_date(start_date)} to {format_date(end_date)}",
-            'Total Records': len(table_data),
-            'Total Cost (JOD)': format_currency(total_cost, 3),
-            'Generated By': request.user.username,
-            'Status Filter': status or 'All',
-            'Vessel Filter': vessel_id or 'All'
+            labels['export_date']: format_datetime_for_language(datetime.now(), language),
+            labels.get('period', 'Period'): f"{format_date_for_language(start_date, language)} - {format_date_for_language(end_date, language)}",
+            labels.get('total_pos', 'Total Purchase Orders'): translate_numbers_to_arabic(str(len(table_data)), language),
+            labels['total_cost_jod']: translate_numbers_to_arabic(format_currency(total_cost, 3), language),
+            labels['generated_by']: request.user.username
         }
         
+        # Headers with translation
         headers = [
-            'PO Number', 'Date Created', 'Vessel', 'Supplier', 'Status',
-            'Total Cost (JOD)', 'Total Items', 'Expected Delivery', 
-            'Created By', 'Notes'
+            labels['po_number'],
+            labels['vessel'],
+            labels['po_date'],
+            labels['status'],
+            labels.get('total_quantity', 'Total Quantity'),
+            labels['total_cost_jod'],
+            labels['generated_by']
         ]
         
-        # Create summary data
+        # Summary data with translation
         summary_data = {
-            'Total POs': len(table_data),
-            'Total Cost (JOD)': format_currency(total_cost, 3),
-            'Average Cost (JOD)': format_currency((total_cost / len(table_data)) if table_data else 0, 3),
-            'Completed POs': len([row for row in table_data if row[4] == 'Completed']),
-            'Pending POs': len([row for row in table_data if row[4] == 'Pending'])
+            labels.get('total_pos', 'Total Purchase Orders'): translate_numbers_to_arabic(str(len(table_data)), language),
+            labels['total_cost_jod']: translate_numbers_to_arabic(format_currency(total_cost, 3), language),
+            labels['average_cost_per_item_jod']: translate_numbers_to_arabic(format_currency((total_cost / len(table_data)) if table_data else 0, 3), language)
         }
+        
+        # Generate report title with translation
+        if language == 'ar':
+            report_title = "تقرير أوامر الشراء"
+        else:
+            report_title = "Purchase Orders Report"
         
         if export_format == 'excel':
             try:
-                exporter = ExcelExporter(title="Purchase Orders Export")
-                exporter.add_title("Purchase Orders Report", f"Generated on {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+                exporter = ExcelExporter(title=report_title)
+                
+                generation_text = f"{labels['generated_on']} {format_datetime_for_language(datetime.now(), language)}"
+                exporter.add_title(report_title, generation_text)
                 exporter.add_metadata(metadata)
                 exporter.add_headers(headers)
                 exporter.add_data_rows(table_data)
@@ -1166,14 +1336,46 @@ def export_purchase_orders(request):
                 logger.error(f"Excel PO export error: {e}")
                 return JsonResponse({'success': False, 'error': f'Excel export failed: {str(e)}'})
         
-        else:  # PDF
+        else:  # PDF - Use the SAME pattern as working individual exports
             try:
-                exporter = create_weasy_exporter_for_data("Purchase Orders Report", "wide")
-                exporter.add_metadata(metadata)
-                exporter.add_table(headers, table_data, table_title="Purchase Orders Overview")
-                exporter.add_summary(summary_data)
+                # Create context manually like the working individual exports
+                context = {
+                    'title': report_title,
+                    'metadata': metadata,
+                    'tables': [{'title': f"{report_title} - {labels.get('pos_overview', 'Purchase Orders Overview')}", 'id': 'pos_table', 'headers': headers, 'rows': table_data}],
+                    'charts': [],
+                    'summary_data': summary_data,
+                    'orientation': 'landscape',
+                    'language': language,  # KEY: This enables RTL
+                    'generation_date': format_datetime_for_language(datetime.now(), language),
+                    'has_logo': False,
+                    'generated_on_text': labels['generated_on'],
+                    'report_info_text': labels['report_information'],
+                    'summary_text': labels['summary'],
+                    'company_logo_text': labels['company_logo'],
+                    'no_data_text': labels['no_data_available'],
+                }
                 
-                return exporter.get_response(f"{filename_base}.pdf")
+                # Use the same pattern as working individual exports
+                from django.template.loader import render_to_string
+                import weasyprint
+                import io
+                
+                template_name = 'frontend/exports/wide_report.html'
+                html_string = render_to_string(template_name, context)
+                
+                html = weasyprint.HTML(string=html_string)
+                
+                buffer = io.BytesIO()
+                html.write_pdf(target=buffer)
+                buffer.seek(0)
+                
+                response = HttpResponse(content_type='application/pdf')
+                response['Content-Disposition'] = f'attachment; filename="{filename_base}.pdf"'
+                response['Content-Length'] = len(buffer.getvalue())
+                response.write(buffer.getvalue())
+                
+                return response
                 
             except Exception as e:
                 logger.error(f"PDF PO export error: {e}")
@@ -1182,13 +1384,13 @@ def export_purchase_orders(request):
     except json.JSONDecodeError:
         return JsonResponse({'success': False, 'error': 'Invalid JSON data'})
     except Exception as e:
-        logger.error(f"Purchase orders export error: {e}")
+        logger.error(f"PO export error: {e}")
         return JsonResponse({'success': False, 'error': f'Export failed: {str(e)}'})
 
 @login_required
 @require_http_methods(["POST"])
 def export_single_po(request, po_id):
-    """Export individual purchase order details - Fully translated with RTL support"""
+    """Export individual purchase order details - Enhanced RTL support for metadata and summary sections"""
     try:
         data = json.loads(request.body)
         export_format = data.get('format', 'excel')
@@ -1292,9 +1494,9 @@ def export_single_po(request, po_id):
                 logger.error(f"Excel single PO export error: {e}")
                 return JsonResponse({'success': False, 'error': f'Excel export failed: {str(e)}'})
         
-        else:  # PDF
+        else:  # PDF - Enhanced RTL support for metadata and summary
             try:
-                # Enhanced context for RTL template
+                # Enhanced context with RTL support
                 context = {
                     'title': report_title,
                     'metadata': metadata,
@@ -1312,13 +1514,54 @@ def export_single_po(request, po_id):
                     'no_data_text': labels['no_data_available'],
                 }
                 
-                # Override to use custom context
+                # Override to use custom context with enhanced RTL template
                 from django.template.loader import render_to_string
                 import weasyprint
                 import io
                 
                 template_name = 'frontend/exports/standard_report.html'
                 html_string = render_to_string(template_name, context)
+                
+                # Inject additional RTL CSS for metadata and summary if Arabic
+                if language == 'ar':
+                    rtl_css = '''
+                    <style>
+                    /* Force RTL for metadata and summary items */
+                    .metadata-item {
+                        display: flex !important;
+                        flex-direction: row-reverse !important;
+                        justify-content: space-between !important;
+                    }
+                    
+                    .metadata-label {
+                        order: 2 !important;
+                        margin-left: 10px !important;
+                        margin-right: 0 !important;
+                    }
+                    
+                    .metadata-value {
+                        order: 1 !important;
+                    }
+                    
+                    .summary-item {
+                        display: flex !important;
+                        flex-direction: row-reverse !important;
+                        justify-content: space-between !important;
+                    }
+                    
+                    .summary-label {
+                        order: 2 !important;
+                        margin-left: 10px !important;
+                        margin-right: 0 !important;
+                    }
+                    
+                    .summary-value {
+                        order: 1 !important;
+                    }
+                    </style>
+                    '''
+                    # Inject the CSS before </head>
+                    html_string = html_string.replace('</head>', rtl_css + '</head>')
                 
                 html = weasyprint.HTML(string=html_string)
                 
