@@ -1,6 +1,6 @@
 {% extends 'frontend/base.html' %}
 
-{% block title %}<span data-translate="monthly_report">Monthly Report</span> - <span data-translate="vessel_sales_system">Vessel Sales System</span>{% endblock %}
+{% block title %}Monthly Report - Vessel Sales System{% endblock %}
 
 {% block content %}
 <!-- Page Header -->
@@ -353,6 +353,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Update on language change
     window.addEventListener('languageChanged', function() {
         updateMonthlyReportTranslations();
+        updatePageTitle();
     });
     
     function updateMonthlyReportTranslations() {
@@ -376,6 +377,9 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Update years in trend and dropdowns
         updateYearNumbers();
+
+        // Update Page title
+        updatePageTitle();
     }
     
     function updateHeaderMonthYear() {
@@ -612,6 +616,17 @@ function exportMonthlyReport() {
 
 function printMonthlyReport() {
     alertTranslated('print_feature_coming_soon');
+}
+
+function updatePageTitle() {
+    if (!window.translator || !window.translator._) {
+        return;
+    }
+    
+    const monthly_report = window.translator._('monthly_report');
+    const vesselSalesSystem = window.translator._('vessel_sales_system');
+    
+    document.title = `${monthly_report} - ${vesselSalesSystem}`;
 }
 </script>
 {% endblock %}

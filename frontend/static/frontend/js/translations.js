@@ -790,6 +790,8 @@ window.VesselSalesTranslations = {
         'pending': 'Pending',
         'trip_sales_report': 'Trip Sales Report',
         'generated_on': 'Generated on',
+        'choose_export_format': 'Choose Export Format',
+        'export_data': 'Export Data',
         
         // PO Report translations
         'po_number': 'PO Number',
@@ -1591,7 +1593,9 @@ window.VesselSalesTranslations = {
         'pending': 'معلق',
         'trip_sales_report': 'تقرير مبيعات الرحلة',
         'generated_on': 'تم إنشاؤه في',
-        
+        'choose_export_format': 'حدد نوع التصدير',
+        'export_data': 'تصدير البيانات',
+
         // PO Report translations (Arabic)
         'po_number': 'رقم أمر الشراء',
         'po_date': 'تاريخ أمر الشراء',
