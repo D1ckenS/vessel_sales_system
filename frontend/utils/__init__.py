@@ -161,7 +161,21 @@ class BilingualMessages:
 
     @classmethod
     def get_user_language(cls, request):
-        """Get user's preferred language from session/localStorage"""
+        """
+        Determine user's preferred language from multiple sources.
+        
+        Priority order:
+        1. Session preference (for authenticated users)
+        2. Custom X-User-Language header (set by JavaScript)
+        3. Accept-Language header
+        4. Default to English
+        
+        Args:
+            request: Django HttpRequest object
+        
+        Returns:
+            str: Language code ('en' or 'ar')
+        """
         # Try from session first (set by authentication system)
         if hasattr(request, 'session') and 'preferred_language' in request.session:
             lang = request.session['preferred_language']
@@ -283,13 +297,31 @@ class LanguageDetectionMiddleware:
 
 # Updated views.py helper functions
 def get_vessel_display_name(vessel, language='en'):
-    """Get vessel name in specified language"""
+    """
+    Get vessel name in specified language.
+    
+    Args:
+        vessel: Vessel model instance
+        language: Language code ('en' or 'ar')
+    
+    Returns:
+        str: Vessel name in requested language
+    """
     if language == 'ar' and vessel.name_ar:
         return vessel.name_ar
     return vessel.name
 
 def format_vessel_list(vessels, language='en'):
-    """Format vessel list for messages"""
+    """
+    Format vessel list for user messages with proper separators.
+    
+    Args:
+        vessels: List of Vessel instances
+        language: Language code ('en' or 'ar')
+    
+    Returns:
+        str: Comma-separated vessel names with language-appropriate separator
+    """
     vessel_names = [get_vessel_display_name(v, language) for v in vessels]
     if language == 'ar':
         return '، '.join(vessel_names)  # Arabic comma

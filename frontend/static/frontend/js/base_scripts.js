@@ -357,6 +357,22 @@ window.updatePageTranslations = function() {
         element.textContent = window.translator._(key, parsedParams);
     });
     
+    // UPDATE: Add automatic transaction type translation (NEW!)
+    document.querySelectorAll('.transaction-type[data-type], .transaction-type-badge[data-type]').forEach(element => {
+        const originalType = element.getAttribute('data-type');
+        if (originalType && window.translateTransactionType) {
+            element.textContent = window.translateTransactionType(originalType);
+        }
+    });
+    
+    // UPDATE: Also handle dropdown options with transaction types (NEW!)
+    document.querySelectorAll('option[data-transaction-type]').forEach(element => {
+        const originalType = element.getAttribute('data-transaction-type');
+        if (originalType && window.translateTransactionType) {
+            element.textContent = window.translateTransactionType(originalType);
+        }
+    });
+    
     // Update vessel names
     document.querySelectorAll('.vessel-name').forEach(element => {
         const currentLang = window.translator?.currentLanguage || 'en';

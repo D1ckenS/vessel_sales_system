@@ -6,7 +6,7 @@ from django.http import JsonResponse
 from datetime import date
 from vessels.models import Vessel
 from products.models import Product
-from transactions.models import Transaction, InventoryLot, Trip, VesselProductPrice, get_vessel_product_price, get_vessel_pricing_warnings, get_available_inventory
+from transactions.models import Transaction, InventoryLot, Trip, get_vessel_product_price, get_vessel_pricing_warnings, get_available_inventory
 from .utils import BilingualMessages
 from django.core.exceptions import ValidationError
 import json

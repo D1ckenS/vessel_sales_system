@@ -4,7 +4,6 @@ from datetime import datetime, timedelta, date
 from django.contrib.auth.decorators import login_required
 import calendar
 from django.db.models import Avg, Sum, Count, F, Q, Case, When
-from .utils import BilingualMessages
 from transactions.models import Transaction, InventoryLot, Trip, PurchaseOrder, get_vessel_pricing_warnings
 from django.shortcuts import render
 from vessels.models import Vessel

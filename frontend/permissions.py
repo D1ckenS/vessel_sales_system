@@ -39,7 +39,15 @@ class UserRoles:
 # =============================================================================
 
 def get_user_role(user):
-    """Get the highest role for a user"""
+    """
+    Get the primary role of a user based on group membership.
+    
+    Args:
+        user: Django User instance
+    
+    Returns:
+        UserRoles: The user's primary role enum value
+    """
     if not user.is_authenticated:
         return None
     
@@ -62,7 +70,16 @@ def get_user_role(user):
     return user_role
 
 def has_role(user, required_roles):
-    """Check if user has any of the required roles"""
+    """
+    Check if user has any of the required roles.
+    
+    Args:
+        user: Django User instance
+        required_roles: Single role string or list of role strings
+    
+    Returns:
+        bool: True if user has at least one of the required roles
+    """
     if not user.is_authenticated:
         return False
     

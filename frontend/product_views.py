@@ -4,8 +4,8 @@ from django.db.models import Count, Q, Sum
 from frontend.views import is_admin_or_manager
 from .utils import BilingualMessages
 from products.models import Product, Category
-from .utils import get_vessel_display_name, format_vessel_list
-from transactions.models import VesselProductPrice, InventoryLot, Transaction, get_vessel_pricing_warnings, get_all_vessel_pricing_summary
+from .utils import get_vessel_display_name
+from transactions.models import VesselProductPrice, InventoryLot, Transaction, get_all_vessel_pricing_summary
 from django.db import transaction
 from vessels.models import Vessel
 from decimal import Decimal

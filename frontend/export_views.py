@@ -1,14 +1,12 @@
 from django.utils import timezone
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta
 from django.contrib.auth.decorators import login_required
 import calendar
-from django.db.models import Sum, Count, F, Q
+from django.db.models import Sum, Count, F
 import json
 from django.template.loader import render_to_string
 import weasyprint
 import io
-from products import models
-from .utils import BilingualMessages
 from django.http import JsonResponse, HttpResponse
 from transactions.models import Transaction, InventoryLot, Trip, PurchaseOrder
 from vessels.models import Vessel
@@ -17,9 +15,8 @@ from .utils.weasy_exporter import create_weasy_exporter_for_data, create_weasy_e
 from django.views.decorators.http import require_http_methods
 from django.shortcuts import get_object_or_404
 import logging
-from products.models import Product, Category
 from openpyxl.utils import get_column_letter
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.styles import Font, PatternFill, Alignment
 from collections import defaultdict
 
 # Set up logging
@@ -30,14 +27,32 @@ logger = logging.getLogger(__name__)
 # ===============================================================================
 
 def format_currency(value, decimals=3):
-    """Format currency with specified decimal places"""
+    """
+    Format currency with specified decimal places.
+    
+    Args:
+        value: Numeric value to format
+        decimals: Number of decimal places (default: 3)
+    
+    Returns:
+        str: Formatted currency string
+    """
     try:
         return f"{float(value):.{decimals}f}"
     except (ValueError, TypeError):
         return "0.000"
 
 def format_currency_or_none(value, decimals=3):
-    """Format currency or return None for empty/zero values"""
+    """
+    Format currency or return None for empty/zero values.
+    
+    Args:
+        value: Numeric value to format
+        decimals: Number of decimal places (default: 3)
+    
+    Returns:
+        str or None: Formatted currency string or None for zero values
+    """
     try:
         float_val = float(value)
         if float_val == 0:
@@ -1295,11 +1310,7 @@ def export_single_trip(request, trip_id):
                     'no_data_text': labels['no_data_available'],
                 }
                 
-                # Use template directly (no CSS injection)
-                from django.template.loader import render_to_string
-                import weasyprint
-                import io
-                
+                # Use template directly (no CSS injection)                
                 template_name = 'frontend/exports/wide_report.html'
                 html_string = render_to_string(template_name, context)
                 
@@ -1489,10 +1500,6 @@ def export_purchase_orders(request):
                 }
                 
                 # Use the same pattern as working individual exports
-                from django.template.loader import render_to_string
-                import weasyprint
-                import io
-                
                 template_name = 'frontend/exports/wide_report.html'
                 html_string = render_to_string(template_name, context)
                 
@@ -1647,10 +1654,6 @@ def export_single_po(request, po_id):
                 }
                 
                 # Use template directly (no CSS injection)
-                from django.template.loader import render_to_string
-                import weasyprint
-                import io
-                
                 template_name = 'frontend/exports/standard_report.html'
                 html_string = render_to_string(template_name, context)
                 

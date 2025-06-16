@@ -6,15 +6,12 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import User, Group, Permission
 from django.contrib import messages
 from django.http import JsonResponse
-from django.contrib.contenttypes.models import ContentType
 from django.db import transaction, models
 from django.db.models import Sum, F, Count
 from transactions.models import Transaction, Trip, PurchaseOrder, InventoryLot
 from vessels.models import Vessel
 from .utils import BilingualMessages
-from django.contrib.admin.views.decorators import staff_member_required
 from django.views.decorators.http import require_http_methods
-from django.views.decorators.csrf import csrf_exempt
 from django.core.exceptions import ValidationError
 from django.contrib.auth.password_validation import validate_password
 from datetime import date, datetime, timedelta
@@ -34,7 +31,12 @@ from .permissions import (
 )
 
 def get_optimized_vessel_pricing_data():
-    """Helper function: Get vessel pricing data with database aggregations"""
+    """
+    Get vessel pricing data with database aggregations for performance.
+    
+    Returns:
+        tuple: (vessel_pricing_data_dict, total_general_products_count)
+    """
     
     # Get total general products count
     total_general_products = Product.objects.filter(is_duty_free=False, active=True).count()
@@ -66,7 +68,13 @@ def get_optimized_vessel_pricing_data():
 
 
 def get_cached_pricing_summary():
-    """Helper function: Get pricing summary with caching for performance"""
+    """
+    Get pricing summary with caching for performance optimization.
+    Uses 5-minute cache to reduce database load.
+    
+    Returns:
+        dict: Cached pricing summary data
+    """
     
     cache_key = 'vessel_pricing_summary'
     summary = cache.get(cache_key)

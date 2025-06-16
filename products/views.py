@@ -1,3 +1,7 @@
-from django.shortcuts import render
+"""
+Product management views.
 
-# Create your views here.
+This module will contain product-related view functions when
+additional product management features are implemented.
+Currently all product operations are handled through frontend.product_views.
+"""
