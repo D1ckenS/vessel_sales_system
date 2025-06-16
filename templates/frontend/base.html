@@ -130,7 +130,7 @@
                             
                             <!-- Product Management (Administrators & Managers) -->
                             {% if user_permissions.can_add_products %}
-                            <li><a class="dropdown-item" href="{% url 'frontend:add_product' %}"><i class="bi bi-box"></i> <span data-translate="product_management">Product Management</span></a></li>
+                            <li><a class="dropdown-item" href="{% url 'frontend:product_management' %}"><i class="bi bi-box"></i> <span data-translate="product_management">Product Management</span></a></li>
                             {% endif %}
                             
                             <!-- Operations Management (Administrators & Managers) -->

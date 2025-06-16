@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Q, Sum, F
 from frontend.views import is_admin_or_manager
 from .utils import BilingualMessages
 from products.models import Product, Category
@@ -9,27 +9,81 @@ from transactions.models import VesselProductPrice, InventoryLot, Transaction, g
 from django.db import transaction
 from vessels.models import Vessel
 from decimal import Decimal
-from datetime import date
+from datetime import date, timedelta, datetime
 import decimal
-from datetime import datetime
+from django.db import models
 
 @login_required
 @user_passes_test(is_admin_or_manager)
 def product_management(request):
-    """Product and Category management interface"""
+    """OPTIMIZED: Product and Category management interface with comprehensive data"""
     
-    # Get all products with category info
-    products = Product.objects.select_related('category', 'created_by').order_by('item_id')
+    # OPTIMIZED: Get products with all related data and statistics
+    products = Product.objects.select_related(
+        'category', 'created_by'
+    ).annotate(
+        # Inventory statistics
+        total_inventory=Sum('inventory_lots__remaining_quantity'),
+        inventory_vessels=Count('inventory_lots__vessel', distinct=True, filter=Q(inventory_lots__remaining_quantity__gt=0)),
+        
+        # Pricing statistics for touristic vessels
+        custom_pricing_count=Count(
+            'vessel_prices',
+            filter=Q(
+                vessel_prices__vessel__active=True,
+                vessel_prices__vessel__has_duty_free=False
+            )
+        ),
+        
+        # Transaction statistics (last 30 days)
+        recent_sales=Count(
+            'transactions',
+            filter=Q(
+                transactions__transaction_type='SALE',
+                transactions__transaction_date__gte=date.today() - timedelta(days=30)
+            )
+        ),
+        recent_supply=Count(
+            'transactions',
+            filter=Q(
+                transactions__transaction_type='SUPPLY',
+                transactions__transaction_date__gte=date.today() - timedelta(days=30)
+            )
+        ),
+        
+        # Revenue statistics (last 30 days)
+        recent_revenue=Sum(
+            F('transactions__unit_price') * F('transactions__quantity'),
+            filter=Q(
+                transactions__transaction_type='SALE',
+                transactions__transaction_date__gte=date.today() - timedelta(days=30)
+            ),
+            output_field=models.DecimalField()
+        )
+    ).order_by('item_id')
     
-    # Get all categories
+    # OPTIMIZED: Get categories with enhanced statistics
     categories = Category.objects.annotate(
-        product_count=Count('products')
+        product_count=Count('products'),
+        active_product_count=Count('products', filter=Q(products__active=True)),
+        total_category_inventory=Sum(
+            'products__inventory_lots__remaining_quantity',
+            filter=Q(products__active=True)
+        ),
+        category_recent_sales=Count(
+            'products__transactions',
+            filter=Q(
+                products__transactions__transaction_type='SALE',
+                products__transactions__transaction_date__gte=date.today() - timedelta(days=30)
+            )
+        )
     ).order_by('name')
     
     # Get search/filter parameters
     search_query = request.GET.get('search', '')
     category_filter = request.GET.get('category', '')
     status_filter = request.GET.get('status', '')
+    inventory_filter = request.GET.get('inventory', '')  # low, out, good
     
     # Apply filters
     if search_query:
@@ -47,24 +101,91 @@ def product_management(request):
     elif status_filter == 'inactive':
         products = products.filter(active=False)
     
-    # Calculate summary stats
-    total_products = Product.objects.count()
-    active_products = Product.objects.filter(active=True).count()
-    total_categories = categories.count()
+    if inventory_filter == 'low':
+        products = products.filter(total_inventory__lte=5, total_inventory__gt=0)
+    elif inventory_filter == 'out':
+        products = products.filter(Q(total_inventory=0) | Q(total_inventory__isnull=True))
+    elif inventory_filter == 'good':
+        products = products.filter(total_inventory__gt=5)
+    
+    # OPTIMIZED: Calculate comprehensive summary stats
+    summary_stats = Product.objects.aggregate(
+        total_products=Count('id'),
+        active_products=Count('id', filter=Q(active=True)),
+        inactive_products=Count('id', filter=Q(active=False)),
+        duty_free_products=Count('id', filter=Q(is_duty_free=True, active=True)),
+        general_products=Count('id', filter=Q(is_duty_free=False, active=True)),
+        products_with_inventory=Count('id', distinct=True, filter=Q(inventory_lots__remaining_quantity__gt=0)),
+        products_needing_pricing=Count(
+            'id',
+            filter=Q(
+                active=True,
+                is_duty_free=False,
+                vessel_prices__isnull=True
+            )
+        ),
+        total_inventory_value=Sum(
+            F('inventory_lots__remaining_quantity') * F('inventory_lots__purchase_price'),
+            output_field=models.DecimalField()
+        )
+    )
+    
+    # OPTIMIZED: Get touristic vessels count for pricing completeness calculation
+    touristic_vessels_count = Vessel.objects.filter(
+        active=True, 
+        has_duty_free=False
+    ).count()
+    
+    # Process products for enhanced display data
+    enhanced_products = []
+    for product in products:
+        # Calculate inventory status
+        inventory_qty = product.total_inventory or 0
+        if inventory_qty == 0:
+            inventory_status = 'out'
+            inventory_class = 'danger'
+        elif inventory_qty <= 5:
+            inventory_status = 'low'
+            inventory_class = 'warning'
+        else:
+            inventory_status = 'good'
+            inventory_class = 'success'
+        
+        # Calculate pricing completeness for general products
+        pricing_completion = 0
+        if not product.is_duty_free and touristic_vessels_count > 0:
+            pricing_completion = (product.custom_pricing_count / touristic_vessels_count) * 100
+        
+        enhanced_products.append({
+            'product': product,
+            'inventory_status': inventory_status,
+            'inventory_class': inventory_class,
+            'pricing_completion': round(pricing_completion, 1),
+            'needs_pricing': not product.is_duty_free and product.custom_pricing_count < touristic_vessels_count,
+            'recent_activity': (product.recent_sales or 0) + (product.recent_supply or 0),
+            'revenue_30d': product.recent_revenue or 0
+        })
     
     context = {
-        'products': products,
+        'products': enhanced_products,
         'categories': categories,
         'filters': {
             'search': search_query,
             'category': category_filter,
             'status': status_filter,
+            'inventory': inventory_filter,
         },
         'stats': {
-            'total_products': total_products,
-            'active_products': active_products,
-            'inactive_products': total_products - active_products,
-            'total_categories': total_categories,
+            'total_products': summary_stats['total_products'],
+            'active_products': summary_stats['active_products'],
+            'inactive_products': summary_stats['inactive_products'],
+            'duty_free_products': summary_stats['duty_free_products'],
+            'general_products': summary_stats['general_products'],
+            'products_with_inventory': summary_stats['products_with_inventory'],
+            'products_needing_pricing': summary_stats['products_needing_pricing'],
+            'total_categories': categories.count(),
+            'total_inventory_value': summary_stats['total_inventory_value'] or 0,
+            'touristic_vessels_count': touristic_vessels_count,
         }
     }
     

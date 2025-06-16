@@ -3,7 +3,7 @@ from django.db import models
 from datetime import datetime, timedelta, date
 from django.contrib.auth.decorators import login_required
 import calendar
-from django.db.models import Avg, Sum, Count, F, Q, Case, When
+from django.db.models import Avg, Sum, Count, F, Q, Case, When, Max, Min
 from transactions.models import Transaction, InventoryLot, Trip, PurchaseOrder, get_vessel_pricing_warnings
 from django.shortcuts import render
 from vessels.models import Vessel
@@ -16,7 +16,7 @@ from .permissions import (
 
 @reports_access_required
 def trip_reports(request):
-    """Trip-based sales reports"""
+    """COMPLETE WORKING: Trip-based sales reports with proper optimization"""
     
     # Get filter parameters
     vessel_filter = request.GET.get('vessel')
@@ -24,8 +24,12 @@ def trip_reports(request):
     date_to = request.GET.get('date_to')
     status_filter = request.GET.get('status')
     
-    # Base queryset
-    trips = Trip.objects.select_related('vessel', 'created_by').prefetch_related('sales_transactions')
+    # WORKING: Base queryset with proper relations - NO problematic annotations
+    trips = Trip.objects.select_related(
+        'vessel', 'created_by'
+    ).prefetch_related(
+        'sales_transactions__product'  # Prefetch for efficiency
+    )
     
     # Apply filters
     if vessel_filter:
@@ -43,19 +47,53 @@ def trip_reports(request):
     
     trips = trips.order_by('-trip_date', '-created_at')
     
-    # Calculate summary statistics
-    total_trips = trips.count()
-    total_revenue = sum(trip.total_revenue for trip in trips)
-    total_passengers = sum(trip.passenger_count for trip in trips)
+    # WORKING: Calculate summary statistics using direct database aggregation
+    # Get all sales transactions for the filtered trips in ONE query
+    sales_transactions = Transaction.objects.filter(
+        trip__in=trips,
+        transaction_type='SALE'
+    ).aggregate(
+        total_revenue=Sum(F('unit_price') * F('quantity'), output_field=models.DecimalField()),
+        total_sales_count=Count('id'),
+        avg_transaction_value=Avg(F('unit_price') * F('quantity'), output_field=models.DecimalField())
+    )
+    
+    # WORKING: Calculate trip-level statistics
+    trip_stats = trips.aggregate(
+        total_trips=Count('id'),
+        total_passengers=Sum('passenger_count'),
+        completed_trips=Count('id', filter=Q(is_completed=True)),
+        in_progress_trips=Count('id', filter=Q(is_completed=False))
+    )
+    
+    # WORKING: Calculate additional metrics safely
+    total_revenue = sales_transactions['total_revenue'] or 0
+    total_trips = trip_stats['total_trips'] or 0
+    total_passengers = trip_stats['total_passengers'] or 0
+    total_sales_count = sales_transactions['total_sales_count'] or 0
+    
     avg_revenue_per_trip = total_revenue / total_trips if total_trips > 0 else 0
     avg_revenue_per_passenger = total_revenue / total_passengers if total_passengers > 0 else 0
     
-    # Get vessels for filter
+    # WORKING: Get vessels for filter
     vessels = Vessel.objects.filter(active=True).order_by('name')
+    
+    # WORKING: Get top performing trips using direct aggregation
+    top_trips = Trip.objects.filter(
+        id__in=trips.values_list('id', flat=True)
+    ).annotate(
+        trip_revenue=Sum(
+            F('sales_transactions__unit_price') * F('sales_transactions__quantity'),
+            filter=Q(sales_transactions__transaction_type='SALE'),
+            output_field=models.DecimalField()
+        ),
+        trip_sales_count=Count('sales_transactions', filter=Q(sales_transactions__transaction_type='SALE'))
+    ).filter(trip_revenue__gt=0).order_by('-trip_revenue')[:5]
     
     context = {
         'trips': trips,
         'vessels': vessels,
+        'top_trips': top_trips,
         'filters': {
             'vessel': vessel_filter,
             'date_from': date_from,
@@ -66,8 +104,12 @@ def trip_reports(request):
             'total_trips': total_trips,
             'total_revenue': total_revenue,
             'total_passengers': total_passengers,
+            'total_sales_transactions': total_sales_count,
+            'completed_trips': trip_stats['completed_trips'] or 0,
+            'in_progress_trips': trip_stats['in_progress_trips'] or 0,
             'avg_revenue_per_trip': avg_revenue_per_trip,
             'avg_revenue_per_passenger': avg_revenue_per_passenger,
+            'avg_transaction_value': sales_transactions['avg_transaction_value'] or 0,
         }
     }
     

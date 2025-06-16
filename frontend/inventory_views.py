@@ -1,6 +1,6 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.db.models import Q, Sum
+from django.db.models import Q, Sum, Min, Avg, Count
 from django.http import JsonResponse
 from vessels.models import Vessel
 from products.models import Product
@@ -11,33 +11,14 @@ import json
 
 @login_required
 def inventory_check(request):
-    """Vessel-specific inventory interface with tabs and focused stats"""
+    """OPTIMIZED: Inventory check with FIFO cost calculation"""
     
-    # Get all active vessels for tabs
+    # Get all vessels for selection
     vessels = Vessel.objects.filter(active=True).order_by('name')
-
-    # For SPA, we don't auto-load data - just show the interface
-    context = {
-        'vessels': vessels,
-        'selected_vessel': vessels.first() if vessels.exists() else None,
-    }
-
-    # Get selected vessel (default to first vessel)
     selected_vessel_id = request.GET.get('vessel')
-    if selected_vessel_id:
-        try:
-            selected_vessel = Vessel.objects.get(id=selected_vessel_id, active=True)
-        except Vessel.DoesNotExist:
-            selected_vessel = vessels.first()
-    else:
-        selected_vessel = vessels.first()
     
-    # Get search parameters
-    product_search = request.GET.get('search', '')
-    stock_filter = request.GET.get('stock', '')
-    
-    if not selected_vessel:
-        # No vessels available
+    if not selected_vessel_id:
+        # Show vessel selection if none selected
         context = {
             'vessels': vessels,
             'selected_vessel': None,
@@ -50,37 +31,47 @@ def inventory_check(request):
                 'total_inventory_value': 0,
             },
             'filters': {
-                'product_search': product_search,
-                'stock_filter': stock_filter,
+                'product_search': '',
+                'stock_filter': '',
             }
         }
         return render(request, 'frontend/inventory_check.html', context)
     
-    # Get inventory for selected vessel only
-    available_lots = InventoryLot.objects.filter(
+    # Get selected vessel
+    selected_vessel = get_object_or_404(Vessel, id=selected_vessel_id, active=True)
+    
+    # Get filter parameters
+    product_search = request.GET.get('search', '').strip()
+    stock_filter = request.GET.get('stock_filter', '')
+    
+    # OPTIMIZED: Get inventory summary with total quantities
+    inventory_lots = InventoryLot.objects.filter(
         vessel=selected_vessel,
         remaining_quantity__gt=0,
         product__active=True
-    ).select_related('product')
+    ).select_related(
+        'product', 'product__category'
+    ).order_by('product__item_id')
     
     # Apply product search filter
     if product_search:
-        available_lots = available_lots.filter(
+        inventory_lots = inventory_lots.filter(
             Q(product__name__icontains=product_search) | 
             Q(product__item_id__icontains=product_search) |
             Q(product__barcode__icontains=product_search)
         )
     
-    # Group by product and calculate vessel-specific stats
-    
-    inventory_summary = available_lots.values(
+    # OPTIMIZED: Aggregate inventory data by product
+    from django.db.models import Sum, Count
+    inventory_summary = inventory_lots.values(
         'product__id', 'product__name', 'product__item_id', 
-        'product__barcode', 'product__is_duty_free'
+        'product__barcode', 'product__is_duty_free', 'product__category__name'
     ).annotate(
-        total_quantity=Sum('remaining_quantity')
+        total_quantity=Sum('remaining_quantity'),
+        total_lots=Count('id')
     ).order_by('product__item_id')
     
-    # Build inventory data with vessel-specific calculations
+    # Process aggregated data with FIFO cost calculation
     inventory_data = []
     vessel_total_value = 0
     vessel_low_stock = 0
@@ -90,26 +81,20 @@ def inventory_check(request):
         product_id = item['product__id']
         total_qty = item['total_quantity']
         
-        # Get FIFO lots for this product on this vessel
-        lots = InventoryLot.objects.filter(
+        # FIFO COST: Get the oldest lot's cost for this product
+        oldest_lot = InventoryLot.objects.filter(
             vessel=selected_vessel,
             product_id=product_id,
             remaining_quantity__gt=0
-        ).order_by('purchase_date', 'created_at')
+        ).order_by('purchase_date', 'created_at').first()
         
-        # Calculate current cost (oldest available lot) and total value
-        current_cost = lots.first().purchase_price if lots.exists() else 0
-        total_value = sum(lot.remaining_quantity * lot.purchase_price for lot in lots)
+        fifo_cost = oldest_lot.purchase_price if oldest_lot else 0
+        total_value = total_qty * fifo_cost
         
-        # Determine stock status for this vessel
-        if total_qty == 0:
-            stock_status = 'out'
-            status_class = 'danger'
-            status_text = 'Out of Stock'
-            vessel_out_of_stock += 1
-        elif total_qty <= 10:  # Low stock threshold
+        # Determine stock status
+        if total_qty <= 5:
             stock_status = 'low'
-            status_class = 'warning' 
+            status_class = 'warning'
             status_text = 'Low Stock'
             vessel_low_stock += 1
         else:
@@ -117,44 +102,52 @@ def inventory_check(request):
             status_class = 'success'
             status_text = 'Good Stock'
         
-        # Apply stock level filter
-        if stock_filter and stock_filter != stock_status:
-            continue
-            
-        inventory_data.append({
+        inventory_item = {
             'vessel_id': selected_vessel.id,
             'vessel_name': selected_vessel.name,
             'product_id': product_id,
             'product_name': item['product__name'],
             'product_item_id': item['product__item_id'],
-            'product_barcode': item['product__barcode'],
+            'product_barcode': item['product__barcode'] or '',
+            'product_category': item['product__category__name'],
             'is_duty_free': item['product__is_duty_free'],
             'total_quantity': total_qty,
-            'current_cost': current_cost,
+            'current_cost': fifo_cost,  # FIFO cost from oldest lot
             'total_value': total_value,
             'stock_status': stock_status,
             'status_class': status_class,
             'status_text': status_text,
-            'lots': lots,
-        })
+            'total_lots': item['total_lots'],
+        }
         
+        # Apply stock filter
+        if stock_filter == 'low' and stock_status != 'low':
+            continue
+        elif stock_filter == 'good' and stock_status != 'good':
+            continue
+        
+        inventory_data.append(inventory_item)
         vessel_total_value += total_value
     
-    # Check for products with zero inventory on this vessel
-    all_products_on_vessel = InventoryLot.objects.filter(
-        vessel=selected_vessel,
-        product__active=True
-    ).values('product_id').distinct()
-    
-    products_with_zero_stock = Product.objects.filter(
-        active=True,
-        id__in=[p['product_id'] for p in all_products_on_vessel]
-    ).exclude(
-        id__in=[item['product_id'] for item in inventory_data]
-    )
-    
-    # Add zero-stock products if no stock filter applied
+    # OPTIMIZED: Get out-of-stock products with single query
     if not stock_filter or stock_filter == 'out':
+        # Products that had inventory but now have zero stock
+        products_with_zero_stock = Product.objects.filter(
+            active=True,
+            inventory_lots__vessel=selected_vessel
+        ).exclude(
+            inventory_lots__vessel=selected_vessel,
+            inventory_lots__remaining_quantity__gt=0
+        ).select_related('category').distinct()
+        
+        # Apply search filter to zero-stock products
+        if product_search:
+            products_with_zero_stock = products_with_zero_stock.filter(
+                Q(name__icontains=product_search) |
+                Q(item_id__icontains=product_search) |
+                Q(barcode__icontains=product_search)
+            )
+        
         for product in products_with_zero_stock:
             vessel_out_of_stock += 1
             inventory_data.append({
@@ -163,7 +156,8 @@ def inventory_check(request):
                 'product_id': product.id,
                 'product_name': product.name,
                 'product_item_id': product.item_id,
-                'product_barcode': product.barcode,
+                'product_barcode': product.barcode or '',
+                'product_category': product.category.name,
                 'is_duty_free': product.is_duty_free,
                 'total_quantity': 0,
                 'current_cost': 0,
@@ -171,14 +165,13 @@ def inventory_check(request):
                 'stock_status': 'out',
                 'status_class': 'danger',
                 'status_text': 'Out of Stock',
-                'lots': [],
+                'total_lots': 0,
             })
     
-    # Calculate vessel-specific stats
+    # Calculate final stats
     vessel_total_products = len(inventory_data)
     vessel_good_stock = vessel_total_products - vessel_low_stock - vessel_out_of_stock
     
-    # Prepare context
     context = {
         'vessels': vessels,
         'selected_vessel': selected_vessel,

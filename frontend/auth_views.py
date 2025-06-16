@@ -7,7 +7,7 @@ from django.contrib.auth.models import User, Group, Permission
 from django.contrib import messages
 from django.http import JsonResponse
 from django.db import transaction, models
-from django.db.models import Sum, F, Count
+from django.db.models import Sum, F, Count, Q
 from transactions.models import Transaction, Trip, PurchaseOrder, InventoryLot
 from vessels.models import Vessel
 from .utils import BilingualMessages
@@ -41,18 +41,25 @@ def get_optimized_vessel_pricing_data():
     # Get total general products count
     total_general_products = Product.objects.filter(is_duty_free=False, active=True).count()
     
-    # Get pricing completion per vessel
-    touristic_vessels = Vessel.objects.filter(has_duty_free=False, active=True)
+    # OPTIMIZED: Get all vessels with their pricing counts in ONE query
+    touristic_vessels = Vessel.objects.filter(
+        has_duty_free=False, 
+        active=True
+    ).annotate(
+        custom_prices_count=Count(
+            'custom_prices',
+            filter=Q(
+                custom_prices__product__is_duty_free=False,
+                custom_prices__product__active=True
+            )
+        )
+    ).order_by('name')
     
+    # Build vessel pricing data dictionary
     vessel_pricing_data = {}
     for vessel in touristic_vessels:
         # Get custom prices count for this vessel
-        custom_prices_count = VesselProductPrice.objects.filter(
-            vessel=vessel,
-            product__is_duty_free=False,
-            product__active=True
-        ).count()
-        
+        custom_prices_count = vessel.custom_prices_count
         missing_count = max(0, total_general_products - custom_prices_count)
         completion_pct = (custom_prices_count / max(total_general_products, 1)) * 100
         

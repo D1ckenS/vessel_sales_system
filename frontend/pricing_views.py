@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.http import JsonResponse
 from django.db import transaction
 from decimal import Decimal
+from django.db.models import Avg, Sum, Count, F, Q, Case, When, Max, Min
 import json
 from vessels.models import Vessel
 from products.models import Product
@@ -12,43 +13,117 @@ from .permissions import admin_or_manager_required
 @login_required
 @user_passes_test(admin_or_manager_required)
 def bulk_pricing_management(request):
-    """Bulk vessel pricing management interface"""
+    """OPTIMIZED: Bulk vessel pricing management interface with fixed annotations"""
     
-    # Get all touristic vessels and general products
-    touristic_vessels = Vessel.objects.filter(active=True, has_duty_free=False).order_by('name')
-    general_products = Product.objects.filter(active=True, is_duty_free=False).order_by('item_id')
+    # OPTIMIZED: Get touristic vessels with pricing statistics
+    touristic_vessels = Vessel.objects.filter(
+        active=True, 
+        has_duty_free=False
+    ).annotate(
+        # Count custom prices for each vessel
+        custom_prices_count=Count(
+            'custom_prices',
+            filter=Q(
+                custom_prices__product__active=True,
+                custom_prices__product__is_duty_free=False
+            )
+        )
+    ).order_by('name')
     
-    # Get existing pricing data
-    existing_prices = {}
-    vessel_prices = VesselProductPrice.objects.select_related('vessel', 'product')
-    for vp in vessel_prices:
-        key = f"{vp.vessel.id}_{vp.product.id}"
-        existing_prices[key] = {
+    # OPTIMIZED: Get general products with pricing status
+    general_products_with_stats = Product.objects.filter(
+        active=True, 
+        is_duty_free=False
+    ).annotate(
+        # Count how many vessels have custom pricing for this product
+        vessels_with_custom_price=Count(
+            'vessel_prices',
+            filter=Q(
+                vessel_prices__vessel__active=True,
+                vessel_prices__vessel__has_duty_free=False
+            )
+        )
+    ).select_related('category').order_by('item_id')
+    
+    # Convert to list to avoid reusing the annotated queryset
+    general_products = list(general_products_with_stats)
+    
+    # OPTIMIZED: Get existing pricing data efficiently
+    vessel_prices_qs = VesselProductPrice.objects.select_related(
+        'vessel', 'product'
+    ).filter(
+        vessel__active=True,
+        vessel__has_duty_free=False,
+        product__active=True,
+        product__is_duty_free=False
+    )
+    
+    # Build existing prices dictionary more efficiently
+    existing_prices = {
+        f"{vp.vessel_id}_{vp.product_id}": {
             'price': vp.selling_price,
             'created_at': vp.created_at,
-            'updated_at': vp.updated_at
+            'updated_at': vp.updated_at,
+            'vessel_name': vp.vessel.name,
+            'product_name': vp.product.name
         }
+        for vp in vessel_prices_qs
+    }
     
-    # Get pricing summary
-    pricing_summary = get_all_vessel_pricing_summary()
-    
-    # Calculate completion stats
-    total_combinations = len(touristic_vessels) * len(general_products)
+    # OPTIMIZED: Calculate completion stats efficiently
+    total_general_products = len(general_products)
+    total_touristic_vessels = touristic_vessels.count()
+    total_combinations = total_touristic_vessels * total_general_products
     completed_combinations = len(existing_prices)
     completion_percentage = (completed_combinations / max(total_combinations, 1)) * 100
+    
+    # OPTIMIZED: Get pricing summary with cached calculations
+    pricing_summary = {}
+    for vessel in touristic_vessels:
+        vessel_completion = (vessel.custom_prices_count / max(total_general_products, 1)) * 100
+        pricing_summary[vessel.id] = {
+            'vessel_name': vessel.name,
+            'products_priced': vessel.custom_prices_count,
+            'total_products': total_general_products,
+            'completion_percentage': round(vessel_completion, 1),
+            'missing_count': total_general_products - vessel.custom_prices_count,
+            'has_warnings': vessel.custom_prices_count < total_general_products
+        }
+    
+    # FIXED: Product pricing statistics using annotated values correctly
+    product_pricing_stats = {}
+    for product in general_products:
+        # Access the annotated field correctly
+        vessels_covered = product.vessels_with_custom_price
+        coverage_percentage = (vessels_covered / max(total_touristic_vessels, 1)) * 100
+        product_pricing_stats[product.id] = {
+            'product_name': product.name,
+            'vessels_covered': vessels_covered,
+            'total_vessels': total_touristic_vessels,
+            'coverage_percentage': round(coverage_percentage, 1),
+            'missing_vessels': total_touristic_vessels - vessels_covered,
+            'needs_attention': vessels_covered < total_touristic_vessels
+        }
+    
+    # Calculate additional statistics
+    vessels_with_complete_pricing = sum(1 for v in pricing_summary.values() if v['completion_percentage'] == 100)
+    products_with_complete_pricing = sum(1 for p in product_pricing_stats.values() if p['coverage_percentage'] == 100)
     
     context = {
         'touristic_vessels': touristic_vessels,
         'general_products': general_products,
         'existing_prices': existing_prices,
         'pricing_summary': pricing_summary,
+        'product_pricing_stats': product_pricing_stats,
         'stats': {
-            'total_vessels': len(touristic_vessels),
-            'total_products': len(general_products),
+            'total_vessels': total_touristic_vessels,
+            'total_products': total_general_products,
             'total_combinations': total_combinations,
             'completed_combinations': completed_combinations,
-            'completion_percentage': completion_percentage,
-            'missing_combinations': total_combinations - completed_combinations
+            'completion_percentage': round(completion_percentage, 1),
+            'missing_combinations': total_combinations - completed_combinations,
+            'vessels_with_complete_pricing': vessels_with_complete_pricing,
+            'products_with_complete_pricing': products_with_complete_pricing
         }
     }
     

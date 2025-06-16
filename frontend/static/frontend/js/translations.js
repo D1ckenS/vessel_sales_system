@@ -412,8 +412,6 @@ window.VesselSalesTranslations = {
         'no_alerts': 'No alerts for this date',
         'daily_trips': 'Daily Trips',
         'passengers': 'passengers',
-        'completed': 'Completed',
-        'in_progress': 'In Progress',
         'no_trips_this_date': 'No trips on this date',
         'daily_pos': 'Daily Purchase Orders',
         'no_pos_this_date': 'No purchase orders on this date',
@@ -582,7 +580,7 @@ window.VesselSalesTranslations = {
         'view_pricing': 'View Pricing',
         'vessel_pricing_issues': 'Vessel Pricing Issues Detected',
         'vessels_incomplete_pricing': 'vessels have incomplete pricing for',
-        'products': 'products',
+        'products': 'Products',
         'revenue_date_filter': 'Revenue Date Filter',
         'select_date_for_30day_revenue': 'Select a date to calculate 30-day revenue ending on that date',
         'reference_date': 'Reference Date', 
@@ -618,6 +616,7 @@ window.VesselSalesTranslations = {
         'reference_date': 'Reference Date',
         'date_range': 'Date Range',
         'inactive': 'Inactive',
+        'category': 'Category',
 
         // Group Management
         'administrators_desc': 'Full operational access except system setup',
@@ -1243,8 +1242,6 @@ window.VesselSalesTranslations = {
         'no_alerts': 'لا توجد تنبيهات لهذا التاريخ',
         'daily_trips': 'الرحلات اليومية',
         'passengers': 'راكب',
-        'completed': 'مكتمل',
-        'in_progress': 'قيد التنفيذ',
         'no_trips_this_date': 'لا توجد رحلات في هذا التاريخ',
         'daily_pos': 'أوامر الشراء اليومية',
         'no_pos_this_date': 'لا توجد أوامر شراء في هذا التاريخ',
@@ -1452,6 +1449,7 @@ window.VesselSalesTranslations = {
         'reference_date': 'تاريخ المرجع',
         'date_range': 'نطاق التاريخ',
         'inactive': 'غير نشط',
+        'category': 'القسم',
 
         // Group Management
         'administrators_desc': 'صلاحية تشغيلية كاملة عدا إعداد النظام',
