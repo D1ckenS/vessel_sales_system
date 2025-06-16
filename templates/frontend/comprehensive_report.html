@@ -434,13 +434,13 @@
 <script>
 // Enhanced translation for comprehensive report
 document.addEventListener('DOMContentLoaded', function() {
+    window.registerPageTitle('comprehensive_report', 'Comprehensive Report');
 
     translatePricingWarningsInReport();
     // Update on language change
     window.addEventListener('languageChanged', function() {
         updateComprehensiveReportTranslations();
         translatePricingWarningsInReport();
-        updatePageTitle();
     });
     
     function updateComprehensiveReportTranslations() {
@@ -603,26 +603,13 @@ document.addEventListener('DOMContentLoaded', function() {
         updateComprehensiveReportTranslations();
         updatePageTranslations(); // Call global translation update
         translatePricingWarningsInReport();
-        updatePageTitle();
     }, 100);
 
 });
 
 // Export and Print functions
-function exportComprehensiveReport() {
-    const additionalData = {
-        vessel_filter: document.querySelector('[name="vessel"]')?.value || '',
-        date_from: document.querySelector('[name="date_from"]')?.value || '',
-        date_to: document.querySelector('[name="date_to"]')?.value || '',
-        transaction_type_filter: document.querySelector('[name="transaction_type"]')?.value || ''
-    };
-    
-    showExportModal('transactions', additionalData);
-}
-
-function printComprehensiveReport() {
-    alertTranslated('print_feature_coming_soon');
-}
+const exportComprehensiveReport = () => window.quickExport.transactions();
+const printComprehensiveReport = () => window.templateUtils.showPrintComingSoon();
 
 // ✅ ADD THESE FUNCTIONS before the existing DOMContentLoaded
 function translatePricingWarningsInReport() {
@@ -693,17 +680,6 @@ function translateWarningMessage(message) {
     
     // If no pattern matches, return the original message
     return message;
-}
-
-function updatePageTitle() {
-    if (!window.translator || !window.translator._) {
-        return;
-    }
-    
-    const comprehensiveReport = window.translator._('comprehensive_report');
-    const vesselSalesSystem = window.translator._('vessel_sales_system');
-    
-    document.title = `${comprehensiveReport} - ${vesselSalesSystem}`;
 }
 
 </script>

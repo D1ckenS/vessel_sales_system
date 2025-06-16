@@ -289,6 +289,7 @@ let productCatalog = [];
 
 // Enhanced PO Supply translations
 document.addEventListener('DOMContentLoaded', function() {
+    window.registerPageTitle('po_supply', 'PO Supply');
     const poSupplyTranslations = {
         en: {
             'product_catalog': 'Product Catalog',
@@ -375,7 +376,6 @@ document.addEventListener('DOMContentLoaded', function() {
         {% endif %}
         // No need to load product catalog for completed POs
         updatePageTranslations();
-        updatePageTitle();
         return;
     }
     
@@ -399,7 +399,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Apply translations
     updatePageTranslations();
-    updatePageTitle();
 });
 
 function initializePOCart() {
@@ -1059,20 +1058,6 @@ function showAlert(message, type) {
         }
     }, 5000);
 }
-
-function updatePageTitle() {
-    if (!window.translator || !window.translator._) {
-        return;
-    }
-    
-    const poSupply = window.translator._('po_supply');
-    const vesselSalesSystem = window.translator._('vessel_sales_system');
-    
-    document.title = `${poSupply} - {{ po.po_number }} - ${vesselSalesSystem}`;
-}
-
-// 🔥 **Listen for Language Toggle Event**
-window.addEventListener("languageChanged", updatePageTitle);
 
 function showPOExportModal(poId) {
     const modalHtml = `

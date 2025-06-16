@@ -259,7 +259,7 @@
                         <button class="btn btn-outline-success btn-sm" onclick="exportInventoryData()">
                             <i class="bi bi-file-earmark-excel"></i> <span data-translate="export">Export</span>
                         </button>
-                        <button class="btn btn-outline-primary btn-sm" onclick="showComingSoon()">
+                        <button class="btn btn-outline-primary btn-sm" onclick="printInventory()">
                             <i class="bi bi-printer"></i> <span data-translate="print">Print</span>
                         </button>
                     </div>
@@ -372,6 +372,7 @@ let searchTimeout = null;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
+    window.registerPageTitle('inventory_management', 'Inventory Check');
     // Add page-specific translations
     const pageTranslations = {
         en: {
@@ -564,7 +565,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Apply translations
     updatePageTranslations();
-    updatePageTitle();
     
     // Auto-select first vessel
     const firstVesselTab = document.querySelector('.vessel-tab');
@@ -581,7 +581,6 @@ document.addEventListener('DOMContentLoaded', function() {
     window.addEventListener('languageChanged', function() {
         console.log('📢 Inventory: Received languageChanged event');
         updateInventorySpecificTranslations();
-        updatePageTitle();
     });
 
     function updateInventorySpecificTranslations() {
@@ -1124,23 +1123,11 @@ function exportInventoryData() {
     console.log('Exporting inventory with data:', additionalData);
     
     // Show export modal using the global function
-    showExportModal('inventory', additionalData);
+    window.showExportModal('inventory', additionalData);
 }
 
-function showComingSoon() {
-    alertTranslated('feature_coming_soon');
-}
-
-function updatePageTitle() {
-    if (!window.translator || !window.translator._) {
-        return;
-    }
-    
-    const inventoryCheck = window.translator._('inventory_management');
-    const vesselSalesSystem = window.translator._('vessel_sales_system');
-    
-    document.title = `${inventoryCheck} - ${vesselSalesSystem}`;
-}
+const showComingSoon = (feature) => window.templateUtils.showComingSoonAlert(feature);
+const printInventory = () => window.templateUtils.showPrintComingSoon();
 </script>
 
 <!-- Add CSRF token for AJAX requests -->

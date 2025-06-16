@@ -317,21 +317,8 @@
 
 {% block extra_js %}
 <script>
-function updatePageTitle() {
-    if (!window.translator || !window.translator._) {
-        return;
-    }
-    
-    const userProfile = window.translator._('user_profile');
-    const vesselSalesSystem = window.translator._('vessel_sales_system');
-    
-    document.title = `${userProfile} - ${vesselSalesSystem}`;
-}
-
-// Run on page load
-document.addEventListener("DOMContentLoaded", updatePageTitle);
-
-// 🔥 **Listen for Language Toggle Event**
-window.addEventListener("languageChanged", updatePageTitle);
+document.addEventListener("DOMContentLoaded", function() {
+    window.registerPageTitle('user_profile', 'User Profile');
+});
 </script>
 {% endblock %}

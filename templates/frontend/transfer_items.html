@@ -224,6 +224,7 @@ let availableProducts = [];
 
 // Page-specific translations
 document.addEventListener('DOMContentLoaded', function() {
+    window.registerPageTitle('transfer_items', 'Transfer Items');
     const transferTranslations = {
         en: {
             'transfer_items': 'Transfer Items',
@@ -327,7 +328,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Apply translations
     updatePageTranslations();
-    updatePageTitle();
 });
 
 function initializeTransferCart() {
@@ -420,7 +420,6 @@ function displayAvailableProducts() {
     // Apply translations after DOM update
     setTimeout(() => {
         updatePageTranslations();
-        updatePageTitle();
     }, 0);
 }
 
@@ -827,19 +826,5 @@ function showAlert(message, type) {
         }
     }, 5000);
 }
-
-function updatePageTitle() {
-    if (!window.translator || !window.translator._) {
-        return;
-    }
-    
-    const transferItems = window.translator._('transfer_items');
-    const vesselSalesSystem = window.translator._('vessel_sales_system');
-    
-    document.title = `${transferItems} - ${vesselSalesSystem}`;
-}
-
-// 🔥 **Listen for Language Toggle Event**
-window.addEventListener("languageChanged", updatePageTitle);
 </script>
 {% endblock %}

@@ -886,7 +886,7 @@ window.showExportModal = function(exportType, additionalData = {}) {
    Coming Soon Functions
    ============================================================================= */
 
-function showComingSoon(feature) {
+function showComingSoonAlert(feature) {
     // Map features to translation keys
     const featureMap = {
         'vessel_management': 'coming_soon_vessel_management',
@@ -1103,7 +1103,7 @@ window.quickExport = {
 // ✅ ADD: Common template utilities
 window.templateUtils = {
     // Standard coming soon alert
-    showComingSoon: (feature = null) => {
+    showComingSoonAlert: (feature = null) => {
         const message = feature ? 
             window.translator._(`coming_soon_${feature}`) || `${feature} feature coming soon!` :
             window.translator._('feature_coming_soon') || 'This feature is coming soon!';

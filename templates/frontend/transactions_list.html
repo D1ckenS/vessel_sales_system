@@ -198,10 +198,10 @@
 <script>
 // Enhanced translation for transactions list
 document.addEventListener('DOMContentLoaded', function() {
+    window.registerPageTitle('all_transactions', 'All Transactions');
     // Update on language change
     window.addEventListener('languageChanged', function() {
         updateTransactionsPageTranslations();
-        updatePageTitle();
     });
     
     function updateTransactionsPageTranslations() {
@@ -351,7 +351,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initial call
     setTimeout(() => {
         updateTransactionsPageTranslations();
-        updatePageTitle();
     }, 0);
 
 });
@@ -364,18 +363,7 @@ function exportTransactions() {
         date_to: document.querySelector('[name="date_to"]')?.value || ''
     };
     
-    showExportModal('transactions', additionalData);
-}
-
-function updatePageTitle() {
-    if (!window.translator || !window.translator._) {
-        return;
-    }
-    
-    const allTransactions = window.translator._('all_transactions');
-    const vesselSalesSystem = window.translator._('vessel_sales_system');
-    
-    document.title = `${allTransactions} - ${vesselSalesSystem}`;
+    window.showExportModal('transactions', additionalData);
 }
 </script>
 {% endblock %}

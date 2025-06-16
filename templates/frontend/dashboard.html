@@ -415,9 +415,7 @@ setInterval(updateClock, 60000);
 setInterval(updateClock, 1000);
 updateClock(); // Initial call
 
-function showComingSoon() {
-    alert('🚀 This feature is coming soon! Stay tuned for updates.');
-}
+const showComingSoon = () => window.templateUtils.showComingSoonAlert();
 
 // Auto-refresh stats every 5 minutes
 setTimeout(function() {
@@ -426,26 +424,10 @@ setTimeout(function() {
 
 // Add permission-specific translations
 document.addEventListener('DOMContentLoaded', function() {
+    window.registerPageTitle('dashboard', 'Dashboard');
     
     // Update page translations
     window.updatePageTranslations();
-    
-    // Update page title
-    updatePageTitle();
 });
-
-function updatePageTitle() {
-    if (!window.translator || !window.translator._) {
-        return;
-    }
-    
-    const dashboard = window.translator._('dashboard');
-    const vesselSalesSystem = window.translator._('vessel_sales_system');
-    
-    document.title = `${dashboard} - ${vesselSalesSystem}`;
-}
-
-// 🔥 **Listen for Language Toggle Event**
-window.addEventListener("languageChanged", updatePageTitle);
 </script>
 {% endblock %}

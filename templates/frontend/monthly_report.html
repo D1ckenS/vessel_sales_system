@@ -350,10 +350,10 @@
 <script>
 // Enhanced translation for monthly report
 document.addEventListener('DOMContentLoaded', function() {
+    window.registerPageTitle('monthly_report', 'Monthly Report');
     // Update on language change
     window.addEventListener('languageChanged', function() {
         updateMonthlyReportTranslations();
-        updatePageTitle();
     });
     
     function updateMonthlyReportTranslations() {
@@ -377,9 +377,6 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Update years in trend and dropdowns
         updateYearNumbers();
-
-        // Update Page title
-        updatePageTitle();
     }
     
     function updateHeaderMonthYear() {
@@ -604,29 +601,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Export and Print functions
-function exportMonthlyReport() {
-    const month = document.querySelector('[name="month"]')?.value || new Date().getMonth() + 1;
-    const year = document.querySelector('[name="year"]')?.value || new Date().getFullYear();
-    
-    showExportModal('monthly_report', {
-        month: month,
-        year: year
-    });
-}
-
-function printMonthlyReport() {
-    alertTranslated('print_feature_coming_soon');
-}
-
-function updatePageTitle() {
-    if (!window.translator || !window.translator._) {
-        return;
-    }
-    
-    const monthly_report = window.translator._('monthly_report');
-    const vesselSalesSystem = window.translator._('vessel_sales_system');
-    
-    document.title = `${monthly_report} - ${vesselSalesSystem}`;
-}
+const exportMonthlyReport = () => window.quickExport.monthly();
+const printMonthlyReport = () => window.templateUtils.showPrintComingSoon();
 </script>
 {% endblock %}
