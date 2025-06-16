@@ -1,4 +1,3 @@
-from django.forms import ValidationError
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
@@ -9,7 +8,6 @@ from vessels.models import Vessel
 from products.models import Product
 from transactions.models import Transaction, PurchaseOrder
 from .utils import BilingualMessages
-from products.models import Product
 from django.core.exceptions import ValidationError
 from datetime import datetime
 import json

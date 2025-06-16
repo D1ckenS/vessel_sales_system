@@ -1,0 +1,138 @@
+/* =============================================================================
+   Responsive Design & Mobile RTL
+   ============================================================================= */
+
+/* Responsive adjustments */
+@media (max-width: 767px) {
+    .form-panel,
+    .catalog-panel {
+        min-height: auto;
+        height: auto;
+    }
+    
+    .scrollable-panel {
+        max-height: 300px;
+    }
+}
+
+/* Quick Actions Responsive */
+@media (max-width: 1200px) {
+    .quick-action-wrapper {
+        min-width: 120px;
+        max-width: 140px;
+    }
+    
+    .quick-action i {
+        font-size: 1.75rem;
+    }
+    
+    .quick-action h6 {
+        font-size: 0.85rem;
+    }
+    
+    .quick-action p {
+        font-size: 0.7rem;
+    }
+}
+
+@media (max-width: 992px) {
+    .d-flex.flex-wrap {
+        justify-content: space-around !important;
+    }
+    
+    .quick-action-wrapper {
+        min-width: 110px;
+        max-width: 130px;
+        margin-bottom: 0.75rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .quick-action-wrapper {
+        flex: 1 1 calc(50% - 0.5rem);
+        min-width: 140px;
+        max-width: none;
+    }
+}
+
+@media (max-width: 576px) {
+    .quick-action-wrapper {
+        flex: 1 1 100%;
+        max-width: none;
+    }
+}
+
+/* Tablet-friendly touch targets */
+@media (max-width: 768px) {
+    .nav-link {
+        padding: 1rem !important;
+        margin: 0.25rem 0;
+    }
+    
+    .btn {
+        padding: 1rem 1.5rem;
+        font-size: 1.1rem;
+    }
+    
+    .quick-action {
+        padding: 2.5rem 1.5rem;
+    }
+    
+    .quick-action i {
+        font-size: 3.5rem;
+    }
+
+    /* RTL mobile fixes */
+    [dir="rtl"] .navbar-nav {
+        text-align: right;
+    }
+
+    [dir="rtl"] .navbar-toggler {
+        margin-left: 0;
+    }
+}
+
+/* 🔧 MOBILE NAVIGATION RTL FIXES */
+@media (max-width: 991px) {
+    /* Fix collapsed navbar in RTL */
+    [dir="rtl"] .navbar-collapse {
+        direction: rtl;
+        text-align: right;
+    }
+    
+    /* Fix navbar items alignment in mobile */
+    [dir="rtl"] .navbar-nav {
+        flex-direction: column !important;
+        align-items: flex-end;
+    }
+    
+    /* Fix navbar toggler position */
+    [dir="rtl"] .navbar-toggler {
+        order: -1;
+        margin-left: auto;
+        margin-right: 0;
+    }
+    
+    /* Fix brand position in RTL mobile */
+    [dir="rtl"] .navbar-brand {
+        margin-left: 0;
+        margin-right: auto;
+    }
+    
+    /* Ensure proper collapse behavior */
+    .navbar-collapse.show {
+        display: block !important;
+    }
+    
+    .navbar-collapse.collapsing {
+        height: auto !important;
+    }
+}
+
+/* Fix language toggle in mobile */
+@media (max-width: 991px) {
+    [dir="rtl"] .navbar-nav .nav-item {
+        text-align: right;
+        width: 100%;
+    }
+}

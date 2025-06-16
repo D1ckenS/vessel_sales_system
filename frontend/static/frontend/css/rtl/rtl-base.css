@@ -1,0 +1,121 @@
+/* =============================================================================
+   🎯 PRECISE RTL SUPPORT SYSTEM 
+   ============================================================================= */
+
+/* Enhanced RTL Support */
+[dir="rtl"] {
+    text-align: right;
+}
+
+/* Page header content alignment - only in non-card contexts */
+[dir="rtl"] .d-flex.justify-content-between.align-items-center > div:first-child h2,
+[dir="rtl"] .d-flex.justify-content-between.align-items-center > div:first-child p,
+html[dir="rtl"] .d-flex.justify-content-between.align-items-center > div:first-child h2,
+html[dir="rtl"] .d-flex.justify-content-between.align-items-center > div:first-child p {
+    text-align: right !important;
+}
+
+[dir="rtl"] #userNavItems,
+html[dir="rtl"] #userNavItems {
+    margin-right: auto !important;
+    margin-left: 0 !important;
+}
+
+[dir="rtl"] #mainNavItems,
+html[dir="rtl"] #mainNavItems {
+    margin-left: auto !important;
+    margin-right: 0 !important;
+}
+
+[dir="rtl"] #languageToggle,
+html[dir="rtl"] #languageToggle {
+    margin-left: 0 !important;
+    margin-right: 1rem !important;
+}
+
+[dir="rtl"] .navbar .dropdown-menu,
+html[dir="rtl"] .navbar .dropdown-menu {
+    right: 0 !important;
+    left: auto !important;
+    text-align: right !important;
+}
+
+[dir="rtl"] .navbar .dropdown-item,
+html[dir="rtl"] .navbar .dropdown-item {
+    text-align: right !important;
+}
+
+/* 🔧 PRESERVE DASHBOARD CENTERED CONTENT */
+[dir="rtl"] .text-center,
+[dir="rtl"] .text-center h2,
+[dir="rtl"] .text-center p,
+[dir="rtl"] .card-body.text-center,
+[dir="rtl"] .card-body.text-center h2,
+[dir="rtl"] .card-body.text-center p,
+html[dir="rtl"] .text-center,
+html[dir="rtl"] .text-center h2,
+html[dir="rtl"] .text-center p,
+html[dir="rtl"] .card-body.text-center,
+html[dir="rtl"] .card-body.text-center h2,
+html[dir="rtl"] .card-body.text-center p {
+    text-align: center !important;
+}
+
+[dir="rtl"] .stats-card,
+html[dir="rtl"] .stats-card {
+    text-align: center !important;
+}
+
+[dir="rtl"] .quick-action,
+html[dir="rtl"] .quick-action {
+    text-align: center !important;
+}
+
+/* 🔧 FORM CONTENT RTL */
+[dir="rtl"] .card .form-control,
+[dir="rtl"] .card .form-select,
+html[dir="rtl"] .card .form-control,
+html[dir="rtl"] .card .form-select {
+    text-align: right !important;
+}
+
+[dir="rtl"] .card .table th,
+[dir="rtl"] .card .table td,
+html[dir="rtl"] .card .table th,
+html[dir="rtl"] .card .table td {
+    text-align: right !important;
+}
+
+[dir="rtl"] .card-body .d-grid.gap-2.d-md-flex.justify-content-md-end,
+html[dir="rtl"] .card-body .d-grid.gap-2.d-md-flex.justify-content-md-end {
+    justify-content: flex-start !important;
+    flex-direction: row-reverse !important;
+}
+
+/* Bootstrap margin/padding RTL fixes */
+[dir="rtl"] .me-auto {
+    margin-right: 0 !important;
+    margin-left: auto !important;
+}
+
+[dir="rtl"] .ms-auto {
+    margin-left: 0 !important;
+    margin-right: auto !important;
+}
+
+[dir="rtl"] .me-3 {
+    margin-right: 0 !important;
+    margin-left: 1rem !important;
+}
+
+[dir="rtl"] .ms-2 {
+    margin-left: 0 !important;
+    margin-right: 0.5rem !important;
+}
+
+/* Numbers in Arabic */
+[dir="rtl"] .stats-number,
+[dir="rtl"] .fw-bold[data-number] {
+    font-family: 'Arabic-Indic', 'Tahoma', sans-serif;
+}
+

@@ -1,0 +1,53 @@
+/* =============================================================================
+   🔧 DASHBOARD RTL FIXES (moved from dashboard.html)
+   ============================================================================= */
+
+/* RTL Fixes for Recent Activity */
+[dir="rtl"] .list-group-item .d-flex {
+    flex-direction: row-reverse;
+}
+
+[dir="rtl"] .list-group-item .flex-grow-1 {
+    text-align: right;
+}
+
+[dir="rtl"] .list-group-item .justify-content-between {
+    flex-direction: row-reverse;
+}
+
+[dir="rtl"] .list-group-item small.text-muted:last-child {
+    order: -1;
+    margin-left: 0;
+    margin-right: 1rem;
+}
+
+[dir="rtl"] .transaction-type {
+    direction: rtl;
+    text-align: right;
+}
+
+[dir="rtl"] .list-group-item p.small {
+    direction: rtl;
+    text-align: right;
+}
+
+[dir="rtl"] .list-group-item small.text-muted {
+    direction: rtl;
+    text-align: right;
+}
+
+/* Fix bullet separator in RTL */
+[dir="rtl"] .list-group-item small.text-muted {
+    direction: rtl;
+    unicode-bidi: plaintext;
+}
+
+[dir="rtl"] .recent-activity-item {
+    direction: rtl;
+    text-align: right;
+}
+
+[dir="rtl"] .recent-activity-item .flex-grow-1 {
+    margin-left: 1rem;
+    margin-right: 0;
+}

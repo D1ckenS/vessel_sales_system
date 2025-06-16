@@ -12,6 +12,18 @@
     
     <!-- Custom Styles -->
     {% load static %}
+    <link href="{% static 'frontend/css/core/variables.css' %}" rel="stylesheet">
+    <link href="{% static 'frontend/css/core/base.css' %}" rel="stylesheet">
+    <link href="{% static 'frontend/css/core/components.css' %}" rel="stylesheet">
+    <link href="{% static 'frontend/css/layout/navigation.css' %}" rel="stylesheet">
+    <link href="{% static 'frontend/css/responsive/mobile.css' %}" rel="stylesheet">
+
+    <!-- RTL Styles (Only when Arabic) -->
+    {% if LANGUAGE_DIRECTION == 'rtl' %}
+        <link href="{% static 'frontend/css/rtl/rtl-base.css' %}" rel="stylesheet">
+        <link href="{% static 'frontend/css/rtl/rtl-dashboard.css' %}" rel="stylesheet">
+    {% endif %}
+
     <link href="{% static 'frontend/css/base_styles.css' %}" rel="stylesheet">
     
     {% block extra_css %}{% endblock %}

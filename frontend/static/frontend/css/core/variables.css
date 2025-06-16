@@ -1,0 +1,11 @@
+/* CSS Variables */
+:root {
+    --primary-blue: #0f4c75;
+    --secondary-blue: #3282b8;
+    --accent-blue: #bbe1fa;
+    --success-green: #28a745;
+    --warning-orange: #fd7e14;
+    --danger-red: #dc3545;
+    --light-gray: #f8f9fa;
+    --dark-gray: #6c757d;
+}
