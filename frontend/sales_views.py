@@ -8,7 +8,6 @@ from vessels.models import Vessel
 from products.models import Product
 from transactions.models import Transaction, InventoryLot, Trip, VesselProductPrice, get_vessel_product_price, get_vessel_pricing_warnings, get_available_inventory
 from .utils import BilingualMessages
-from products.models import Product
 from django.core.exceptions import ValidationError
 import json
 from django.db import transaction
@@ -31,7 +30,6 @@ def sales_entry(request):
                 
         # Get user's role
         user_role = get_user_role(request.user)
-        print(f"DEBUG: User role detected: {user_role}")  # Debug print
         
         # Filter recent trips based on user role
         if user_role == UserRoles.VESSEL_OPERATORS:
@@ -40,21 +38,16 @@ def sales_entry(request):
             recent_trips = Trip.objects.select_related('vessel', 'created_by').filter(
                 trip_date=today
             ).order_by('-created_at')[:10]
-            print(f"DEBUG: Filtered trips for today: {recent_trips.count()}")  # Debug print
         else:
             # Administrators, Managers, and higher roles see all recent trips
             recent_trips = Trip.objects.select_related('vessel', 'created_by').order_by('-created_at')[:10]
-            print(f"DEBUG: All recent trips: {recent_trips.count()}")  # Debug print
         
         context = {
             'vessels': vessels,
             'recent_trips': recent_trips,
             'today': date.today(),
             'user_role': user_role,  # Make sure this is included
-        }
-        
-        print(f"DEBUG: Context user_role: {context['user_role']}")  # Debug print
-        
+        }        
         return render(request, 'frontend/sales_entry.html', context)
     
     elif request.method == 'POST':
