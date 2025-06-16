@@ -17,20 +17,26 @@ from django.contrib import messages
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
+# =============================================================================
+# SECURITY SETTINGS - ENVIRONMENT DEPENDENT
+# =============================================================================
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-u5_r@=)migd!zt1!8a-1zr8oa3)cs4nxpdp(+9b!e0i!j*)@v@'
+# Use environment variable in production, fallback for development
+SECRET_KEY = os.environ.get(
+    'DJANGO_SECRET_KEY', 
+    'django-insecure-u5_r@=)migd!zt1!8a-1zr8oa3)cs4nxpdp(+9b!e0i!j*)@v@'
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DJANGO_DEBUG', 'True').lower() == 'true'
 
-ALLOWED_HOSTS = []
+# Production hosts configuration
+ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
-
-# Application definition
+# =============================================================================
+# APPLICATION DEFINITION
+# =============================================================================
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -55,10 +61,37 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+# =============================================================================
+# SECURITY MIDDLEWARE SETTINGS
+# =============================================================================
+
+# Only enforce HTTPS in production
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
+# =============================================================================
+# INTERNATIONALIZATION & LOCALIZATION
+# =============================================================================
+
 USE_I18N = True
 USE_L10N = True
 
+# =============================================================================
+# URL CONFIGURATION
+# =============================================================================
+
 ROOT_URLCONF = 'vessel_sales.urls'
+
+# =============================================================================
+# TEMPLATE CONFIGURATION
+# =============================================================================
 
 TEMPLATES = [
     {
@@ -78,6 +111,39 @@ TEMPLATES = [
     },
 ]
 
+# =============================================================================
+# DATABASE CONFIGURATION
+# =============================================================================
+
+# Environment-dependent database configuration
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+        # SQLite optimizations
+        'OPTIONS': {
+            'timeout': 20,
+            'check_same_thread': False,
+        }
+    }
+}
+
+# For production, you can override with PostgreSQL:
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': os.environ.get('DB_NAME'),
+#         'USER': os.environ.get('DB_USER'),
+#         'PASSWORD': os.environ.get('DB_PASSWORD'),
+#         'HOST': os.environ.get('DB_HOST', 'localhost'),
+#         'PORT': os.environ.get('DB_PORT', '5432'),
+#     }
+# }
+
+# =============================================================================
+# CACHING CONFIGURATION
+# =============================================================================
+
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
@@ -89,22 +155,9 @@ CACHES = {
     }
 }
 
-WSGI_APPLICATION = 'vessel_sales.wsgi.application'
-
-
-# Database
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
-
-
-# Password validation
-# https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
+# =============================================================================
+# PASSWORD VALIDATION
+# =============================================================================
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -113,7 +166,7 @@ AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
         'OPTIONS': {
-            'min_length': 6,
+            'min_length': 8,
         }
     },
     {
@@ -124,96 +177,102 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+# =============================================================================
+# LOGGING CONFIGURATION
+# =============================================================================
 
-# Internationalization
-# https://docs.djangoproject.com/en/5.2/topics/i18n/
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR / 'logs' / 'vessel_sales.log',
+            'formatter': 'verbose',
+        },
+        'console': {
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'frontend': {
+            'handlers': ['file', 'console'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+    },
+}
 
-LANGUAGE_CODE = 'en-us'
-
-TIME_ZONE = 'Asia/Amman'
-
-USE_I18N = True
-
-USE_TZ = True
-
-# Date and Time Formatting
-USE_L10N = False  # Enable localization
-DATE_FORMAT = 'd/m/Y'  # DD/MM/YYYY format
-SHORT_DATE_FORMAT = 'd/m/Y'  # DD/MM/YYYY format
-DATETIME_FORMAT = 'd/m/Y H:i'  # DD/MM/YYYY HH:MM format
-SHORT_DATETIME_FORMAT = 'd/m/Y H:i'  # DD/MM/YYYY HH:MM format
-
-# Date input formats that Django will accept
-DATE_INPUT_FORMATS = [
-    '%d/%m/%Y',      # 31/05/2025
-    '%d/%m/%y',      # 31/05/25
-    '%d-%m-%Y',      # 31-05-2025
-    '%d-%m-%y',      # 31-05-25
-    '%d.%m.%Y',      # 31.05.2025
-    '%d.%m.%y',      # 31.05.25
-    '%d/%m%Y',       # 31/052025
-    '%d.%m%Y',       # 31.052025
-    '%d/%m/%Y',      # 31/5/2025 (single digit month)
-    '%d.%m.%Y',      # 31.5.2025 (single digit month)
-    '%d-%m-%Y',      # 31-5-2025 (single digit month)
-    '%Y-%m-%d',      # 2025-05-31 (ISO format - fallback)
-]
-
-DATETIME_INPUT_FORMATS = [
-    '%d/%m/%Y %H:%M:%S',     # 25/12/2025 14:30:00
-    '%d/%m/%Y %H:%M',        # 25/12/2025 14:30
-    '%d-%m-%Y %H:%M:%S',     # 25-12-2025 14:30:00
-    '%d-%m-%Y %H:%M',        # 25-12-2025 14:30
-    '%Y-%m-%d %H:%M:%S',     # 2025-12-25 14:30:00 (fallback)
-    '%Y-%m-%d %H:%M',        # 2025-12-25 14:30 (fallback)
-]
-
-
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.2/howto/static-files/
+# =============================================================================
+# STATIC FILES CONFIGURATION
+# =============================================================================
 
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [
-    BASE_DIR / 'frontend' / 'static',
+    BASE_DIR / 'static',
 ]
-
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
+# =============================================================================
+# MEDIA FILES CONFIGURATION
+# =============================================================================
 
-# Default primary key field type
-# https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+# =============================================================================
+# SESSION CONFIGURATION
+# =============================================================================
+
+SESSION_COOKIE_AGE = 3600  # 1 hour
+SESSION_SAVE_EVERY_REQUEST = True
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+
+# =============================================================================
+# INTERNATIONALIZATION
+# =============================================================================
+
+LANGUAGE_CODE = 'en-us'
+TIME_ZONE = 'UTC'
+USE_TZ = True
+
+# =============================================================================
+# DEFAULT AUTO FIELD
+# =============================================================================
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# =============================================================================
+# WSGI APPLICATION
+# =============================================================================
+
+WSGI_APPLICATION = 'vessel_sales.wsgi.application'
 
 # =============================================================================
-# AUTHENTICATION & SECURITY SETTINGS
+# ENVIRONMENT-SPECIFIC SETTINGS
 # =============================================================================
 
-# Authentication Settings
-LOGIN_URL = 'frontend:login'
-LOGIN_REDIRECT_URL = 'frontend:dashboard'
-LOGOUT_REDIRECT_URL = 'frontend/auth/login.html'
-
-# Session Settings
-SESSION_COOKIE_AGE = 86400  # 24 hours
-SESSION_EXPIRE_AT_BROWSER_CLOSE = False
-SESSION_SAVE_EVERY_REQUEST = True
-
-# Security Settings
-SECURE_BROWSER_XSS_FILTER = True
-SECURE_CONTENT_TYPE_NOSNIFF = True
-X_FRAME_OPTIONS = 'DENY'
-
-# Messages Framework
-MESSAGE_TAGS = {
-    messages.DEBUG: 'debug',
-    messages.INFO: 'info',
-    messages.SUCCESS: 'success',
-    messages.WARNING: 'warning',
-    messages.ERROR: 'danger',
-}
-
-# User Model (using Django's default)
-# If you want custom user model later, add:
-# AUTH_USER_MODEL = 'accounts.CustomUser'
+# Create logs directory if it doesn't exist
+os.makedirs(BASE_DIR / 'logs', exist_ok=True)
