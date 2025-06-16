@@ -172,7 +172,7 @@ def po_reports(request):
 
 @reports_access_required
 def transactions_list(request):
-    """Frontend transactions list to replace Django admin redirect"""
+    """OPTIMIZED: Frontend transactions list with enhanced template performance"""
     
     # Get filter parameters
     transaction_type = request.GET.get('type')
@@ -180,38 +180,143 @@ def transactions_list(request):
     date_from = request.GET.get('date_from')
     date_to = request.GET.get('date_to')
     
-    # Base queryset
+    # OPTIMIZED: Enhanced queryset with all template-accessed relations
     transactions = Transaction.objects.select_related(
-        'vessel', 'product', 'created_by', 'trip', 'purchase_order'
+        'vessel',                           # For vessel.name, vessel.name_ar
+        'product',                          # For product.name, product.item_id
+        'product__category',                # For product.category.name (ADDED)
+        'created_by',                       # For created_by.username, created_by.first_name
+        'trip',                            # For trip.trip_number
+        'purchase_order',                   # For purchase_order.po_number
+        'transfer_to_vessel',               # For transfer destinations (ADDED)
+        'transfer_from_vessel'              # For transfer sources (ADDED)
     ).order_by('-transaction_date', '-created_at')
     
-    # Apply filters
+    # Apply filters efficiently
     if transaction_type:
         transactions = transactions.filter(transaction_type=transaction_type)
     if vessel_filter:
         transactions = transactions.filter(vessel_id=vessel_filter)
     if date_from:
-        date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
-        transactions = transactions.filter(transaction_date__gte=date_from_obj)
+        try:
+            date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
+            transactions = transactions.filter(transaction_date__gte=date_from_obj)
+        except ValueError:
+            pass  # Invalid date format, skip filter
     if date_to:
-        date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
-        transactions = transactions.filter(transaction_date__lte=date_to_obj)
+        try:
+            date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
+            transactions = transactions.filter(transaction_date__lte=date_to_obj)
+        except ValueError:
+            pass  # Invalid date format, skip filter
     
-    # Limit to recent transactions for performance
-    transactions = transactions[:200]
+    # OPTIMIZED: Add summary statistics for better UX
+    # Calculate stats before limiting results
+    summary_stats = transactions.aggregate(
+        total_transactions=Count('id'),
+        total_revenue=Sum(
+            F('unit_price') * F('quantity'),
+            filter=Q(transaction_type='SALE'),
+            output_field=models.DecimalField()
+        ),
+        total_cost=Sum(
+            F('unit_price') * F('quantity'),
+            filter=Q(transaction_type='SUPPLY'),
+            output_field=models.DecimalField()
+        ),
+        total_transfers=Count('id', filter=Q(transaction_type__in=['TRANSFER_IN', 'TRANSFER_OUT'])),
+        unique_vessels=Count('vessel', distinct=True),
+        unique_products=Count('product', distinct=True)
+    )
     
-    # Get vessels for filter
-    vessels = Vessel.objects.filter(active=True).order_by('name')
+    # OPTIMIZED: Pagination-ready limiting with total count
+    total_count = transactions.count()
+    page_size = 200
+    transactions_limited = transactions[:page_size]
     
+    # OPTIMIZED: Get vessels for filter with activity indicators
+    vessels = Vessel.objects.filter(active=True).annotate(
+        recent_transaction_count=Count(
+            'transactions',
+            filter=Q(transactions__transaction_date__gte=date.today() - timedelta(days=7))
+        )
+    ).order_by('name')
+    
+    # OPTIMIZED: Transaction type breakdown for insights
+    type_breakdown = []
+    for type_code, type_display in Transaction.TRANSACTION_TYPES:
+        type_stats = transactions.filter(transaction_type=type_code).aggregate(
+            count=Count('id'),
+            total_amount=Sum(F('unit_price') * F('quantity'), output_field=models.DecimalField())
+        )
+        if type_stats['count'] > 0:
+            type_breakdown.append({
+                'type_code': type_code,
+                'type_display': type_display,
+                'count': type_stats['count'],
+                'total_amount': type_stats['total_amount'] or 0,
+                'percentage': (type_stats['count'] / max(summary_stats['total_transactions'], 1)) * 100
+            })
+    
+    # OPTIMIZED: Recent activity summary (last 24 hours)
+    recent_activity = Transaction.objects.filter(
+        transaction_date=date.today()
+    ).aggregate(
+        today_transactions=Count('id'),
+        today_revenue=Sum(
+            F('unit_price') * F('quantity'),
+            filter=Q(transaction_type='SALE'),
+            output_field=models.DecimalField()
+        ),
+        today_supplies=Sum(
+            F('unit_price') * F('quantity'),
+            filter=Q(transaction_type='SUPPLY'),
+            output_field=models.DecimalField()
+        )
+    )
+    
+    # OPTIMIZED: Top active vessels (for filtered transactions)
+    vessel_activity = transactions.values(
+        'vessel__name', 'vessel__name_ar'
+    ).annotate(
+        transaction_count=Count('id'),
+        total_amount=Sum(F('unit_price') * F('quantity'), output_field=models.DecimalField())
+    ).order_by('-transaction_count')[:5]
+    
+    # OPTIMIZED: Build enhanced context
     context = {
-        'transactions': transactions,
+        'transactions': transactions_limited,
         'vessels': vessels,
         'transaction_types': Transaction.TRANSACTION_TYPES,
+        'type_breakdown': type_breakdown,
+        'vessel_activity': vessel_activity,
+        'summary_stats': {
+            'total_transactions': summary_stats['total_transactions'] or 0,
+            'total_revenue': summary_stats['total_revenue'] or 0,
+            'total_cost': summary_stats['total_cost'] or 0,
+            'total_transfers': summary_stats['total_transfers'] or 0,
+            'unique_vessels': summary_stats['unique_vessels'] or 0,
+            'unique_products': summary_stats['unique_products'] or 0,
+            'showing_count': len(transactions_limited),
+            'total_count': total_count,
+            'is_filtered': bool(transaction_type or vessel_filter or date_from or date_to)
+        },
+        'recent_activity': {
+            'today_transactions': recent_activity['today_transactions'] or 0,
+            'today_revenue': recent_activity['today_revenue'] or 0,
+            'today_supplies': recent_activity['today_supplies'] or 0,
+        },
         'filters': {
             'type': transaction_type,
             'vessel': vessel_filter,
             'date_from': date_from,
             'date_to': date_to,
+        },
+        'pagination': {
+            'page_size': page_size,
+            'has_more': total_count > page_size,
+            'showing': min(page_size, total_count),
+            'total': total_count
         }
     }
     
