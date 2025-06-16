@@ -1132,11 +1132,6 @@ function updateCartDisplay() {
             return row;
         }).join('');
     }
-    
-    // Apply translations after DOM update
-    setTimeout(() => {
-        updatePageTranslations();
-    }, 0);
 }
 
 // Helper function for updating number elements
