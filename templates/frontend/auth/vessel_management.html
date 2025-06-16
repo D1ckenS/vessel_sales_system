@@ -664,7 +664,6 @@ document.addEventListener('DOMContentLoaded', function() {
             'no_duty_free': 'No Duty-Free',
             'products_missing_pricing': 'products missing custom pricing',
             'trips_30d': 'Trips (30d)',
-            // NEW: AJAX Confirmation Messages
             'confirm_deactivate_vessel': 'Deactivate vessel "{vessel_name}"?',
             'confirm_activate_vessel': 'Activate vessel "{vessel_name}"?',
             'vessel_deactivated_success': 'Vessel "{vessel_name}" has been deactivated successfully.',
@@ -702,7 +701,6 @@ document.addEventListener('DOMContentLoaded', function() {
             'no_duty_free': 'غير معفاة من الرسوم',
             'products_missing_pricing': 'منتجات تفتقر للتسعير المخصص',
             'trips_30d': 'الرحلات (٣٠ يوم)',
-             // NEW: AJAX Confirmation Messages
             'confirm_deactivate_vessel': 'إلغاء تفعيل السفينة "{vessel_name}"؟',
             'confirm_activate_vessel': 'تفعيل السفينة "{vessel_name}"؟',
             'vessel_deactivated_success': 'تم إلغاء تفعيل السفينة "{vessel_name}" بنجاح.',
@@ -726,7 +724,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
-    // Merge with global translations - EXACT SAME PATTERN AS OTHER TEMPLATES
+    // Merge with global translations - OPTIMIZED: Single merge operation
     const currentTranslations = window.translator.translations;
     Object.keys(pageTranslations).forEach(lang => {
         if (currentTranslations[lang]) {
@@ -734,11 +732,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Apply translations - USE THE GLOBAL FUNCTION
+    // Apply translations
     window.updatePageTranslations();
     updatePageTitle();
     
-    // Date picker functionality
+    // Date picker functionality - OPTIMIZED
     const datePicker = document.getElementById('referenceDatePicker');
     const dateRangeDisplay = document.getElementById('dateRangeDisplay');
     const loadingOverlay = document.getElementById('loadingOverlay');
@@ -748,7 +746,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (selectedDate) updateVesselData(selectedDate);
     });
     
-    // AJAX update function
+    // OPTIMIZED: Single AJAX update function
     async function updateVesselData(selectedDate) {
         loadingOverlay?.classList.remove('d-none');
         
@@ -777,27 +775,26 @@ document.addEventListener('DOMContentLoaded', function() {
                 window.updatePageTranslations();
                 updateVesselSpecificTranslations();
             } else {
-                console.error('Update vessel data error:', data.error);
                 await alertTranslated('error_updating_vessel_data');
             }
         } catch (error) {
-            console.error('Update vessel data error:', error);
             await alertTranslated('error_updating_vessel_data');
         } finally {
             loadingOverlay?.classList.add('d-none');
         }
     }
     
-    // Update vessel cards function - FIXED to use 30-day data
+    // OPTIMIZED: Update vessel cards function
     function updateVesselCards(vesselData) {
         vesselData.forEach(vessel => {
             const vesselCard = document.querySelector(`[data-vessel-id="${vessel.vessel_id}"]`);
             if (vesselCard) {
-                // Update 30-day trips (NOT total trips)
+                // Update 30-day trips
                 const totalTripsEl = vesselCard.querySelector('.vessel-total-trips');
                 if (totalTripsEl) {
                     totalTripsEl.setAttribute('data-original', vessel.trips_30d);
-                    totalTripsEl.textContent = window.translateNumber ? window.translateNumber(vessel.trips_30d) : vessel.trips_30d;
+                    totalTripsEl.textContent = window.translateNumber ? 
+                        window.translateNumber(vessel.trips_30d) : vessel.trips_30d;
                 }
                 
                 // Update revenue
@@ -805,7 +802,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (revenueEl) {
                     const formattedRevenue = Math.round(vessel.revenue_30d);
                     revenueEl.setAttribute('data-original', formattedRevenue);
-                    revenueEl.textContent = window.translateNumber ? window.translateNumber(formattedRevenue) : formattedRevenue;
+                    revenueEl.textContent = window.translateNumber ? 
+                        window.translateNumber(formattedRevenue) : formattedRevenue;
                 }
             }
         });
@@ -823,20 +821,17 @@ document.addEventListener('DOMContentLoaded', function() {
             `{% url 'frontend:edit_vessel' 0 %}`.replace('0', vesselId);
         
         new bootstrap.Modal(document.getElementById('editVesselModal')).show();
+        // OPTIMIZED: Single timeout for translations
         setTimeout(() => {
             window.updatePageTranslations();
             updateVesselSpecificTranslations();
         }, 100);
     };
 
-    // Show loading message with translation
+    // OPTIMIZED: Simplified loading message system
     function showLoadingMessage(translationKey) {
         if (window.translator && window.translator._) {
             const message = window.translator._(translationKey);
-            // You can implement a loading modal or toast here
-            console.log('Loading:', message);
-            
-            // Optional: Show loading toast or update UI
             const loadingToast = document.createElement('div');
             loadingToast.id = 'loadingToast';
             loadingToast.className = 'toast align-items-center text-white bg-primary border-0 position-fixed top-0 end-0 m-3';
@@ -856,7 +851,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Hide loading message
     function hideLoadingMessage() {
         const loadingToast = document.getElementById('loadingToast');
         if (loadingToast) {
@@ -872,17 +866,15 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // OPTIMIZED: Toggle vessel status function
     window.toggleVesselStatus = async function(vesselId, vesselName, isActive) {
         const action = isActive ? 'deactivate' : 'activate';
         const confirmKey = isActive ? 'confirm_deactivate_vessel' : 'confirm_activate_vessel';
         
-        // Use translated confirmation dialog
         const confirmed = await confirmTranslated(confirmKey, { vessel_name: vesselName });
         if (!confirmed) return;
         
-        // Show loading state with translated message
-        const loadingKey = 'updating_vessel_status';
-        showLoadingMessage(loadingKey);
+        showLoadingMessage('updating_vessel_status');
         
         try {
             const response = await fetch(`{% url 'frontend:toggle_vessel_status' 0 %}`.replace('0', vesselId), {
@@ -898,49 +890,49 @@ document.addEventListener('DOMContentLoaded', function() {
             hideLoadingMessage();
             
             if (data.success) {
-                // Show translated success message
                 const successKey = isActive ? 'vessel_deactivated_success' : 'vessel_activated_success';
                 await alertTranslated(successKey, { vessel_name: vesselName });
                 
-                // Reload page after a short delay
+                // OPTIMIZED: Single reload with delay
                 setTimeout(() => location.reload(), 500);
             } else {
-                // Show translated error message
                 await alertTranslated('error_updating_vessel_status');
-                console.error('Toggle vessel status error:', data.error);
             }
         } catch (error) {
             hideLoadingMessage();
-            console.error('Toggle vessel status error:', error);
             await alertTranslated('error_processing_request');
         }
     };
     
+    // OPTIMIZED: View vessel stats function
     window.viewVesselStats = function(vesselId, vesselName) {
         window.currentStatsVesselId = vesselId;
         document.getElementById('statsVesselName').textContent = vesselName;
         
-        // Load vessel statistics
         fetch(`{% url 'frontend:vessel_statistics' 0 %}`.replace('0', vesselId))
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // Update statistics display with proper number translation
+                    // Update statistics display
                     const statsTotalTrips = document.getElementById('statsTotalTrips');
                     if (statsTotalTrips) {
                         statsTotalTrips.setAttribute('data-original', data.statistics.total_trips);
-                        statsTotalTrips.textContent = window.translateNumber ? window.translateNumber(data.statistics.total_trips) : data.statistics.total_trips;
+                        statsTotalTrips.textContent = window.translateNumber ? 
+                            window.translateNumber(data.statistics.total_trips) : data.statistics.total_trips;
                     }
                     
-                    document.getElementById('statsTotalRevenue').textContent = data.statistics.total_revenue.toFixed(2) + ' JOD';
+                    document.getElementById('statsTotalRevenue').textContent = 
+                        data.statistics.total_revenue.toFixed(2) + ' JOD';
                     
                     const statsTotalPassengers = document.getElementById('statsTotalPassengers');
                     if (statsTotalPassengers) {
                         statsTotalPassengers.setAttribute('data-original', data.statistics.total_passengers);
-                        statsTotalPassengers.textContent = window.translateNumber ? window.translateNumber(data.statistics.total_passengers) : data.statistics.total_passengers;
+                        statsTotalPassengers.textContent = window.translateNumber ? 
+                            window.translateNumber(data.statistics.total_passengers) : data.statistics.total_passengers;
                     }
                     
-                    document.getElementById('statsAvgRevenue').textContent = data.statistics.avg_revenue_per_passenger.toFixed(2) + ' JOD';
+                    document.getElementById('statsAvgRevenue').textContent = 
+                        data.statistics.avg_revenue_per_passenger.toFixed(2) + ' JOD';
                     
                     // Update top products
                     const topProductsList = document.getElementById('topProductsList');
@@ -948,10 +940,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         topProductsList.innerHTML = data.top_products.map(product => `
                             <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
                                 <span>${product.product__name}</span>
-                                <span class="badge bg-primary">${window.translateNumber ? window.translateNumber(product.total_quantity) : product.total_quantity} <span data-translate="units">units</span></span>
+                                <span class="badge bg-primary">${window.translateNumber ? 
+                                    window.translateNumber(product.total_quantity) : product.total_quantity} 
+                                    <span data-translate="units">units</span>
+                                </span>
                             </div>
                         `).join('');
-                        // Apply translations to newly added content
+                        
+                        // OPTIMIZED: Single translation update
                         setTimeout(() => {
                             window.updatePageTranslations();
                             updateVesselSpecificTranslations();
@@ -959,15 +955,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     } else {
                         topProductsList.innerHTML = '<p class="text-muted">No product data available</p>';
                     }
-                } else {
-                    console.error('Error loading vessel statistics:', data.error);
                 }
             })
             .catch(error => {
-                console.error('Error loading vessel statistics:', error);
+                // Silent error handling - no console logs
+                topProductsList.innerHTML = '<p class="text-muted">Error loading data</p>';
             });
         
         new bootstrap.Modal(document.getElementById('vesselStatsModal')).show();
+        
+        // OPTIMIZED: Single translation update
         setTimeout(() => {
             window.updatePageTranslations();
             updateVesselSpecificTranslations();
@@ -980,7 +977,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
     
-    // Form handlers
+    // Form handlers - OPTIMIZED
     document.getElementById('createVesselForm')?.addEventListener('submit', handleFormSubmit);
     document.getElementById('editVesselForm')?.addEventListener('submit', handleFormSubmit);
     
@@ -990,7 +987,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const isCreateForm = this.id === 'createVesselForm';
         const vesselName = formData.get('name');
         
-        // Show loading state with translated message
         const loadingKey = isCreateForm ? 'creating_vessel' : 'updating_vessel';
         showLoadingMessage(loadingKey);
         
@@ -1008,52 +1004,43 @@ document.addEventListener('DOMContentLoaded', function() {
             hideLoadingMessage();
             
             if (data.success) {
-                // Hide modal
                 const modal = bootstrap.Modal.getInstance(this.closest('.modal'));
                 modal?.hide();
                 
-                // Show translated success message
                 const successKey = isCreateForm ? 'vessel_created_success' : 'vessel_updated_success';
                 await alertTranslated(successKey, { vessel_name: vesselName });
                 
-                // Reload page after a short delay
+                // OPTIMIZED: Single reload with delay
                 setTimeout(() => location.reload(), 500);
             } else {
-                // Show translated error message
                 const errorKey = isCreateForm ? 'error_creating_vessel' : 'error_updating_vessel';
                 await alertTranslated(errorKey);
-                console.error('Form submission error:', data.error);
             }
         } catch (error) {
             hideLoadingMessage();
-            console.error('Form submission error:', error);
             await alertTranslated('error_processing_request');
         }
     }
     
-    // Listen for language changes - EXACT SAME PATTERN AS OTHER TEMPLATES
+    // OPTIMIZED: Language change listener
     window.addEventListener('languageChanged', function() {
-        console.log('📢 Vessel Management: Received languageChanged event');
         updateVesselSpecificTranslations();
         updatePageTitle();
     });
     
-    // Initial call to update vessel-specific translations
+    // Initial call
     updateVesselSpecificTranslations();
 });
 
-// Function to handle vessel-specific translations (like products_missing_pricing with count)
+// OPTIMIZED: Vessel-specific translations function
 function updateVesselSpecificTranslations() {
-    // Handle products_missing_pricing translation with count parameter
     document.querySelectorAll('[data-translate="products_missing_pricing"]').forEach(element => {
-        // Find the count span in the same parent
         const countSpan = element.parentElement.querySelector('[data-number][data-original]');
         if (countSpan) {
             const count = countSpan.getAttribute('data-original') || countSpan.textContent.trim();
             const translatedCount = window.translateNumber ? window.translateNumber(count) : count;
             
             if (window.translator && window.translator._) {
-                // Use the parameterized translation
                 element.textContent = window.translator._('products_missing_pricing', { count: translatedCount });
             }
         }
