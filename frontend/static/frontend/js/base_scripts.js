@@ -382,8 +382,6 @@ window.translateTransactionType = function(type) {
    ============================================================================= */
 
 // Language toggle function - CORRECTED VERSION
-// 🔧 FIXED toggleLanguage function in base_scripts.js
-// Language toggle function - CORRECTED VERSION
 window.toggleLanguage = function() {
     console.log('🔄 toggleLanguage called');
     
@@ -398,11 +396,7 @@ window.toggleLanguage = function() {
     document.documentElement.lang = newLang;
     
     // Update body class for RTL layout
-    if (newLang === 'ar') {
-        document.body.classList.add('rtl-layout');
-    } else {
-        document.body.classList.remove('rtl-layout');
-    }
+    document.body.classList.toggle('rtl-layout', newLang === 'ar');
     
     // Update translator state
     if (window.translator) {
@@ -416,23 +410,20 @@ window.toggleLanguage = function() {
         btn.textContent = newLang === 'en' ? 'AR' : 'EN';
     }
     
-    // 🎯 CRITICAL: Always call updatePageTranslations immediately
-    console.log('🔄 Calling updatePageTranslations...');
-    if (typeof updatePageTranslations === 'function') {
-        updatePageTranslations();
-    } else {
-        console.log('⚠️ updatePageTranslations not found, using manual updates');
-        manualTranslationUpdate(newLang);
-    }
-    
-    // 🔥 IMPORTANT: Dispatch languageChanged event for templates
-    console.log('📢 Dispatching languageChanged event');
-    window.dispatchEvent(new Event('languageChanged'));
-    
-    // Also dispatch with a slight delay for any delayed operations
-    setTimeout(() => {
+    // 🎯 IMPROVED: Batch DOM updates for better performance
+    requestAnimationFrame(() => {
+        console.log('🔄 Calling updatePageTranslations...');
+        if (typeof updatePageTranslations === 'function') {
+            updatePageTranslations();
+        } else {
+            console.log('⚠️ updatePageTranslations not found, using manual updates');
+            manualTranslationUpdate(newLang);
+        }
+        
+        // 🔥 OPTIMIZED: Single event dispatch
+        console.log('📢 Dispatching languageChanged event');
         window.dispatchEvent(new Event('languageChanged'));
-    }, 50);
+    });
     
     console.log('✅ Language toggle completed');
 };
@@ -971,5 +962,163 @@ window.cleanupModal = function(modalId) {
                 modal.parentNode.removeChild(modal);
             }
         }, 300);
+    }
+};
+
+/* =============================================================================
+   🎯 IMPROVEMENT 1: Universal Page Title Manager (Eliminates 12+ duplicate functions)
+   ============================================================================= */
+
+// ✅ ADD: Universal page title update function
+window.setPageTitle = function(titleKey, fallbackTitle = 'Page') {
+    if (!window.translator || !window.translator._) {
+        document.title = `${fallbackTitle} - Vessel Sales System`;
+        return;
+    }
+    
+    const pageTitle = window.translator._(titleKey) || fallbackTitle;
+    const vesselSalesSystem = window.translator._('vessel_sales_system');
+    
+    document.title = `${pageTitle} - ${vesselSalesSystem}`;
+};
+
+// ✅ ADD: Auto page title registration system
+window.registerPageTitle = function(titleKey, fallbackTitle = 'Page') {
+    // Set initial title
+    window.setPageTitle(titleKey, fallbackTitle);
+    
+    // Auto-update on language change
+    window.addEventListener("languageChanged", function() {
+        window.setPageTitle(titleKey, fallbackTitle);
+    });
+};
+
+/* =============================================================================
+   🎯 IMPROVEMENT 2: Universal Translation Merger (Eliminates 8+ duplicate patterns)
+   ============================================================================= */
+
+// ✅ ADD: Universal translation merger
+window.addPageTranslations = function(pageTranslations) {
+    if (!window.translator || !window.translator.translations) {
+        console.warn('Global translator not ready for page translations');
+        return;
+    }
+    
+    const currentTranslations = window.translator.translations;
+    Object.keys(pageTranslations).forEach(lang => {
+        if (currentTranslations[lang]) {
+            Object.assign(currentTranslations[lang], pageTranslations[lang]);
+        } else {
+            currentTranslations[lang] = pageTranslations[lang];
+        }
+    });
+    
+    // Auto-apply translations
+    if (typeof updatePageTranslations === 'function') {
+        updatePageTranslations();
+    }
+};
+
+/* =============================================================================
+   🎯 IMPROVEMENT 3: Unified Export Function (Standardizes all exports)
+   ============================================================================= */
+
+// ✅ ENHANCE: Make showExportModal more universal
+window.universalExport = function(exportType, additionalData = {}, customEndpoint = null) {
+    // Handle different export type patterns
+    const exportMap = {
+        'analytics': 'analytics_report',
+        'daily': 'daily_report', 
+        'monthly': 'monthly_report',
+        'comprehensive': 'transactions',
+        'inventory': 'inventory',
+        'trips': 'trips',
+        'pos': 'purchase_orders'
+    };
+    
+    const finalExportType = exportMap[exportType] || exportType;
+    
+    if (customEndpoint) {
+        // Custom endpoint logic for special cases
+        window.exportToCustomEndpoint(customEndpoint, additionalData);
+    } else {
+        // Use standard export modal
+        window.showExportModal(finalExportType, additionalData);
+    }
+};
+
+/* =============================================================================
+   🎯 IMPROVEMENT 4: Enhanced DOMContentLoaded Handler (Reduces template code)
+   ============================================================================= */
+
+// ✅ ADD: Page initialization helper  
+window.initializePage = function(config = {}) {
+    const {
+        titleKey,
+        fallbackTitle,
+        pageTranslations,
+        customInit
+    } = config;
+    
+    // Set up page title if provided
+    if (titleKey) {
+        window.registerPageTitle(titleKey, fallbackTitle);
+    }
+    
+    // Add page translations if provided
+    if (pageTranslations) {
+        window.addPageTranslations(pageTranslations);
+    }
+    
+    // Run custom initialization
+    if (typeof customInit === 'function') {
+        customInit();
+    }
+    
+    // Apply global translations
+    if (typeof updatePageTranslations === 'function') {
+        updatePageTranslations();
+    }
+};
+
+/* =============================================================================
+   🎯 IMPROVEMENT 6: Export System Enhancements
+   ============================================================================= */
+
+// ✅ ADD: Quick export functions (one-liner exports)
+window.quickExport = {
+    analytics: () => window.universalExport('analytics'),
+    daily: () => window.universalExport('daily'),
+    monthly: () => window.universalExport('monthly'),
+    inventory: () => window.universalExport('inventory'),
+    transactions: () => window.universalExport('comprehensive'),
+    trips: () => window.universalExport('trips'),
+    pos: () => window.universalExport('pos')
+};
+
+/* =============================================================================
+   🎯 IMPROVEMENT 7: Common Template Functions
+   ============================================================================= */
+
+// ✅ ADD: Common template utilities
+window.templateUtils = {
+    // Standard coming soon alert
+    showComingSoon: (feature = null) => {
+        const message = feature ? 
+            window.translator._(`coming_soon_${feature}`) || `${feature} feature coming soon!` :
+            window.translator._('feature_coming_soon') || 'This feature is coming soon!';
+        window.alertTranslated('feature_coming_soon', { feature: message });
+    },
+    
+    // Standard print function
+    showPrintComingSoon: () => {
+        window.alertTranslated('print_feature_coming_soon');
+    },
+    
+    // Date formatting
+    formatDate: (date) => {
+        const currentLang = window.translator?.currentLanguage || 'en';
+        const formatted = date.toLocaleDateString();
+        return currentLang === 'ar' ? window.translateNumber(formatted) : formatted;
     }
 };

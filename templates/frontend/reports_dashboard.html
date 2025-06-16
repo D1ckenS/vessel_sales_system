@@ -210,107 +210,83 @@
 
 {% block extra_js %}
 <script>
-// Update last updated time
 document.addEventListener('DOMContentLoaded', function() {
+    // Update time display
     const now = new Date();
     const timeString = now.toLocaleTimeString();
     document.getElementById('last-updated-time').textContent = timeString;
     
-    // Add page-specific translations
-    const pageTranslations = {
-        en: {
-            'reports_dashboard': 'Reports Dashboard',
-            'comprehensive_business_analytics': 'Comprehensive business analytics and reporting center',
-            'last_updated': 'Last Updated',
-            'today_revenue': "Today's Revenue",
-            'today_cost': "Today's Cost",
-            'today_transactions': "Today's Transactions", 
-            'today_trips': "Today's Trips",
-            'today_pos': "Today's Purchase Orders",
-            'comprehensive_reports': 'Comprehensive Reports',
-            'detailed_transaction_analysis': 'Detailed transaction analysis and complete business overview',
-            'comprehensive_report': 'Comprehensive Report',
-            'daily_report': 'Daily Report',
-            'monthly_report': 'Monthly Report',
-            'sales_operations': 'Sales & Operations',
-            'trip_sales_performance': 'Trip performance and sales analytics',
-            'trip_reports': 'Trip Reports',
-            'po_reports': 'Purchase Order Reports',
-            'transaction_log': 'Transaction Log',
-            'advanced_analytics': 'Advanced Analytics',
-            'business_intelligence': 'Business intelligence and predictive analytics',
-            'analytics_dashboard': 'Analytics Dashboard',
-            'inventory_forecast': 'Inventory Forecast',
-            'profitability_analysis': 'Profitability Analysis',
-            'quick_actions': 'Quick Actions',
-            'export_all_reports': 'Export All Reports',
-            'schedule_reports': 'Schedule Reports',
-            'email_reports': 'Email Reports',
-            'inventory_check': 'Inventory Check',
-            'vessel_sales_system': 'Vessel Sales System'
-        },
-        ar: {
-            'reports_dashboard': 'لوحة التقارير',
-            'comprehensive_business_analytics': 'تحليلات الأعمال الشاملة ومركز التقارير',
-            'last_updated': 'آخر تحديث',
-            'today_revenue': 'إيرادات اليوم',
-            'today_cost': 'تكلفة اليوم',
-            'today_transactions': 'حركات اليوم',
-            'today_trips': 'رحلات اليوم',
-            'today_pos': 'أوامر شراء اليوم',
-            'comprehensive_reports': 'التقارير الشاملة',
-            'detailed_transaction_analysis': 'تحليل مفصل للحركات ونظرة شاملة على الأعمال',
-            'comprehensive_report': 'التقرير الشامل',
-            'daily_report': 'التقرير اليومي',
-            'monthly_report': 'التقرير الشهري',
-            'sales_operations': 'المبيعات والعمليات',
-            'trip_sales_performance': 'أداء الرحلات وتحليلات المبيعات',
-            'trip_reports': 'تقارير الرحلات',
-            'po_reports': 'تقارير أوامر الشراء',
-            'transaction_log': 'سجل الحركات',
-            'advanced_analytics': 'التحليلات المتقدمة',
-            'business_intelligence': 'ذكاء الأعمال والتحليلات التنبؤية',
-            'analytics_dashboard': 'لوحة التحليلات',
-            'inventory_forecast': 'توقعات المخزون',
-            'profitability_analysis': 'تحليل الربحية',
-            'quick_actions': 'الإجراءات السريعة',
-            'export_all_reports': 'تصدير جميع التقارير',
-            'schedule_reports': 'جدولة التقارير',
-            'email_reports': 'إرسال التقارير بالبريد',
-            'inventory_check': 'فحص المخزون',
-            'vessel_sales_system': 'نظام مبيعات السفن'
-        }
-    };
-
-    // Merge with global translations
-    const currentTranslations = window.translator.translations;
-    Object.keys(pageTranslations).forEach(lang => {
-        if (currentTranslations[lang]) {
-            Object.assign(currentTranslations[lang], pageTranslations[lang]);
+    // Initialize page with translations
+    window.initializePage({
+        titleKey: 'reports_dashboard',
+        fallbackTitle: 'Reports Dashboard',
+        pageTranslations: {
+            en: {
+                'reports_dashboard': 'Reports Dashboard',
+                'comprehensive_business_analytics': 'Comprehensive business analytics and reporting center',
+                'last_updated': 'Last Updated',
+                'today_revenue': "Today's Revenue",
+                'today_cost': "Today's Cost",
+                'today_transactions': "Today's Transactions",
+                'today_trips': "Today's Trips",
+                'today_pos': "Today's Purchase Orders",
+                'comprehensive_reports': 'Comprehensive Reports',
+                'detailed_transaction_analysis': 'Detailed transaction analysis and complete business overview',
+                'comprehensive_report': 'Comprehensive Report',
+                'daily_report': 'Daily Report',
+                'monthly_report': 'Monthly Report',
+                'sales_operations': 'Sales & Operations',
+                'trip_sales_performance': 'Trip performance and sales analytics',
+                'trip_reports': 'Trip Reports',
+                'po_reports': 'Purchase Order Reports',
+                'transaction_log': 'Transaction Log',
+                'advanced_analytics': 'Advanced Analytics',
+                'business_intelligence': 'Business intelligence and predictive analytics',
+                'analytics_dashboard': 'Analytics Dashboard',
+                'inventory_forecast': 'Inventory Forecast',
+                'profitability_analysis': 'Profitability Analysis',
+                'quick_actions': 'Quick Actions',
+                'export_all_reports': 'Export All Reports',
+                'schedule_reports': 'Schedule Reports',
+                'email_reports': 'Email Reports',
+                'inventory_check': 'Inventory Check',
+                'vessel_sales_system': 'Vessel Sales System'
+            },
+            ar: {
+                'reports_dashboard': 'لوحة التقارير',
+                'comprehensive_business_analytics': 'تحليلات الأعمال الشاملة ومركز التقارير',
+                'last_updated': 'آخر تحديث',
+                'today_revenue': 'إيرادات اليوم',
+                'today_cost': 'تكلفة اليوم',
+                'today_transactions': 'حركات اليوم',
+                'today_trips': 'رحلات اليوم',
+                'today_pos': 'أوامر شراء اليوم',
+                'comprehensive_reports': 'التقارير الشاملة',
+                'detailed_transaction_analysis': 'تحليل مفصل للحركات ونظرة شاملة على الأعمال',
+                'comprehensive_report': 'التقرير الشامل',
+                'daily_report': 'التقرير اليومي',
+                'monthly_report': 'التقرير الشهري',
+                'sales_operations': 'المبيعات والعمليات',
+                'trip_sales_performance': 'أداء الرحلات وتحليلات المبيعات',
+                'trip_reports': 'تقارير الرحلات',
+                'po_reports': 'تقارير أوامر الشراء',
+                'transaction_log': 'سجل الحركات',
+                'advanced_analytics': 'التحليلات المتقدمة',
+                'business_intelligence': 'ذكاء الأعمال والتحليلات التنبؤية',
+                'analytics_dashboard': 'لوحة التحليلات',
+                'inventory_forecast': 'توقعات المخزون',
+                'profitability_analysis': 'تحليل الربحية',
+                'quick_actions': 'الإجراءات السريعة',
+                'export_all_reports': 'تصدير جميع التقارير',
+                'schedule_reports': 'جدولة التقارير',
+                'email_reports': 'إرسال التقارير بالبريد',
+                'inventory_check': 'فحص المخزون',
+                'vessel_sales_system': 'نظام مبيعات السفن'
+            }
         }
     });
-    
-    // Apply translations
-    updatePageTranslations();
-    updatePageTitle();
 });
 
-function showComingSoon(feature) {
-    alertTranslated('feature_coming_soon');
-}
-
-function updatePageTitle() {
-    if (!window.translator || !window.translator._) {
-        return;
-    }
-    
-    const reportsDashboard = window.translator._('reports_dashboard');
-    const vesselSalesSystem = window.translator._('vessel_sales_system');
-    
-    document.title = `${reportsDashboard} - ${vesselSalesSystem}`;
-}
-
-// 🔥 **Listen for Language Toggle Event**
-window.addEventListener("languageChanged", updatePageTitle);
+const showComingSoon = (feature) => window.templateUtils.showComingSoon(feature);
 </script>
 {% endblock %}

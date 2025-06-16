@@ -464,163 +464,35 @@
 
 {% block extra_js %}
 <script>
-// ✅ FIXED Enhanced translation for analytics report - Remove problematic time processing
 document.addEventListener('DOMContentLoaded', function() {
-    // Ensure MonthTranslator is available
-    if (!window.monthTranslator) {
-        console.warn('MonthTranslator not available, some translations may not work properly');
-    }
-    
-    // Update on language change
-    window.addEventListener('languageChanged', function() {
-        setTimeout(() => {
-            updateAnalyticsPageTranslations();
-            updatePageTitle();
-        }, 0);
-    });
+    window.registerPageTitle('analytics_dashboard', 'Analytics Dashboard');
     
     function updateAnalyticsPageTranslations() {
-        const currentLang = window.translator ? window.translator.currentLanguage : 'en';
-        
-        // 1. Handle all numbers with data-number attribute
-        document.querySelectorAll('[data-number]').forEach(element => {
-            let originalValue = element.getAttribute('data-original');
-            
-            if (!originalValue) {
-                // Store original English value
-                const currentText = element.textContent.trim();
-                originalValue = currentText.replace(/[٠-٩]/g, (char) => {
-                    const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
-                    return arabicNumerals.indexOf(char).toString();
-                });
-                element.setAttribute('data-original', originalValue);
+        // Keep only the unique analytics translation logic (efficiency score, growth rate, etc.)
+        document.querySelectorAll('.analytics-kpi .stats-number').forEach(element => {
+            const storedNumber = element.getAttribute('data-original') || element.textContent.trim();
+            if (!element.getAttribute('data-original')) {
+                element.setAttribute('data-original', storedNumber);
             }
             
-            if (currentLang === 'ar' && window.translateNumber) {
-                element.textContent = window.translateNumber(originalValue);
+            if (window.translator && window.translator.currentLanguage === 'ar') {
+                const translatedNumber = window.translateNumber ? window.translateNumber(storedNumber) : storedNumber;
+                element.textContent = translatedNumber;
             } else {
-                element.textContent = originalValue;
+                element.textContent = storedNumber;
             }
         });
         
-        // 2. Handle ranking numbers in top products (#1, #2, etc.)
-        document.querySelectorAll('.position-absolute.top-0.start-0').forEach(element => {
+        // Days left translation
+        document.querySelectorAll('.text-muted').forEach(element => {
             const text = element.textContent.trim();
-            const match = text.match(/#(\d+|[٠-٩]+)/);
-            
-            if (match) {
-                let originalNumber = match[1];
-                
-                if (!element.getAttribute('data-original')) {
-                    // Convert Arabic to English for storage if needed
-                    originalNumber = originalNumber.replace(/[٠-٩]/g, (char) => {
-                        const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
-                        return arabicNumerals.indexOf(char).toString();
-                    });
-                    element.setAttribute('data-original', originalNumber);
+            if (text.includes('days left') || text.includes('يوم متبقي')) {
+                const storedNumber = element.getAttribute('data-original-days') || text.match(/\d+/)?.[0];
+                if (storedNumber && !element.getAttribute('data-original-days')) {
+                    element.setAttribute('data-original-days', storedNumber);
                 }
                 
-                const storedNumber = element.getAttribute('data-original');
-                
-                if (currentLang === 'ar' && window.translateNumber) {
-                    const translatedNumber = window.translateNumber(storedNumber);
-                    element.textContent = `#${translatedNumber}`;
-                } else {
-                    element.textContent = `#${storedNumber}`;
-                }
-            }
-        });
-        
-        // 3. Handle percentage values
-        document.querySelectorAll('.stats-number, .fw-bold, .h3, .h5, .h6').forEach(element => {
-            const text = element.textContent.trim();
-            const percentMatch = text.match(/^([+-]?\d+\.?\d*|[+-]?[٠-٩]+\.?[٠-٩]*)%$/);
-            
-            if (percentMatch) {
-                let originalNumber = percentMatch[1];
-                
-                if (!element.getAttribute('data-original')) {
-                    // Convert Arabic to English for storage if needed
-                    originalNumber = originalNumber.replace(/[٠-٩]/g, (char) => {
-                        const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
-                        return arabicNumerals.indexOf(char).toString();
-                    });
-                    element.setAttribute('data-original', originalNumber);
-                }
-                
-                const storedNumber = element.getAttribute('data-original');
-                
-                if (currentLang === 'ar' && window.translateNumber) {
-                    const translatedNumber = window.translateNumber(storedNumber);
-                    element.textContent = `${translatedNumber}%`;
-                } else {
-                    element.textContent = `${storedNumber}%`;
-                }
-            }
-        });
-        
-        // 4. Handle month-year combinations using MonthTranslator
-        if (window.monthTranslator) {
-            window.monthTranslator.translateAllMonthYearElements('.col-md-4.col-sm-6 .text-center small.text-muted');
-        }
-        
-        // 5. ✅ CRITICAL FIX: Handle Product IDs and other numeric text - EXCLUDE time duration expressions
-        document.querySelectorAll('small.text-muted').forEach(element => {
-            const text = element.textContent.trim();
-            
-            // Skip month-year elements (already handled above)
-            if (/^([A-Za-z\u0600-\u06FF]+)\s+(\d{4}|[٠-٩]{4})$/.test(text)) {
-                return;
-            }
-            
-            // ✅ CRITICAL FIX: Skip elements that contain time duration expressions without "ago"
-            // These are legitimate time period indicators like "Last 90 days", not time-ago stamps
-            if (/^(Last|آخر)\s+\d+\s+(days?|يوم|hours?|ساعة|minutes?|دقيقة|weeks?|أسبوع|months?|شهر|years?|سنة)/i.test(text)) {
-                console.log('🚫 Skipping time duration element:', text);
-                return;
-            }
-            
-            // Skip elements that already have "ago" in them (these are actual time-ago stamps)
-            if (text.includes('ago') || text.includes('مضت')) {
-                console.log('🚫 Skipping time-ago element:', text);
-                return;
-            }
-            
-            // Handle pure numbers (like product IDs)
-            if (/^\d+$/.test(text) || /^[٠-٩]+$/.test(text)) {
-                let originalValue = element.getAttribute('data-original');
-                
-                if (!originalValue) {
-                    originalValue = text.replace(/[٠-٩]/g, (char) => {
-                        const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
-                        return arabicNumerals.indexOf(char).toString();
-                    });
-                    element.setAttribute('data-original', originalValue);
-                }
-                
-                if (currentLang === 'ar' && window.translateNumber) {
-                    element.textContent = window.translateNumber(originalValue);
-                } else {
-                    element.textContent = originalValue;
-                }
-            }
-            
-            // ✅ IMPROVED: Handle "X days left" format more specifically
-            const daysLeftMatch = text.match(/^(\d+|[٠-٩]+)\s+(days left|يوم متبقي)$/);
-            if (daysLeftMatch) {
-                let originalNumber = daysLeftMatch[1];
-                
-                if (!element.getAttribute('data-original-days')) {
-                    originalNumber = originalNumber.replace(/[٠-٩]/g, (char) => {
-                        const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
-                        return arabicNumerals.indexOf(char).toString();
-                    });
-                    element.setAttribute('data-original-days', originalNumber);
-                }
-                
-                const storedNumber = element.getAttribute('data-original-days');
-                
-                if (currentLang === 'ar') {
+                if (window.translator && window.translator.currentLanguage === 'ar') {
                     const translatedNumber = window.translateNumber ? window.translateNumber(storedNumber) : storedNumber;
                     element.textContent = `${translatedNumber} يوم متبقي`;
                 } else {
@@ -629,49 +501,18 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
-        // 6. Let the main translation system handle data-translate elements
-        // This should be called AFTER our custom translations to avoid interference
         if (window.updatePageTranslations) {
             window.updatePageTranslations();
         }
     }
     
-    // Initial translation call
     setTimeout(() => {
         updateAnalyticsPageTranslations();
-        updatePageTitle();
     }, 0);
-    
 });
 
-// Export and Print functions
-function exportAnalytics() {
-    // Use the global export modal system
-    if (window.showExportModal) {
-        window.showExportModal('analytics_report');
-    } else {
-        console.error('Global export system not available');
-        alert('Export functionality is not available');
-    }
-}
-
-function printAnalytics() {
-    if (window.alertTranslated) {
-        alertTranslated('print_feature_coming_soon');
-    } else {
-        alert('Print feature coming soon');
-    }
-}
-
-function updatePageTitle() {
-    if (!window.translator || !window.translator._) {
-        return;
-    }
-    
-    const comprehensiveReport = window.translator._('analytics_dashboard');
-    const vesselSalesSystem = window.translator._('vessel_sales_system');
-    
-    document.title = `${comprehensiveReport} - ${vesselSalesSystem}`;
-}
+// One-liner functions
+const exportAnalytics = () => window.quickExport.analytics();
+const printAnalytics = () => window.templateUtils.showPrintComingSoon();
 </script>
 {% endblock %}
