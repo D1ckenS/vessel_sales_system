@@ -146,15 +146,51 @@ class PurchaseOrder(models.Model):
     
     @property
     def total_cost(self):
-        """Calculate total cost for this purchase order"""
-        return self.supply_transactions.aggregate(
-            total=Sum(F('unit_price') * F('quantity'))
-        )['total'] or 0
-    
+        """Calculate total cost - simple and reliable"""
+        from django.db.models import Sum, F
+        result = self.supply_transactions.aggregate(
+            total=Sum(F('unit_price') * F('quantity'), output_field=models.DecimalField())
+        )['total']
+        return result or 0
+
     @property
     def transaction_count(self):
-        """Count of supply transactions for this PO"""
-        return self.supply_transactions.count()
+        """Count of supply transactions"""
+        if hasattr(self, '_prefetched_objects_cache') and 'supply_transactions' in self._prefetched_objects_cache:
+            return len(self._prefetched_objects_cache['supply_transactions'])
+        else:
+            return self.supply_transactions.count()
+    
+    @property
+    def unique_products(self):
+        """Count of unique products in this PO"""
+        if hasattr(self, '_prefetched_objects_cache') and 'supply_transactions' in self._prefetched_objects_cache:
+            return len(set(
+                tx.product_id 
+                for tx in self._prefetched_objects_cache['supply_transactions']
+            ))
+        else:
+            return self.supply_transactions.values('product').distinct().count()
+
+    @property
+    def avg_item_cost(self):
+        """Average cost per transaction"""
+        total = self.total_cost
+        count = self.transaction_count
+        return total / count if count > 0 else 0
+
+    @property
+    def total_quantity(self):
+        """Total quantity across all transactions"""
+        if hasattr(self, '_prefetched_objects_cache') and 'supply_transactions' in self._prefetched_objects_cache:
+            return sum(
+                tx.quantity 
+                for tx in self._prefetched_objects_cache['supply_transactions']
+            )
+        else:
+            return self.supply_transactions.aggregate(
+                total=Sum('quantity')
+            )['total'] or 0
 
 class Transaction(models.Model):
     """Records all inventory movements with proper transaction types"""

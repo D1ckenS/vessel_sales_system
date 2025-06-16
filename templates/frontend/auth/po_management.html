@@ -362,11 +362,6 @@
                                         <strong class="{% if po.annotated_total_cost %}text-success{% else %}text-muted{% endif %}">
                                             <span data-number data-original="{{ po.annotated_total_cost|floatformat:3|default:'0.000' }}">{{ po.annotated_total_cost|floatformat:3|default:"0.000" }}</span> <span data-currency-symbol>JOD</span>
                                         </strong>
-                                        {% if po.avg_cost_per_item %}
-                                        <div class="cost-indicator {{ po.cost_performance_class }}">
-                                            <span data-number data-original="{{ po.avg_cost_per_item }}">{{ po.avg_cost_per_item }}</span> <span data-currency-symbol>JOD</span>/item
-                                        </div>
-                                        {% endif %}
                                     </td>
                                     <td class="items-column">
                                         <span data-number data-original="{{ po.annotated_transaction_count }}">{{ po.annotated_transaction_count }}</span> <span data-translate="items">items</span>
