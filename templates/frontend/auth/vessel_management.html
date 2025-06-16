@@ -421,15 +421,15 @@
 </div>
 
 <!-- Create Vessel Modal -->
-<div class="modal fade" id="createVesselModal" tabindex="-1">
+<div class="modal fade" id="createVesselModal" tabindex="-1" aria-labelledby="createVesselModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">
+                <h5 class="modal-title" id="createVesselModalLabel">
                     <i class="bi bi-ship me-2"></i>
                     <span data-translate="add_new_vessel">Add New Vessel</span>
                 </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="createVesselForm" method="POST" action="{% url 'frontend:create_vessel' %}">
                 {% csrf_token %}
@@ -496,15 +496,15 @@
 </div>
 
 <!-- Edit Vessel Modal -->
-<div class="modal fade" id="editVesselModal" tabindex="-1">
+<div class="modal fade" id="editVesselModal" tabindex="-1" aria-labelledby="editVesselModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">
+                <h5 class="modal-title" id="editVesselModalLabel">
                     <i class="bi bi-pencil me-2"></i>
                     <span data-translate="edit_vessel">Edit Vessel</span>
                 </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="editVesselForm" method="POST">
                 {% csrf_token %}
@@ -566,15 +566,15 @@
 </div>
 
 <!-- Vessel Stats Modal -->
-<div class="modal fade" id="vesselStatsModal" tabindex="-1">
+<div class="modal fade" id="vesselStatsModal" tabindex="-1" aria-labelledby="vesselStatsModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">
+                <h5 class="modal-title" id="vesselStatsModalLabel">
                     <i class="bi bi-graph-up me-2"></i>
                     <span id="statsVesselName">Vessel</span> <span data-translate="statistics">Statistics</span>
                 </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <div class="row mb-4">
@@ -661,7 +661,30 @@ document.addEventListener('DOMContentLoaded', function() {
             'update_vessel': 'Update Vessel',
             'recent_performance': 'Recent Performance',
             'export_stats': 'Export Stats',
-            'no_duty_free': 'No Duty-Free'
+            'no_duty_free': 'No Duty-Free',
+            'products_missing_pricing': 'products missing custom pricing',
+            'trips_30d': 'Trips (30d)',
+            // NEW: AJAX Confirmation Messages
+            'confirm_deactivate_vessel': 'Deactivate vessel "{vessel_name}"?',
+            'confirm_activate_vessel': 'Activate vessel "{vessel_name}"?',
+            'vessel_deactivated_success': 'Vessel "{vessel_name}" has been deactivated successfully.',
+            'vessel_activated_success': 'Vessel "{vessel_name}" has been activated successfully.',
+            'vessel_created_success': 'Vessel "{vessel_name}" created successfully!',
+            'vessel_updated_success': 'Vessel "{vessel_name}" updated successfully!',
+            'error_updating_vessel_status': 'Error updating vessel status',
+            'error_creating_vessel': 'Error creating vessel',
+            'error_updating_vessel': 'Error updating vessel',
+            'error_updating_vessel_data': 'Error updating vessel data',
+            'error_processing_request': 'Error processing request',
+            'unknown_error': 'Unknown error occurred',
+            'operation_completed': 'Operation completed successfully',
+            'loading_vessel_data': 'Loading vessel data...',
+            'updating_vessel_status': 'Updating vessel status...',
+            'creating_vessel': 'Creating vessel...',
+            'updating_vessel': 'Updating vessel...',
+            'notification': 'Notification',
+            'confirm': 'Confirm',
+            'ok': 'OK',
         },
         ar: {
             'add_new_vessel': 'إضافة سفينة جديدة',
@@ -676,7 +699,30 @@ document.addEventListener('DOMContentLoaded', function() {
             'update_vessel': 'تحديث السفينة',
             'recent_performance': 'الأداء الحديث',
             'export_stats': 'تصدير الإحصائيات',
-            'no_duty_free': 'غير معفاة من الرسوم'
+            'no_duty_free': 'غير معفاة من الرسوم',
+            'products_missing_pricing': 'منتجات تفتقر للتسعير المخصص',
+            'trips_30d': 'الرحلات (٣٠ يوم)',
+             // NEW: AJAX Confirmation Messages
+            'confirm_deactivate_vessel': 'إلغاء تفعيل السفينة "{vessel_name}"؟',
+            'confirm_activate_vessel': 'تفعيل السفينة "{vessel_name}"؟',
+            'vessel_deactivated_success': 'تم إلغاء تفعيل السفينة "{vessel_name}" بنجاح.',
+            'vessel_activated_success': 'تم تفعيل السفينة "{vessel_name}" بنجاح.',
+            'vessel_created_success': 'تم إنشاء السفينة "{vessel_name}" بنجاح!',
+            'vessel_updated_success': 'تم تحديث السفينة "{vessel_name}" بنجاح!',
+            'error_updating_vessel_status': 'خطأ في تحديث حالة السفينة',
+            'error_creating_vessel': 'خطأ في إنشاء السفينة',
+            'error_updating_vessel': 'خطأ في تحديث السفينة',
+            'error_updating_vessel_data': 'خطأ في تحديث بيانات السفينة',
+            'error_processing_request': 'خطأ في معالجة الطلب',
+            'unknown_error': 'حدث خطأ غير معروف',
+            'operation_completed': 'تمت العملية بنجاح',
+            'loading_vessel_data': 'جاري تحميل بيانات السفينة...',
+            'updating_vessel_status': 'جاري تحديث حالة السفينة...',
+            'creating_vessel': 'جاري إنشاء السفينة...',
+            'updating_vessel': 'جاري تحديث السفينة...',
+            'notification': 'إشعار',
+            'confirm': 'تأكيد',
+            'ok': 'موافق',
         }
     };
 
@@ -702,50 +748,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (selectedDate) updateVesselData(selectedDate);
     });
     
-     // Handle modal focus properly
-    const modals = document.querySelectorAll('.modal');
-    
-    modals.forEach(modal => {
-        // When modal is shown, ensure proper focus management
-        modal.addEventListener('shown.bs.modal', function() {
-            // Remove aria-hidden when modal is shown
-            this.removeAttribute('aria-hidden');
-            
-            // Focus on the first focusable element or close button
-            const firstFocusable = this.querySelector('input, button, select, textarea, [tabindex]:not([tabindex="-1"])');
-            if (firstFocusable) {
-                setTimeout(() => firstFocusable.focus(), 100);
-            }
-        });
-        
-        // When modal is hidden, ensure aria-hidden is set and focus is cleared
-        modal.addEventListener('hidden.bs.modal', function() {
-            // Set aria-hidden when modal is hidden
-            this.setAttribute('aria-hidden', 'true');
-            
-            // Clear any lingering focus from modal elements
-            const focusedElement = this.querySelector(':focus');
-            if (focusedElement) {
-                focusedElement.blur();
-            }
-            
-            // Return focus to the trigger element if it exists
-            const triggerElement = document.activeElement;
-            if (triggerElement && triggerElement !== document.body) {
-                triggerElement.focus();
-            }
-        });
-        
-        // When modal is being hidden, clear focus immediately
-        modal.addEventListener('hide.bs.modal', function() {
-            // Clear focus from any elements inside the modal
-            const focusedElements = this.querySelectorAll(':focus');
-            focusedElements.forEach(el => el.blur());
-        });
-    });
-
     // AJAX update function
-    function updateVesselData(selectedDate) {
+    async function updateVesselData(selectedDate) {
         loadingOverlay?.classList.remove('d-none');
         
         const refDate = new Date(selectedDate);
@@ -756,31 +760,32 @@ document.addEventListener('DOMContentLoaded', function() {
             dateRangeDisplay.textContent = `${formatDate(thirtyDaysAgo)} - ${formatDate(refDate)}`;
         }
         
-        fetch('{% url "frontend:vessel_data_ajax" %}', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-            },
-            body: JSON.stringify({ date: selectedDate })
-        })
-        .then(response => response.json())
-        .then(data => {
+        try {
+            const response = await fetch('{% url "frontend:vessel_data_ajax" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                },
+                body: JSON.stringify({ date: selectedDate })
+            });
+            
+            const data = await response.json();
+            
             if (data.success) {
                 updateVesselCards(data.vessel_data);
-                window.updatePageTranslations(); // Use global function
+                window.updatePageTranslations();
+                updateVesselSpecificTranslations();
             } else {
-                console.error('Error:', data.error);
-                alert('Error updating vessel data: ' + data.error);
+                console.error('Update vessel data error:', data.error);
+                await alertTranslated('error_updating_vessel_data');
             }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Error updating vessel data');
-        })
-        .finally(() => {
+        } catch (error) {
+            console.error('Update vessel data error:', error);
+            await alertTranslated('error_updating_vessel_data');
+        } finally {
             loadingOverlay?.classList.add('d-none');
-        });
+        }
     }
     
     // Update vessel cards function - FIXED to use 30-day data
@@ -806,11 +811,8 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Enhanced modal functions with proper focus management
+    // Modal functions
     window.editVessel = function(vesselId, name, nameAr, hasDutyFree, active) {
-        // Clear any existing focus
-        document.activeElement?.blur();
-        
         document.getElementById('editVesselId').value = vesselId;
         document.getElementById('editName').value = name;
         document.getElementById('editNameAr').value = nameAr || '';
@@ -820,51 +822,206 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('editVesselForm').action = 
             `{% url 'frontend:edit_vessel' 0 %}`.replace('0', vesselId);
         
-        // Show modal with proper focus management
-        const modal = new bootstrap.Modal(document.getElementById('editVesselModal'));
-        modal.show();
-        
-        // Apply translations after modal is shown
+        new bootstrap.Modal(document.getElementById('editVesselModal')).show();
         setTimeout(() => {
             window.updatePageTranslations();
-            // Focus on the first input after translations are applied
-            const firstInput = document.getElementById('editName');
-            if (firstInput) {
-                firstInput.focus();
-            }
-        }, 150);
+            updateVesselSpecificTranslations();
+        }, 100);
     };
-    
-    window.toggleVesselStatus = function(vesselId, vesselName, isActive) {
+
+    // Show loading message with translation
+    function showLoadingMessage(translationKey) {
+        if (window.translator && window.translator._) {
+            const message = window.translator._(translationKey);
+            // You can implement a loading modal or toast here
+            console.log('Loading:', message);
+            
+            // Optional: Show loading toast or update UI
+            const loadingToast = document.createElement('div');
+            loadingToast.id = 'loadingToast';
+            loadingToast.className = 'toast align-items-center text-white bg-primary border-0 position-fixed top-0 end-0 m-3';
+            loadingToast.style.zIndex = '9999';
+            loadingToast.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body">
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                        ${message}
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(loadingToast);
+            
+            const toast = new bootstrap.Toast(loadingToast);
+            toast.show();
+        }
+    }
+
+    // Hide loading message
+    function hideLoadingMessage() {
+        const loadingToast = document.getElementById('loadingToast');
+        if (loadingToast) {
+            const toast = bootstrap.Toast.getInstance(loadingToast);
+            if (toast) {
+                toast.hide();
+            }
+            setTimeout(() => {
+                if (loadingToast.parentNode) {
+                    loadingToast.parentNode.removeChild(loadingToast);
+                }
+            }, 500);
+        }
+    }
+
+    // Enhanced alert function with translation support
+    window.alertTranslated = function(key, params = {}) {
+        return new Promise((resolve) => {
+            if (window.translator && window.translator._) {
+                const message = window.translator._(key, params);
+                
+                // Create custom alert modal
+                const alertModal = document.createElement('div');
+                alertModal.className = 'modal fade';
+                alertModal.innerHTML = `
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">
+                                    <i class="bi bi-info-circle me-2"></i>
+                                    <span data-translate="notification">Notification</span>
+                                </h5>
+                            </div>
+                            <div class="modal-body">
+                                <p class="mb-0">${message}</p>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">
+                                    <span data-translate="ok">OK</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                document.body.appendChild(alertModal);
+                
+                const modal = new bootstrap.Modal(alertModal);
+                modal.show();
+                
+                alertModal.addEventListener('hidden.bs.modal', () => {
+                    alertModal.remove();
+                    resolve();
+                });
+            } else {
+                // Fallback to regular alert
+                alert(key);
+                resolve();
+            }
+        });
+    };
+
+    // Enhanced confirm function with translation support
+    window.confirmTranslated = function(key, params = {}) {
+        return new Promise((resolve) => {
+            if (window.translator && window.translator._) {
+                const message = window.translator._(key, params);
+                
+                // Create custom confirm modal
+                const confirmModal = document.createElement('div');
+                confirmModal.className = 'modal fade';
+                confirmModal.innerHTML = `
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">
+                                    <i class="bi bi-question-circle me-2"></i>
+                                    <span data-translate="confirm">Confirm</span>
+                                </h5>
+                            </div>
+                            <div class="modal-body">
+                                <p class="mb-0">${message}</p>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-result="false">
+                                    <span data-translate="cancel">Cancel</span>
+                                </button>
+                                <button type="button" class="btn btn-primary" data-bs-dismiss="modal" data-result="true">
+                                    <span data-translate="confirm">Confirm</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                document.body.appendChild(confirmModal);
+                
+                const modal = new bootstrap.Modal(confirmModal);
+                modal.show();
+                
+                // Handle button clicks
+                confirmModal.addEventListener('click', (e) => {
+                    if (e.target.hasAttribute('data-result')) {
+                        const result = e.target.getAttribute('data-result') === 'true';
+                        modal.hide();
+                        setTimeout(() => resolve(result), 100);
+                    }
+                });
+                
+                // Handle modal close (ESC key or backdrop click)
+                confirmModal.addEventListener('hidden.bs.modal', () => {
+                    confirmModal.remove();
+                });
+            } else {
+                // Fallback to regular confirm
+                resolve(confirm(key));
+            }
+        });
+    };
+
+    window.toggleVesselStatus = async function(vesselId, vesselName, isActive) {
         const action = isActive ? 'deactivate' : 'activate';
-        if (confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} vessel "${vesselName}"?`)) {
-            fetch(`{% url 'frontend:toggle_vessel_status' 0 %}`.replace('0', vesselId), {
+        const confirmKey = isActive ? 'confirm_deactivate_vessel' : 'confirm_activate_vessel';
+        
+        // Use translated confirmation dialog
+        const confirmed = await confirmTranslated(confirmKey, { vessel_name: vesselName });
+        if (!confirmed) return;
+        
+        // Show loading state with translated message
+        const loadingKey = 'updating_vessel_status';
+        showLoadingMessage(loadingKey);
+        
+        try {
+            const response = await fetch(`{% url 'frontend:toggle_vessel_status' 0 %}`.replace('0', vesselId), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
                 },
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert(`Vessel "${vesselName}" has been ${action}d successfully.`);
-                    setTimeout(() => location.reload(), 1000);
-                } else {
-                    alert('Error: ' + (data.error || 'Unknown error'));
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Error updating vessel status');
             });
+            
+            const data = await response.json();
+            
+            hideLoadingMessage();
+            
+            if (data.success) {
+                // Show translated success message
+                const successKey = isActive ? 'vessel_deactivated_success' : 'vessel_activated_success';
+                await alertTranslated(successKey, { vessel_name: vesselName });
+                
+                // Reload page after a short delay
+                setTimeout(() => location.reload(), 500);
+            } else {
+                // Show translated error message
+                await alertTranslated('error_updating_vessel_status');
+                console.error('Toggle vessel status error:', data.error);
+            }
+        } catch (error) {
+            hideLoadingMessage();
+            console.error('Toggle vessel status error:', error);
+            await alertTranslated('error_processing_request');
         }
     };
     
     window.viewVesselStats = function(vesselId, vesselName) {
-        // Clear any existing focus
-        document.activeElement?.blur();
-        
         window.currentStatsVesselId = vesselId;
         document.getElementById('statsVesselName').textContent = vesselName;
         
@@ -900,7 +1057,10 @@ document.addEventListener('DOMContentLoaded', function() {
                             </div>
                         `).join('');
                         // Apply translations to newly added content
-                        setTimeout(window.updatePageTranslations, 0);
+                        setTimeout(() => {
+                            window.updatePageTranslations();
+                            updateVesselSpecificTranslations();
+                        }, 0);
                     } else {
                         topProductsList.innerHTML = '<p class="text-muted">No product data available</p>';
                     }
@@ -912,18 +1072,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.error('Error loading vessel statistics:', error);
             });
         
-        // Show modal with proper focus management
-        const modal = new bootstrap.Modal(document.getElementById('vesselStatsModal'));
-        modal.show();
-        
+        new bootstrap.Modal(document.getElementById('vesselStatsModal')).show();
         setTimeout(() => {
             window.updatePageTranslations();
-            // Focus on close button for stats modal
-            const closeBtn = document.querySelector('#vesselStatsModal .btn-close');
-            if (closeBtn) {
-                closeBtn.focus();
-            }
-        }, 150);
+            updateVesselSpecificTranslations();
+        }, 100);
     };
     
     window.exportVesselStats = function() {
@@ -936,42 +1089,81 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('createVesselForm')?.addEventListener('submit', handleFormSubmit);
     document.getElementById('editVesselForm')?.addEventListener('submit', handleFormSubmit);
     
-    function handleFormSubmit(e) {
+    async function handleFormSubmit(e) {
         e.preventDefault();
         const formData = new FormData(this);
+        const isCreateForm = this.id === 'createVesselForm';
+        const vesselName = formData.get('name');
         
-        fetch(this.action, {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-            },
-        })
-        .then(response => response.json())
-        .then(data => {
+        // Show loading state with translated message
+        const loadingKey = isCreateForm ? 'creating_vessel' : 'updating_vessel';
+        showLoadingMessage(loadingKey);
+        
+        try {
+            const response = await fetch(this.action, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                },
+            });
+            
+            const data = await response.json();
+            
+            hideLoadingMessage();
+            
             if (data.success) {
-                const modal = bootstrap.Modal.getInstance(
-                    this.closest('.modal')
-                );
+                // Hide modal
+                const modal = bootstrap.Modal.getInstance(this.closest('.modal'));
                 modal?.hide();
-                alert(data.message);
-                setTimeout(() => location.reload(), 1000);
+                
+                // Show translated success message
+                const successKey = isCreateForm ? 'vessel_created_success' : 'vessel_updated_success';
+                await alertTranslated(successKey, { vessel_name: vesselName });
+                
+                // Reload page after a short delay
+                setTimeout(() => location.reload(), 500);
             } else {
-                alert('Error: ' + (data.error || 'Unknown error'));
+                // Show translated error message
+                const errorKey = isCreateForm ? 'error_creating_vessel' : 'error_updating_vessel';
+                await alertTranslated(errorKey);
+                console.error('Form submission error:', data.error);
             }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Error processing request');
-        });
+        } catch (error) {
+            hideLoadingMessage();
+            console.error('Form submission error:', error);
+            await alertTranslated('error_processing_request');
+        }
     }
     
     // Listen for language changes - EXACT SAME PATTERN AS OTHER TEMPLATES
     window.addEventListener('languageChanged', function() {
         console.log('📢 Vessel Management: Received languageChanged event');
+        updateVesselSpecificTranslations();
         updatePageTitle();
     });
+    
+    // Initial call to update vessel-specific translations
+    updateVesselSpecificTranslations();
 });
+
+// Function to handle vessel-specific translations (like products_missing_pricing with count)
+function updateVesselSpecificTranslations() {
+    // Handle products_missing_pricing translation with count parameter
+    document.querySelectorAll('[data-translate="products_missing_pricing"]').forEach(element => {
+        // Find the count span in the same parent
+        const countSpan = element.parentElement.querySelector('[data-number][data-original]');
+        if (countSpan) {
+            const count = countSpan.getAttribute('data-original') || countSpan.textContent.trim();
+            const translatedCount = window.translateNumber ? window.translateNumber(count) : count;
+            
+            if (window.translator && window.translator._) {
+                // Use the parameterized translation
+                element.textContent = window.translator._('products_missing_pricing', { count: translatedCount });
+            }
+        }
+    });
+}
 
 function updatePageTitle() {
     if (!window.translator || !window.translator._) {
