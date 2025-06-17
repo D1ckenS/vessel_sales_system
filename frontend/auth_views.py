@@ -7,7 +7,7 @@ from django.contrib.auth.models import User, Group, Permission
 from django.contrib import messages
 from django.http import JsonResponse
 from django.db import transaction, models
-from django.db.models import Sum, F, Count, Q, Case, When, Max, Min, Avg
+from django.db.models import Sum, F, Count, Q, Avg
 from frontend.utils.query_helpers import TransactionQueryHelper
 from transactions.models import Transaction, Trip, PurchaseOrder, InventoryLot
 from vessels.models import Vessel
@@ -23,10 +23,8 @@ from django.core.cache import cache
 from .permissions import is_admin_or_manager, admin_or_manager_required, is_superuser_only, superuser_required
 import traceback
 from products.models import Product
-from transactions.models import VesselProductPrice, get_all_vessel_pricing_summary, get_vessel_pricing_warnings
+from transactions.models import get_all_vessel_pricing_summary, get_vessel_pricing_warnings
 from .permissions import get_user_role, UserRoles
-from django.db.models import DateField
-from django.db.models.functions import TruncMonth
 from .permissions import (
     operations_access_required,
     reports_access_required,
