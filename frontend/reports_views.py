@@ -26,7 +26,10 @@ def trip_reports(request):
     trips = Trip.objects.select_related(
         'vessel', 'created_by'
     ).prefetch_related(
-        'sales_transactions__product'  # Prefetch for efficiency
+        Prefetch(
+            'sales_transactions',
+            queryset=Transaction.objects.select_related('product', 'product__category')
+        )
     )
     
     # Apply all filters using helper with custom field mappings
@@ -105,9 +108,19 @@ def po_reports(request):
     
     # Base queryset
     purchase_orders = PurchaseOrder.objects.select_related(
-        'vessel', 'created_by'
+        'vessel', 'created_by'        
     ).prefetch_related(
-        'supply_transactions'
+        Prefetch(
+            'supply_transactions',
+            queryset=Transaction.objects.select_related('product', 'product__category')
+        )
+    ).annotate(
+        # Your existing annotations...
+        annotated_total_cost=Sum(
+            F('supply_transactions__unit_price') * F('supply_transactions__quantity'),
+            output_field=models.DecimalField()
+        ),
+        annotated_transaction_count=Count('supply_transactions'),
     )
     
     purchase_orders = TransactionQueryHelper.apply_common_filters(
@@ -144,12 +157,21 @@ def transactions_list(request):
     
     # Base queryset and filtering
     transactions = Transaction.objects.select_related(
-        'vessel', 'product', 'product__category', 'created_by',
-        'trip', 'purchase_order', 'transfer_to_vessel', 'transfer_from_vessel'
-    ).order_by('-transaction_date', '-created_at')
+        'vessel',                    # ✅ Eliminates transaction.vessel.name queries
+        'product',                   # ✅ Eliminates transaction.product.name queries  
+        'product__category',         # ✅ Eliminates transaction.product.category queries
+        'created_by',                # ✅ Eliminates transaction.created_by queries
+        'trip',                      # ✅ Eliminates transaction.trip queries
+        'purchase_order'             # ✅ Eliminates transaction.purchase_order queries
+    ).prefetch_related(
+        'trip__vessel',              # ✅ For trip vessel info
+        'purchase_order__vessel'     # ✅ For PO vessel info
+    )
     
     # Apply all common filters using helper
     transactions = TransactionQueryHelper.apply_common_filters(transactions, request)
+    
+    transactions = transactions.order_by('-transaction_date', '-created_at')
     
     # OPTIMIZED: Pagination-ready limiting with total count
     total_count = transactions.count()
@@ -352,8 +374,17 @@ def daily_report(request):
     previous_date = selected_date - timedelta(days=1)
     
     # Daily transactions for selected date
-    daily_transactions = Transaction.objects.filter(transaction_date=selected_date)
-    previous_transactions = Transaction.objects.filter(transaction_date=previous_date)
+    daily_transactions = Transaction.objects.filter(
+        transaction_date=selected_date
+    ).select_related(
+        'vessel', 'product', 'product__category', 'created_by'
+    ).order_by('-created_at')
+    
+    previous_transactions = Transaction.objects.filter(
+        transaction_date=previous_date
+    ).select_related(
+        'vessel', 'product', 'product__category', 'created_by'
+    ).order_by('-created_at')
     
     # Use EXACT existing helper method
     comparison = TransactionAggregator.compare_periods(daily_transactions, previous_transactions)

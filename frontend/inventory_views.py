@@ -209,6 +209,10 @@ def inventory_details_ajax(request, product_id, vessel_id):
         recent_transactions = Transaction.objects.filter(
             vessel=vessel,
             product=product
+        ).select_related(
+            'vessel',
+            'product',
+            'created_by'
         ).order_by('-transaction_date', '-created_at')[:10]
         
         # Prepare data
