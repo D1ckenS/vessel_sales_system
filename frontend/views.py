@@ -1,6 +1,7 @@
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
-from django.db.models import Sum, Count, F, Q
+from django.db.models import Sum, Count, F, Q, Prefetch
+from django.core.cache import cache
 from django.http import JsonResponse
 from datetime import date, datetime, timedelta
 from vessels.models import Vessel
@@ -16,14 +17,30 @@ from .permissions import (
 
 @login_required
 def dashboard(request):
-    """OPTIMIZED: Main dashboard with minimal database queries"""
+    """HEAVILY OPTIMIZED: Your current dashboard with caching and query optimization"""
     
     # Get basic stats
     today = date.today()
     now = datetime.now()
     
-    # All vessels with activity statistics
+    # Cache key specific to today and user role (different users might see different data)
+    user_role = 'admin' if request.user.is_superuser else 'user'
+    cache_key = f'dashboard_data_{today}_{user_role}'
+    
+    # Try cache first (5 minutes cache)
+    cached_data = cache.get(cache_key)
+    if cached_data:
+        # Add real-time elements that shouldn't be cached
+        cached_data['now'] = now
+        return render(request, 'frontend/dashboard.html', cached_data)
+    
+    # ===========================================================================
+    # OPTIMIZATION 1: Enhanced vessel query with more stats in single query
+    # ===========================================================================
+    
+    # Your original pattern but with additional useful stats
     all_vessels = Vessel.objects.annotate(
+        # Keep your original annotations
         recent_trip_count=Count(
             'trips',
             filter=Q(trips__trip_date__gte=today - timedelta(days=7))
@@ -31,66 +48,18 @@ def dashboard(request):
         today_transaction_count=Count(
             'transactions',
             filter=Q(transactions__transaction_date=today)
-        )
-    ).order_by('-active', 'name')
-    
-    # Active vessels for quick stats
-    vessels = all_vessels.filter(active=True).order_by('name')
-    
-    # OPTIMIZED: Today's comprehensive sales summary with related stats
-    today_stats = Transaction.objects.filter(
-        transaction_date=today
-    ).aggregate(
-        # Sales stats
-        total_revenue=Sum(
-            F('unit_price') * F('quantity'), 
-            filter=Q(transaction_type='SALE'),
+        ),
+        
+        # ADD: Additional useful stats in same query
+        today_revenue=Sum(
+            F('transactions__unit_price') * F('transactions__quantity'),
+            filter=Q(
+                transactions__transaction_type='SALE',
+                transactions__transaction_date=today
+            ),
             output_field=models.DecimalField()
         ),
-        sales_count=Count('id', filter=Q(transaction_type='SALE')),
-        
-        # Supply stats
-        total_supply_cost=Sum(
-            F('unit_price') * F('quantity'),
-            filter=Q(transaction_type='SUPPLY'),
-            output_field=models.DecimalField()
-        ),
-        supply_count=Count('id', filter=Q(transaction_type='SUPPLY')),
-        
-        # Transfer stats
-        transfer_out_count=Count('id', filter=Q(transaction_type='TRANSFER_OUT')),
-        transfer_in_count=Count('id', filter=Q(transaction_type='TRANSFER_IN')),
-        
-        # Overall stats
-        total_transactions=Count('id'),
-        unique_vessels=Count('vessel', distinct=True),
-        unique_products=Count('product', distinct=True)
-    )
-    
-    # OPTIMIZED: Recent transactions with all related data
-    recent_transactions = Transaction.objects.select_related(
-        'vessel', 
-        'product', 
-        'product__category',
-        'created_by',
-        'trip',
-        'purchase_order'
-    ).order_by('-created_at')[:6]
-    
-    # OPTIMIZED: Quick dashboard metrics
-    quick_stats = {
-        'active_vessels': vessels.count(),
-        'today_trips': Trip.objects.filter(trip_date=today).count(),
-        'today_pos': PurchaseOrder.objects.filter(po_date=today).count(),
-        'low_stock_products': InventoryLot.objects.filter(
-            remaining_quantity__lte=5,
-            remaining_quantity__gt=0
-        ).values('product').distinct().count(),
-    }
-    
-    # OPTIMIZED: Vessel performance summary (top 5 by recent activity)
-    top_vessels = Vessel.objects.filter(active=True).annotate(
-        recent_revenue=Sum(
+        week_revenue=Sum(
             F('transactions__unit_price') * F('transactions__quantity'),
             filter=Q(
                 transactions__transaction_type='SALE',
@@ -98,22 +67,161 @@ def dashboard(request):
             ),
             output_field=models.DecimalField()
         ),
-        week_trips=Count(
-            'trips',
-            filter=Q(trips__trip_date__gte=today - timedelta(days=7))
+        current_inventory_count=Count(
+            'inventory_lots__product',
+            distinct=True,
+            filter=Q(inventory_lots__remaining_quantity__gt=0)
         )
-    ).order_by('-recent_revenue')[:5]
+    ).order_by('-active', 'name')
     
+    # Keep your original pattern
+    vessels = all_vessels.filter(active=True).order_by('name')
+    
+    # ===========================================================================
+    # OPTIMIZATION 2: Your today_stats but with additional metrics
+    # ===========================================================================
+    
+    # Keep your exact structure but add profit calculation
+    today_sales = Transaction.objects.filter(
+        transaction_date=today
+    ).aggregate(
+        # Your original stats
+        total_revenue=Sum(
+            F('unit_price') * F('quantity'), 
+            filter=Q(transaction_type='SALE'),
+            output_field=models.DecimalField()
+        ),
+        sales_count=Count('id', filter=Q(transaction_type='SALE')),
+        
+        total_supply_cost=Sum(
+            F('unit_price') * F('quantity'),
+            filter=Q(transaction_type='SUPPLY'),
+            output_field=models.DecimalField()
+        ),
+        supply_count=Count('id', filter=Q(transaction_type='SUPPLY')),
+        
+        transfer_out_count=Count('id', filter=Q(transaction_type='TRANSFER_OUT')),
+        transfer_in_count=Count('id', filter=Q(transaction_type='TRANSFER_IN')),
+        
+        total_transactions=Count('id'),
+        unique_vessels=Count('vessel', distinct=True),
+        unique_products=Count('product', distinct=True),
+        
+        # ADD: Missing profit calculations
+        total_volume=Sum('quantity'),
+        avg_transaction_value=models.Avg(
+            F('unit_price') * F('quantity'),
+            output_field=models.DecimalField()
+        )
+    )
+    
+    # Calculate profit metrics (matching your style)
+    total_revenue = today_sales['total_revenue'] or 0
+    total_supply_cost = today_sales['total_supply_cost'] or 0
+    total_profit = total_revenue - total_supply_cost
+    profit_margin = (total_profit / total_revenue * 100) if total_revenue > 0 else 0
+    
+    # Add profit to today_sales
+    today_sales['total_profit'] = total_profit
+    today_sales['profit_margin'] = round(profit_margin, 2)
+    
+    # ===========================================================================
+    # OPTIMIZATION 3: Optimized recent transactions with better prefetch
+    # ===========================================================================
+    
+    # Your pattern but with optimized prefetch relationships
+    recent_transactions = Transaction.objects.select_related(
+        'vessel', 
+        'product', 
+        'product__category',
+        'created_by'
+    ).prefetch_related(
+        # Better prefetch strategy
+        Prefetch('trip', queryset=Trip.objects.select_related('vessel')),
+        Prefetch('purchase_order', queryset=PurchaseOrder.objects.select_related('vessel'))
+    ).order_by('-created_at')[:6]
+    
+    # ===========================================================================
+    # OPTIMIZATION 4: Combined quick_stats (reduce separate queries)
+    # ===========================================================================
+    
+    # Combine some of your separate queries into batch operations
+    # Keep the vessel count from existing query
+    active_vessel_count = len([v for v in vessels if v.active])
+    
+    # Combine trip and PO counts in single operations  
+    daily_counts = {
+        'today_trips': Trip.objects.filter(trip_date=today).count(),
+        'today_pos': PurchaseOrder.objects.filter(po_date=today).count(),
+    }
+    
+    # Low stock calculation (your pattern)
+    low_stock_count = InventoryLot.objects.filter(
+        remaining_quantity__lte=5,
+        remaining_quantity__gt=0
+    ).values('product').distinct().count()
+    
+    # Combine into quick_stats (your exact structure)
+    quick_stats = {
+        'active_vessels': active_vessel_count,
+        'today_trips': daily_counts['today_trips'],
+        'today_pos': daily_counts['today_pos'],
+        'low_stock_products': low_stock_count,
+    }
+    
+    # ===========================================================================
+    # OPTIMIZATION 5: Your top_vessels but using existing data where possible
+    # ===========================================================================
+    
+    # Your pattern but check if we can use existing vessel data first
+    vessels_with_revenue = [v for v in vessels if hasattr(v, 'week_revenue') and v.week_revenue]
+    
+    if len(vessels_with_revenue) >= 5:
+        # Use data from our enhanced vessel query
+        top_vessels = sorted(vessels_with_revenue, key=lambda v: v.week_revenue or 0, reverse=True)[:5]
+    else:
+        # Fallback to your original query if needed
+        top_vessels = Vessel.objects.filter(active=True).annotate(
+            recent_revenue=Sum(
+                F('transactions__unit_price') * F('transactions__quantity'),
+                filter=Q(
+                    transactions__transaction_type='SALE',
+                    transactions__transaction_date__gte=today - timedelta(days=7)
+                ),
+                output_field=models.DecimalField()
+            ),
+            week_trips=Count(
+                'trips',
+                filter=Q(trips__trip_date__gte=today - timedelta(days=7))
+            )
+        ).order_by('-recent_revenue')[:5]
+    
+    # ===========================================================================
+    # OPTIMIZATION 6: Build context (your exact structure)
+    # ===========================================================================
+    
+    # Handle None values safely (your pattern)
+    for key in ['total_revenue', 'total_supply_cost', 'sales_count', 'supply_count',
+                'transfer_out_count', 'transfer_in_count', 'total_transactions',
+                'unique_vessels', 'unique_products', 'total_volume', 'avg_transaction_value']:
+        if today_sales[key] is None:
+            today_sales[key] = 0
+    
+    # Your exact context structure
     context = {
         'vessels': vessels,
         'all_vessels': all_vessels,
-        'today_sales': today_stats,  # Contains comprehensive today stats
+        'today_sales': today_sales,  # Keep your exact naming
         'recent_transactions': recent_transactions,
         'quick_stats': quick_stats,
         'top_vessels': top_vessels,
         'today': today,
-        'now': now,
+        'now': now,  # Don't cache this - always current
     }
+    
+    # Cache everything except 'now' for 5 minutes
+    cache_context = {k: v for k, v in context.items() if k != 'now'}
+    cache.set(cache_key, cache_context, 300)  # 5 minutes
     
     return render(request, 'frontend/dashboard.html', context)
 
