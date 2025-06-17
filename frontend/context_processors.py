@@ -25,9 +25,7 @@ def user_permissions_context(request):
             'user_permissions': {
                 'is_superuser': False,
                 'is_admin_or_manager': False,
-                'can_access_sales': False,
-                'can_access_supply': False,
-                'can_access_transfers': False,
+                'can_access_operations': False,
                 'can_access_reports': False,
                 'can_access_inventory': False,
                 'can_add_products': False,
@@ -42,9 +40,7 @@ def user_permissions_context(request):
         get_user_role,
         is_superuser_only,
         is_admin_or_manager,
-        can_access_sales,
-        can_access_supply,
-        can_access_transfers,
+        can_access_operations,  # This function handles sales/supply/transfers
         can_access_reports,
         can_access_inventory,
         can_add_products,
@@ -58,9 +54,7 @@ def user_permissions_context(request):
         'user_permissions': {
             'is_superuser': is_superuser_only(request.user),
             'is_admin_or_manager': is_admin_or_manager(request.user),
-            'can_access_sales': can_access_sales(request.user),
-            'can_access_supply': can_access_supply(request.user),
-            'can_access_transfers': can_access_transfers(request.user),
+            'can_access_operations': can_access_operations(request.user),  # ✅ Covers all operations
             'can_access_reports': can_access_reports(request.user),
             'can_access_inventory': can_access_inventory(request.user),
             'can_add_products': can_add_products(request.user),
