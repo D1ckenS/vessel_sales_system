@@ -12,6 +12,7 @@ from django.shortcuts import render
 from vessels.models import Vessel
 from products.models import Product
 from .utils.query_helpers import TransactionQueryHelper, DateRangeHelper
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from .permissions import (
     operations_access_required,
     reports_access_required,
@@ -153,62 +154,71 @@ def po_reports(request):
 
 @reports_access_required
 def transactions_list(request):
-    """OPTIMIZED: Frontend transactions list with enhanced template performance"""
+    """Enhanced transaction list with advanced filtering and pagination"""
     
-    # Base queryset and filtering
+    # ✅ STEP 1: Single optimized query with all relationships
     transactions = Transaction.objects.select_related(
-        'vessel',                    # ✅ Eliminates transaction.vessel.name queries
-        'product',                   # ✅ Eliminates transaction.product.name queries  
-        'product__category',         # ✅ Eliminates transaction.product.category queries
-        'created_by',                # ✅ Eliminates transaction.created_by queries
-        'trip',                      # ✅ Eliminates transaction.trip queries
-        'purchase_order'             # ✅ Eliminates transaction.purchase_order queries
+        'vessel',                    # ✅ Eliminates vessel lookups
+        'product',                   # ✅ Eliminates product lookups
+        'product__category',         # ✅ Eliminates category lookups  
+        'created_by',                # ✅ Eliminates user lookups
+        'trip',                      # ✅ Eliminates trip lookups
+        'purchase_order'             # ✅ Eliminates PO lookups
     ).prefetch_related(
         'trip__vessel',              # ✅ For trip vessel info
-        'purchase_order__vessel'     # ✅ For PO vessel info
+        'purchase_order__vessel'     # ✅ For PO vessel info  
     )
     
-    # Apply all common filters using helper
+    # ✅ STEP 2: Apply filters using helper (your existing code)
     transactions = TransactionQueryHelper.apply_common_filters(transactions, request)
     
+    # ✅ STEP 3: Order results (your existing code)
     transactions = transactions.order_by('-transaction_date', '-created_at')
     
-    # OPTIMIZED: Pagination-ready limiting with total count
-    total_count = transactions.count()
-    page_size = 200
-    transactions_limited = transactions[:page_size]
+    # ✅ STEP 4: Pagination with count optimization
+    paginator = Paginator(transactions, 50)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
     
-     # ALL AGGREGATIONS WITH 4 LINES (instead of 70+ lines)
-    summary_stats = TransactionAggregator.get_enhanced_summary_stats(transactions)
-    type_breakdown = TransactionAggregator.get_type_breakdown(transactions)
-    vessel_activity = TransactionAggregator.get_vessel_breakdown(transactions, limit=5)
-    recent_activity = TransactionAggregator.get_today_activity_summary()
+    # ✅ STEP 5: Calculate summary stats ONCE (not per transaction type)
+    if page_obj.object_list:
+        # Get stats for current page only to avoid expensive full table scan
+        page_transactions = list(page_obj.object_list)
+        
+        summary_stats = {
+            'total_displayed': len(page_transactions),
+            'page_number': page_obj.number,
+            'total_pages': page_obj.paginator.num_pages,
+        }
+        
+        # Optional: Add type breakdown for current page only
+        type_counts = {}
+        for tx in page_transactions:
+            tx_type = tx.transaction_type
+            type_counts[tx_type] = type_counts.get(tx_type, 0) + 1
+            
+        summary_stats['type_breakdown'] = type_counts
+    else:
+        summary_stats = {
+            'total_displayed': 0,
+            'page_number': 1,
+            'total_pages': 1,
+            'type_breakdown': {}
+        }
     
-    # OPTIMIZED: Build enhanced context
+    # ✅ STEP 6: Context (your existing structure)
     context = {
-        'transactions': transactions_limited,
-        'transaction_types': Transaction.TRANSACTION_TYPES,
-        'summary_stats': {
-            # Use enhanced stats with automatic profit calculations and safe defaults
-            **summary_stats,
-            'showing_count': len(transactions_limited),
-            'total_count': total_count,
-            'is_filtered': bool(request.GET.get('transaction_type') or request.GET.get('vessel') or 
-                               request.GET.get('date_from') or request.GET.get('date_to'))
-        },
-        'type_breakdown': type_breakdown,
-        'vessel_activity': vessel_activity,
-        'recent_activity': recent_activity,
-        'pagination': {
-            'page_size': page_size,
-            'has_more': total_count > page_size,
-            'showing': min(page_size, total_count),
-            'total': total_count
+        'page_obj': page_obj,
+        'transactions': page_obj.object_list,  # For template compatibility
+        'summary_stats': summary_stats,
+        'current_filters': {
+            'vessel': request.GET.get('vessel', ''),
+            'product': request.GET.get('product', ''),
+            'transaction_type': request.GET.get('transaction_type', ''),
+            'date_from': request.GET.get('date_from', ''),
+            'date_to': request.GET.get('date_to', ''),
         }
     }
-    
-    # Add filter context using helper
-    context.update(TransactionQueryHelper.get_filter_context(request))
     
     return render(request, 'frontend/transactions_list.html', context)
 
