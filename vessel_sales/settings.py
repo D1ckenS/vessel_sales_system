@@ -133,6 +133,7 @@ DATABASES = {
     }
 }
 
+SILENCED_SYSTEM_CHECKS = ['models.E034']
 # For production, you can override with PostgreSQL:
 # DATABASES = {
 #     'default': {

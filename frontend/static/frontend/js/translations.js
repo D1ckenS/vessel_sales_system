@@ -828,7 +828,7 @@ window.VesselSalesTranslations = {
         'export_all_reports': 'Export All Reports',
         'schedule_reports': 'Schedule Reports',
         'email_reports': 'Email Reports',
-        'inventory_check': 'Inventory Check',
+        'inventory_management': 'Inventory Management',
         'vessel_sales_system': 'Vessel Sales System',
 
     },
@@ -1660,7 +1660,7 @@ window.VesselSalesTranslations = {
         'export_all_reports': 'تصدير جميع التقارير',
         'schedule_reports': 'جدولة التقارير',
         'email_reports': 'إرسال التقارير بالبريد',
-        'inventory_check': 'فحص المخزون',
+        'inventory_management': 'إدارة المخزون',
         'vessel_sales_system': 'نظام مبيعات السفن',
     }
 };

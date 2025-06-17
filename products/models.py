@@ -11,6 +11,9 @@ class Category(models.Model):
     class Meta:
         ordering = ['name']
         verbose_name_plural = 'Categories'
+        indexes = [
+            models.Index(fields=['active'], name='category_active_idx'),
+        ]
     
     def __str__(self):
         return self.name
@@ -47,6 +50,14 @@ class Product(models.Model):
         ordering = ['item_id', 'name']
         verbose_name = 'Product'
         verbose_name_plural = 'Products'
+        indexes = [
+            models.Index(fields=['category'], name='product_category_idx'),
+            models.Index(fields=['active'], name='product_active_idx'),
+            models.Index(fields=['is_duty_free'], name='product_duty_free_idx'),
+            models.Index(fields=['active', 'is_duty_free'], name='product_active_duty_free_idx'),
+            models.Index(fields=['barcode'], name='product_barcode_idx'),
+            models.Index(fields=['created_by'], name='product_created_by_idx'),
+        ]
     
     def __str__(self):
         return f"{self.item_id} - {self.name}"
