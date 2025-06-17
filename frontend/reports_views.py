@@ -42,10 +42,14 @@ def trip_reports(request):
     
     trips = trips.order_by('-trip_date', '-created_at')
     
+    # Force single evaluation and store result
+    trips_list = list(trips)  # Single evaluation with all JOINs
+    trip_ids = [trip.id for trip in trips_list]
+    
     # WORKING: Calculate summary statistics using direct database aggregation
     # Get all sales transactions for the filtered trips in ONE query
     sales_transactions = Transaction.objects.filter(
-        trip__in=trips,
+        trip_id__in=trip_ids,
         transaction_type='SALE'
     ).aggregate(
         total_revenue=Sum(F('unit_price') * F('quantity'), output_field=models.DecimalField()),
@@ -54,12 +58,12 @@ def trip_reports(request):
     )
     
     # WORKING: Calculate trip-level statistics
-    trip_stats = trips.aggregate(
-        total_trips=Count('id'),
-        total_passengers=Sum('passenger_count'),
-        completed_trips=Count('id', filter=Q(is_completed=True)),
-        in_progress_trips=Count('id', filter=Q(is_completed=False))
-    )
+    trip_stats = {
+        'total_trips': len(trips_list),
+        'total_passengers': sum(trip.passenger_count or 0 for trip in trips_list),
+        'completed_trips': sum(1 for trip in trips_list if trip.is_completed),
+        'in_progress_trips': sum(1 for trip in trips_list if not trip.is_completed),
+    }
     
     # WORKING: Calculate additional metrics safely
     total_revenue = sales_transactions['total_revenue'] or 0
@@ -71,20 +75,14 @@ def trip_reports(request):
     avg_revenue_per_passenger = total_revenue / total_passengers if total_passengers > 0 else 0
         
     # WORKING: Get top performing trips using direct aggregation
-    top_trips = Trip.objects.filter(
-        id__in=trips.values_list('id', flat=True)
-    ).annotate(
-        trip_revenue=Sum(
-            F('sales_transactions__unit_price') * F('sales_transactions__quantity'),
-            filter=Q(sales_transactions__transaction_type='SALE'),
-            output_field=models.DecimalField()
-        ),
-        trip_sales_count=Count('sales_transactions', filter=Q(sales_transactions__transaction_type='SALE'))
+    top_trips = trips.annotate(
+        trip_revenue=Sum(F('sales_transactions__unit_price') * F('sales_transactions__quantity'))
     ).filter(trip_revenue__gt=0).order_by('-trip_revenue')[:5]
     
     context = {
-        'trips': trips,
+        'trips': trips_list,
         'top_trips': top_trips,
+        'vessels': Vessel.objects.filter(active=True).only('id', 'name', 'name_ar'),
         'summary': {
             'total_trips': total_trips,
             'total_revenue': total_revenue,
@@ -99,7 +97,12 @@ def trip_reports(request):
     }
     
     # Add filter context and vessels using helper
-    context.update(TransactionQueryHelper.get_filter_context(request))
+    context['current_filters'] = {
+        'vessel': request.GET.get('vessel', ''),
+        'date_from': request.GET.get('date_from', ''),
+        'date_to': request.GET.get('date_to', ''),
+        'status': request.GET.get('status', ''),
+    }
     
     return render(request, 'frontend/trip_reports.html', context)
 
