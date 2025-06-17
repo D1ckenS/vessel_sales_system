@@ -4,12 +4,12 @@ from datetime import datetime, timedelta, date
 from django.contrib.auth.decorators import login_required
 import calendar
 from django.db.models import Avg, Sum, Count, F, Q, Case, When
-from frontend.utils.aggregators import TransactionAggregator, ProductAnalytics
+from .utils.aggregators import TransactionAggregator, ProductAnalytics
 from transactions.models import Transaction, InventoryLot, Trip, PurchaseOrder, get_vessel_pricing_warnings
 from django.shortcuts import render
 from vessels.models import Vessel
 from products.models import Product
-from frontend.utils.query_helpers import TransactionQueryHelper, DateRangeHelper
+from .utils.query_helpers import TransactionQueryHelper, DateRangeHelper
 from .permissions import (
     operations_access_required,
     reports_access_required,

@@ -1,4 +1,4 @@
-from frontend.views import is_admin_or_manager
+from .permissions import is_admin_or_manager
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Count, Q

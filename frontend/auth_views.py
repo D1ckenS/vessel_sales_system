@@ -8,7 +8,7 @@ from django.contrib import messages
 from django.http import JsonResponse
 from django.db import transaction, models
 from django.db.models import Sum, F, Count, Q, Avg
-from frontend.utils.query_helpers import TransactionQueryHelper
+from .utils.query_helpers import TransactionQueryHelper
 from transactions.models import Transaction, Trip, PurchaseOrder, InventoryLot
 from vessels.models import Vessel
 from .utils import BilingualMessages
@@ -139,10 +139,6 @@ def user_logout(request):
     logout(request)
     BilingualMessages.success(request, 'logout_successful', username=username)
     return redirect('frontend:login')
-
-def is_admin_or_manager(user):
-    """Check if user is admin or manager"""
-    return user.is_superuser or user.groups.filter(name__in=['Managers', 'Administrators']).exists()
 
 @login_required
 @user_passes_test(is_admin_or_manager)
