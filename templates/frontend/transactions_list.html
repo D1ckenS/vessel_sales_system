@@ -35,7 +35,7 @@
                     <div class="row">
                         <div class="col-md-3">
                             <label class="form-label fw-bold"><span data-translate="transaction_type">Transaction Type</span></label>
-                            <select class="form-select" name="type">
+                            <select class="form-select" name="transaction_type">
                                 <option value=""><span data-translate="all_types">All Types</span></option>
                                 {% for code, display in transaction_types %}
                                 <option value="{{ code }}" {% if filters.type == code %}selected{% endif %} data-transaction-type="{{ display }}">{{ display }}</option>

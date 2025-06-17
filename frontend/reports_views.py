@@ -8,6 +8,7 @@ from transactions.models import Transaction, InventoryLot, Trip, PurchaseOrder, 
 from django.shortcuts import render
 from vessels.models import Vessel
 from products.models import Product
+from frontend.utils.query_helpers import TransactionQueryHelper, DateRangeHelper
 from .permissions import (
     operations_access_required,
     reports_access_required,
@@ -18,12 +19,6 @@ from .permissions import (
 def trip_reports(request):
     """COMPLETE WORKING: Trip-based sales reports with proper optimization"""
     
-    # Get filter parameters
-    vessel_filter = request.GET.get('vessel')
-    date_from = request.GET.get('date_from')
-    date_to = request.GET.get('date_to')
-    status_filter = request.GET.get('status')
-    
     # WORKING: Base queryset with proper relations - NO problematic annotations
     trips = Trip.objects.select_related(
         'vessel', 'created_by'
@@ -31,19 +26,12 @@ def trip_reports(request):
         'sales_transactions__product'  # Prefetch for efficiency
     )
     
-    # Apply filters
-    if vessel_filter:
-        trips = trips.filter(vessel_id=vessel_filter)
-    if date_from:
-        date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
-        trips = trips.filter(trip_date__gte=date_from_obj)
-    if date_to:
-        date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
-        trips = trips.filter(trip_date__lte=date_to_obj)
-    if status_filter == 'completed':
-        trips = trips.filter(is_completed=True)
-    elif status_filter == 'in_progress':
-        trips = trips.filter(is_completed=False)
+    # Apply all filters using helper with custom field mappings
+    trips = TransactionQueryHelper.apply_common_filters(
+        trips, request,
+        date_field='trip_date',           # Trips use trip_date not transaction_date
+        status_field='is_completed'       # Enable status filtering for trips
+    )
     
     trips = trips.order_by('-trip_date', '-created_at')
     
@@ -74,10 +62,7 @@ def trip_reports(request):
     
     avg_revenue_per_trip = total_revenue / total_trips if total_trips > 0 else 0
     avg_revenue_per_passenger = total_revenue / total_passengers if total_passengers > 0 else 0
-    
-    # WORKING: Get vessels for filter
-    vessels = Vessel.objects.filter(active=True).order_by('name')
-    
+        
     # WORKING: Get top performing trips using direct aggregation
     top_trips = Trip.objects.filter(
         id__in=trips.values_list('id', flat=True)
@@ -92,14 +77,7 @@ def trip_reports(request):
     
     context = {
         'trips': trips,
-        'vessels': vessels,
         'top_trips': top_trips,
-        'filters': {
-            'vessel': vessel_filter,
-            'date_from': date_from,
-            'date_to': date_to,
-            'status': status_filter,
-        },
         'summary': {
             'total_trips': total_trips,
             'total_revenue': total_revenue,
@@ -113,34 +91,27 @@ def trip_reports(request):
         }
     }
     
+    # Add filter context and vessels using helper
+    context.update(TransactionQueryHelper.get_filter_context(request))
+    
     return render(request, 'frontend/trip_reports.html', context)
 
 @reports_access_required
 def po_reports(request):
     """Purchase Order reports"""
     
-    # Get filter parameters
-    vessel_filter = request.GET.get('vessel')
-    date_from = request.GET.get('date_from')
-    date_to = request.GET.get('date_to')
-    status_filter = request.GET.get('status')
-    
     # Base queryset
-    purchase_orders = PurchaseOrder.objects.select_related('vessel', 'created_by').prefetch_related('supply_transactions')
+    purchase_orders = PurchaseOrder.objects.select_related(
+        'vessel', 'created_by'
+    ).prefetch_related(
+        'supply_transactions'
+    )
     
-    # Apply filters
-    if vessel_filter:
-        purchase_orders = purchase_orders.filter(vessel_id=vessel_filter)
-    if date_from:
-        date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
-        purchase_orders = purchase_orders.filter(po_date__gte=date_from_obj)
-    if date_to:
-        date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
-        purchase_orders = purchase_orders.filter(po_date__lte=date_to_obj)
-    if status_filter == 'completed':
-        purchase_orders = purchase_orders.filter(is_completed=True)
-    elif status_filter == 'in_progress':
-        purchase_orders = purchase_orders.filter(is_completed=False)
+    purchase_orders = TransactionQueryHelper.apply_common_filters(
+        purchase_orders, request,
+        date_field='po_date',
+        status_field='is_completed'
+    )
     
     purchase_orders = purchase_orders.order_by('-po_date', '-created_at')
     
@@ -149,18 +120,9 @@ def po_reports(request):
     total_cost = sum(po.total_cost for po in purchase_orders)
     avg_cost_per_po = total_cost / total_pos if total_pos > 0 else 0
     
-    # Get vessels for filter
-    vessels = Vessel.objects.filter(active=True).order_by('name')
     
     context = {
         'purchase_orders': purchase_orders,
-        'vessels': vessels,
-        'filters': {
-            'vessel': vessel_filter,
-            'date_from': date_from,
-            'date_to': date_to,
-            'status': status_filter,
-        },
         'summary': {
             'total_pos': total_pos,
             'total_cost': total_cost,
@@ -168,17 +130,14 @@ def po_reports(request):
         }
     }
     
+    # Add filter context and vessels using helper
+    context.update(TransactionQueryHelper.get_filter_context(request))
+    
     return render(request, 'frontend/po_reports.html', context)
 
 @reports_access_required
 def transactions_list(request):
     """OPTIMIZED: Frontend transactions list with enhanced template performance"""
-    
-    # Get filter parameters
-    transaction_type = request.GET.get('type')
-    vessel_filter = request.GET.get('vessel')
-    date_from = request.GET.get('date_from')
-    date_to = request.GET.get('date_to')
     
     # OPTIMIZED: Enhanced queryset with all template-accessed relations
     transactions = Transaction.objects.select_related(
@@ -192,23 +151,8 @@ def transactions_list(request):
         'transfer_from_vessel'              # For transfer sources (ADDED)
     ).order_by('-transaction_date', '-created_at')
     
-    # Apply filters efficiently
-    if transaction_type:
-        transactions = transactions.filter(transaction_type=transaction_type)
-    if vessel_filter:
-        transactions = transactions.filter(vessel_id=vessel_filter)
-    if date_from:
-        try:
-            date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
-            transactions = transactions.filter(transaction_date__gte=date_from_obj)
-        except ValueError:
-            pass  # Invalid date format, skip filter
-    if date_to:
-        try:
-            date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
-            transactions = transactions.filter(transaction_date__lte=date_to_obj)
-        except ValueError:
-            pass  # Invalid date format, skip filter
+    # Apply all common filters using helper (uses default transaction_date field)
+    transactions = TransactionQueryHelper.apply_common_filters(transactions, request)
     
     # OPTIMIZED: Add summary statistics for better UX
     # Calculate stats before limiting results
@@ -233,14 +177,6 @@ def transactions_list(request):
     total_count = transactions.count()
     page_size = 200
     transactions_limited = transactions[:page_size]
-    
-    # OPTIMIZED: Get vessels for filter with activity indicators
-    vessels = Vessel.objects.filter(active=True).annotate(
-        recent_transaction_count=Count(
-            'transactions',
-            filter=Q(transactions__transaction_date__gte=date.today() - timedelta(days=7))
-        )
-    ).order_by('name')
     
     # OPTIMIZED: Transaction type breakdown for insights
     type_breakdown = []
@@ -286,7 +222,6 @@ def transactions_list(request):
     # OPTIMIZED: Build enhanced context
     context = {
         'transactions': transactions_limited,
-        'vessels': vessels,
         'transaction_types': Transaction.TRANSACTION_TYPES,
         'type_breakdown': type_breakdown,
         'vessel_activity': vessel_activity,
@@ -299,18 +234,13 @@ def transactions_list(request):
             'unique_products': summary_stats['unique_products'] or 0,
             'showing_count': len(transactions_limited),
             'total_count': total_count,
-            'is_filtered': bool(transaction_type or vessel_filter or date_from or date_to)
+            'is_filtered': bool(request.GET.get('transaction_type') or request.GET.get('vessel') or 
+                               request.GET.get('date_from') or request.GET.get('date_to'))
         },
         'recent_activity': {
             'today_transactions': recent_activity['today_transactions'] or 0,
             'today_revenue': recent_activity['today_revenue'] or 0,
             'today_supplies': recent_activity['today_supplies'] or 0,
-        },
-        'filters': {
-            'type': transaction_type,
-            'vessel': vessel_filter,
-            'date_from': date_from,
-            'date_to': date_to,
         },
         'pagination': {
             'page_size': page_size,
@@ -319,6 +249,9 @@ def transactions_list(request):
             'total': total_count
         }
     }
+    
+    # Add filter context using helper
+    context.update(TransactionQueryHelper.get_filter_context(request))
     
     return render(request, 'frontend/transactions_list.html', context)
 
@@ -377,45 +310,13 @@ def reports_dashboard(request):
 def comprehensive_report(request):
     """Comprehensive transaction report - all transaction types with filtering"""
     
-    # Get filter parameters
-    vessel_filter = request.GET.get('vessel')
-    date_from = request.GET.get('date_from')
-    date_to = request.GET.get('date_to')
-    transaction_type_filter = request.GET.get('transaction_type')
-    
     # Base queryset - all transactions
     transactions = Transaction.objects.select_related(
         'vessel', 'product', 'created_by', 'trip', 'purchase_order'
     ).order_by('-transaction_date', '-created_at')
     
-    # Apply filters
-    if vessel_filter:
-        transactions = transactions.filter(vessel_id=vessel_filter)
-        
-    if date_from:
-        try:
-            date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
-            transactions = transactions.filter(transaction_date__gte=date_from_obj)
-        except ValueError:
-            pass
-    
-    if date_to:
-        try:
-            date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
-            transactions = transactions.filter(transaction_date__lte=date_to_obj)
-        except ValueError:
-            pass
-    else:
-        # If no "to date", and we have "from date", make it a single day report
-        if date_from:
-            try:
-                date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
-                transactions = transactions.filter(transaction_date=date_from_obj)
-            except ValueError:
-                pass
-    
-    if transaction_type_filter:
-        transactions = transactions.filter(transaction_type=transaction_type_filter)
+     # Apply all common filters in one line
+    transactions = TransactionQueryHelper.apply_common_filters(transactions, request)
     
     # Calculate summary statistics using F() expressions for calculated totals
     summary_stats = transactions.aggregate(
@@ -472,6 +373,7 @@ def comprehensive_report(request):
     
     # NEW: Check for pricing warnings in transactions
     pricing_warnings_count = 0
+    vessel_filter = request.GET.get('vessel')
     if vessel_filter:
         # Check if filtered vessel is touristic and has pricing warnings
         try:
@@ -484,43 +386,19 @@ def comprehensive_report(request):
         except Vessel.DoesNotExist:
             pass
     
-    # Get date range info
-    date_range_info = None
-    if date_from:
-        if date_to:
-            date_range_info = {
-                'type': 'duration',
-                'from': date_from,
-                'to': date_to,
-                'days': (datetime.strptime(date_to, '%Y-%m-%d').date() - 
-                        datetime.strptime(date_from, '%Y-%m-%d').date()).days + 1
-            }
-        else:
-            date_range_info = {
-                'type': 'single_day',
-                'date': date_from
-            }
-    
-    # Get vessels for filter dropdown
-    vessels = Vessel.objects.filter(active=True).order_by('name')
+    # Get date range info using helper
+    date_range_info = DateRangeHelper.get_date_range_info(request)
     
     # Limit transactions for display performance
     transactions_limited = transactions[:200]
     
     context = {
         'transactions': transactions_limited,
-        'vessels': vessels,
         'transaction_types': Transaction.TRANSACTION_TYPES,
         'pricing_warnings': {
             'has_warnings': pricing_warnings_count > 0,
             'missing_prices_count': pricing_warnings_count,
             'message': f"⚠️ {pricing_warnings_count} products missing custom pricing" if pricing_warnings_count > 0 else None
-        },
-        'filters': {
-            'vessel': vessel_filter,
-            'date_from': date_from,
-            'date_to': date_to,
-            'transaction_type': transaction_type_filter,
         },
         'summary_stats': summary_stats,
         'type_breakdown': type_breakdown,
@@ -530,6 +408,9 @@ def comprehensive_report(request):
         'total_shown': min(transactions.count(), 200),
         'total_available': transactions.count(),
     }
+    
+    # Add filter context and vessels using helper
+    context.update(TransactionQueryHelper.get_filter_context(request))
     
     return render(request, 'frontend/comprehensive_report.html', context)
 
@@ -553,8 +434,6 @@ def daily_report(request):
     # Get previous day for comparison
     previous_date = selected_date - timedelta(days=1)
     
-    # Get all active vessels
-    vessels = Vessel.objects.filter(active=True).order_by('name')
     
     # === SUMMARY STATISTICS ===
     
@@ -605,6 +484,9 @@ def daily_report(request):
     
     prev_transactions = previous_stats['total_transactions'] or 0
     transaction_change = daily_stats['total_transactions'] - prev_transactions
+    
+    # Get all active vessels
+    vessels = TransactionQueryHelper.get_vessels_for_filter()
     
     # === VESSEL BREAKDOWN ===
     

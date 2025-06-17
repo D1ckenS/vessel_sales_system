@@ -8,6 +8,7 @@ from django.contrib import messages
 from django.http import JsonResponse
 from django.db import transaction, models
 from django.db.models import Sum, F, Count, Q, Case, When, Max, Min, Avg
+from frontend.utils.query_helpers import TransactionQueryHelper
 from transactions.models import Transaction, Trip, PurchaseOrder, InventoryLot
 from vessels.models import Vessel
 from .utils import BilingualMessages
@@ -1161,12 +1162,6 @@ def vessel_statistics(request, vessel_id):
 def po_management(request):
     """WORKING: PO management with template-required annotations"""
     
-    # Get filter parameters
-    vessel_filter = request.GET.get('vessel')
-    status_filter = request.GET.get('status')
-    date_from = request.GET.get('date_from')
-    date_to = request.GET.get('date_to')
-    
     # WORKING: Base queryset with template-required annotations
     purchase_orders = PurchaseOrder.objects.select_related(
         'vessel',           
@@ -1182,17 +1177,12 @@ def po_management(request):
         annotated_transaction_count=Count('supply_transactions'),
     )
     
-    # Apply filters efficiently
-    if vessel_filter:
-        purchase_orders = purchase_orders.filter(vessel_id=vessel_filter)
-    if status_filter == 'completed':
-        purchase_orders = purchase_orders.filter(is_completed=True)
-    elif status_filter == 'in_progress':
-        purchase_orders = purchase_orders.filter(is_completed=False)
-    if date_from:
-        purchase_orders = purchase_orders.filter(po_date__gte=date_from)
-    if date_to:
-        purchase_orders = purchase_orders.filter(po_date__lte=date_to)
+    # Apply all filters using helper with custom field mappings
+    purchase_orders = TransactionQueryHelper.apply_common_filters(
+        purchase_orders, request,
+        date_field='po_date',             # POs use po_date not transaction_date
+        status_field='is_completed'       # Enable status filtering for POs
+    )
     
     # Order for consistent results
     purchase_orders = purchase_orders.order_by('-po_date', '-created_at')
@@ -1200,59 +1190,50 @@ def po_management(request):
     # WORKING: Add cost performance class to each PO (for template)
     po_list = list(purchase_orders[:50])
 
-    # WORKING: Simple statistics using separate queries to avoid conflicts
-    po_stats = PurchaseOrder.objects.filter(
-        id__in=[po.id for po in po_list]
-    ).aggregate(
+    # WORKING: Simple statistics using separate queries
+    po_stats = PurchaseOrder.objects.aggregate(
         total_pos=Count('id'),
         completed_pos=Count('id', filter=Q(is_completed=True)),
         in_progress_pos=Count('id', filter=Q(is_completed=False))
     )
-    
-    # WORKING: Calculate financial stats from the annotated POs
-    financial_stats = {
-        'total_procurement_value': sum(po.annotated_total_cost or 0 for po in po_list),
-        'avg_po_value': 0,
-        'total_transactions': sum(po.annotated_transaction_count or 0 for po in po_list),
-    }
-    
-    if po_stats['total_pos'] > 0:
-        financial_stats['avg_po_value'] = financial_stats['total_procurement_value'] / po_stats['total_pos']
-    
-    # WORKING: Recent activity calculation
-    recent_pos_count = len([po for po in po_list if po.po_date >= date.today() - timedelta(days=30)])
-    recent_value = sum(
-        po.annotated_total_cost or 0 
-        for po in po_list 
-        if po.po_date >= date.today() - timedelta(days=30)
+
+    # Calculate financial statistics
+    financial_stats = Transaction.objects.filter(
+        transaction_type='SUPPLY',
+        purchase_order__isnull=False
+    ).aggregate(
+        total_procurement_value=Sum(F('unit_price') * F('quantity'), output_field=models.DecimalField()),
+        total_transactions=Count('id'),
+        avg_po_value=Avg(F('unit_price') * F('quantity'), output_field=models.DecimalField())
     )
-    
-    # WORKING: Top vessels calculation
-    vessel_totals = {}
-    for po in po_list:
-        vessel_id = po.vessel.id
-        if vessel_id not in vessel_totals:
-            vessel_totals[vessel_id] = {
-                'vessel': po.vessel,
-                'total_procurement': 0,
-                'po_count': 0
-            }
-        vessel_totals[vessel_id]['total_procurement'] += po.annotated_total_cost or 0
-        vessel_totals[vessel_id]['po_count'] += 1
-    
-    top_vessels = sorted(
-        vessel_totals.values(), 
-        key=lambda x: x['total_procurement'], 
-        reverse=True
-    )[:5]
-    
-    # WORKING: Get vessels for filter dropdown
-    vessels_for_filter = Vessel.objects.filter(active=True).order_by('name')
-    
+
+    # Set defaults for financial stats
+    for key in ['total_procurement_value', 'total_transactions', 'avg_po_value']:
+        if financial_stats[key] is None:
+            financial_stats[key] = 0
+
     # Calculate completion rate
-    completion_rate = (po_stats['completed_pos'] / max(po_stats['total_pos'], 1)) * 100 if po_stats['total_pos'] else 0
-    
-    # Prepare context with all required data
+    total_pos = po_stats['total_pos'] or 1  # Avoid division by zero
+    completed_pos = po_stats['completed_pos'] or 0
+    completion_rate = (completed_pos / total_pos) * 100
+
+    # Get top vessels by PO activity (simplified)
+    top_vessels = Vessel.objects.filter(active=True).annotate(
+        po_count=Count('purchase_orders')
+    ).filter(po_count__gt=0).order_by('-po_count')[:5]
+
+    # Recent activity
+    recent_pos = PurchaseOrder.objects.filter(
+        created_at__gte=timezone.now() - timedelta(days=7)
+    )
+    recent_pos_count = recent_pos.count()
+    recent_value = recent_pos.aggregate(
+        total=Sum(F('supply_transactions__unit_price') * F('supply_transactions__quantity'))
+    )['total'] or 0
+
+    # Get vessels for filter using helper
+    vessels_for_filter = TransactionQueryHelper.get_vessels_for_filter()
+
     context = {
         'purchase_orders': po_list,
         'vessels': vessels_for_filter,
@@ -1277,14 +1258,11 @@ def po_management(request):
         'recent_activity': {
             'recent_pos': recent_pos_count,
             'recent_value': recent_value,
-        },
-        'filters': {
-            'vessel': vessel_filter,
-            'status': status_filter,
-            'date_from': date_from,
-            'date_to': date_to,
         }
     }
+    
+    # Add filter context using helper
+    context.update(TransactionQueryHelper.get_filter_context(request))
     
     return render(request, 'frontend/auth/po_management.html', context)
 
