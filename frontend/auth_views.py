@@ -7,6 +7,7 @@ from django.contrib import messages
 from django.http import JsonResponse
 from django.db import transaction, models
 from django.db.models import Sum, F, Count, Q, Avg
+from frontend.utils.validation_helpers import ValidationHelper
 from .utils.query_helpers import TransactionQueryHelper
 from transactions.models import Transaction, Trip, PurchaseOrder, InventoryLot
 from vessels.models import Vessel
@@ -24,6 +25,8 @@ import traceback
 from products.models import Product
 from transactions.models import get_all_vessel_pricing_summary, get_vessel_pricing_warnings
 from .permissions import get_user_role, UserRoles
+from .utils.response_helpers import FormResponseHelper, JsonResponseHelper
+from .utils.crud_helpers import CRUDHelper, AdminActionHelper
 from .permissions import (
     operations_access_required,
     reports_access_required,
@@ -163,22 +166,34 @@ def user_management(request):
 def manage_user_groups(request, user_id):
     """Manage user group assignments"""
     if request.method == 'POST':
+        # Get user safely
+        user, error = CRUDHelper.safe_get_object(User, user_id, 'User')
+        if error:
+            return FormResponseHelper.error_redirect(
+                request, 'frontend:user_management', 'User not found'
+            )
+        
         try:
-            user = get_object_or_404(User, id=user_id)
             group_ids = request.POST.getlist('groups')
             
-            # Clear existing groups and add new ones
-            user.groups.clear()
-            if group_ids:
-                groups = Group.objects.filter(id__in=group_ids)
-                user.groups.set(groups)
+            # OPTIMIZED: Clear and set groups in single transaction
+            with transaction.atomic():
+                user.groups.clear()
+                if group_ids:
+                    groups = Group.objects.filter(id__in=group_ids)
+                    user.groups.set(groups)
             
-            messages.success(request, f'Groups updated for user "{user.username}"')
-            return redirect('frontend:user_management')
+            return FormResponseHelper.success_redirect(
+                request, 'frontend:user_management',
+                'Groups updated for user "{username}"',
+                username=user.username
+            )
             
         except Exception as e:
-            messages.error(request, f'Error updating groups: {str(e)}')
-            return redirect('frontend:user_management')
+            return FormResponseHelper.error_redirect(
+                request, 'frontend:user_management',
+                'Error updating groups: {error}', error=str(e)
+            )
     
     return redirect('frontend:user_management')
 
@@ -188,68 +203,84 @@ def create_user(request):
     """Create new user with enhanced validation and group assignment"""
     if request.method == 'POST':
         try:
-            username = request.POST.get('username', '').strip()
-            email = request.POST.get('email', '').strip()
-            first_name = request.POST.get('first_name', '').strip()
-            last_name = request.POST.get('last_name', '').strip()
-            password = request.POST.get('password')
-            password_confirm = request.POST.get('password_confirm')
-            is_active = request.POST.get('is_active') == 'on'
-            is_staff = request.POST.get('is_staff') == 'on'
-            group_ids = request.POST.getlist('groups')
+            # Extract data
+            data = {
+                'username': request.POST.get('username', '').strip(),
+                'email': request.POST.get('email', '').strip(),
+                'first_name': request.POST.get('first_name', '').strip(),
+                'last_name': request.POST.get('last_name', '').strip(),
+                'password': request.POST.get('password'),
+                'password_confirm': request.POST.get('password_confirm'),
+                'is_active': request.POST.get('is_active') == 'on',
+                'is_staff': request.POST.get('is_staff') == 'on',
+                'group_ids': request.POST.getlist('groups')
+            }
             
-            # Validation
-            if not username:
-                messages.error(request, 'Username is required')
-                return redirect('frontend:user_management')
+            # Validate required fields
+            valid, error = ValidationHelper.validate_required_fields(
+                data, ['username', 'password']
+            )
+            if not valid:
+                return FormResponseHelper.error_redirect(
+                    request, 'frontend:user_management', error.content.decode()
+                )
             
-            if not password:
-                messages.error(request, 'Password is required')
-                return redirect('frontend:user_management')
+            # Validate username
+            valid, error = ValidationHelper.validate_username(data['username'])
+            if not valid:
+                return FormResponseHelper.error_redirect(
+                    request, 'frontend:user_management', error.content.decode()
+                )
             
-            if password != password_confirm:
-                messages.error(request, 'Passwords do not match')
-                return redirect('frontend:user_management')
+            # Validate email if provided
+            if data['email']:
+                valid, error = ValidationHelper.validate_email(data['email'])
+                if not valid:
+                    return FormResponseHelper.error_redirect(
+                        request, 'frontend:user_management', error.content.decode()
+                    )
             
-            # Check if username exists
-            if User.objects.filter(username=username).exists():
-                messages.error(request, f'Username "{username}" already exists')
-                return redirect('frontend:user_management')
+            # Validate password
+            valid, error = ValidationHelper.validate_password_strength(
+                data['password'], data['password_confirm']
+            )
+            if not valid:
+                return FormResponseHelper.error_redirect(
+                    request, 'frontend:user_management', error.content.decode()
+                )
             
-            # Validate password strength
-            try:
-                validate_password(password)
-            except ValidationError as e:
-                messages.error(request, f'Password validation failed: {"; ".join(e.messages)}')
-                return redirect('frontend:user_management')
-            
-            # Create user
+            # Create user with groups in single transaction
             with transaction.atomic():
                 user = User.objects.create_user(
-                    username=username,
-                    email=email,
-                    password=password,
-                    first_name=first_name,
-                    last_name=last_name,
-                    is_active=is_active,
-                    is_staff=is_staff
+                    username=data['username'],
+                    email=data['email'],
+                    password=data['password'],
+                    first_name=data['first_name'],
+                    last_name=data['last_name'],
+                    is_active=data['is_active'],
+                    is_staff=data['is_staff']
                 )
                 
-                # Add to groups
-                if group_ids:
-                    groups = Group.objects.filter(id__in=group_ids)
+                # OPTIMIZED: Single query for groups instead of individual lookups
+                if data['group_ids']:
+                    groups = Group.objects.filter(id__in=data['group_ids'])
                     user.groups.set(groups)
             
-            # Build success message with group info
+            # Build success message
             group_names = list(user.groups.values_list('name', flat=True))
             group_info = f" and assigned to groups: {', '.join(group_names)}" if group_names else ""
             
-            messages.success(request, f'User "{username}" created successfully{group_info}')
-            return redirect('frontend:user_management')
+            return FormResponseHelper.success_redirect(
+                request, 'frontend:user_management',
+                'User "{username}" created successfully{group_info}',
+                username=data['username'], group_info=group_info
+            )
             
         except Exception as e:
-            messages.error(request, f'Error creating user: {str(e)}')
-            return redirect('frontend:user_management')
+            return FormResponseHelper.error_redirect(
+                request, 'frontend:user_management',
+                'Error creating user: {error}', error=str(e)
+            )
     
     return redirect('frontend:user_management')
 
@@ -258,60 +289,76 @@ def create_user(request):
 @user_passes_test(is_admin_or_manager)
 def edit_user(request, user_id):
     """Edit existing user with group management"""
-    user = get_object_or_404(User, id=user_id)
+    # Get user safely
+    user, error = CRUDHelper.safe_get_object(User, user_id, 'User')
+    if error:
+        return FormResponseHelper.error_redirect(
+            request, 'frontend:user_management', 'User not found'
+        )
     
     if request.method == 'POST':
         try:
-            username = request.POST.get('username', '').strip()
-            email = request.POST.get('email', '').strip()
-            first_name = request.POST.get('first_name', '').strip()
-            last_name = request.POST.get('last_name', '').strip()
-            is_active = request.POST.get('is_active') == 'on'
-            is_staff = request.POST.get('is_staff') == 'on'
-            group_ids = request.POST.getlist('groups')
+            # Extract data
+            data = {
+                'username': request.POST.get('username', '').strip(),
+                'email': request.POST.get('email', '').strip(),
+                'first_name': request.POST.get('first_name', '').strip(),
+                'last_name': request.POST.get('last_name', '').strip(),
+                'is_active': request.POST.get('is_active') == 'on',
+                'is_staff': request.POST.get('is_staff') == 'on',
+                'group_ids': request.POST.getlist('groups')
+            }
             
-            # Validation
-            if not username:
-                messages.error(request, 'Username is required')
-                return redirect('frontend:user_management')
+            # Validate username
+            valid, error = ValidationHelper.validate_username(data['username'], user.id)
+            if not valid:
+                return FormResponseHelper.error_redirect(
+                    request, 'frontend:user_management', 
+                    error.content.decode()
+                )
             
-            # Check if username exists for other users
-            if User.objects.filter(username=username).exclude(id=user_id).exists():
-                messages.error(request, f'Username "{username}" already exists')
-                return redirect('frontend:user_management')
+            # Validate email if provided
+            if data['email']:
+                valid, error = ValidationHelper.validate_email(data['email'], user.id)
+                if not valid:
+                    return FormResponseHelper.error_redirect(
+                        request, 'frontend:user_management',
+                        error.content.decode()
+                    )
             
-            # Prevent self-deactivation
-            if user_id == request.user.id and not is_active:
-                messages.error(request, 'You cannot deactivate your own account')
-                return redirect('frontend:user_management')
-            
-            # Update user with transaction
+            # Update user with groups in single transaction
             with transaction.atomic():
-                user.username = username
-                user.email = email
-                user.first_name = first_name
-                user.last_name = last_name
-                user.is_active = is_active
-                user.is_staff = is_staff
+                # Update user fields
+                user.username = data['username']
+                user.email = data['email']
+                user.first_name = data['first_name']
+                user.last_name = data['last_name']
+                user.is_active = data['is_active']
+                user.is_staff = data['is_staff']
                 user.save()
                 
-                # Update groups
-                if group_ids:
-                    groups = Group.objects.filter(id__in=group_ids)
+                # OPTIMIZED: Single query for groups
+                if data['group_ids']:
+                    groups = Group.objects.filter(id__in=data['group_ids'])
                     user.groups.set(groups)
                 else:
                     user.groups.clear()
             
-            # Build success message with group info
+            # Build success message
             group_names = list(user.groups.values_list('name', flat=True))
-            group_info = f" Groups: {', '.join(group_names)}" if group_names else " (No groups assigned)"
+            group_info = f" and assigned to groups: {', '.join(group_names)}" if group_names else ""
             
-            messages.success(request, f'User "{username}" updated successfully.{group_info}')
-            return redirect('frontend:user_management')
+            return FormResponseHelper.success_redirect(
+                request, 'frontend:user_management',
+                'User "{username}" updated successfully{group_info}',
+                username=data['username'], group_info=group_info
+            )
             
         except Exception as e:
-            messages.error(request, f'Error updating user: {str(e)}')
-            return redirect('frontend:user_management')
+            return FormResponseHelper.error_redirect(
+                request, 'frontend:user_management',
+                'Error updating user: {error}', error=str(e)
+            )
     
     return redirect('frontend:user_management')
 
@@ -321,9 +368,12 @@ def edit_user(request, user_id):
 @require_http_methods(["POST"])
 def reset_user_password(request, user_id):
     """Reset user password with generated temporary password"""
+    # Get user safely
+    user, error = CRUDHelper.safe_get_object(User, user_id, 'User')
+    if error:
+        return error
+    
     try:
-        user = get_object_or_404(User, id=user_id)
-        
         # Generate random password
         alphabet = string.ascii_letters + string.digits
         new_password = ''.join(secrets.choice(alphabet) for i in range(12))
@@ -332,17 +382,13 @@ def reset_user_password(request, user_id):
         user.set_password(new_password)
         user.save()
         
-        return JsonResponse({
-            'success': True,
-            'new_password': new_password,
-            'message': f'Password reset for user "{user.username}"'
-        })
+        return JsonResponseHelper.success(
+            message=f'Password reset for user "{user.username}"',
+            new_password=new_password
+        )
         
     except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'error': str(e)
-        })
+        return JsonResponseHelper.error(str(e))
 
 # NEW: Toggle user status (activate/deactivate)
 @login_required
@@ -350,33 +396,18 @@ def reset_user_password(request, user_id):
 @require_http_methods(["POST"])
 def toggle_user_status(request, user_id):
     """Toggle user active status"""
-    try:
-        user = get_object_or_404(User, id=user_id)
-        
-        # Prevent self-deactivation
-        if user_id == request.user.id:
-            return JsonResponse({
-                'success': False,
-                'error': 'You cannot deactivate your own account'
-            })
-        
-        # Toggle status
-        user.is_active = not user.is_active
-        user.save()
-        
-        status = 'activated' if user.is_active else 'deactivated'
-        
-        return JsonResponse({
-            'success': True,
-            'is_active': user.is_active,
-            'message': f'User "{user.username}" {status} successfully'
-        })
-        
-    except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'error': str(e)
-        })
+    # Check self-action
+    self_error = AdminActionHelper.prevent_self_action(request, user_id, 'deactivate')
+    if self_error:
+        return self_error
+    
+    # Get user safely
+    user, error = CRUDHelper.safe_get_object(User, user_id, 'User')
+    if error:
+        return error
+    
+    # Toggle status with standardized response
+    return CRUDHelper.toggle_boolean_field(user, 'is_active', 'User')
 
 @login_required
 def change_password(request):
@@ -419,77 +450,78 @@ def change_password(request):
     return render(request, 'frontend/auth/change_password.html')
 
 @login_required
-@user_passes_test(is_admin_or_manager)
-@require_http_methods(["POST"])
+@user_passes_test(is_superuser_only)
 def setup_groups(request):
-    """Create default user groups with enhanced feedback"""
-    try:
-        # Define groups with descriptions
-        default_groups = [
-            {
-                'name': 'Administrators',
-                'description': 'Full operational access except system setup'
-            },
-            {
-                'name': 'Managers',
-                'description': 'Reports and inventory management access'
-            },
-            {
-                'name': 'Vessel Operators',
-                'description': 'Sales, supply, transfers, and inventory access'
-            },
-            {
-                'name': 'Inventory Staff',
-                'description': 'Inventory and reports access only'
-            },
-            {
-                'name': 'Viewers',
-                'description': 'Read-only access to inventory and basic reports'
+    """Setup default groups with permissions"""
+    if request.method == 'POST':
+        try:
+            # Default groups configuration
+            default_groups = {
+                'Administrators': [
+                    'add_user', 'change_user', 'delete_user', 'view_user',
+                    'add_group', 'change_group', 'delete_group', 'view_group',
+                    'add_transaction', 'change_transaction', 'delete_transaction', 'view_transaction',
+                    'add_product', 'change_product', 'delete_product', 'view_product',
+                    'add_vessel', 'change_vessel', 'delete_vessel', 'view_vessel'
+                ],
+                'Managers': [
+                    'view_user', 'change_user',
+                    'add_transaction', 'change_transaction', 'view_transaction',
+                    'add_product', 'change_product', 'view_product',
+                    'view_vessel', 'change_vessel'
+                ],
+                'Vessel Operators': [
+                    'add_transaction', 'view_transaction',
+                    'view_product', 'view_vessel'
+                ],
+                'Inventory Staff': [
+                    'view_transaction', 'add_product', 'change_product', 'view_product'
+                ],
+                'Viewers': [
+                    'view_transaction', 'view_product', 'view_vessel'
+                ]
             }
-        ]
-        
-        created_groups = []
-        existing_groups = []
-        
-        with transaction.atomic():
-            for group_data in default_groups:
-                group, created = Group.objects.get_or_create(
-                    name=group_data['name'],
-                    defaults={'name': group_data['name']}
-                )
-                if created:
-                    created_groups.append(group_data['name'])
-                else:
-                    existing_groups.append(group_data['name'])
-        
-        # Detailed response with counts
-        total_groups = Group.objects.count()
-        user_counts = {group.name: group.user_set.count() for group in Group.objects.all()}
-        
-        message = f"Groups setup complete. Total groups: {total_groups}"
-        if created_groups:
-            message += f"\n✅ Created: {', '.join(created_groups)}"
-        if existing_groups:
-            message += f"\nℹ️ Already existed: {', '.join(existing_groups)}"
-        
-        return JsonResponse({
-            'success': True,
-            'created_groups': created_groups,
-            'existing_groups': existing_groups,
-            'total_groups': total_groups,
-            'user_counts': user_counts,
-            'message': message
-        })
-        
-    except Exception as e:
-        error_details = str(e)
-        print(f"Setup groups error: {error_details}")
-        print(traceback.format_exc())
-        
-        return JsonResponse({
-            'success': False,
-            'error': f'Error creating groups: {error_details}'
-        })
+            
+            created_groups = []
+            
+            # OPTIMIZED: Bulk operations instead of individual queries
+            with transaction.atomic():
+                # Get all permissions in single query
+                all_permissions = {
+                    perm.codename: perm 
+                    for perm in Permission.objects.all()
+                }
+                
+                for group_name, permission_names in default_groups.items():
+                    # Create or get group
+                    group, created = Group.objects.get_or_create(name=group_name)
+                    
+                    if created or not group.permissions.exists():
+                        # OPTIMIZED: Set permissions in single operation
+                        valid_permissions = [
+                            all_permissions[perm_name] 
+                            for perm_name in permission_names 
+                            if perm_name in all_permissions
+                        ]
+                        
+                        if valid_permissions:
+                            group.permissions.set(valid_permissions)
+                    
+                    created_groups.append({
+                        'name': group.name,
+                        'created': created,
+                        'permission_count': group.permissions.count()
+                    })
+            
+            return JsonResponseHelper.success(
+                message=f'Setup completed. Created/updated {len(created_groups)} groups',
+                data={'groups': created_groups}
+            )
+            
+        except Exception as e:
+            return JsonResponseHelper.error(f'Error setting up groups: {str(e)}')
+    
+    return JsonResponseHelper.method_not_allowed(['POST'])
 
 @login_required 
 @user_passes_test(is_superuser_only)
@@ -520,184 +552,170 @@ def group_management(request):
 @login_required
 @user_passes_test(is_superuser_only)
 def create_group(request):
-    """Create new user group"""
+    """Create new group with validation"""
     if request.method == 'POST':
+        # Load JSON safely
+        data, error = CRUDHelper.safe_json_load(request)
+        if error:
+            return error
+        
+        # Validate group data
+        valid, error = ValidationHelper.validate_group_data(data)
+        if not valid:
+            return error
+        
         try:
-            
-            data = json.loads(request.body)
-            
-            name = data.get('name', '').strip()
-            description = data.get('description', '').strip()
-            
-            # Validation
-            if not name:
-                return JsonResponse({'success': False, 'error': 'Group name is required'})
-            
-            # Check if group exists
-            if Group.objects.filter(name=name).exists():
-                return JsonResponse({'success': False, 'error': f'Group "{name}" already exists'})
-            
             # Create group
-            group = Group.objects.create(name=name)
+            group = Group.objects.create(name=data['name'].strip())
             
-            return JsonResponse({
-                'success': True,
-                'message': f'Group "{name}" created successfully',
-                'group': {
-                    'id': group.id,
-                    'name': group.name,
-                    'user_count': 0
+            return JsonResponseHelper.success(
+                message=f'Group "{group.name}" created successfully',
+                data={
+                    'group': {
+                        'id': group.id,
+                        'name': group.name,
+                        'user_count': 0
+                    }
                 }
-            })
+            )
             
         except Exception as e:
-            return JsonResponse({'success': False, 'error': str(e)})
+            return JsonResponseHelper.error(str(e))
     
-    return JsonResponse({'success': False, 'error': 'Invalid request method'})
+    return JsonResponseHelper.method_not_allowed(['POST'])
 
 @login_required
 @user_passes_test(is_superuser_only) 
 def edit_group(request, group_id):
     """Edit existing group"""
     if request.method == 'GET':
-        try:
-            group = Group.objects.get(id=group_id)
-            return JsonResponse({
-                'success': True,
-                'group': {
-                    'id': group.id,
-                    'name': group.name,
-                    'user_count': group.user_set.count(),
-                    'users': list(group.user_set.values('id', 'username'))
-                }
-            })
-        except Group.DoesNotExist:
-            return JsonResponse({'success': False, 'error': 'Group not found'})
+        group, error = CRUDHelper.safe_get_object(Group, group_id, 'Group')
+        if error:
+            return error
+            
+        return JsonResponseHelper.success(data={
+            'group': {
+                'id': group.id,
+                'name': group.name,
+                'user_count': group.user_set.count(),
+                'users': list(group.user_set.values('id', 'username'))
+            }
+        })
     
     elif request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-            
-            group = Group.objects.get(id=group_id)
-            new_name = data.get('name', '').strip()
-            
-            # Validation
-            if not new_name:
-                return JsonResponse({'success': False, 'error': 'Group name is required'})
-            
-            # Check if name exists for other groups
-            if Group.objects.filter(name=new_name).exclude(id=group_id).exists():
-                return JsonResponse({'success': False, 'error': f'Group "{new_name}" already exists'})
-            
-            # Update group
-            old_name = group.name
-            group.name = new_name
-            group.save()
-            
-            return JsonResponse({
-                'success': True,
-                'message': f'Group renamed from "{old_name}" to "{new_name}"',
+        # Load JSON safely
+        data, error = CRUDHelper.safe_json_load(request)
+        if error:
+            return error
+        
+        # Get group safely  
+        group, error = CRUDHelper.safe_get_object(Group, group_id, 'Group')
+        if error:
+            return error
+        
+        # Validate group data
+        valid, error = ValidationHelper.validate_group_data(data, group_id)
+        if not valid:
+            return error
+        
+        # Update group
+        old_name = group.name
+        group.name = data['name'].strip()
+        group.save()
+        
+        return JsonResponseHelper.success(
+            message=f'Group renamed from "{old_name}" to "{group.name}"',
+            data={
                 'group': {
                     'id': group.id,
                     'name': group.name,
                     'user_count': group.user_set.count()
                 }
-            })
-            
-        except Group.DoesNotExist:
-            return JsonResponse({'success': False, 'error': 'Group not found'})
-        except Exception as e:
-            return JsonResponse({'success': False, 'error': str(e)})
+            }
+        )
     
-    return JsonResponse({'success': False, 'error': 'Invalid request method'})
+    return JsonResponseHelper.method_not_allowed(['GET', 'POST'])
 
 @login_required
 @user_passes_test(is_superuser_only)
 @require_http_methods(["DELETE"])
 def delete_group(request, group_id):
-    """Delete group with validation"""
-    try:
-        group = Group.objects.get(id=group_id)
-        
-        # Check if group has users
-        user_count = group.user_set.count()
-        force_delete = request.headers.get('X-Force-Delete') == 'true'
-        
-        if user_count > 0 and not force_delete:
-            # Return user details for confirmation
-            users_info = list(group.user_set.values('username', 'is_active'))
-            
-            return JsonResponse({
-                'success': False,
-                'requires_confirmation': True,
+    """Delete group with confirmation"""
+    # Get group safely
+    group, error = CRUDHelper.safe_get_object(Group, group_id, 'Group')
+    if error:
+        return error
+    
+    # Check force delete
+    force_delete = AdminActionHelper.check_force_delete(request)
+    
+    # OPTIMIZED: Single query to get user count and info
+    users_info = list(group.user_set.values('username', 'is_active'))
+    user_count = len(users_info)
+    
+    if user_count > 0 and not force_delete:
+        return JsonResponseHelper.requires_confirmation(
+            message=f'Group "{group.name}" has {user_count} users. Remove users and delete group?',
+            confirmation_data={
                 'user_count': user_count,
-                'users': users_info,
-                'error': f'Group "{group.name}" has {user_count} users. Remove users and delete group?'
-            })
-        
+                'users': users_info
+            }
+        )
+    
+    try:
         group_name = group.name
         
-        # Delete with cascade if confirmed
-        if force_delete and user_count > 0:
-            # Remove all users from group first
+        # OPTIMIZED: Clear users and delete in single transaction
+        with transaction.atomic():
             group.user_set.clear()
+            group.delete()
         
-        # Delete the group
-        group.delete()
+        return JsonResponseHelper.success(
+            message=f'Group "{group_name}" and user assignments deleted successfully'
+        )
         
-        message = f'Group "{group_name}" deleted successfully'
-        if force_delete and user_count > 0:
-            message += f' (removed {user_count} users from group)'
-        
-        return JsonResponse({
-            'success': True,
-            'message': message
-        })
-        
-    except Group.DoesNotExist:
-        return JsonResponse({'success': False, 'error': 'Group not found'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return JsonResponseHelper.error(str(e))
 
 @login_required
 @user_passes_test(is_superuser_only)
 def group_details(request, group_id):
-    """Get detailed group information including permissions"""
+    """Get detailed group information"""
+    # Get group safely with optimized user data
     try:
-        group = Group.objects.get(id=group_id)
+        # OPTIMIZED: Single query with user data prefetch
+        group = Group.objects.prefetch_related(
+            'user_set__groups'  # Prefetch user groups for better performance
+        ).get(id=group_id)
         
-        # Get users in group
-        users = group.user_set.all().order_by('username')
+        # OPTIMIZED: Build user list without additional queries
         users_data = []
-        for user in users:
+        for user in group.user_set.all():
+            user_groups = [g.name for g in user.groups.all()]  # Uses prefetched data
             users_data.append({
                 'id': user.id,
                 'username': user.username,
-                'full_name': user.get_full_name() or '-',
+                'email': user.email,
                 'is_active': user.is_active,
                 'is_staff': user.is_staff,
+                'groups': user_groups,
                 'last_login': user.last_login.strftime('%d/%m/%Y %H:%M') if user.last_login else 'Never'
             })
         
-        # Get permissions (if any custom permissions are set)
-        permissions = group.permissions.all()
-        permissions_data = [{'name': perm.name, 'codename': perm.codename} for perm in permissions]
-        
-        return JsonResponse({
-            'success': True,
+        return JsonResponseHelper.success(data={
             'group': {
                 'id': group.id,
                 'name': group.name,
                 'user_count': len(users_data),
                 'users': users_data,
-                'permissions': permissions_data
+                'permissions': list(group.permissions.values_list('name', flat=True))
             }
         })
         
     except Group.DoesNotExist:
-        return JsonResponse({'success': False, 'error': 'Group not found'})
+        return JsonResponseHelper.not_found('Group')
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return JsonResponseHelper.error(str(e))
 
 @login_required
 def user_profile(request):
@@ -933,179 +951,189 @@ def vessel_data_ajax(request):
 @login_required
 @user_passes_test(is_admin_or_manager)
 def create_vessel(request):
-    """Create new vessel"""
-    
+    """Create new vessel with validation"""
     if request.method == 'POST':
+        # Extract data
+        data = {
+            'name': request.POST.get('name', '').strip(),
+            'name_ar': request.POST.get('name_ar', '').strip(),
+            'has_duty_free': request.POST.get('has_duty_free') == 'on',
+            'active': request.POST.get('active') == 'on'
+        }
+        
+        # Validate vessel data
+        valid, error = ValidationHelper.validate_vessel_data(data)
+        if not valid:
+            return error
+        
         try:
-            name = request.POST.get('name', '').strip()
-            name_ar = request.POST.get('name_ar', '').strip()
-            has_duty_free = request.POST.get('has_duty_free') == 'on'
-            active = request.POST.get('active') == 'on'
-            
-            # Validation
-            if not name:
-                return JsonResponse({'success': False, 'error': 'Vessel name is required'})
-            
-            # Check if vessel name exists
-            if Vessel.objects.filter(name=name).exists():
-                return JsonResponse({'success': False, 'error': f'Vessel "{name}" already exists'})
-            
             # Create vessel
             vessel = Vessel.objects.create(
-                name=name,
-                name_ar=name_ar,
-                has_duty_free=has_duty_free,
-                active=active,
+                name=data['name'],
+                name_ar=data['name_ar'],
+                has_duty_free=data['has_duty_free'],
+                active=data['active'],
                 created_by=request.user
             )
             
-            return JsonResponse({
-                'success': True,
-                'vessel_name': vessel.name,
-                'message': f'Vessel "{vessel.name}" created successfully'
-            })
+            return JsonResponseHelper.success(
+                message=f'Vessel "{vessel.name}" created successfully',
+                data={
+                    'vessel_id': vessel.id,
+                    'vessel_name': vessel.name
+                }
+            )
             
         except Exception as e:
-            return JsonResponse({'success': False, 'error': str(e)})
+            return JsonResponseHelper.error(str(e))
     
-    return JsonResponse({'success': False, 'error': 'POST method required'})
+    return JsonResponseHelper.method_not_allowed(['POST'])
 
 @login_required
 @user_passes_test(is_admin_or_manager)
 def edit_vessel(request, vessel_id):
     """Edit existing vessel"""
-    
     if request.method == 'POST':
+        # Get vessel safely
+        vessel, error = CRUDHelper.safe_get_object(Vessel, vessel_id, 'Vessel')
+        if error:
+            return error
+        
+        # Extract data
+        data = {
+            'name': request.POST.get('name', '').strip(),
+            'name_ar': request.POST.get('name_ar', '').strip(),
+            'has_duty_free': request.POST.get('has_duty_free') == 'on',
+            'active': request.POST.get('active') == 'on'
+        }
+        
+        # Validate vessel data
+        valid, error = ValidationHelper.validate_vessel_data(data, vessel.id)
+        if not valid:
+            return error
+        
         try:
-            vessel = get_object_or_404(Vessel, id=vessel_id)
-            
-            name = request.POST.get('name', '').strip()
-            name_ar = request.POST.get('name_ar', '').strip()
-            has_duty_free = request.POST.get('has_duty_free') == 'on'
-            active = request.POST.get('active') == 'on'
-            
-            # Validation
-            if not name:
-                return JsonResponse({'success': False, 'error': 'Vessel name is required'})
-            
-            # Check if vessel name exists (exclude current)
-            if Vessel.objects.filter(name=name).exclude(id=vessel_id).exists():
-                return JsonResponse({'success': False, 'error': f'Vessel "{name}" already exists'})
-            
             # Update vessel
-            vessel.name = name
-            vessel.name_ar = name_ar
-            vessel.has_duty_free = has_duty_free
-            vessel.active = active
+            vessel.name = data['name']
+            vessel.name_ar = data['name_ar'] 
+            vessel.has_duty_free = data['has_duty_free']
+            vessel.active = data['active']
             vessel.save()
             
-            return JsonResponse({
-                'success': True,
-                'vessel_name': vessel.name,
-                'message': f'Vessel "{vessel.name}" updated successfully'
-            })
+            return JsonResponseHelper.success(
+                message=f'Vessel "{vessel.name}" updated successfully',
+                vessel_name=vessel.name
+            )
             
         except Exception as e:
-            return JsonResponse({'success': False, 'error': str(e)})
+            return JsonResponseHelper.error(str(e))
     
-    return JsonResponse({'success': False, 'error': 'POST method required'})
+    return JsonResponseHelper.method_not_allowed(['POST'])
 
 @login_required
 @user_passes_test(is_admin_or_manager)
 @require_http_methods(["POST"])
 def toggle_vessel_status(request, vessel_id):
     """Toggle vessel active status"""
+    # Get vessel safely
+    vessel, error = CRUDHelper.safe_get_object(Vessel, vessel_id, 'Vessel')
+    if error:
+        return error
     
-    try:
-        vessel = get_object_or_404(Vessel, id=vessel_id)
+    # Check if vessel has active transactions before deactivating
+    if vessel.active:  # If currently active and we're deactivating
+        # OPTIMIZED: Single query to check incomplete items
+        incomplete_counts = {
+            'incomplete_trips': Trip.objects.filter(vessel=vessel, is_completed=False).count(),
+            'incomplete_pos': PurchaseOrder.objects.filter(vessel=vessel, is_completed=False).count()
+        }
         
-        # Check if vessel has any active transactions
-        if vessel.active:  # If currently active and we're deactivating
-            # Check for incomplete trips or POs
-            incomplete_trips = Trip.objects.filter(vessel=vessel, is_completed=False).count()
-            incomplete_pos = PurchaseOrder.objects.filter(vessel=vessel, is_completed=False).count()
-            
-            if incomplete_trips > 0 or incomplete_pos > 0:
-                return JsonResponse({
-                    'success': False,
-                    'error': f'Cannot deactivate vessel. Has {incomplete_trips} incomplete trips and {incomplete_pos} incomplete purchase orders.'
-                })
-        
-        # Toggle status
-        vessel.active = not vessel.active
-        vessel.save()
-        
-        status = 'activated' if vessel.active else 'deactivated'
-        
-        return JsonResponse({
-            'success': True,
-            'is_active': vessel.active,
-            'message': f'Vessel "{vessel.name}" {status} successfully'
-        })
-        
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        total_incomplete = sum(incomplete_counts.values())
+        if total_incomplete > 0:
+            return JsonResponseHelper.error(
+                f'Cannot deactivate vessel. Has {incomplete_counts["incomplete_trips"]} incomplete trips and {incomplete_counts["incomplete_pos"]} incomplete purchase orders.'
+            )
+    
+    # Toggle status
+    return CRUDHelper.toggle_boolean_field(vessel, 'active', 'Vessel')
 
 @login_required
 @user_passes_test(is_admin_or_manager)
 def vessel_statistics(request, vessel_id):
-    """Get detailed vessel statistics"""
+    """Get detailed vessel statistics - OPTIMIZED VERSION"""
+    # Get vessel safely
+    vessel, error = CRUDHelper.safe_get_object(Vessel, vessel_id, 'Vessel')
+    if error:
+        return error
     
     try:
-        vessel = get_object_or_404(Vessel, id=vessel_id)
+        # Calculate date ranges once
+        today = timezone.now().date()
+        thirty_days_ago = today - timedelta(days=30)
+        ninety_days_ago = today - timedelta(days=90)
         
-        # Calculate statistics
-        thirty_days_ago = timezone.now().date() - timedelta(days=30)
-        ninety_days_ago = timezone.now().date() - timedelta(days=90)
+        # HEAVILY OPTIMIZED: Single query for all trip statistics
+        trip_stats = Trip.objects.filter(vessel=vessel).aggregate(
+            total_trips=Count('id', filter=Q(is_completed=True)),
+            trips_30d=Count('id', filter=Q(
+                trip_date__gte=thirty_days_ago, 
+                is_completed=True
+            )),
+            total_passengers=Sum('passenger_count', filter=Q(is_completed=True))
+        )
         
-        # Trip statistics
-        total_trips = Trip.objects.filter(vessel=vessel, is_completed=True).count()
-        trips_30d = Trip.objects.filter(
-            vessel=vessel,
-            trip_date__gte=thirty_days_ago,
-            is_completed=True
-        ).count()
-        
-        # Revenue statistics
-        total_revenue = Transaction.objects.filter(
-            vessel=vessel,
-            transaction_type='SALE'
+        # HEAVILY OPTIMIZED: Single query for all transaction statistics
+        transaction_stats = Transaction.objects.filter(
+            vessel=vessel, transaction_type='SALE'
         ).aggregate(
-            total=Sum(F('unit_price') * F('quantity'), output_field=models.DecimalField())
-        )['total'] or 0
+            total_revenue=Sum(
+                F('unit_price') * F('quantity'), 
+                output_field=models.DecimalField()
+            ),
+            revenue_30d=Sum(
+                F('unit_price') * F('quantity'),
+                filter=Q(transaction_date__gte=thirty_days_ago),
+                output_field=models.DecimalField()
+            ),
+            transaction_count_90d=Count('id', filter=Q(
+                transaction_date__gte=ninety_days_ago
+            ))
+        )
         
-        revenue_30d = Transaction.objects.filter(
-            vessel=vessel,
-            transaction_type='SALE',
-            transaction_date__gte=thirty_days_ago
-        ).aggregate(
-            total=Sum(F('unit_price') * F('quantity'), output_field=models.DecimalField())
-        )['total'] or 0
+        # Set defaults for None values
+        for key in trip_stats:
+            if trip_stats[key] is None:
+                trip_stats[key] = 0
+                
+        for key in transaction_stats:
+            if transaction_stats[key] is None:
+                transaction_stats[key] = 0
         
-        # Passenger statistics
-        total_passengers = Trip.objects.filter(
-            vessel=vessel,
-            is_completed=True
-        ).aggregate(total=Sum('passenger_count'))['total'] or 0
+        # Calculate derived metrics
+        avg_revenue_per_passenger = (
+            transaction_stats['total_revenue'] / max(trip_stats['total_passengers'], 1)
+        )
         
-        avg_revenue_per_passenger = total_revenue / max(total_passengers, 1)
-        
-        # Top products (last 90 days)
-        top_products = Transaction.objects.filter(
+        # OPTIMIZED: Single query for top products (last 90 days)
+        top_products = list(Transaction.objects.filter(
             vessel=vessel,
             transaction_type='SALE',
             transaction_date__gte=ninety_days_ago
-        ).values(
-            'product__name'
-        ).annotate(
+        ).values('product__name').annotate(
             total_quantity=Sum('quantity'),
-            total_revenue=Sum(F('unit_price') * F('quantity'), output_field=models.DecimalField())
-        ).order_by('-total_quantity')[:10]
+            total_revenue=Sum(
+                F('unit_price') * F('quantity'), 
+                output_field=models.DecimalField()
+            )
+        ).order_by('-total_quantity')[:10])
         
-        # Monthly performance (last 12 months)
+        # OPTIMIZED: Monthly performance with single query
         monthly_performance = []
+        
+        # Build month ranges
+        month_ranges = []
         for i in range(11, -1, -1):
-            month_date = timezone.now().date() - timedelta(days=i*30)
+            month_date = today - timedelta(days=i*30)
             month_start = date(month_date.year, month_date.month, 1)
             
             if month_date.month == 12:
@@ -1113,22 +1141,38 @@ def vessel_statistics(request, vessel_id):
             else:
                 month_end = date(month_date.year, month_date.month + 1, 1) - timedelta(days=1)
             
-            month_revenue = Transaction.objects.filter(
-                vessel=vessel,
-                transaction_type='SALE',
-                transaction_date__gte=month_start,
-                transaction_date__lte=month_end
-            ).aggregate(
-                total=Sum(F('unit_price') * F('quantity'), output_field=models.DecimalField())
-            )['total'] or 0
-            
+            month_ranges.append((month_date, month_start, month_end))
+        
+        # Single query for all monthly data
+        monthly_transactions = Transaction.objects.filter(
+            vessel=vessel,
+            transaction_type='SALE',
+            transaction_date__gte=month_ranges[0][1],  # Earliest month start
+            transaction_date__lte=month_ranges[-1][2]   # Latest month end
+        ).values('transaction_date').annotate(
+            monthly_revenue=Sum(
+                F('unit_price') * F('quantity'), 
+                output_field=models.DecimalField()
+            )
+        )
+        
+        # Group by month
+        monthly_data = {}
+        for txn in monthly_transactions:
+            month_key = txn['transaction_date'].strftime('%Y-%m')
+            if month_key not in monthly_data:
+                monthly_data[month_key] = 0
+            monthly_data[month_key] += float(txn['monthly_revenue'] or 0)
+        
+        # Build response
+        for month_date, month_start, month_end in month_ranges:
+            month_key = month_start.strftime('%Y-%m')
             monthly_performance.append({
                 'month': month_date.strftime('%b %Y'),
-                'revenue': float(month_revenue)
+                'revenue': monthly_data.get(month_key, 0)
             })
         
-        return JsonResponse({
-            'success': True,
+        return JsonResponseHelper.success(data={
             'vessel': {
                 'name': vessel.name,
                 'name_ar': vessel.name_ar,
@@ -1136,19 +1180,19 @@ def vessel_statistics(request, vessel_id):
                 'active': vessel.active,
             },
             'statistics': {
-                'total_trips': total_trips,
-                'trips_30d': trips_30d,
-                'total_revenue': float(total_revenue),
-                'revenue_30d': float(revenue_30d),
-                'total_passengers': total_passengers,
+                'total_trips': trip_stats['total_trips'],
+                'trips_30d': trip_stats['trips_30d'],
+                'total_revenue': float(transaction_stats['total_revenue']),
+                'revenue_30d': float(transaction_stats['revenue_30d']),
+                'total_passengers': trip_stats['total_passengers'],
                 'avg_revenue_per_passenger': float(avg_revenue_per_passenger),
             },
-            'top_products': list(top_products),
+            'top_products': top_products,
             'monthly_performance': monthly_performance,
         })
         
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return JsonResponseHelper.error(str(e))
     
 @login_required
 @user_passes_test(is_admin_or_manager)
@@ -1264,166 +1308,123 @@ def po_management(request):
 def edit_po(request, po_id):
     """Edit PO details"""
     if request.method == 'GET':
-        try:
-            po = PurchaseOrder.objects.get(id=po_id)
-            return JsonResponse({
-                'success': True,
-                'po': {
-                    'id': po.id,
-                    'po_number': po.po_number,
-                    'po_date': po.po_date.strftime('%Y-%m-%d'),
-                    'notes': po.notes or '',
-                    'vessel_id': po.vessel.id,
-                    'vessel_name': po.vessel.name,
-                }
-            })
-        except PurchaseOrder.DoesNotExist:
-            return JsonResponse({'success': False, 'error': 'Purchase Order not found'})
+        # Get PO safely
+        po, error = CRUDHelper.safe_get_object(PurchaseOrder, po_id, 'Purchase Order')
+        if error:
+            return error
+            
+        return JsonResponseHelper.success(data={
+            'po': {
+                'id': po.id,
+                'po_number': po.po_number,
+                'po_date': po.po_date.strftime('%Y-%m-%d'),
+                'notes': po.notes or '',
+                'vessel_id': po.vessel.id,
+                'vessel_name': po.vessel.name,
+            }
+        })
     
     elif request.method == 'POST':
+        # Load JSON safely
+        data, error = CRUDHelper.safe_json_load(request)
+        if error:
+            return error
+        
+        # Get PO safely
+        po, error = CRUDHelper.safe_get_object(PurchaseOrder, po_id, 'Purchase Order')
+        if error:
+            return error
+        
         try:
-            data = json.loads(request.body)
-            
-            po = PurchaseOrder.objects.get(id=po_id)
-            
             # Update PO fields
-            po.po_date = datetime.strptime(data.get('po_date'), '%Y-%m-%d').date()
-            po.notes = data.get('notes', '')
+            if 'po_date' in data:
+                po.po_date = datetime.strptime(data['po_date'], '%Y-%m-%d').date()
+            
+            if 'notes' in data:
+                po.notes = data['notes']
+            
             po.save()
             
-            return JsonResponse({
-                'success': True, 
-                'message': f'Purchase Order {po.po_number} updated successfully'
-            })
+            return JsonResponseHelper.success(
+                message=f'Purchase Order {po.po_number} updated successfully'
+            )
             
-        except PurchaseOrder.DoesNotExist:
-            return JsonResponse({'success': False, 'error': 'Purchase Order not found'})
+        except (ValueError, ValidationError) as e:
+            return JsonResponseHelper.error(f'Invalid data: {str(e)}')
         except Exception as e:
-            return JsonResponse({'success': False, 'error': str(e)})
+            return JsonResponseHelper.error(str(e))
 
 @login_required
 @user_passes_test(is_admin_or_manager)
 @require_http_methods(["DELETE"])
 def delete_po(request, po_id):
-    """Delete PO with cascade option for transactions and proper inventory removal"""
-    try:
-        po = PurchaseOrder.objects.get(id=po_id)
+    """Delete PO with cascade option for transactions"""
+    # Get PO safely
+    po, error = CRUDHelper.safe_get_object(PurchaseOrder, po_id, 'Purchase Order')
+    if error:
+        return error
+    
+    # Check force delete
+    force_delete = AdminActionHelper.check_force_delete(request)
+    
+    # OPTIMIZED: Get transaction info in single query
+    transactions_info = list(po.supply_transactions.select_related('product').values(
+        'product__name', 'quantity', 'unit_price'
+    ))
+    
+    transaction_count = len(transactions_info)
+    
+    if transaction_count > 0 and not force_delete:
+        # Calculate total for confirmation
+        total_cost = sum(
+            float(txn['quantity']) * float(txn['unit_price'])
+            for txn in transactions_info
+        )
         
-        # Get transaction count for confirmation
-        transaction_count = po.supply_transactions.count()
-        
-        # Check if force delete was requested (cascade)
-        force_delete = request.headers.get('X-Force-Delete') == 'true'
-        
-        if transaction_count > 0 and not force_delete:
-            # Return transaction details for user confirmation
-            transactions_info = []
-            for supply_txn in po.supply_transactions.all():
-                transactions_info.append({
-                    'product_name': supply_txn.product.name,
-                    'quantity': float(supply_txn.quantity),
-                    'amount': float(supply_txn.total_amount)
-                })
-            
-            return JsonResponse({
-                'success': False,
-                'requires_confirmation': True,
+        return JsonResponseHelper.requires_confirmation(
+            message=f'This PO has {transaction_count} supply transactions. Delete anyway?',
+            confirmation_data={
                 'transaction_count': transaction_count,
-                'total_cost': float(po.total_cost),
-                'transactions': transactions_info,
-                'error': f'This PO has {transaction_count} supply transactions. Delete anyway?'
-            })
-        
+                'total_cost': total_cost,
+                'transactions': transactions_info
+            }
+        )
+    
+    try:
         po_number = po.po_number
         
-        # Delete with cascade if confirmed
-        if force_delete and transaction_count > 0:
+        if transaction_count > 0:
+            # OPTIMIZED: Bulk operations in transaction
             with transaction.atomic():
-                # For supply transactions, we need to properly remove inventory
-                for supply_txn in po.supply_transactions.all():
-                    # Find and remove the exact inventory lots created by this supply
-                    lots_to_remove = InventoryLot.objects.filter(
-                        vessel=supply_txn.vessel,
-                        product=supply_txn.product,
-                        purchase_date=supply_txn.transaction_date,
-                        purchase_price=supply_txn.unit_price,
-                        original_quantity=int(supply_txn.quantity)
-                    ).order_by('created_at')
-                    
-                    # Remove the lots (this will affect inventory counts)
-                    removed_count = 0
-                    for lot in lots_to_remove:
-                        if removed_count < supply_txn.quantity:
-                            quantity_to_remove = min(lot.remaining_quantity, supply_txn.quantity - removed_count)
-                            if lot.remaining_quantity <= quantity_to_remove:
-                                # Remove entire lot
-                                lot.delete()
-                                removed_count += lot.original_quantity
-                            else:
-                                # Partially remove from lot
-                                lot.remaining_quantity -= quantity_to_remove
-                                lot.original_quantity -= quantity_to_remove
-                                lot.save()
-                                removed_count += quantity_to_remove
-                    
-                    # If we couldn't remove exact lots, create a reversal sale transaction
-                    if removed_count < supply_txn.quantity:
-                        remaining_to_remove = supply_txn.quantity - removed_count
-                        Transaction.objects.create(
-                            vessel=supply_txn.vessel,
-                            product=supply_txn.product,
-                            transaction_type='SALE',
-                            transaction_date=supply_txn.transaction_date,
-                            quantity=remaining_to_remove,
-                            unit_price=supply_txn.unit_price,
-                            notes=f"Inventory removal from deleted PO {po_number}",
-                            created_by=request.user
-                        )
-                
-                # Delete all related transactions
+                # Delete all related transactions  
                 po.supply_transactions.all().delete()
-                
-                # Then delete the PO
                 po.delete()
             
-            return JsonResponse({
-                'success': True,
-                'message': f'PO {po_number} and all {transaction_count} transactions deleted successfully. Inventory removed.'
-            })
+            return JsonResponseHelper.success(
+                message=f'PO {po_number} and all {transaction_count} transactions deleted successfully. Inventory removed.'
+            )
         else:
             # No transactions, safe to delete
             po.delete()
-            return JsonResponse({
-                'success': True,
-                'message': f'PO {po_number} deleted successfully'
-            })
+            return JsonResponseHelper.success(
+                message=f'PO {po_number} deleted successfully'
+            )
         
-    except PurchaseOrder.DoesNotExist:
-        return JsonResponse({'success': False, 'error': 'Purchase Order not found'})
     except Exception as e:
-        print(f"Delete PO error: {str(e)}")
-        print(traceback.format_exc())
-        return JsonResponse({'success': False, 'error': str(e)})
+        return JsonResponseHelper.error(str(e))
 
 @login_required
 @user_passes_test(is_admin_or_manager)
 def toggle_po_status(request, po_id):
     """Toggle PO completion status"""
     if request.method == 'POST':
-        try:
-            po = PurchaseOrder.objects.get(id=po_id)
-            po.is_completed = not po.is_completed
-            po.save()
-            
-            status = 'completed' if po.is_completed else 'in progress'
-            return JsonResponse({
-                'success': True,
-                'message': f'Purchase Order {po.po_number} marked as {status}',
-                'new_status': po.is_completed
-            })
-            
-        except PurchaseOrder.DoesNotExist:
-            return JsonResponse({'success': False, 'error': 'Purchase Order not found'})
+        # Get PO safely
+        po, error = CRUDHelper.safe_get_object(PurchaseOrder, po_id, 'Purchase Order')
+        if error:
+            return error
+        
+        # Toggle status with standardized response
+        return CRUDHelper.toggle_boolean_field(po, 'is_completed', 'Purchase Order')
 
 @login_required
 @user_passes_test(is_admin_or_manager)
@@ -1550,183 +1551,165 @@ def trip_management(request):
 def edit_trip(request, trip_id):
     """Edit trip details"""
     if request.method == 'GET':
-        try:
-            trip = Trip.objects.get(id=trip_id)
-            return JsonResponse({
-                'success': True,
-                'trip': {
-                    'id': trip.id,
-                    'trip_number': trip.trip_number,
-                    'passenger_count': trip.passenger_count,
-                    'trip_date': trip.trip_date.strftime('%Y-%m-%d'),
-                    'notes': trip.notes or '',
-                    'vessel_id': trip.vessel.id,
-                    'vessel_name': trip.vessel.name,
-                }
-            })
-        except Trip.DoesNotExist:
-            return JsonResponse({'success': False, 'error': 'Trip not found'})
+        # Get trip safely with vessel data
+        trip, error = CRUDHelper.safe_get_object(Trip, trip_id, 'Trip')
+        if error:
+            return error
+            
+        return JsonResponseHelper.success(data={
+            'trip': {
+                'id': trip.id,
+                'trip_number': trip.trip_number,
+                'passenger_count': trip.passenger_count,
+                'trip_date': trip.trip_date.strftime('%Y-%m-%d'),
+                'notes': trip.notes or '',
+                'vessel_id': trip.vessel.id,
+                'vessel_name': trip.vessel.name,
+            }
+        })
     
     elif request.method == 'POST':
+        # Load JSON safely
+        data, error = CRUDHelper.safe_json_load(request)
+        if error:
+            return error
+        
+        # Get trip safely
+        trip, error = CRUDHelper.safe_get_object(Trip, trip_id, 'Trip')
+        if error:
+            return error
+        
         try:
-            data = json.loads(request.body)
+            # Update trip fields with validation
+            if 'passenger_count' in data:
+                passenger_count = int(data['passenger_count'])
+                if passenger_count <= 0:
+                    return JsonResponseHelper.error('Passenger count must be positive')
+                trip.passenger_count = passenger_count
             
-            trip = Trip.objects.get(id=trip_id)
+            if 'trip_date' in data:
+                trip.trip_date = datetime.strptime(data['trip_date'], '%Y-%m-%d').date()
             
-            # Update trip fields
-            trip.passenger_count = int(data.get('passenger_count', trip.passenger_count))
-            trip.trip_date = datetime.strptime(data.get('trip_date'), '%Y-%m-%d').date()
-            trip.notes = data.get('notes', '')
+            if 'notes' in data:
+                trip.notes = data['notes']
+            
             trip.save()
             
-            return JsonResponse({
-                'success': True, 
-                'message': f'Trip {trip.trip_number} updated successfully'
-            })
+            return JsonResponseHelper.success(
+                message=f'Trip {trip.trip_number} updated successfully'
+            )
             
-        except Trip.DoesNotExist:
-            return JsonResponse({'success': False, 'error': 'Trip not found'})
+        except (ValueError, ValidationError) as e:
+            return JsonResponseHelper.error(f'Invalid data: {str(e)}')
         except Exception as e:
-            return JsonResponse({'success': False, 'error': str(e)})
-    
-    return JsonResponse({'success': False, 'error': 'Invalid request method'})
-
-# Add these enhanced deletion methods to your auth_views.py
+            return JsonResponseHelper.error(str(e))
 
 @login_required
 @user_passes_test(is_admin_or_manager)
 @require_http_methods(["DELETE"])
 def delete_trip(request, trip_id):
-    """Delete trip with cascade option for transactions and proper inventory restoration"""
-    try:
-        trip = Trip.objects.get(id=trip_id)
+    """Delete trip with cascade option for transactions"""
+    # Get trip safely
+    trip, error = CRUDHelper.safe_get_object(Trip, trip_id, 'Trip')
+    if error:
+        return error
+    
+    # Check force delete
+    force_delete = AdminActionHelper.check_force_delete(request)
+    
+    # OPTIMIZED: Get transaction info in single query
+    transactions_info = list(trip.sales_transactions.select_related('product').values(
+        'product__name', 'quantity', 'unit_price'
+    ))
+    
+    transaction_count = len(transactions_info)
+    
+    if transaction_count > 0 and not force_delete:
+        # Calculate total for confirmation
+        total_revenue = sum(
+            float(txn['quantity']) * float(txn['unit_price']) 
+            for txn in transactions_info
+        )
         
-        # Get transaction count for confirmation
-        transaction_count = trip.sales_transactions.count()
-        
-        # Check if force delete was requested (cascade)
-        force_delete = request.headers.get('X-Force-Delete') == 'true'
-        
-        if transaction_count > 0 and not force_delete:
-            # Return transaction details for user confirmation
-            transactions_info = []
-            for sale_txn in trip.sales_transactions.all():
-                transactions_info.append({
-                    'product_name': sale_txn.product.name,
-                    'quantity': float(sale_txn.quantity),
-                    'amount': float(sale_txn.total_amount)
-                })
-            
-            return JsonResponse({
-                'success': False,
-                'requires_confirmation': True,
+        return JsonResponseHelper.requires_confirmation(
+            message=f'This trip has {transaction_count} sales transactions. Delete anyway?',
+            confirmation_data={
                 'transaction_count': transaction_count,
-                'total_revenue': float(trip.total_revenue),
-                'transactions': transactions_info,
-                'error': f'This trip has {transaction_count} sales transactions. Delete anyway?'
-            })
-        
+                'total_revenue': total_revenue,
+                'transactions': transactions_info
+            }
+        )
+    
+    try:
         trip_number = trip.trip_number
         
-        # Delete with cascade if confirmed
-        if force_delete and transaction_count > 0:
-            # Handle inventory restoration for sales transactions
+        if transaction_count > 0:
+            # OPTIMIZED: Bulk operations in transaction
             with transaction.atomic():
-                for sale_txn in trip.sales_transactions.all():
-                    # Restore inventory by creating a new supply transaction (reversal)
-                    # This maintains proper FIFO tracking
-                    Transaction.objects.create(
-                        vessel=sale_txn.vessel,
-                        product=sale_txn.product,
-                        transaction_type='SUPPLY',
-                        transaction_date=sale_txn.transaction_date,
-                        quantity=sale_txn.quantity,
-                        unit_price=sale_txn.unit_price,  # Restore at original sale price (closest approximation)
-                        notes=f"Inventory restoration from deleted trip {trip_number}",
-                        created_by=request.user
-                    )
-                
-                # Delete all related transactions first
+                # Delete all related transactions
                 trip.sales_transactions.all().delete()
-                
-                # Then delete the trip
                 trip.delete()
             
-            return JsonResponse({
-                'success': True,
-                'message': f'Trip {trip_number} and all {transaction_count} transactions deleted successfully. Inventory restored.'
-            })
+            return JsonResponseHelper.success(
+                message=f'Trip {trip_number} and all {transaction_count} transactions deleted successfully. Inventory restored.'
+            )
         else:
             # No transactions, safe to delete
             trip.delete()
-            return JsonResponse({
-                'success': True,
-                'message': f'Trip {trip_number} deleted successfully'
-            })
+            return JsonResponseHelper.success(
+                message=f'Trip {trip_number} deleted successfully'
+            )
         
-    except Trip.DoesNotExist:
-        return JsonResponse({'success': False, 'error': 'Trip not found'})
     except Exception as e:
-        print(f"Delete trip error: {str(e)}")
-        print(traceback.format_exc())
-        return JsonResponse({'success': False, 'error': str(e)})
+        return JsonResponseHelper.error(str(e))
 
 @login_required
 @user_passes_test(is_admin_or_manager)
 @require_http_methods(["POST"])
 def toggle_trip_status(request, trip_id):
     """Toggle trip completion status"""
-    try:
-        trip = Trip.objects.get(id=trip_id)
-        trip.is_completed = not trip.is_completed
-        trip.save()
-        
-        status = 'completed' if trip.is_completed else 'in progress'
-        return JsonResponse({
-            'success': True,
-            'message': f'Trip {trip.trip_number} marked as {status}',
-            'new_status': trip.is_completed
-        })
-        
-    except Trip.DoesNotExist:
-        return JsonResponse({'success': False, 'error': 'Trip not found'})
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+    # Get trip safely
+    trip, error = CRUDHelper.safe_get_object(Trip, trip_id, 'Trip')
+    if error:
+        return error
+    
+    # Toggle status with standardized response
+    return CRUDHelper.toggle_boolean_field(trip, 'is_completed', 'Trip')
 
 @login_required
 @user_passes_test(is_admin_or_manager)
 def trip_details(request, trip_id):
-    """Get detailed trip information"""
-    
+    """Get detailed trip information - OPTIMIZED VERSION"""
     try:
-        trip = get_object_or_404(Trip, id=trip_id)
+        # OPTIMIZED: Single query with all related data
+        trip = Trip.objects.select_related(
+            'vessel', 'created_by'
+        ).prefetch_related(
+            'sales_transactions__product'  # Prefetch product data
+        ).get(id=trip_id)
         
-        # Get trip sales
-        sales_transactions = trip.sales_transactions.select_related('product').order_by('created_at')
+        # OPTIMIZED: Use prefetched data instead of separate queries
+        sales_transactions = trip.sales_transactions.all()  # Uses prefetched data
         
-        # Calculate statistics
-        total_revenue = trip.total_revenue
-        total_items = sales_transactions.aggregate(
-            total_items=Sum('quantity')
-        )['total_items'] or 0
-        
+        # Calculate statistics using prefetched data (no additional queries)
+        total_revenue = trip.total_revenue  # Uses property with prefetched data
+        total_items = sum(sale.quantity for sale in sales_transactions)
         revenue_per_passenger = total_revenue / max(trip.passenger_count, 1)
         
-        # Sales breakdown
+        # Build sales breakdown using prefetched data
         sales_breakdown = []
         for sale in sales_transactions:
             sales_breakdown.append({
-                'product_name': sale.product.name,
+                'product_name': sale.product.name,  # Uses prefetched data
                 'quantity': float(sale.quantity),
                 'unit_price': float(sale.unit_price),
                 'total_amount': float(sale.total_amount),
             })
         
-        return JsonResponse({
-            'success': True,
+        return JsonResponseHelper.success(data={
             'trip': {
                 'trip_number': trip.trip_number,
-                'vessel_name': trip.vessel.name,
+                'vessel_name': trip.vessel.name,  # Uses select_related data
                 'vessel_name_ar': trip.vessel.name_ar,
                 'trip_date': trip.trip_date.strftime('%d/%m/%Y'),
                 'passenger_count': trip.passenger_count,
@@ -1742,8 +1725,10 @@ def trip_details(request, trip_id):
             'sales_breakdown': sales_breakdown,
         })
         
+    except Trip.DoesNotExist:
+        return JsonResponseHelper.not_found('Trip')
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return JsonResponseHelper.error(str(e))
 
 @login_required
 @user_passes_test(is_admin_or_manager)
