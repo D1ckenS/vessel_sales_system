@@ -26,7 +26,9 @@ def supply_entry(request):
     
     if request.method == 'GET':
         vessels = VesselCacheHelper.get_active_vessels()
-        recent_pos = PurchaseOrder.objects.select_related('vessel', 'created_by').order_by('-created_at')[:10]
+        recent_pos = PurchaseOrder.objects.select_related('vessel', 'created_by').prefetch_related(
+            'supply_transactions'
+        ).order_by('-created_at')[:10]
         
         context = {
             'vessels': vessels,
