@@ -1,8 +1,10 @@
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db import transaction, models
-from django.db.models import Sum, F, Count
-from transactions.models import Trip
+from django.db.models import Sum, F, Count, Prefetch
+from django.db.models.functions import Round
+from frontend.utils.cache_helpers import VesselCacheHelper
+from transactions.models import Transaction, Trip
 from vessels.models import Vessel
 from django.views.decorators.http import require_http_methods
 from django.core.exceptions import ValidationError
@@ -21,7 +23,7 @@ from .permissions import (
 @login_required
 @user_passes_test(is_admin_or_manager)
 def trip_management(request):
-    """FIXED: Trip management with resolved property conflicts"""
+    """OPTIMIZED: Trip management following inventory pattern - 4-5 queries max"""
     
     # Get filter parameters
     vessel_filter = request.GET.get('vessel')
@@ -30,37 +32,14 @@ def trip_management(request):
     date_to = request.GET.get('date_to')
     min_revenue = request.GET.get('min_revenue')
     
-    # FIXED: Use different annotation names to avoid conflicts
+    # OPTIMIZED: Simple base query like inventory_views.py
     trips_query = Trip.objects.select_related(
         'vessel', 'created_by'
     ).prefetch_related(
         'sales_transactions'
-    ).annotate(
-        # Use different names to avoid property conflicts
-        annotated_total_revenue=Sum(
-            F('sales_transactions__unit_price') * F('sales_transactions__quantity'),
-            output_field=models.DecimalField()
-        ),
-        annotated_transaction_count=Count('sales_transactions'),
-        # Calculate revenue per passenger
-        revenue_per_passenger=models.Case(
-            models.When(
-                passenger_count__gt=0, 
-                then=F('annotated_total_revenue') / F('passenger_count')
-            ),
-            default=0,
-            output_field=models.DecimalField()
-        ),
-        # Performance classification
-        revenue_performance_class=models.Case(
-            models.When(revenue_per_passenger__gte=50, then=models.Value('high')),
-            models.When(revenue_per_passenger__gte=25, then=models.Value('medium')),
-            default=models.Value('low'),
-            output_field=models.CharField()
-        )
     ).order_by('-trip_date', '-created_at')
     
-    # Apply filters
+    # Apply filters (same as before)
     if vessel_filter:
         trips_query = trips_query.filter(vessel_id=vessel_filter)
     if status_filter == 'completed':
@@ -71,61 +50,110 @@ def trip_management(request):
         trips_query = trips_query.filter(trip_date__gte=date_from)
     if date_to:
         trips_query = trips_query.filter(trip_date__lte=date_to)
-    if min_revenue:
-        trips_query = trips_query.filter(annotated_total_revenue__gte=min_revenue)
     
-    # FIXED: Statistics using the annotation names
-    stats = trips_query.aggregate(
-        total_trips=Count('id'),
-        completed_trips=Count('id', filter=models.Q(is_completed=True)),
-        total_revenue=Sum('annotated_total_revenue'),
-        avg_daily_trips=Count('id') / 30.0
-    )
+    # OPTIMIZED: Get limited dataset early like inventory does
+    trips_list = list(trips_query[:50])
     
-    stats['in_progress_trips'] = stats['total_trips'] - stats['completed_trips']
-    stats['completion_rate'] = (stats['completed_trips'] / max(stats['total_trips'], 1)) * 100
+    # OPTIMIZED: Calculate everything in Python using prefetched data
+    total_revenue = 0
+    completed_count = 0
+    vessel_revenues = {}
     
-    # Vessel performance (keep as separate query)
-    vessel_performance = Trip.objects.values(
-        'vessel__name', 'vessel__name_ar'
-    ).annotate(
-        trip_count=Count('id'),
-        avg_monthly=Count('id') / 12.0,
-        vessel_total_revenue=Sum(
-            F('sales_transactions__unit_price') * F('sales_transactions__quantity'),
-            output_field=models.DecimalField()
-        ),
-        performance_class=models.Case(
-            models.When(avg_monthly__gte=10, then=models.Value('high')),
-            models.When(avg_monthly__gte=5, then=models.Value('medium')),
-            default=models.Value('low'),
-            output_field=models.CharField()
-        ),
-        performance_icon=models.Case(
-            models.When(avg_monthly__gte=10, then=models.Value('arrow-up-circle')),
-            models.When(avg_monthly__gte=5, then=models.Value('dash-circle')),
-            default=models.Value('arrow-down-circle'),
-            output_field=models.CharField()
-        ),
-        badge_class=models.Case(
-            models.When(avg_monthly__gte=10, then=models.Value('bg-success')),
-            models.When(avg_monthly__gte=5, then=models.Value('bg-warning')),
-            default=models.Value('bg-danger'),
-            output_field=models.CharField()
+    for trip in trips_list:
+        # Calculate revenue using prefetched sales_transactions (no additional queries)
+        trip_revenue = sum(
+            float(txn.quantity) * float(txn.unit_price) 
+            for txn in trip.sales_transactions.all()
         )
-    ).order_by('-trip_count')
+        trip_transaction_count = len(trip.sales_transactions.all())
+        
+        # Add calculated fields to trip object for template
+        trip.annotated_total_revenue = trip_revenue
+        trip.annotated_transaction_count = trip_transaction_count
+        trip.revenue_per_passenger = round(
+            trip_revenue / max(trip.passenger_count, 1), 2
+        ) if trip.passenger_count > 0 else 0
+        
+        # Performance classification in Python
+        if trip.revenue_per_passenger >= 50:
+            trip.revenue_performance_class = 'high'
+        elif trip.revenue_per_passenger >= 25:
+            trip.revenue_performance_class = 'medium'
+        else:
+            trip.revenue_performance_class = 'low'
+        
+        # Apply min_revenue filter in Python
+        if min_revenue and trip_revenue < float(min_revenue):
+            continue
+            
+        # Accumulate stats
+        total_revenue += trip_revenue
+        if trip.is_completed:
+            completed_count += 1
+        
+        # Vessel performance tracking
+        vessel_key = trip.vessel.name
+        if vessel_key not in vessel_revenues:
+            vessel_revenues[vessel_key] = {
+                'vessel__name': trip.vessel.name,
+                'vessel__name_ar': trip.vessel.name_ar,
+                'trip_count': 0,
+                'vessel_total_revenue': 0
+            }
+        vessel_revenues[vessel_key]['trip_count'] += 1
+        vessel_revenues[vessel_key]['vessel_total_revenue'] += trip_revenue
+    
+    # Calculate final stats
+    total_trips = len(trips_list)
+    in_progress_count = total_trips - completed_count
+    
+    # OPTIMIZED: Vessel performance calculated from processed data
+    vessel_performance = []
+    for vessel_data in vessel_revenues.values():
+        avg_monthly = vessel_data['trip_count'] / 12.0
+        
+        # Performance classification
+        if avg_monthly >= 10:
+            performance_class = 'high'
+            performance_icon = 'arrow-up-circle'
+            badge_class = 'bg-success'
+        elif avg_monthly >= 5:
+            performance_class = 'medium'
+            performance_icon = 'dash-circle'
+            badge_class = 'bg-warning'
+        else:
+            performance_class = 'low'
+            performance_icon = 'arrow-down-circle'
+            badge_class = 'bg-danger'
+        
+        vessel_performance.append({
+            'vessel__name': vessel_data['vessel__name'],
+            'vessel__name_ar': vessel_data['vessel__name_ar'],
+            'trip_count': vessel_data['trip_count'],
+            'avg_monthly': round(avg_monthly, 1),
+            'vessel_total_revenue': vessel_data['vessel_total_revenue'],
+            'performance_class': performance_class,
+            'performance_icon': performance_icon,
+            'badge_class': badge_class,
+        })
+    
+    # Sort vessel performance by trip count
+    vessel_performance.sort(key=lambda x: x['trip_count'], reverse=True)
+    
+    # OPTIMIZED: Get vessels for filter in single query
+    vessels = VesselCacheHelper.get_active_vessels()
     
     context = {
-        'trips': trips_query[:50],  # Limit for performance
-        'vessels': Vessel.objects.filter(active=True).order_by('name'),
+        'trips': trips_list,
+        'vessels': vessels,
         'vessel_performance': vessel_performance,
         'stats': {
-            'total_trips': stats['total_trips'],
-            'completed_trips': stats['completed_trips'],
-            'in_progress_trips': stats['in_progress_trips'],
-            'total_revenue': stats['total_revenue'] or 0,
-            'daily_average': round(stats['avg_daily_trips'], 1),
-            'completion_rate': round(stats['completion_rate'], 1),
+            'total_trips': total_trips,
+            'completed_trips': completed_count,
+            'in_progress_trips': in_progress_count,
+            'total_revenue': total_revenue,
+            'daily_average': round(total_trips / 30.0, 1),
+            'completion_rate': round((completed_count / max(total_trips, 1)) * 100, 1),
         },
         'filters': {
             'vessel': vessel_filter,
