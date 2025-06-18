@@ -1428,7 +1428,7 @@ def toggle_po_status(request, po_id):
 @login_required
 @user_passes_test(is_admin_or_manager)
 def trip_management(request):
-    """OPTIMIZED: Trip management with NO performance-killing loops"""
+    """FIXED: Trip management with resolved property conflicts"""
     
     # Get filter parameters
     vessel_filter = request.GET.get('vessel')
@@ -1437,20 +1437,28 @@ def trip_management(request):
     date_to = request.GET.get('date_to')
     min_revenue = request.GET.get('min_revenue')
     
-    # OPTIMIZED: Single query with all annotations
-    trips_query = Trip.objects.select_related('vessel', 'created_by').annotate(
-        transaction_count=Count('sales_transactions'),
-        total_revenue=Sum(
+    # FIXED: Use different annotation names to avoid conflicts
+    trips_query = Trip.objects.select_related(
+        'vessel', 'created_by'
+    ).prefetch_related(
+        'sales_transactions'
+    ).annotate(
+        # Use different names to avoid property conflicts
+        annotated_total_revenue=Sum(
             F('sales_transactions__unit_price') * F('sales_transactions__quantity'),
             output_field=models.DecimalField()
         ),
-        # Calculate revenue per passenger in database
+        annotated_transaction_count=Count('sales_transactions'),
+        # Calculate revenue per passenger
         revenue_per_passenger=models.Case(
-            models.When(passenger_count__gt=0, then=F('total_revenue') / F('passenger_count')),
+            models.When(
+                passenger_count__gt=0, 
+                then=F('annotated_total_revenue') / F('passenger_count')
+            ),
             default=0,
             output_field=models.DecimalField()
         ),
-        # Performance classification in database
+        # Performance classification
         revenue_performance_class=models.Case(
             models.When(revenue_per_passenger__gte=50, then=models.Value('high')),
             models.When(revenue_per_passenger__gte=25, then=models.Value('medium')),
@@ -1471,30 +1479,29 @@ def trip_management(request):
     if date_to:
         trips_query = trips_query.filter(trip_date__lte=date_to)
     if min_revenue:
-        trips_query = trips_query.filter(total_revenue__gte=min_revenue)
+        trips_query = trips_query.filter(annotated_total_revenue__gte=min_revenue)
     
-    # OPTIMIZED: Statistics with single queries
+    # FIXED: Statistics using the annotation names
     stats = trips_query.aggregate(
         total_trips=Count('id'),
         completed_trips=Count('id', filter=models.Q(is_completed=True)),
-        total_revenue=Sum('total_revenue'),
-        avg_daily_trips=Count('id') / 30.0  # Approximate
+        total_revenue=Sum('annotated_total_revenue'),
+        avg_daily_trips=Count('id') / 30.0
     )
     
     stats['in_progress_trips'] = stats['total_trips'] - stats['completed_trips']
     stats['completion_rate'] = (stats['completed_trips'] / max(stats['total_trips'], 1)) * 100
     
-    # OPTIMIZED: Vessel performance with database aggregations
+    # Vessel performance (keep as separate query)
     vessel_performance = Trip.objects.values(
         'vessel__name', 'vessel__name_ar'
     ).annotate(
         trip_count=Count('id'),
         avg_monthly=Count('id') / 12.0,
-        total_revenue=Sum(
+        vessel_total_revenue=Sum(
             F('sales_transactions__unit_price') * F('sales_transactions__quantity'),
             output_field=models.DecimalField()
         ),
-        # Calculate performance class in database
         performance_class=models.Case(
             models.When(avg_monthly__gte=10, then=models.Value('high')),
             models.When(avg_monthly__gte=5, then=models.Value('medium')),
