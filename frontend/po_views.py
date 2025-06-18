@@ -7,6 +7,7 @@ from django.contrib import messages
 from django.http import JsonResponse
 from django.db import transaction, models
 from django.db.models import Sum, F, Count, Q, Avg
+from frontend.utils.cache_helpers import VesselCacheHelper
 from frontend.utils.validation_helpers import ValidationHelper
 from .utils.query_helpers import TransactionQueryHelper
 from transactions.models import Transaction, Trip, PurchaseOrder, InventoryLot
@@ -40,18 +41,10 @@ def po_management(request):
     
     # WORKING: Base queryset with template-required annotations
     purchase_orders = PurchaseOrder.objects.select_related(
-        'vessel',           
-        'created_by'        
+        'vessel', 'created_by'
     ).prefetch_related(
-        'supply_transactions__product'  
-    ).annotate(
-        # These are the fields the template expects
-        annotated_total_cost=Sum(
-            F('supply_transactions__unit_price') * F('supply_transactions__quantity'),
-            output_field=models.DecimalField()
-        ),
-        annotated_transaction_count=Count('supply_transactions'),
-    )
+        'supply_transactions'
+    ).order_by('-po_date', '-created_at')
     
     # Apply all filters using helper with custom field mappings
     purchase_orders = TransactionQueryHelper.apply_common_filters(
@@ -65,76 +58,82 @@ def po_management(request):
     
     # WORKING: Add cost performance class to each PO (for template)
     po_list = list(purchase_orders[:50])
+    
+    # OPTIMIZED: Calculate stats in Python using prefetched data
+    total_cost = 0
+    completed_count = 0
 
-    # WORKING: Simple statistics using separate queries
-    po_stats = PurchaseOrder.objects.aggregate(
-        total_pos=Count('id'),
-        completed_pos=Count('id', filter=Q(is_completed=True)),
-        in_progress_pos=Count('id', filter=Q(is_completed=False))
-    )
+    for po in po_list:
+        # Calculate cost using prefetched supply_transactions (no additional queries)
+        po_cost = sum(
+            float(txn.quantity) * float(txn.unit_price) 
+            for txn in po.supply_transactions.all()
+        )
+        po_transaction_count = len(po.supply_transactions.all())
+        
+        # Add calculated fields to PO object for template
+        po.annotated_total_cost = po_cost
+        po.annotated_transaction_count = po_transaction_count
+        
+        # Accumulate stats
+        total_cost += po_cost
+        if po.is_completed:
+            completed_count += 1
 
-    # Calculate financial statistics
-    financial_stats = Transaction.objects.filter(
-        transaction_type='SUPPLY',
-        purchase_order__isnull=False
-    ).aggregate(
-        total_procurement_value=Sum(F('unit_price') * F('quantity'), output_field=models.DecimalField()),
-        total_transactions=Count('id'),
-        avg_po_value=Avg(F('unit_price') * F('quantity'), output_field=models.DecimalField())
-    )
-
-    # Set defaults for financial stats
-    for key in ['total_procurement_value', 'total_transactions', 'avg_po_value']:
-        if financial_stats[key] is None:
-            financial_stats[key] = 0
+    total_pos = len(po_list)
+    completed_pos = sum(1 for po in po_list if po.is_completed)
+    in_progress_pos = total_pos - completed_pos
+    total_procurement_value = total_cost  # Already calculated above
+    total_transactions = sum(po.annotated_transaction_count for po in po_list)
+    avg_po_value = total_cost / max(total_pos, 1)
 
     # Calculate completion rate
-    total_pos = po_stats['total_pos'] or 1  # Avoid division by zero
-    completed_pos = po_stats['completed_pos'] or 0
-    completion_rate = (completed_pos / total_pos) * 100
+    completion_rate = (completed_pos / max(total_pos, 1)) * 100
 
-    # Get top vessels by PO activity (simplified)
-    top_vessels = Vessel.objects.filter(active=True).annotate(
-        po_count=Count('purchase_orders')
-    ).filter(po_count__gt=0).order_by('-po_count')[:5]
+    # Calculate recent activity from existing data
+    from datetime import timedelta
+    week_ago = timezone.now() - timedelta(days=7)
+    recent_pos_count = sum(1 for po in po_list if po.created_at >= week_ago)
+    recent_value = sum(po.annotated_total_cost for po in po_list if po.created_at >= week_ago)
 
-    # Recent activity
-    recent_pos = PurchaseOrder.objects.filter(
-        created_at__gte=timezone.now() - timedelta(days=7)
-    )
-    recent_pos_count = recent_pos.count()
-    recent_value = recent_pos.aggregate(
-        total=Sum(F('supply_transactions__unit_price') * F('supply_transactions__quantity'))
-    )['total'] or 0
+    # Calculate vessel performance from existing data
+    vessel_stats = {}
+    for po in po_list:
+        vessel_name = po.vessel.name
+        if vessel_name not in vessel_stats:
+            vessel_stats[vessel_name] = {
+                'vessel': po.vessel,
+                'po_count': 0,
+                'total_value': 0
+            }
+        vessel_stats[vessel_name]['po_count'] += 1
+        vessel_stats[vessel_name]['total_value'] += po.annotated_total_cost
+
+    # Convert to list and sort by po_count
+    top_vessels = sorted(vessel_stats.values(), key=lambda x: x['po_count'], reverse=True)[:5]
 
     # Get vessels for filter using helper
-    vessels = TransactionQueryHelper.get_vessels_for_filter()
+    vessels = VesselCacheHelper.get_active_vessels()
 
     context = {
         'purchase_orders': po_list,
         'vessels': vessels,
         'top_vessels': top_vessels,  # Simplified but functional
         'stats': {
-            # Basic counts
-            'total_pos': po_stats['total_pos'] or 0,
-            'completed_pos': po_stats['completed_pos'] or 0,
-            'in_progress_pos': po_stats['in_progress_pos'] or 0,
-            'completion_rate': round(completion_rate, 1),
-            
-            # Financial metrics
-            'total_procurement_value': financial_stats['total_procurement_value'],
-            'avg_po_value': round(financial_stats['avg_po_value'], 2),
-            
-            # Transaction metrics
-            'total_transactions': financial_stats['total_transactions'],
-            'avg_transactions_per_po': round(
-                financial_stats['total_transactions'] / max(po_stats['total_pos'], 1), 1
-            ),
-        },
+            'total_pos': total_pos,
+                'completed_pos': completed_pos,
+                'in_progress_pos': in_progress_pos,
+                'completion_rate': round(completion_rate, 1),
+                'total_procurement_value': total_procurement_value,
+                'avg_po_value': round(avg_po_value, 2),
+                'total_transactions': total_transactions,
+                'avg_transactions_per_po': round(total_transactions / max(total_pos, 1), 1),
+            },
         'recent_activity': {
             'recent_pos': recent_pos_count,
             'recent_value': recent_value,
-        }
+        },
+        'top_suppliers': top_vessels,
     }
     
     # Add filter context using helper
