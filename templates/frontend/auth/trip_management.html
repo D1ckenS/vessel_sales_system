@@ -648,25 +648,31 @@ function showAlert(message, type) {
 }
 
 function editTrip(tripId) {
-    fetch(`/trips/manage/${tripId}/edit/`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                document.getElementById('editTripId').value = data.trip.id;
-                document.getElementById('editTripNumber').value = data.trip.trip_number;
-                document.getElementById('editPassengerCount').value = data.trip.passenger_count;
-                document.getElementById('editTripDate').value = data.trip.trip_date;
-                document.getElementById('editTripNotes').value = data.trip.notes;
-                
-                new bootstrap.Modal(document.getElementById('editTripModal')).show();
-            } else {
-                showAlert(data.error, 'danger');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showAlert('Error loading trip data', 'danger');
-        });
+    // FIXED: Remove /manage/ from URL
+    fetch(`/trips/${tripId}/edit/`, {  // ← WAS: `/trips/manage/${tripId}/edit/`
+        method: 'GET',
+        headers: {
+            'X-CSRFToken': getCsrfToken()
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('editTripId').value = data.trip.id;
+            document.getElementById('editTripNumber').value = data.trip.trip_number;
+            document.getElementById('editPassengerCount').value = data.trip.passenger_count;
+            document.getElementById('editTripDate').value = data.trip.trip_date;
+            document.getElementById('editTripNotes').value = data.trip.notes;
+            
+            new bootstrap.Modal(document.getElementById('editTripModal')).show();
+        } else {
+            showAlert(data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Error loading trip data', 'danger');
+    });
 }
 
 function saveTrip() {
@@ -677,7 +683,8 @@ function saveTrip() {
         notes: document.getElementById('editTripNotes').value
     };
     
-    fetch(`/trips/manage/${tripId}/edit/`, {
+    // FIXED: Remove /manage/ from URL
+    fetch(`/trips/${tripId}/edit/`, {  // ← WAS: `/trips/manage/${tripId}/edit/`
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -702,8 +709,8 @@ function saveTrip() {
 }
 
 function deleteTrip(tripId) {
-    // First attempt - check for transactions
-    fetch(`/trips/manage/${tripId}/delete/`, {
+    // FIXED: Remove /manage/ from URL
+    fetch(`/trips/${tripId}/delete/`, {  // ← WAS: `/trips/manage/${tripId}/delete/`
         method: 'DELETE',
         headers: {
             'X-CSRFToken': getCsrfToken()
@@ -715,7 +722,6 @@ function deleteTrip(tripId) {
             showAlert(data.message, 'success');
             location.reload();
         } else if (data.requires_confirmation) {
-            // Show detailed confirmation modal
             showTransactionConfirmationModal('trip', tripId, data);
         } else {
             showAlert(data.error, 'danger');
@@ -820,14 +826,16 @@ function showTransactionConfirmationModal(type, id, data) {
 }
 
 function confirmForceDelete(type, id) {
-    const isTrip = type === 'trip';
-    const url = isTrip ? `/trips/manage/${id}/delete/` : `/purchase-orders/manage/${id}/delete/`;
+    // FIXED: Remove /manage/ from URLs
+    const url = type === 'trip' ? 
+        `/trips/${id}/delete/` :       // ← WAS: `/trips/manage/${id}/delete/`
+        `/purchase-orders/${id}/delete/`;  // ← WAS: `/purchase-orders/manage/${id}/delete/`
     
     fetch(url, {
         method: 'DELETE',
         headers: {
             'X-CSRFToken': getCsrfToken(),
-            'X-Force-Delete': 'true'  // This tells the backend to force delete
+            'X-Force-Delete': 'true'
         }
     })
     .then(response => response.json())

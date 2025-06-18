@@ -629,24 +629,30 @@ function showAlert(message, type) {
 }
 
 function editPO(poId) {
-    fetch(`/purchase-orders/manage/${poId}/edit/`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                document.getElementById('editPOId').value = data.po.id;
-                document.getElementById('editPONumber').value = data.po.po_number;
-                document.getElementById('editPODate').value = data.po.po_date;
-                document.getElementById('editPONotes').value = data.po.notes;
-                
-                new bootstrap.Modal(document.getElementById('editPOModal')).show();
-            } else {
-                showAlert(data.error, 'danger');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showAlert('Error loading PO data', 'danger');
-        });
+    // FIXED: Remove /manage/ from URL
+    fetch(`/purchase-orders/${poId}/edit/`, {  // ← WAS: `/purchase-orders/manage/${poId}/edit/`
+        method: 'GET',
+        headers: {
+            'X-CSRFToken': getCsrfToken()
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('editPOId').value = data.po.id;
+            document.getElementById('editPONumber').value = data.po.po_number;
+            document.getElementById('editPODate').value = data.po.po_date;
+            document.getElementById('editPONotes').value = data.po.notes;
+            
+            new bootstrap.Modal(document.getElementById('editPOModal')).show();
+        } else {
+            showAlert(data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Error loading PO data', 'danger');
+    });
 }
 
 function savePO() {
@@ -656,7 +662,8 @@ function savePO() {
         notes: document.getElementById('editPONotes').value
     };
     
-    fetch(`/purchase-orders/manage/${poId}/edit/`, {
+    // FIXED: Remove /manage/ from URL
+    fetch(`/purchase-orders/${poId}/edit/`, {  // ← WAS: `/purchase-orders/manage/${poId}/edit/`
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -799,14 +806,16 @@ function showTransactionConfirmationModal(type, id, data) {
 }
 
 function confirmForceDelete(type, id) {
-    const isTrip = type === 'trip';
-    const url = isTrip ? `/trips/manage/${id}/delete/` : `/purchase-orders/manage/${id}/delete/`;
+    // FIXED: Remove /manage/ from URLs
+    const url = type === 'trip' ? 
+        `/trips/${id}/delete/` :       // ← WAS: `/trips/manage/${id}/delete/`
+        `/purchase-orders/${id}/delete/`;  // ← WAS: `/purchase-orders/manage/${id}/delete/`
     
     fetch(url, {
         method: 'DELETE',
         headers: {
             'X-CSRFToken': getCsrfToken(),
-            'X-Force-Delete': 'true'  // This tells the backend to force delete
+            'X-Force-Delete': 'true'
         }
     })
     .then(response => response.json())
