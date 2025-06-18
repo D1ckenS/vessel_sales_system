@@ -35,12 +35,14 @@ def sales_entry(request):
         if user_role == UserRoles.VESSEL_OPERATORS:
             # Vessel Operators see only today's trips
             today = date.today()
-            recent_trips = Trip.objects.select_related('vessel', 'created_by').filter(
-                trip_date=today
-            ).order_by('-created_at')[:10]
+            recent_trips = Trip.objects.select_related('vessel', 'created_by').prefetch_related(
+                'sales_transactions'
+            ).filter(trip_date=today).order_by('-created_at')[:10]
         else:
             # Administrators, Managers, and higher roles see all recent trips
-            recent_trips = Trip.objects.select_related('vessel', 'created_by').order_by('-created_at')[:10]
+            recent_trips = Trip.objects.select_related('vessel', 'created_by').prefetch_related(
+                'sales_transactions'
+            ).order_by('-created_at')[:10]
         
         context = {
             'vessels': vessels,
