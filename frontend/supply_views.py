@@ -4,6 +4,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.http import JsonResponse
 from datetime import date
+from frontend.utils.cache_helpers import VesselCacheHelper
 from vessels.models import Vessel
 from products.models import Product
 from transactions.models import Transaction, PurchaseOrder
@@ -24,7 +25,7 @@ def supply_entry(request):
     """Step 1: Create new purchase order for supply transactions"""
     
     if request.method == 'GET':
-        vessels = Vessel.objects.filter(active=True).order_by('name')
+        vessels = VesselCacheHelper.get_active_vessels()
         recent_pos = PurchaseOrder.objects.select_related('vessel', 'created_by').order_by('-created_at')[:10]
         
         context = {

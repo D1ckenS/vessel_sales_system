@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Q, Sum
 from django.http import JsonResponse
 from datetime import date
+from frontend.utils.cache_helpers import VesselCacheHelper
 from vessels.models import Vessel
 from products.models import Product
 from transactions.models import Transaction, InventoryLot, Trip, get_vessel_product_price, get_vessel_pricing_warnings, get_available_inventory
@@ -25,7 +26,7 @@ def sales_entry(request):
     """Step 1: Create new trip for sales transactions"""
     
     if request.method == 'GET':
-        vessels = Vessel.objects.filter(active=True).order_by('name')
+        vessels = VesselCacheHelper.get_active_vessels()
                 
         # Get user's role
         user_role = get_user_role(request.user)

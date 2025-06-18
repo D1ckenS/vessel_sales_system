@@ -2,6 +2,7 @@ from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Q, Sum, Min, Avg, Count
 from django.http import JsonResponse
+from frontend.utils.cache_helpers import VesselCacheHelper
 from vessels.models import Vessel
 from products.models import Product
 from transactions.models import Transaction, InventoryLot
@@ -14,7 +15,7 @@ def inventory_check(request):
     """OPTIMIZED: Inventory check with FIFO cost calculation"""
     
     # Get all vessels for selection
-    vessels = Vessel.objects.filter(active=True).order_by('name')
+    vessels = VesselCacheHelper.get_active_vessels()
     selected_vessel_id = request.GET.get('vessel')
     
     if not selected_vessel_id:

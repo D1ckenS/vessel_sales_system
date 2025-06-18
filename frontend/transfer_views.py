@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Q, Sum
 from django.http import JsonResponse
 from datetime import date, datetime
+from frontend.utils.cache_helpers import VesselCacheHelper
 from vessels.models import Vessel
 from products.models import Product
 from transactions.models import Transaction, InventoryLot, get_available_inventory
@@ -100,7 +101,7 @@ def transfer_entry(request):
     """Step 1: Create new transfer session"""
     
     if request.method == 'GET':
-        vessels = Vessel.objects.filter(active=True).order_by('name')
+        vessels = VesselCacheHelper.get_active_vessels()
         recent_transfers = Transaction.objects.filter(
             transaction_type='TRANSFER_OUT'
         ).select_related(

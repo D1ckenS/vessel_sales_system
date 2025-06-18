@@ -7,6 +7,8 @@ from django.core.cache import cache
 import calendar
 import hashlib
 from django.db.models import Avg, Sum, Count, F, Q, Case, When, Prefetch
+
+from frontend.utils.cache_helpers import VesselCacheHelper
 from .utils.aggregators import TransactionAggregator, ProductAnalytics
 from transactions.models import Transaction, InventoryLot, Trip, PurchaseOrder, get_vessel_pricing_warnings
 from django.shortcuts import render
@@ -83,7 +85,7 @@ def trip_reports(request):
     context = {
         'trips': trips_list,
         'top_trips': top_trips,
-        'vessels': Vessel.objects.filter(active=True).only('id', 'name', 'name_ar'),
+        'vessels': VesselCacheHelper.get_active_vessels(),
         'summary': {
             'total_trips': total_trips,
             'total_revenue': total_revenue,
@@ -393,7 +395,7 @@ def daily_report(request):
     transaction_change = comparison['changes']['transaction_change_count']
 
     # === Vessels & Vessel Breakdown ===
-    vessels = TransactionQueryHelper.get_vessels_for_filter()
+    vessels = VesselCacheHelper.get_active_vessels()
     
     # Prefetch all transactions in one go
     vessel_transactions = Transaction.objects.filter(
@@ -599,7 +601,7 @@ def monthly_report(request):
         current_date += timedelta(days=1)
     
     # Vessel performance using existing pattern from your code
-    vessels = Vessel.objects.filter(active=True)
+    vessels = VesselCacheHelper.get_active_vessels()
     vessel_performance = []
     
     for vessel in vessels:

@@ -108,11 +108,11 @@ def po_management(request):
     )['total'] or 0
 
     # Get vessels for filter using helper
-    vessels_for_filter = TransactionQueryHelper.get_vessels_for_filter()
+    vessels = TransactionQueryHelper.get_vessels_for_filter()
 
     context = {
         'purchase_orders': po_list,
-        'vessels': vessels_for_filter,
+        'vessels': vessels,
         'top_vessels': top_vessels,  # Simplified but functional
         'stats': {
             # Basic counts
