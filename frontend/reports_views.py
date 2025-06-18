@@ -270,6 +270,7 @@ def reports_dashboard(request):
 
 @reports_access_required
 def daily_report(request):
+    """OPTIMIZED: Combined queries for daily report with comparison"""
     from django.db.models import OuterRef, Subquery
     from collections import defaultdict
 
@@ -289,67 +290,140 @@ def daily_report(request):
 
     previous_date = selected_date - timedelta(days=1)
 
-    # === Transactions ===
-    transactions_qs = Transaction.objects.select_related(
+    # ✅ OPTIMIZATION 1: Single query for both dates
+    all_transactions = Transaction.objects.filter(
+        Q(transaction_date=selected_date) | Q(transaction_date=previous_date)
+    ).select_related(
         'vessel', 'product', 'product__category', 'created_by'
-    )
+    ).order_by('-created_at')
 
-    daily_transactions = transactions_qs.filter(transaction_date=selected_date).order_by('-created_at')
-    previous_transactions = transactions_qs.filter(transaction_date=previous_date).order_by('-created_at')
+    # ✅ Split transactions in Python (single query instead of 2)
+    daily_transactions = [t for t in all_transactions if t.transaction_date == selected_date]
+    previous_transactions = [t for t in all_transactions if t.transaction_date == previous_date]
 
-    comparison = TransactionAggregator.compare_periods(daily_transactions, previous_transactions)
-    stats = comparison['current']
-    revenue_change = comparison['changes']['revenue_change_percent']
-    transaction_change = comparison['changes']['transaction_change_count']
+    # Calculate stats manually instead of using aggregator
+    def calculate_stats_manual(transactions):
+        sales = [t for t in transactions if t.transaction_type == 'SALE']
+        supplies = [t for t in transactions if t.transaction_type == 'SUPPLY']
+        
+        total_revenue = sum((t.unit_price or 0) * (t.quantity or 0) for t in sales)
+        total_cost = sum((t.unit_price or 0) * (t.quantity or 0) for t in supplies)
+        
+        return {
+            'total_revenue': total_revenue,
+            'total_purchase_cost': total_cost,  # Template expects this key
+            'total_transactions': len(transactions),
+            'sales_count': len(sales),
+            'supply_count': len(supplies),
+            'transfer_count': len([t for t in transactions if t.transaction_type.startswith('TRANSFER')]),
+            'total_quantity': sum(t.quantity or 0 for t in transactions),
+        }
 
-    # === Vessels & Vessel Breakdown ===
+    stats = calculate_stats_manual(daily_transactions)
+    previous_stats = calculate_stats_manual(previous_transactions)
+
+    # Calculate changes
+    prev_revenue = previous_stats['total_revenue']
+    revenue_change = ((stats['total_revenue'] - prev_revenue) / max(prev_revenue, 1) * 100) if prev_revenue > 0 else 0
+    transaction_change = stats['total_transactions'] - previous_stats['total_transactions']
+    daily_profit = stats['total_revenue'] - stats['total_purchase_cost']
+    profit_margin = (daily_profit / max(stats['total_revenue'], 1)) * 100
+
+    # ✅ OPTIMIZATION 2: Vessel breakdown using already fetched transactions
     vessels = VesselCacheHelper.get_active_vessels()
     
-    # Prefetch all transactions in one go
-    vessel_transactions = Transaction.objects.filter(
-        transaction_date=selected_date,
-        vessel__in=vessels
-    ).select_related('vessel', 'product', 'product__category', 'created_by')
+    # Group transactions by vessel ID
+    daily_txns_by_vessel = defaultdict(list)
+    for txn in daily_transactions:
+        daily_txns_by_vessel[txn.vessel_id].append(txn)
 
-    # Now pass the full batch to the modified aggregator
-    vessel_breakdown = TransactionAggregator.get_vessel_stats_for_date(vessel_transactions, vessels)
+    vessel_breakdown = []
+    for vessel in vessels:
+        vessel_txns = daily_txns_by_vessel.get(vessel.id, [])
 
+        # Calculate stats manually
+        revenue = sum((t.unit_price or 0) * (t.quantity or 0) for t in vessel_txns if t.transaction_type == 'SALE')
+        costs = sum((t.unit_price or 0) * (t.quantity or 0) for t in vessel_txns if t.transaction_type == 'SUPPLY')
+        sales_count = len([t for t in vessel_txns if t.transaction_type == 'SALE'])
+        supply_count = len([t for t in vessel_txns if t.transaction_type == 'SUPPLY'])
+        transfer_out_count = len([t for t in vessel_txns if t.transaction_type == 'TRANSFER_OUT'])
+        transfer_in_count = len([t for t in vessel_txns if t.transaction_type == 'TRANSFER_IN'])
+        total_quantity = sum(t.quantity or 0 for t in vessel_txns)
 
-    # === Grouped Trips & POs by vessel ===
-    trips_by_vessel = defaultdict(list)
-    for trip in Trip.objects.filter(trip_date=selected_date).values(
+        profit = revenue - costs
+        vessel_stats = {
+            'revenue': revenue,
+            'costs': costs,
+            'sales_count': sales_count,
+            'supply_count': supply_count,
+            'transfer_out_count': transfer_out_count,
+            'transfer_in_count': transfer_in_count,
+            'total_quantity': total_quantity,
+        }
+
+        vessel_breakdown.append({
+            'vessel': vessel,
+            'stats': vessel_stats,
+            'profit': profit,
+            'profit_margin': (profit / revenue * 100) if revenue > 0 else 0
+        })
+
+    # ✅ OPTIMIZATION 3: Single query for trips and POs
+    daily_trips_and_pos = {}
+    
+    # Single query for trips
+    trips_data = Trip.objects.filter(trip_date=selected_date).values(
         'vessel_id', 'trip_number', 'is_completed', 'passenger_count'
-    ):
+    )
+    trips_by_vessel = defaultdict(list)
+    for trip in trips_data:
         trips_by_vessel[trip['vessel_id']].append(trip)
 
-    pos_by_vessel = defaultdict(list)
-    for po in PurchaseOrder.objects.filter(po_date=selected_date).values(
+    # Single query for POs  
+    pos_data = PurchaseOrder.objects.filter(po_date=selected_date).values(
         'vessel_id', 'po_number', 'is_completed'
-    ):
+    )
+    pos_by_vessel = defaultdict(list)
+    for po in pos_data:
         pos_by_vessel[po['vessel_id']].append(po)
 
+    # Add trips/POs to vessel breakdown
     for v in vessel_breakdown:
         v_id = v['vessel'].id
         v['trips'] = trips_by_vessel.get(v_id, [])
         v['pos'] = pos_by_vessel.get(v_id, [])
 
-    # === Inventory changes ===
-    inventory_changes = daily_transactions.values(
-        'product__name', 'product__item_id', 'vessel__name', 'vessel__name_ar'
-    ).annotate(
-        total_in=Sum('quantity', filter=Q(transaction_type__in=['SUPPLY', 'TRANSFER_IN'])),
-        total_out=Sum('quantity', filter=Q(transaction_type__in=['SALE', 'TRANSFER_OUT'])),
-        net_change=Sum(
-            Case(
-                When(transaction_type__in=['SUPPLY', 'TRANSFER_IN'], then=F('quantity')),
-                When(transaction_type__in=['SALE', 'TRANSFER_OUT'], then=-F('quantity')),
-                default=0,
-                output_field=models.DecimalField(max_digits=15, decimal_places=3)
-            )
-        )
-    ).filter(Q(total_in__gt=0) | Q(total_out__gt=0)).order_by('-total_out')[:20]
+    # ✅ OPTIMIZATION 4: Inventory changes using already fetched daily transactions
+    inventory_changes_data = defaultdict(lambda: {
+        'product__name': '', 'product__item_id': '', 'vessel__name': '', 'vessel__name_ar': '',
+        'total_in': 0, 'total_out': 0
+    })
 
-    # === Stock levels: One query to rule them all ===
+    for t in daily_transactions:
+        key = (t.product.id, t.vessel.id)
+        change = inventory_changes_data[key]
+        change['product__name'] = t.product.name
+        change['product__item_id'] = t.product.item_id
+        change['vessel__name'] = t.vessel.name
+        change['vessel__name_ar'] = getattr(t.vessel, 'name_ar', '')
+        
+        if t.transaction_type in ['SUPPLY', 'TRANSFER_IN']:
+            change['total_in'] += t.quantity or 0
+        elif t.transaction_type in ['SALE', 'TRANSFER_OUT']:
+            change['total_out'] += t.quantity or 0
+
+    # Convert to list and calculate net change
+    inventory_changes = []
+    for change in inventory_changes_data.values():
+        if change['total_in'] > 0 or change['total_out'] > 0:
+            change['net_change'] = change['total_in'] - change['total_out']
+            inventory_changes.append(change)
+
+    # Sort by total_out descending and limit
+    inventory_changes.sort(key=lambda x: x['total_out'], reverse=True)
+    inventory_changes = inventory_changes[:20]
+
+    # ✅ OPTIMIZATION 5: Stock levels with single query
     stock_subquery = InventoryLot.objects.filter(
         product=OuterRef('pk'),
         remaining_quantity__gte=0
@@ -357,40 +431,55 @@ def daily_report(request):
         total_stock=Sum('remaining_quantity')
     ).values('total_stock')
 
-    products = Product.objects.filter(active=True).annotate(
+    products_with_stock = Product.objects.filter(active=True).annotate(
         total_stock=Subquery(stock_subquery)
     )
 
     low_stock_products = []
     out_of_stock_products = []
 
-    for product in products:
+    for product in products_with_stock:
         stock = product.total_stock or 0
         if stock == 0:
             out_of_stock_products.append({'product': product, 'total_stock': 0})
         elif stock < 10:
             low_stock_products.append({'product': product, 'total_stock': stock})
 
-    # === Best vessel & activity highlights ===
-    best_vessel = max(vessel_breakdown, key=lambda v: v.get('profit') or 0, default=None)
+    # Best performers from vessel breakdown
+    best_vessel = max(vessel_breakdown, key=lambda v: v.get('profit', 0), default=None)
     most_active_vessel = max(
-        vessel_breakdown, key=lambda v: v.get('stats', {}).get('total_quantity') or 0, default=None
+        vessel_breakdown, key=lambda v: v.get('stats', {}).get('total_quantity', 0), default=None
     )
 
-    # === Values-only queries for reports ===
-    daily_trips = Trip.objects.filter(trip_date=selected_date).values(
-        'trip_number', 'is_completed', 'passenger_count', 'vessel__name'
-    )
-    daily_pos = PurchaseOrder.objects.filter(po_date=selected_date).values(
-        'po_number', 'is_completed', 'vessel__name'
-    )
+    # ✅ OPTIMIZATION 6: Convert trips and POs to final format for template
+    daily_trips = []
+    daily_pos = []
+    
+    for trip_data in trips_data:
+        vessel = next((v for v in vessels if v.id == trip_data['vessel_id']), None)
+        if vessel:
+            daily_trips.append({
+                'trip_number': trip_data['trip_number'],
+                'is_completed': trip_data['is_completed'],
+                'passenger_count': trip_data['passenger_count'],
+                'vessel': vessel
+            })
+
+    for po_data in pos_data:
+        vessel = next((v for v in vessels if v.id == po_data['vessel_id']), None)
+        if vessel:
+            daily_pos.append({
+                'po_number': po_data['po_number'],
+                'is_completed': po_data['is_completed'],
+                'vessel': vessel
+            })
 
     context = {
         'selected_date': selected_date,
-        'previous_date': previous_date,
+        'today': today,
         'daily_stats': stats,
-        'daily_profit': stats['total_profit'],
-        'profit_margin': stats['profit_margin'],
+        'daily_profit': daily_profit,
+        'profit_margin': profit_margin,
         'revenue_change': revenue_change,
         'transaction_change': transaction_change,
         'vessel_breakdown': vessel_breakdown,
