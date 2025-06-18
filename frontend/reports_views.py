@@ -1,3 +1,4 @@
+from collections import defaultdict
 from django.utils import timezone
 from django.db import models
 from datetime import datetime, timedelta, date
@@ -359,80 +360,70 @@ def comprehensive_report(request):
 
 @reports_access_required
 def daily_report(request):
-    """FIXED: Daily operations report with correct method calls"""
-    
-    # Get selected date (default to today)
+    from django.db.models import OuterRef, Subquery
+    from collections import defaultdict
+
+    # Parse selected date
     selected_date_str = request.GET.get('date')
-    if selected_date_str:
-        try:
-            selected_date = datetime.strptime(selected_date_str, '%Y-%m-%d').date()
-        except ValueError:
-            selected_date = timezone.now().date()
-    else:
+    try:
+        selected_date = datetime.strptime(selected_date_str, '%Y-%m-%d').date() if selected_date_str else timezone.now().date()
+    except ValueError:
         selected_date = timezone.now().date()
     
-    # Cache key for this specific date
-    cache_key = f'daily_report_{selected_date}'
-    
-    # Cache duration: 1 hour for today, 24 hours for historical
     today = timezone.now().date()
+    cache_key = f'daily_report_{selected_date}'
     cache_duration = 3600 if selected_date == today else 86400
-    
-    # Try cache first
-    cached_data = cache.get(cache_key)
-    if cached_data:
-        return render(request, 'frontend/daily_report.html', cached_data)
-    
-    # Get previous day for comparison
+
+    if cached := cache.get(cache_key):
+        return render(request, 'frontend/daily_report.html', cached)
+
     previous_date = selected_date - timedelta(days=1)
-    
-    # Daily transactions for selected date
-    daily_transactions = Transaction.objects.filter(
-        transaction_date=selected_date
-    ).select_related(
+
+    # === Transactions ===
+    transactions_qs = Transaction.objects.select_related(
         'vessel', 'product', 'product__category', 'created_by'
-    ).order_by('-created_at')
-    
-    previous_transactions = Transaction.objects.filter(
-        transaction_date=previous_date
-    ).select_related(
-        'vessel', 'product', 'product__category', 'created_by'
-    ).order_by('-created_at')
-    
-    # Use EXACT existing helper method
+    )
+
+    daily_transactions = transactions_qs.filter(transaction_date=selected_date).order_by('-created_at')
+    previous_transactions = transactions_qs.filter(transaction_date=previous_date).order_by('-created_at')
+
     comparison = TransactionAggregator.compare_periods(daily_transactions, previous_transactions)
-    daily_stats = comparison['current']
+    stats = comparison['current']
     revenue_change = comparison['changes']['revenue_change_percent']
     transaction_change = comparison['changes']['transaction_change_count']
-    
-    # Get vessels using EXACT existing helper
+
+    # === Vessels & Vessel Breakdown ===
     vessels = TransactionQueryHelper.get_vessels_for_filter()
     
-    # FIXED: Use the correct method that takes both queryset and vessels
-    vessel_breakdown = TransactionAggregator.get_vessel_stats_for_date(daily_transactions, vessels)
-    
-    # Add trip and PO data to vessel breakdown (keep your exact pattern)
-    for vessel_data in vessel_breakdown:
-        vessel = vessel_data['vessel']
-        
-        # Get trips for this vessel on this date
-        vessel_trips = Trip.objects.filter(
-            vessel=vessel,
-            trip_date=selected_date
-        ).values('trip_number', 'is_completed', 'passenger_count')
-        
-        # Get POs for this vessel on this date
-        vessel_pos = PurchaseOrder.objects.filter(
-            vessel=vessel,
-            po_date=selected_date
-        ).values('po_number', 'is_completed')
-        
-        vessel_data.update({
-            'trips': list(vessel_trips),
-            'pos': list(vessel_pos)
-        })
-    
-    # Inventory changes (simplified to avoid SQLite issues)
+    # Prefetch all transactions in one go
+    vessel_transactions = Transaction.objects.filter(
+        transaction_date=selected_date,
+        vessel__in=vessels
+    ).select_related('vessel', 'product', 'product__category', 'created_by')
+
+    # Now pass the full batch to the modified aggregator
+    vessel_breakdown = TransactionAggregator.get_vessel_stats_for_date(vessel_transactions, vessels)
+
+
+    # === Grouped Trips & POs by vessel ===
+    trips_by_vessel = defaultdict(list)
+    for trip in Trip.objects.filter(trip_date=selected_date).values(
+        'vessel_id', 'trip_number', 'is_completed', 'passenger_count'
+    ):
+        trips_by_vessel[trip['vessel_id']].append(trip)
+
+    pos_by_vessel = defaultdict(list)
+    for po in PurchaseOrder.objects.filter(po_date=selected_date).values(
+        'vessel_id', 'po_number', 'is_completed'
+    ):
+        pos_by_vessel[po['vessel_id']].append(po)
+
+    for v in vessel_breakdown:
+        v_id = v['vessel'].id
+        v['trips'] = trips_by_vessel.get(v_id, [])
+        v['pos'] = pos_by_vessel.get(v_id, [])
+
+    # === Inventory changes ===
     inventory_changes = daily_transactions.values(
         'product__name', 'product__item_id', 'vessel__name', 'vessel__name_ar'
     ).annotate(
@@ -446,66 +437,64 @@ def daily_report(request):
                 output_field=models.DecimalField(max_digits=15, decimal_places=3)
             )
         )
-    ).filter(
-        Q(total_in__gt=0) | Q(total_out__gt=0)
-    ).order_by('-total_out')[:20]
-    
-    # FIXED: Business insights with safe list handling
-    best_vessel = None
-    most_active_vessel = None
-    
-    if vessel_breakdown:
-        try:
-            best_vessel = max(vessel_breakdown, key=lambda v: v['profit'])
-        except (KeyError, ValueError):
-            best_vessel = None
-        
-        try:
-            most_active_vessel = max(vessel_breakdown, key=lambda v: v['stats']['total_quantity'] or 0)
-        except (KeyError, ValueError):
-            most_active_vessel = None
-    
-    # FIXED: Low stock and out of stock products - ensure they're lists
+    ).filter(Q(total_in__gt=0) | Q(total_out__gt=0)).order_by('-total_out')[:20]
+
+    # === Stock levels: One query to rule them all ===
+    stock_subquery = InventoryLot.objects.filter(
+        product=OuterRef('pk'),
+        remaining_quantity__gte=0
+    ).values('product').annotate(
+        total_stock=Sum('remaining_quantity')
+    ).values('total_stock')
+
+    products = Product.objects.filter(active=True).annotate(
+        total_stock=Subquery(stock_subquery)
+    )
+
     low_stock_products = []
     out_of_stock_products = []
 
-    for product in Product.objects.filter(active=True):
-        total_stock = InventoryLot.objects.filter(
-            product=product,
-            remaining_quantity__gt=0
-        ).aggregate(total=Sum('remaining_quantity'))['total'] or 0
-        
-        if total_stock == 0:
-            out_of_stock_products.append({'product': product, 'total_stock': total_stock})
-        elif total_stock < 10:
-            low_stock_products.append({'product': product, 'total_stock': total_stock})
-    
-    # All trips and POs for the day
-    daily_trips = Trip.objects.filter(trip_date=selected_date).select_related('vessel').order_by('vessel__name', 'trip_number')
-    daily_pos = PurchaseOrder.objects.filter(po_date=selected_date).select_related('vessel').order_by('vessel__name', 'po_number')
-    
+    for product in products:
+        stock = product.total_stock or 0
+        if stock == 0:
+            out_of_stock_products.append({'product': product, 'total_stock': 0})
+        elif stock < 10:
+            low_stock_products.append({'product': product, 'total_stock': stock})
+
+    # === Best vessel & activity highlights ===
+    best_vessel = max(vessel_breakdown, key=lambda v: v.get('profit') or 0, default=None)
+    most_active_vessel = max(
+        vessel_breakdown, key=lambda v: v.get('stats', {}).get('total_quantity') or 0, default=None
+    )
+
+    # === Values-only queries for reports ===
+    daily_trips = Trip.objects.filter(trip_date=selected_date).values(
+        'trip_number', 'is_completed', 'passenger_count', 'vessel__name'
+    )
+    daily_pos = PurchaseOrder.objects.filter(po_date=selected_date).values(
+        'po_number', 'is_completed', 'vessel__name'
+    )
+
     context = {
         'selected_date': selected_date,
         'previous_date': previous_date,
-        'daily_stats': daily_stats,
-        'daily_profit': daily_stats['total_profit'],
-        'profit_margin': daily_stats['profit_margin'],
+        'daily_stats': stats,
+        'daily_profit': stats['total_profit'],
+        'profit_margin': stats['profit_margin'],
         'revenue_change': revenue_change,
         'transaction_change': transaction_change,
         'vessel_breakdown': vessel_breakdown,
         'inventory_changes': inventory_changes,
         'best_vessel': best_vessel,
         'most_active_vessel': most_active_vessel,
-        'low_stock_products': low_stock_products[:10],  # Now guaranteed to be a list
-        'out_of_stock_products': out_of_stock_products[:10],  # Now guaranteed to be a list
+        'low_stock_products': low_stock_products[:10],
+        'out_of_stock_products': out_of_stock_products[:10],
         'daily_trips': daily_trips,
         'daily_pos': daily_pos,
         'vessels': vessels,
     }
-    
-    # Cache the results
+
     cache.set(cache_key, context, cache_duration)
-    
     return render(request, 'frontend/daily_report.html', context)
 
 @reports_access_required
@@ -706,8 +695,7 @@ def monthly_report(request):
 
 @reports_access_required
 def analytics_report(request):
-    """Advanced business analytics and KPI dashboard"""
-
+    """HEAVILY OPTIMIZED: Advanced business analytics and KPI dashboard"""
     
     today = timezone.now().date()
     
@@ -718,7 +706,7 @@ def analytics_report(request):
     
     # === KEY PERFORMANCE INDICATORS ===
     
-    # Revenue KPIs (last 30 days)
+    # Revenue KPIs (last 30 days) - OPTIMIZED: Single query
     revenue_30_days = Transaction.objects.filter(
         transaction_type='SALE',
         transaction_date__gte=last_30_days
@@ -731,51 +719,66 @@ def analytics_report(request):
     # Average revenue per transaction
     avg_revenue_per_transaction = (revenue_30_days['total_revenue'] or 0) / max(revenue_30_days['transaction_count'] or 1, 1)
     
-    # === VESSEL ANALYTICS ===
+    # === VESSEL ANALYTICS === (OPTIMIZED: Single query instead of loop)
     
+    vessel_analytics_raw = Vessel.objects.filter(active=True).annotate(
+        # Revenue and costs for last 30 days
+        revenue=Sum(
+            F('transactions__unit_price') * F('transactions__quantity'),
+            filter=Q(
+                transactions__transaction_type='SALE',
+                transactions__transaction_date__gte=last_30_days
+            ),
+            output_field=models.DecimalField()
+        ),
+        costs=Sum(
+            F('transactions__unit_price') * F('transactions__quantity'),
+            filter=Q(
+                transactions__transaction_type='SUPPLY', 
+                transactions__transaction_date__gte=last_30_days
+            ),
+            output_field=models.DecimalField()
+        ),
+        sales_count=Count(
+            'transactions',
+            filter=Q(
+                transactions__transaction_type='SALE',
+                transactions__transaction_date__gte=last_30_days
+            )
+        ),
+        trips_count=Count(
+            'trips',
+            filter=Q(trips__trip_date__gte=last_30_days)
+        ),
+        avg_sale_amount=Avg(
+            F('transactions__unit_price') * F('transactions__quantity'),
+            filter=Q(
+                transactions__transaction_type='SALE',
+                transactions__transaction_date__gte=last_30_days
+            )
+        )
+    ).order_by('-revenue')
+    
+    # Convert to list and calculate derived fields
     vessel_analytics = []
-    for vessel in Vessel.objects.filter(active=True):
-        # Last 30 days performance
-        vessel_transactions = Transaction.objects.filter(
-            vessel=vessel,
-            transaction_date__gte=last_30_days
-        )
-        
-        vessel_stats = vessel_transactions.aggregate(
-            revenue=Sum(F('unit_price') * F('quantity'), filter=Q(transaction_type='SALE')),
-            costs=Sum(F('unit_price') * F('quantity'), filter=Q(transaction_type='SUPPLY')),
-            sales_count=Count('id', filter=Q(transaction_type='SALE')),
-            avg_sale_amount=Avg(F('unit_price') * F('quantity'), filter=Q(transaction_type='SALE')),
-        )
-        
-        # Calculate utilization (trips/total possible trips)
-        vessel_trips = Trip.objects.filter(
-            vessel=vessel,
-            trip_date__gte=last_30_days
-        ).count()
-        
-        # Efficiency: revenue per trip
-        revenue_per_trip = (vessel_stats['revenue'] or 0) / max(vessel_trips, 1)
-        
-        # Profit margin
-        vessel_revenue = vessel_stats['revenue'] or 0
-        vessel_costs = vessel_stats['costs'] or 0
-        profit_margin = ((vessel_revenue - vessel_costs) / vessel_revenue * 100) if vessel_revenue > 0 else 0
+    for vessel in vessel_analytics_raw:
+        revenue = vessel.revenue or 0
+        costs = vessel.costs or 0
+        trips = vessel.trips_count or 0
         
         vessel_analytics.append({
             'vessel': vessel,
-            'revenue': vessel_revenue,
-            'costs': vessel_costs,
-            'profit_margin': profit_margin,
-            'trips_count': vessel_trips,
-            'revenue_per_trip': revenue_per_trip,
-            'avg_sale_amount': vessel_stats['avg_sale_amount'] or 0,
-            'sales_count': vessel_stats['sales_count'] or 0,
+            'revenue': revenue,
+            'costs': costs,
+            'profit_margin': ((revenue - costs) / revenue * 100) if revenue > 0 else 0,
+            'trips_count': trips,
+            'revenue_per_trip': revenue / max(trips, 1),
+            'avg_sale_amount': vessel.avg_sale_amount or 0,
+            'sales_count': vessel.sales_count or 0,
         })
     
-    # === PRODUCT ANALYTICS ===
+    # === PRODUCT ANALYTICS === (ALREADY OPTIMIZED: Single query)
     
-    # Best performing products (last 90 days)
     top_products = Transaction.objects.filter(
         transaction_type='SALE',
         transaction_date__gte=last_90_days
@@ -788,28 +791,39 @@ def analytics_report(request):
         avg_price=Avg('unit_price'),
     ).order_by('-total_revenue')[:15]
     
-    # Inventory turnover analysis
-    inventory_analysis = []
-    for product in Product.objects.filter(active=True)[:20]:  # Top 20 products
-        # Total stock
-        total_stock = InventoryLot.objects.filter(
-            product=product,
-            remaining_quantity__gt=0
-        ).aggregate(total=Sum('remaining_quantity'))['total'] or 0
-        
+    # === INVENTORY ANALYSIS === (OPTIMIZED: Single query instead of loop)
+    
+    inventory_analysis_raw = Product.objects.filter(active=True).annotate(
+        # Current total stock
+        total_stock=Sum(
+            'inventory_lots__remaining_quantity',
+            filter=Q(inventory_lots__remaining_quantity__gt=0)
+        ),
         # Sales in last 30 days
-        sales_30_days = Transaction.objects.filter(
-            product=product,
-            transaction_type='SALE',
-            transaction_date__gte=last_30_days
-        ).aggregate(total=Sum('quantity'))['total'] or 0
+        sales_30_days=Sum(
+            'transactions__quantity',
+            filter=Q(
+                transactions__transaction_type='SALE',
+                transactions__transaction_date__gte=last_30_days
+            )
+        )
+    ).filter(
+        # Only include products with stock or recent sales
+        Q(total_stock__gt=0) | Q(sales_30_days__gt=0)
+    ).order_by('-sales_30_days')[:20]
+    
+    # Convert to list and calculate turnover metrics
+    inventory_analysis = []
+    for product in inventory_analysis_raw:
+        total_stock = product.total_stock or 0
+        sales_30_days = product.sales_30_days or 0
         
         # Calculate turnover rate (monthly sales / current stock)
         turnover_rate = (sales_30_days / max(total_stock, 1)) * 100 if total_stock > 0 else 0
         
         # Days of stock remaining
         daily_avg_sales = sales_30_days / 30
-        days_remaining = total_stock / max(daily_avg_sales, 0.1)
+        days_remaining = total_stock / max(daily_avg_sales, 0.1) if daily_avg_sales > 0 else 999
         
         inventory_analysis.append({
             'product': product,
@@ -822,36 +836,38 @@ def analytics_report(request):
     # Sort by turnover rate
     inventory_analysis.sort(key=lambda x: x['turnover_rate'], reverse=True)
     
-    # === SEASONAL TRENDS ===
+    # === SEASONAL TRENDS === (OPTIMIZED: Single query with date truncation)
     
-    # Monthly revenue for last 12 months
+    # Get monthly revenue for last 12 months in single query
+    monthly_trends_raw = Transaction.objects.filter(
+        transaction_type='SALE',
+        transaction_date__gte=today - timedelta(days=365)
+    ).extra(
+        select={
+            'month': "CAST(strftime('%%m', transaction_date) AS INTEGER)",
+            'year': "CAST(strftime('%%Y', transaction_date) AS INTEGER)"
+        }
+    ).values('month', 'year').annotate(
+        revenue=Sum(F('unit_price') * F('quantity'), output_field=models.DecimalField())
+    ).order_by('year', 'month')
+    
+    # Convert to desired format and fill missing months
     monthly_trends = []
+    trends_dict = {(int(item['year']), int(item['month'])): item['revenue'] for item in monthly_trends_raw}
+    
     for i in range(11, -1, -1):
         trend_date = today - timedelta(days=i*30)
-        month_start = date(trend_date.year, trend_date.month, 1)
-        
-        if trend_date.month == 12:
-            month_end = date(trend_date.year + 1, 1, 1) - timedelta(days=1)
-        else:
-            month_end = date(trend_date.year, trend_date.month + 1, 1) - timedelta(days=1)
-        
-        monthly_revenue = Transaction.objects.filter(
-            transaction_type='SALE',
-            transaction_date__gte=month_start,
-            transaction_date__lte=month_end
-        ).aggregate(
-            revenue=Sum(F('unit_price') * F('quantity'), output_field=models.DecimalField())
-        )['revenue'] or 0
+        month_key = (trend_date.year, trend_date.month)
+        revenue = trends_dict.get(month_key, 0)
         
         monthly_trends.append({
             'month': calendar.month_name[trend_date.month],
             'year': trend_date.year,
-            'revenue': monthly_revenue,
+            'revenue': revenue,
         })
     
-    # === CUSTOMER ANALYTICS ===
+    # === CUSTOMER ANALYTICS === (OPTIMIZED: Single query)
     
-    # Trip-based passenger analytics
     passenger_analytics = Trip.objects.filter(
         trip_date__gte=last_90_days,
         is_completed=True
@@ -861,7 +877,7 @@ def analytics_report(request):
         total_trips=Count('id')
     )
     
-    # Revenue per passenger
+    # Revenue per passenger - reuse existing calculation
     total_revenue_90_days = Transaction.objects.filter(
         transaction_type='SALE',
         transaction_date__gte=last_90_days
@@ -869,9 +885,9 @@ def analytics_report(request):
     
     revenue_per_passenger = total_revenue_90_days / max(passenger_analytics['total_passengers'] or 1, 1)
     
-    # === BUSINESS INSIGHTS ===
+    # === BUSINESS INSIGHTS === (OPTIMIZED: Combined queries)
     
-    # Growth rate (this month vs last month)
+    # Growth rate calculation - combine this month and last month in single query
     this_month_start = date(today.year, today.month, 1)
     if today.month == 1:
         last_month_start = date(today.year - 1, 12, 1)
@@ -880,20 +896,31 @@ def analytics_report(request):
         last_month_start = date(today.year, today.month - 1, 1)
         last_month_end = date(today.year, today.month, 1) - timedelta(days=1)
     
-    this_month_revenue = Transaction.objects.filter(
-        transaction_type='SALE',
-        transaction_date__gte=this_month_start
-    ).aggregate(revenue=Sum(F('unit_price') * F('quantity'), output_field=models.DecimalField()))['revenue'] or 0
+    # Single query for both months
+    monthly_comparison = Transaction.objects.filter(
+        transaction_type='SALE'
+    ).aggregate(
+        this_month_revenue=Sum(
+            F('unit_price') * F('quantity'),
+            filter=Q(transaction_date__gte=this_month_start),
+            output_field=models.DecimalField()
+        ),
+        last_month_revenue=Sum(
+            F('unit_price') * F('quantity'),
+            filter=Q(
+                transaction_date__gte=last_month_start,
+                transaction_date__lte=last_month_end
+            ),
+            output_field=models.DecimalField()
+        )
+    )
     
-    last_month_revenue = Transaction.objects.filter(
-        transaction_type='SALE',
-        transaction_date__gte=last_month_start,
-        transaction_date__lte=last_month_end
-    ).aggregate(revenue=Sum(F('unit_price') * F('quantity'), output_field=models.DecimalField()))['revenue'] or 0
+    this_month_revenue = monthly_comparison['this_month_revenue'] or 0
+    last_month_revenue = monthly_comparison['last_month_revenue'] or 0
     
     growth_rate = ((this_month_revenue - last_month_revenue) / max(last_month_revenue, 1) * 100) if last_month_revenue > 0 else 0
     
-    # Operational efficiency
+    # Operational efficiency - reuse existing query
     total_transactions_30_days = Transaction.objects.filter(
         transaction_date__gte=last_30_days
     ).count()

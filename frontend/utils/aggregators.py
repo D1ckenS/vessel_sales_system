@@ -6,6 +6,7 @@ This replaces 12+ instances of repeated aggregation patterns.
 from django.db.models import Sum, Count, F, Q, Avg
 from django.db import models
 from transactions.models import Transaction
+from collections import defaultdict
 
 
 class TransactionAggregator:
@@ -217,50 +218,57 @@ class TransactionAggregator:
     def get_vessel_stats_for_date(queryset, vessels):
         """
         Get detailed vessel statistics for a specific date range.
-        Used in daily_report and similar views.
-        
-        Args:
-            queryset: Transaction queryset (already filtered by date)
-            vessels: Vessel queryset
-        
-        Returns:
-            List of vessel stats dictionaries
+        Optimized to avoid per-vessel queryset filters.
         """
         vessel_breakdown = []
-        
+
+        # Bucket transactions by vessel ID
+        tx_by_vessel = defaultdict(list)
+        for tx in queryset:
+            if tx.vessel_id:
+                tx_by_vessel[tx.vessel_id].append(tx)
+
         for vessel in vessels:
-            vessel_transactions = queryset.filter(vessel=vessel)
-            
-            vessel_stats = vessel_transactions.aggregate(
-                revenue=Sum(
-                    F('unit_price') * F('quantity'), 
-                    output_field=models.DecimalField(max_digits=15, decimal_places=3),
-                    filter=Q(transaction_type='SALE')
-                ),
-                costs=Sum(
-                    F('unit_price') * F('quantity'), 
-                    output_field=models.DecimalField(max_digits=15, decimal_places=3),
-                    filter=Q(transaction_type='SUPPLY')
-                ),
-                sales_count=Count('id', filter=Q(transaction_type='SALE')),
-                supply_count=Count('id', filter=Q(transaction_type='SUPPLY')),
-                transfer_out_count=Count('id', filter=Q(transaction_type='TRANSFER_OUT')),
-                transfer_in_count=Count('id', filter=Q(transaction_type='TRANSFER_IN')),
-                total_quantity=Sum('quantity'),
-            )
-            
-            # Calculate vessel profit
-            vessel_revenue = vessel_stats['revenue'] or 0
-            vessel_costs = vessel_stats['costs'] or 0
-            vessel_profit = vessel_revenue - vessel_costs
-            
+            vessel_txns = tx_by_vessel.get(vessel.id, [])
+
+            # Initialize counters
+            revenue = costs = total_quantity = 0
+            sales_count = supply_count = transfer_out_count = transfer_in_count = 0
+
+            for tx in vessel_txns:
+                qty = tx.quantity or 0
+                amount = (tx.unit_price or 0) * qty
+                total_quantity += qty
+
+                if tx.transaction_type == 'SALE':
+                    revenue += amount
+                    sales_count += 1
+                elif tx.transaction_type == 'SUPPLY':
+                    costs += amount
+                    supply_count += 1
+                elif tx.transaction_type == 'TRANSFER_OUT':
+                    transfer_out_count += 1
+                elif tx.transaction_type == 'TRANSFER_IN':
+                    transfer_in_count += 1
+
+            profit = revenue - costs
+            stats = {
+                'revenue': revenue,
+                'costs': costs,
+                'sales_count': sales_count,
+                'supply_count': supply_count,
+                'transfer_out_count': transfer_out_count,
+                'transfer_in_count': transfer_in_count,
+                'total_quantity': total_quantity,
+            }
+
             vessel_breakdown.append({
                 'vessel': vessel,
-                'stats': vessel_stats,
-                'profit': vessel_profit,
-                'profit_margin': (vessel_profit / vessel_revenue * 100) if vessel_revenue > 0 else 0
+                'stats': stats,
+                'profit': profit,
+                'profit_margin': (profit / revenue * 100) if revenue > 0 else 0
             })
-        
+
         return vessel_breakdown
     
     @staticmethod

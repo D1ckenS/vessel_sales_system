@@ -9,6 +9,9 @@ import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
 import logging
+import matplotlib.pyplot as plt
+
+plt.style.use('default')  # <— ✅ One-time global style setting
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -69,12 +72,70 @@ class WeasyPrintExporter:
         """Add summary data to the report"""
         self.summary_data = summary_data or {}
         
-    def add_chart(self, chart_data, chart_title):
-        """Add chart to the report"""
-        self.charts.append({
-            'title': chart_title,
-            'data': chart_data
-        })
+    def add_chart(self, chart_data, chart_type='bar', chart_title='Chart', chart_id=None):
+        """
+        Add a chart to the report
+        
+        Args:
+            chart_data: List of tuples [(label, value), ...]
+            chart_type: 'bar', 'pie', 'line'
+            chart_title: Chart title
+            chart_id: Unique chart identifier
+        """
+        try:
+            if not chart_data:
+                return
+                
+            labels, values = zip(*chart_data)
+            # Create matplotlib figure
+            fig, ax = plt.subplots(figsize=(8, 4))
+            
+            if chart_type == 'bar':
+                bars = ax.bar(labels, values, color='#2c3e50', alpha=0.8)
+                ax.set_ylabel('Value')
+                
+                # Add value labels on bars
+                for bar, value in zip(bars, values):
+                    height = bar.get_height()
+                    ax.text(bar.get_x() + bar.get_width() / 2., height, format(float(value), '.2f'), ha='center', va='bottom')
+                           
+            elif chart_type == 'pie':
+                ax.pie(values, labels=labels, autopct='%1.1f%%', startangle=90)
+                
+            elif chart_type == 'line':
+                ax.plot(labels, values, marker='o', linewidth=2, markersize=6)
+                ax.set_ylabel('Value')
+                
+            ax.set_title(chart_title, fontsize=14, fontweight='bold', pad=20)
+            ax.grid(True, alpha=0.3)
+            
+            # Rotate x-axis labels if needed
+            if len(str(labels[0]) if labels else '') > 8:
+                plt.xticks(rotation=45, ha='right')
+                
+            plt.tight_layout()
+            try:
+                # Convert to base64 string
+                buffer = io.BytesIO()
+                plt.savefig(buffer, format='png', dpi=120, bbox_inches='tight', 
+                        facecolor='white', edgecolor='none')
+                buffer.seek(0)
+                
+                chart_base64 = base64.b64encode(buffer.getvalue()).decode()
+            finally:
+                plt.close(fig)
+            
+            self.charts.append({
+                'id': chart_id or f'chart_{len(self.charts)}',
+                'title': chart_title,
+                'data': chart_base64,
+                'type': chart_type
+            })
+            
+        except Exception as e:
+            logger.error(f"Error creating chart: {e}")
+            # Don't fail the whole report, just skip the chart
+            pass
            
     def get_response(self, filename):
         """Generate HTTP response with PDF file - Enhanced with RTL support"""

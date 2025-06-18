@@ -654,31 +654,54 @@ def get_vessel_product_price(vessel, product):
         return product.selling_price, False, None
 
 def get_all_vessel_pricing_summary():
-    """Get comprehensive vessel pricing data for management dashboard"""
+    """Get enriched vessel pricing data for dashboard"""
+
     from django.db.models import Count, Avg, Min, Max
+    from vessels.models import Vessel
     
-    summary = {}
-    
-    # Get all touristic vessels with their pricing stats
-    touristic_vessels = Vessel.objects.filter(active=True, has_duty_free=False).annotate(
+    total_products = Product.objects.filter(active=True, is_duty_free=False).count()
+
+    vessels = Vessel.objects.filter(active=True, has_duty_free=False).annotate(
         custom_price_count=Count('custom_prices'),
-        avg_custom_price=Avg('custom_prices__selling_price'),
-        min_custom_price=Min('custom_prices__selling_price'),
-        max_custom_price=Max('custom_prices__selling_price')
+        avg_price=Avg('custom_prices__selling_price'),
+        min_price=Min('custom_prices__selling_price'),
+        max_price=Max('custom_prices__selling_price')
     )
-    
-    for vessel in touristic_vessels:
-        summary[vessel.name] = {
+
+    vessel_data = []
+    total_missing = 0
+    incomplete_count = 0
+
+    for vessel in vessels:
+        warnings = get_vessel_pricing_warnings(vessel)
+        missing = warnings['missing_price_count']
+        has_warnings = warnings['has_warnings']
+        completion = ((total_products - missing) / max(total_products, 1)) * 100
+
+        vessel_data.append({
+            'vessel': vessel,
             'vessel_id': vessel.id,
-            'custom_prices': vessel.custom_price_count,
-            'avg_price': vessel.avg_custom_price or 0,
+            'custom_prices_count': vessel.custom_price_count,
+            'avg_price': vessel.avg_price or 0,
             'price_range': {
-                'min': vessel.min_custom_price or 0,
-                'max': vessel.max_custom_price or 0
-            }
-        }
-    
-    return summary
+                'min': vessel.min_price or 0,
+                'max': vessel.max_price or 0
+            },
+            'missing_prices_count': missing,
+            'completion_percentage': completion,
+            'has_warnings': has_warnings
+        })
+
+        if has_warnings:
+            total_missing += missing
+            incomplete_count += 1
+
+    return {
+        'touristic_vessels': vessel_data,
+        'total_general_products': total_products,
+        'vessels_with_incomplete_pricing': incomplete_count,
+        'total_missing_prices': total_missing
+    }
 
 def get_vessel_pricing_warnings(vessel=None):
     """
