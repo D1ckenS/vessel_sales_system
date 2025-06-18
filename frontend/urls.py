@@ -1,7 +1,10 @@
 from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.urls import path
-from . import views, auth_views, reports_views, export_views, product_views, category_views, supply_views, transfer_views, sales_views, inventory_views, pricing_views
+from . import (views, auth_views, reports_views, export_views,
+               product_views, category_views, supply_views, transfer_views,
+               sales_views, inventory_views, pricing_views, vessel_views, user_views,
+               group_views, trip_views, po_views)
 
 app_name = 'frontend'
 
@@ -25,22 +28,22 @@ urlpatterns = [
     path('logout/', auth_views.user_logout, name='logout'),
     
     # User Management
-    path('users/', auth_views.user_management, name='user_management'),
-    path('users/create/', auth_views.create_user, name='create_user'),
-    path('users/<int:user_id>/edit/', auth_views.edit_user, name='edit_user'),
-    path('users/<int:user_id>/reset-password/', auth_views.reset_user_password, name='reset_user_password'),
-    path('users/<int:user_id>/toggle-status/', auth_views.toggle_user_status, name='toggle_user_status'),
-    path('users/<int:user_id>/groups/', auth_views.manage_user_groups, name='manage_user_groups'),
+    path('users/', user_views.user_management, name='user_management'),
+    path('users/create/', user_views.create_user, name='create_user'),
+    path('users/<int:user_id>/edit/', user_views.edit_user, name='edit_user'),
+    path('users/<int:user_id>/reset-password/', user_views.reset_user_password, name='reset_user_password'),
+    path('users/<int:user_id>/toggle-status/', user_views.toggle_user_status, name='toggle_user_status'),
+    path('users/<int:user_id>/groups/', group_views.manage_user_groups, name='manage_user_groups'),
     path('profile/', auth_views.user_profile, name='user_profile'),
-    path('change-password/', auth_views.change_password, name='change_password'),
+    path('change-password/', user_views.change_password, name='change_password'),
     
     # Group Management (Superuser only)
-    path('groups/', auth_views.group_management, name='group_management'),
-    path('groups/create/', auth_views.create_group, name='create_group'),
-    path('groups/<int:group_id>/edit/', auth_views.edit_group, name='edit_group'),
-    path('groups/<int:group_id>/delete/', auth_views.delete_group, name='delete_group'),
-    path('groups/<int:group_id>/details/', auth_views.group_details, name='group_details'),
-    path('setup-groups/', auth_views.setup_groups, name='setup_groups'),
+    path('groups/', group_views.group_management, name='group_management'),
+    path('groups/create/', group_views.create_group, name='create_group'),
+    path('groups/<int:group_id>/edit/', group_views.edit_group, name='edit_group'),
+    path('groups/<int:group_id>/delete/', group_views.delete_group, name='delete_group'),
+    path('groups/<int:group_id>/details/', group_views.group_details, name='group_details'),
+    path('setup-groups/', group_views.setup_groups, name='setup_groups'),
     
     # =============================================================================
     # INVENTORY MANAGEMENT
@@ -74,12 +77,12 @@ urlpatterns = [
     # VESSEL MANAGEMENT
     # =============================================================================
     
-    path('vessels/', auth_views.vessel_management, name='vessel_management'),
-    path('vessels/create/', auth_views.create_vessel, name='create_vessel'),
-    path('vessels/<int:vessel_id>/edit/', auth_views.edit_vessel, name='edit_vessel'),
-    path('vessels/<int:vessel_id>/toggle-status/', auth_views.toggle_vessel_status, name='toggle_vessel_status'),
-    path('vessels/<int:vessel_id>/statistics/', auth_views.vessel_statistics, name='vessel_statistics'),
-    path('vessels/data-ajax/', auth_views.vessel_data_ajax, name='vessel_data_ajax'),
+    path('vessels/', vessel_views.vessel_management, name='vessel_management'),
+    path('vessels/create/', vessel_views.create_vessel, name='create_vessel'),
+    path('vessels/<int:vessel_id>/edit/', vessel_views.edit_vessel, name='edit_vessel'),
+    path('vessels/<int:vessel_id>/toggle-status/', vessel_views.toggle_vessel_status, name='toggle_vessel_status'),
+    path('vessels/<int:vessel_id>/statistics/', vessel_views.vessel_statistics, name='vessel_statistics'),
+    path('vessels/data-ajax/', vessel_views.vessel_data_ajax, name='vessel_data_ajax'),
     
     # =============================================================================
     # OPERATIONS - SALES
@@ -130,17 +133,17 @@ urlpatterns = [
     # =============================================================================
     
     # Trip Management (Admin replacement)
-    path('trips/manage/', auth_views.trip_management, name='trip_management'),
-    path('trips/<int:trip_id>/edit/', auth_views.edit_trip, name='edit_trip'),
-    path('trips/<int:trip_id>/delete/', auth_views.delete_trip, name='delete_trip'),
-    path('trips/<int:trip_id>/toggle-status/', auth_views.toggle_trip_status, name='toggle_trip_status'),
-    path('trips/<int:trip_id>/details/', auth_views.trip_details, name='trip_details'),
+    path('trips/manage/', trip_views.trip_management, name='trip_management'),
+    path('trips/<int:trip_id>/edit/', trip_views.edit_trip, name='edit_trip'),
+    path('trips/<int:trip_id>/delete/', trip_views.delete_trip, name='delete_trip'),
+    path('trips/<int:trip_id>/toggle-status/', trip_views.toggle_trip_status, name='toggle_trip_status'),
+    path('trips/<int:trip_id>/details/', trip_views.trip_details, name='trip_details'),
     
     # PO Management (Admin replacement)
-    path('purchase-orders/manage/', auth_views.po_management, name='po_management'),
-    path('purchase-orders/<int:po_id>/edit/', auth_views.edit_po, name='edit_po'),
-    path('purchase-orders/<int:po_id>/delete/', auth_views.delete_po, name='delete_po'),
-    path('purchase-orders/<int:po_id>/toggle-status/', auth_views.toggle_po_status, name='toggle_po_status'),
+    path('purchase-orders/manage/', po_views.po_management, name='po_management'),
+    path('purchase-orders/<int:po_id>/edit/', po_views.edit_po, name='edit_po'),
+    path('purchase-orders/<int:po_id>/delete/', po_views.delete_po, name='delete_po'),
+    path('purchase-orders/<int:po_id>/toggle-status/', po_views.toggle_po_status, name='toggle_po_status'),
     
     # =============================================================================
     # REPORTS

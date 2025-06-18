@@ -688,8 +688,8 @@ function savePO() {
 }
 
 function deletePO(poId) {
-    // First attempt - check for transactions
-    fetch(`/purchase-orders/manage/${poId}/delete/`, {
+    // FIXED: Remove /manage/ from URL
+    fetch(`/purchase-orders/${poId}/delete/`, {  // ← WAS: `/purchase-orders/manage/${poId}/delete/`
         method: 'DELETE',
         headers: {
             'X-CSRFToken': getCsrfToken()
@@ -701,7 +701,6 @@ function deletePO(poId) {
             showAlert(data.message, 'success');
             location.reload();
         } else if (data.requires_confirmation) {
-            // Show detailed confirmation modal
             showTransactionConfirmationModal('po', poId, data);
         } else {
             showAlert(data.error, 'danger');
@@ -728,7 +727,9 @@ function showTransactionConfirmationModal(type, id, data) {
                 <span>${trans.product_name}</span>
                 <div>
                     <span class="badge bg-primary me-2">${trans.quantity} units</span>
-                    <span class="fw-bold">${trans.amount.toFixed(3)} JOD</span>
+                    <span class="fw-bold">
+                        ${typeof trans.amount === 'number' ? trans.amount.toFixed(3) + ' JOD' : 'N/A'}
+                    </span>
                 </div>
             </li>
         `;

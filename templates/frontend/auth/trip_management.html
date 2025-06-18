@@ -709,8 +709,7 @@ function saveTrip() {
 }
 
 function deleteTrip(tripId) {
-    // FIXED: Remove /manage/ from URL
-    fetch(`/trips/${tripId}/delete/`, {  // ← WAS: `/trips/manage/${tripId}/delete/`
+    fetch(`/trips/${tripId}/delete/`, {
         method: 'DELETE',
         headers: {
             'X-CSRFToken': getCsrfToken()
@@ -748,7 +747,9 @@ function showTransactionConfirmationModal(type, id, data) {
                 <span>${trans.product_name}</span>
                 <div>
                     <span class="badge bg-primary me-2">${trans.quantity} units</span>
-                    <span class="fw-bold">${trans.amount.toFixed(3)} JOD</span>
+                    <span class="fw-bold">
+                        ${typeof trans.amount === 'number' ? trans.amount.toFixed(3) + ' JOD' : 'N/A'}
+                    </span>
                 </div>
             </li>
         `;
