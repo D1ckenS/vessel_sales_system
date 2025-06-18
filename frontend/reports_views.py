@@ -217,8 +217,8 @@ def transactions_list(request):
         'page_obj': page_obj,
         'transactions': page_obj.object_list,  # For template compatibility
         'summary_stats': summary_stats,
+        'vessels': VesselCacheHelper.get_active_vessels(),
         'current_filters': {
-            'vessel': request.GET.get('vessel', ''),
             'product': request.GET.get('product', ''),
             'transaction_type': request.GET.get('transaction_type', ''),
             'date_from': request.GET.get('date_from', ''),

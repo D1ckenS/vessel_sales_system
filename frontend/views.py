@@ -4,6 +4,7 @@ from django.db.models import Sum, Count, F, Q, Prefetch
 from django.core.cache import cache
 from django.http import JsonResponse
 from datetime import date, datetime, timedelta
+from frontend.utils.cache_helpers import VesselCacheHelper
 from vessels.models import Vessel
 from transactions.models import InventoryLot, PurchaseOrder, Transaction, Trip
 from django.db import models
@@ -33,14 +34,8 @@ def dashboard(request):
         # Add real-time elements that shouldn't be cached
         cached_data['now'] = now
         return render(request, 'frontend/dashboard.html', cached_data)
-    
-    # ===========================================================================
-    # OPTIMIZATION 1: Enhanced vessel query with more stats in single query
-    # ===========================================================================
-    
-    # Your original pattern but with additional useful stats
+
     all_vessels = Vessel.objects.annotate(
-        # Keep your original annotations
         recent_trip_count=Count(
             'trips',
             filter=Q(trips__trip_date__gte=today - timedelta(days=7))
@@ -74,18 +69,11 @@ def dashboard(request):
         )
     ).order_by('-active', 'name')
     
-    # Keep your original pattern
-    vessels = all_vessels.filter(active=True).order_by('name')
+    vessels = VesselCacheHelper.get_active_vessels()
     
-    # ===========================================================================
-    # OPTIMIZATION 2: Your today_stats but with additional metrics
-    # ===========================================================================
-    
-    # Keep your exact structure but add profit calculation
     today_sales = Transaction.objects.filter(
         transaction_date=today
     ).aggregate(
-        # Your original stats
         total_revenue=Sum(
             F('unit_price') * F('quantity'), 
             filter=Q(transaction_type='SALE'),
@@ -107,7 +95,6 @@ def dashboard(request):
         unique_vessels=Count('vessel', distinct=True),
         unique_products=Count('product', distinct=True),
         
-        # ADD: Missing profit calculations
         total_volume=Sum('quantity'),
         avg_transaction_value=models.Avg(
             F('unit_price') * F('quantity'),
@@ -125,11 +112,6 @@ def dashboard(request):
     today_sales['total_profit'] = total_profit
     today_sales['profit_margin'] = round(profit_margin, 2)
     
-    # ===========================================================================
-    # OPTIMIZATION 3: Optimized recent transactions with better prefetch
-    # ===========================================================================
-    
-    # Your pattern but with optimized prefetch relationships
     recent_transactions = Transaction.objects.select_related(
         'vessel', 
         'product', 
@@ -141,12 +123,6 @@ def dashboard(request):
         Prefetch('purchase_order', queryset=PurchaseOrder.objects.select_related('vessel'))
     ).order_by('-created_at')[:6]
     
-    # ===========================================================================
-    # OPTIMIZATION 4: Combined quick_stats (reduce separate queries)
-    # ===========================================================================
-    
-    # Combine some of your separate queries into batch operations
-    # Keep the vessel count from existing query
     active_vessel_count = len([v for v in vessels if v.active])
     
     # Combine trip and PO counts in single operations  
@@ -169,11 +145,6 @@ def dashboard(request):
         'low_stock_products': low_stock_count,
     }
     
-    # ===========================================================================
-    # OPTIMIZATION 5: Your top_vessels but using existing data where possible
-    # ===========================================================================
-    
-    # Your pattern but check if we can use existing vessel data first
     vessels_with_revenue = [v for v in vessels if hasattr(v, 'week_revenue') and v.week_revenue]
     
     if len(vessels_with_revenue) >= 5:
@@ -196,10 +167,6 @@ def dashboard(request):
             )
         ).order_by('-recent_revenue')[:5]
     
-    # ===========================================================================
-    # OPTIMIZATION 6: Build context (your exact structure)
-    # ===========================================================================
-    
     # Handle None values safely (your pattern)
     for key in ['total_revenue', 'total_supply_cost', 'sales_count', 'supply_count',
                 'transfer_out_count', 'transfer_in_count', 'total_transactions',
@@ -207,11 +174,10 @@ def dashboard(request):
         if today_sales[key] is None:
             today_sales[key] = 0
     
-    # Your exact context structure
     context = {
         'vessels': vessels,
         'all_vessels': all_vessels,
-        'today_sales': today_sales,  # Keep your exact naming
+        'today_sales': today_sales,
         'recent_transactions': recent_transactions,
         'quick_stats': quick_stats,
         'top_vessels': top_vessels,
