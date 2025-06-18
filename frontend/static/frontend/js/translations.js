@@ -312,7 +312,7 @@ window.VesselSalesTranslations = {
         'feature_coming_soon': 'This feature is coming soon!',
 
         // Comprehensive Reports
-        'comprehensive_report': 'Comprehensive Report',
+        '': 'Comprehensive Report',
         'single_day_report': 'Single Day Report',
         'duration_report': 'Duration Report',
         'to': 'to',

@@ -156,7 +156,6 @@ urlpatterns = [
     path('reports/analytics/', reports_views.analytics_report, name='analytics_report'),
     path('reports/trips/', reports_views.trip_reports, name='trip_reports'),
     path('reports/purchase-orders/', reports_views.po_reports, name='po_reports'),
-    path('reports/comprehensive/', reports_views.comprehensive_report, name='comprehensive_report'),
     
     # Transaction Reports
     path('transactions/', reports_views.transactions_list, name='transactions_list'),
