@@ -262,3 +262,36 @@ class ProductCacheHelper:
             return result
         except:
             return False
+        
+# 🚀 PERFECT PAGINATION - Full template compatibility
+class PerfectPagination:
+    def __init__(self, products, page_num, total_count, page_size):
+        self.object_list = products
+        self.number = page_num
+        self.count = total_count
+        self.num_pages = max(1, (total_count + page_size - 1) // page_size)
+        self.per_page = page_size
+        
+        # Add paginator property for templates
+        self.paginator = self
+        
+        # Add page_range for template loops
+        self.page_range = range(1, self.num_pages + 1)
+        
+    def has_previous(self):
+        return self.number > 1
+        
+    def has_next(self):
+        return self.number < self.num_pages
+        
+    def previous_page_number(self):
+        return self.number - 1 if self.has_previous() else None
+        
+    def next_page_number(self):
+        return self.number + 1 if self.has_next() else None
+        
+    def start_index(self):
+        return (self.number - 1) * self.per_page + 1 if self.count > 0 else 0
+        
+    def end_index(self):
+        return min(self.number * self.per_page, self.count)

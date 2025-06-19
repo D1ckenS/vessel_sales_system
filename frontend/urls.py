@@ -49,13 +49,14 @@ urlpatterns = [
     # INVENTORY MANAGEMENT
     # =============================================================================
     
-    # Product Management - FIXED ORDER AND MISSING URL
+    # Product Management
     path('products/manage/<int:product_id>/delete/', product_views.delete_product, name='delete_product'),
-    path('products/add/', product_views.add_product, name='add_product'),  # Legacy - List mode by default
-    path('products/create/', product_views.add_product, name='add_product_form'),  # NEW - Create mode explicitly
-    path('products/manage/', product_views.add_product, name='product_management'),  # List mode
-    path('products/edit/<int:product_id>/', product_views.add_product, name='edit_product'),  # Edit mode
-    
+    path('products/', product_views.product_list_view, name='product_list'),
+    path('products/manage/', product_views.product_list_view, name='product_management'),  # Compatibility
+    path('products/create/', product_views.product_create_view, name='product_create'),
+    path('products/add/', product_views.product_create_view, name='add_product_form'),  # Compatibility
+    path('products/edit/<int:product_id>/', product_views.product_edit_view, name='product_edit'),
+
     # Category Management
     path('categories/manage/', category_views.category_management, name='category_management'),
     path('categories/create/', category_views.create_category, name='create_category'),
