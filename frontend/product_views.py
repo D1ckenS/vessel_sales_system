@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Count, Q, Sum, F, Prefetch
 from django.core.cache import cache
-
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from frontend.utils.cache_helpers import ProductCacheHelper
 from .permissions import is_admin_or_manager
 from .utils import BilingualMessages
@@ -22,7 +22,7 @@ import hashlib
 def product_management(request):
     """HEAVILY OPTIMIZED: Product management with pagination, smart caching, and minimal queries"""
     
-    
+
     # Get filter parameters
     search_query = request.GET.get('search', '').strip()
     category_filter = request.GET.get('category', '').strip()
@@ -128,8 +128,6 @@ def product_management(request):
     
     # Order consistently for pagination
     products_base = products_base.order_by('item_id', 'id')
-    
-    from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
     
     paginator = Paginator(products_base, page_size)
     

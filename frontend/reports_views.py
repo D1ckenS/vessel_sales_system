@@ -164,15 +164,15 @@ def transactions_list(request):
     
     # ✅ STEP 1: Single optimized query with all relationships
     transactions = Transaction.objects.select_related(
-        'vessel',                    # ✅ Eliminates vessel lookups
-        'product',                   # ✅ Eliminates product lookups
-        'product__category',         # ✅ Eliminates category lookups  
-        'created_by',                # ✅ Eliminates user lookups
-        'trip',                      # ✅ Eliminates trip lookups
-        'purchase_order'             # ✅ Eliminates PO lookups
+        'vessel',
+        'product',
+        'product__category',
+        'created_by',
+        'trip',
+        'purchase_order'
     ).prefetch_related(
-        'trip__vessel',              # ✅ For trip vessel info
-        'purchase_order__vessel'     # ✅ For PO vessel info  
+        'trip__vessel',
+        'purchase_order__vessel'
     )
     
     # ✅ STEP 2: Apply filters using helper (your existing code)
