@@ -2,6 +2,8 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Count, Q, Sum, F, Prefetch
 from django.core.cache import cache
+
+from frontend.utils.cache_helpers import ProductCacheHelper
 from .permissions import is_admin_or_manager
 from .utils import BilingualMessages
 from products.models import Product, Category
@@ -18,37 +20,45 @@ import hashlib
 @login_required
 @user_passes_test(is_admin_or_manager)
 def product_management(request):
-    """HEAVILY OPTIMIZED: Product management with aggressive caching and query optimization"""
+    """HEAVILY OPTIMIZED: Product management with pagination, smart caching, and minimal queries"""
     
-    # ===========================================================================
-    # SMART CACHING STRATEGY
-    # ===========================================================================
     
-    # Create cache key based on filters and date
-    search_query = request.GET.get('search', '')
-    category_filter = request.GET.get('category', '')
-    status_filter = request.GET.get('status', '')
-    inventory_filter = request.GET.get('inventory', '')
+    # Get filter parameters
+    search_query = request.GET.get('search', '').strip()
+    category_filter = request.GET.get('category', '').strip()
+    status_filter = request.GET.get('status', '').strip()
+    page_number = request.GET.get('page', 1)
+    page_size = int(request.GET.get('per_page', 30))
     
-    # Create cache key that includes all filters
-    filter_hash = hashlib.md5(
-        f"{search_query}_{category_filter}_{status_filter}_{inventory_filter}".encode()
-    ).hexdigest()[:8]
+    # Validate page size
+    if page_size not in [30, 50, 100]:
+        page_size = 30
     
-    today = date.today()
-    cache_key = f'product_mgmt_{today}_{filter_hash}'
+    # Validate page number
+    try:
+        page_number = int(page_number)
+        if page_number < 1:
+            page_number = 1
+    except (ValueError, TypeError):
+        page_number = 1
     
-    # Try cache first (10 minutes for product management - slower changing data)
-    cached_data = cache.get(cache_key)
+    filters_dict = {
+        'search': search_query,
+        'category': category_filter,
+        'status': status_filter
+    }
+    
+    # Generate cache key using the helper
+    cache_key = ProductCacheHelper.get_cache_key(filters_dict, page_number, page_size)
+    
+    # Try to get cached data
+    cached_data = ProductCacheHelper.get_cached_data(cache_key)
     if cached_data:
-        return render(request, 'frontend/admin/product_management.html', cached_data)
+        cached_data['from_cache'] = True
+        cached_data['cache_key'] = cache_key  # For debugging
+        return render(request, 'frontend/add_product.html', cached_data)
     
-    # ===========================================================================
-    # OPTIMIZATION 1: Pre-calculate expensive aggregations
-    # ===========================================================================
-    
-    # Calculate 30-day cutoff once
-    thirty_days_ago = today - timedelta(days=30)
+    print(f"Cache miss - generating fresh data for: {cache_key}")
     
     # Get touristic vessel count once (for pricing calculations)
     touristic_vessels_count = Vessel.objects.filter(
@@ -56,21 +66,17 @@ def product_management(request):
         has_duty_free=False
     ).count()
     
-    # ===========================================================================
-    # OPTIMIZATION 2: Optimized products query with better annotations
-    # ===========================================================================
-    
-    # Start with base query with optimized select_related
+    # Build base queryset with all optimizations
     products_base = Product.objects.select_related(
         'category', 'created_by'
     ).prefetch_related(
-        # Optimize inventory lots prefetch
+        # Optimize inventory lots prefetch - only active ones
         Prefetch(
             'inventory_lots',
             queryset=InventoryLot.objects.filter(remaining_quantity__gt=0).select_related('vessel'),
             to_attr='active_inventory_lots'
         ),
-        # Optimize vessel prices prefetch
+        # Optimize vessel prices prefetch - only for active touristic vessels
         Prefetch(
             'vessel_prices',
             queryset=VesselProductPrice.objects.filter(
@@ -79,9 +85,28 @@ def product_management(request):
             ).select_related('vessel'),
             to_attr='active_vessel_prices'
         )
+    ).annotate(
+        # SQLite3-compatible inventory calculation
+        total_inventory=Sum(
+            'inventory_lots__remaining_quantity',
+            filter=Q(inventory_lots__remaining_quantity__gt=0)
+        ),
+        # Count unique vessels with inventory
+        inventory_vessels_count=Count(
+            'inventory_lots__vessel', 
+            distinct=True, 
+            filter=Q(inventory_lots__remaining_quantity__gt=0)
+        ),
+        # Count custom pricing for touristic vessels only
+        custom_pricing_count=Count(
+            'vessel_prices',
+            filter=Q(
+                vessel_prices__vessel__active=True,
+                vessel_prices__vessel__has_duty_free=False
+            )
+        )
     )
     
-    # Apply filters BEFORE heavy annotations (reduces data to process)
     if search_query:
         products_base = products_base.filter(
             Q(name__icontains=search_query) |
@@ -90,135 +115,40 @@ def product_management(request):
         )
     
     if category_filter:
-        products_base = products_base.filter(category_id=category_filter)
+        try:
+            category_id = int(category_filter)
+            products_base = products_base.filter(category_id=category_id)
+        except (ValueError, TypeError):
+            pass  # Invalid category filter, ignore
     
     if status_filter == 'active':
         products_base = products_base.filter(active=True)
     elif status_filter == 'inactive':
         products_base = products_base.filter(active=False)
     
-    # Now apply heavy annotations only to filtered data
-    products = products_base.annotate(
-        # Inventory statistics - optimized
-        total_inventory=Sum('inventory_lots__remaining_quantity'),
-        inventory_vessels=Count(
-            'inventory_lots__vessel', 
-            distinct=True, 
-            filter=Q(inventory_lots__remaining_quantity__gt=0)
-        ),
-        
-        # Pricing statistics - optimized for touristic vessels only
-        custom_pricing_count=Count(
-            'vessel_prices',
-            filter=Q(
-                vessel_prices__vessel__active=True,
-                vessel_prices__vessel__has_duty_free=False
-            )
-        ),
-        
-        # Transaction statistics - optimized with specific date filter
-        recent_sales=Count(
-            'transactions',
-            filter=Q(
-                transactions__transaction_type='SALE',
-                transactions__transaction_date__gte=thirty_days_ago
-            )
-        ),
-        recent_supply=Count(
-            'transactions',
-            filter=Q(
-                transactions__transaction_type='SUPPLY',
-                transactions__transaction_date__gte=thirty_days_ago
-            )
-        ),
-        
-        # Revenue statistics - optimized
-        recent_revenue=Sum(
-            F('transactions__unit_price') * F('transactions__quantity'),
-            filter=Q(
-                transactions__transaction_type='SALE',
-                transactions__transaction_date__gte=thirty_days_ago
-            ),
-            output_field=models.DecimalField()
-        )
-    ).order_by('item_id')
+    # Order consistently for pagination
+    products_base = products_base.order_by('item_id', 'id')
     
-    # Apply inventory filter AFTER annotations (if needed)
-    if inventory_filter == 'low':
-        products = products.filter(total_inventory__lte=5, total_inventory__gt=0)
-    elif inventory_filter == 'out':
-        products = products.filter(Q(total_inventory=0) | Q(total_inventory__isnull=True))
-    elif inventory_filter == 'good':
-        products = products.filter(total_inventory__gt=5)
+    from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
     
-    # ===========================================================================
-    # OPTIMIZATION 3: Categories with optimized annotations
-    # ===========================================================================
+    paginator = Paginator(products_base, page_size)
     
-    categories = Category.objects.annotate(
-        product_count=Count('products'),
-        active_product_count=Count('products', filter=Q(products__active=True)),
-        total_category_inventory=Sum(
-            'products__inventory_lots__remaining_quantity',
-            filter=Q(products__active=True)
-        ),
-        category_recent_sales=Count(
-            'products__transactions',
-            filter=Q(
-                products__transactions__transaction_type='SALE',
-                products__transactions__transaction_date__gte=thirty_days_ago
-            )
-        )
-    ).order_by('name')
+    try:
+        products_page = paginator.page(page_number)
+    except PageNotAnInteger:
+        # If page is not an integer, deliver first page
+        products_page = paginator.page(1)
+    except EmptyPage:
+        # If page is out of range, deliver last page
+        products_page = paginator.page(paginator.num_pages)
     
-    # ===========================================================================
-    # OPTIMIZATION 4: Single comprehensive stats query
-    # ===========================================================================
+    # Convert current page to list to avoid re-querying
+    current_page_products = list(products_page.object_list)
     
-    # Calculate all summary stats in one query instead of multiple
-    summary_stats = Product.objects.aggregate(
-        total_products=Count('id'),
-        active_products=Count('id', filter=Q(active=True)),
-        inactive_products=Count('id', filter=Q(active=False)),
-        duty_free_products=Count('id', filter=Q(is_duty_free=True, active=True)),
-        general_products=Count('id', filter=Q(is_duty_free=False, active=True)),
-        products_with_inventory=Count(
-            'id', 
-            distinct=True, 
-            filter=Q(inventory_lots__remaining_quantity__gt=0)
-        ),
-        products_needing_pricing=Count(
-            'id',
-            filter=Q(
-                active=True,
-                is_duty_free=False,
-                vessel_prices__isnull=True
-            )
-        ),
-        total_inventory_value=Sum(
-            F('inventory_lots__remaining_quantity') * F('inventory_lots__purchase_price'),
-            output_field=models.DecimalField()
-        ),
-        # Additional useful stats
-        total_inventory_items=Sum('inventory_lots__remaining_quantity'),
-        avg_product_value=models.Avg('selling_price'),
-        recent_transactions_count=Count(
-            'transactions',
-            filter=Q(transactions__transaction_date__gte=thirty_days_ago)
-        )
-    )
-    
-    # ===========================================================================
-    # OPTIMIZATION 5: Process products efficiently
-    # ===========================================================================
-    
-    # Convert to list to avoid re-querying and process efficiently
-    products_list = list(products)
-    
-    # Process enhanced product data in memory (faster than additional queries)
+    # Process enhanced product data efficiently for current page only
     enhanced_products = []
-    for product in products_list:
-        # Calculate inventory status
+    for product in current_page_products:
+        # Calculate inventory status efficiently using annotated data
         inventory_qty = product.total_inventory or 0
         if inventory_qty == 0:
             inventory_status = 'out'
@@ -230,65 +160,97 @@ def product_management(request):
             inventory_status = 'good'
             inventory_class = 'success'
         
-        # Calculate pricing completeness for general products
-        pricing_completion = 0
+        # Calculate pricing completeness for general products using annotated data
+        pricing_completion = 100  # Default for duty-free products
+        needs_pricing = False
+        
         if not product.is_duty_free and touristic_vessels_count > 0:
             pricing_completion = (product.custom_pricing_count / touristic_vessels_count) * 100
-        
-        # Calculate recent activity
-        recent_activity = (product.recent_sales or 0) + (product.recent_supply or 0)
+            needs_pricing = product.custom_pricing_count < touristic_vessels_count
         
         enhanced_products.append({
             'product': product,
             'inventory_status': inventory_status,
             'inventory_class': inventory_class,
             'pricing_completion': round(pricing_completion, 1),
-            'needs_pricing': not product.is_duty_free and product.custom_pricing_count < touristic_vessels_count,
-            'recent_activity': recent_activity,
-            'revenue_30d': product.recent_revenue or 0,
-            # Add performance indicators
-            'is_popular': recent_activity > 5,
-            'is_profitable': (product.recent_revenue or 0) > 0,
-            'inventory_value': float((inventory_qty * product.selling_price) if inventory_qty else 0)
+            'needs_pricing': needs_pricing,
+            'inventory_value': float((inventory_qty * product.selling_price) if inventory_qty else 0),
+            'vessel_pricing_info': {
+                'has_vessel_pricing': product.custom_pricing_count > 0,
+                'vessel_prices_count': product.custom_pricing_count,
+                'missing_prices_count': max(0, touristic_vessels_count - product.custom_pricing_count),
+                'pricing_completion': pricing_completion,
+            }
         })
     
-    # ===========================================================================
-    # OPTIMIZATION 6: Build context with all computed data
-    # ===========================================================================
+    # Use separate optimized query for stats to avoid affecting pagination performance
+    summary_stats = Product.objects.aggregate(
+        total_products=Count('id'),
+        active_products=Count('id', filter=Q(active=True)),
+        inactive_products=Count('id', filter=Q(active=False)),
+        duty_free_products=Count('id', filter=Q(is_duty_free=True, active=True)),
+        general_products=Count('id', filter=Q(is_duty_free=False, active=True)),
+        products_with_inventory=Count(
+            'id', 
+            distinct=True, 
+            filter=Q(inventory_lots__remaining_quantity__gt=0)
+        )
+    )
     
-    # Set safe defaults for summary stats
-    for key, value in summary_stats.items():
-        if value is None:
-            summary_stats[key] = 0
+    # Calculate products needing pricing efficiently
+    products_needing_pricing = Product.objects.filter(
+        active=True,
+        is_duty_free=False
+    ).annotate(
+        pricing_count=Count(
+            'vessel_prices',
+            filter=Q(
+                vessel_prices__vessel__active=True,
+                vessel_prices__vessel__has_duty_free=False
+            )
+        )
+    ).filter(pricing_count__lt=touristic_vessels_count).count()
     
-    # Build comprehensive context
+    categories = Category.objects.filter(active=True).annotate(
+        product_count=Count('products'),
+        active_product_count=Count('products', filter=Q(products__active=True))
+    ).order_by('name')
+    
+    vessel_pricing_summary = get_all_vessel_pricing_summary()
+    
     context = {
+        'mode': 'list',
         'products': enhanced_products,
+        'page_obj': products_page,
+        'paginator': paginator,
         'categories': categories,
         'filters': {
             'search': search_query,
             'category': category_filter,
             'status': status_filter,
-            'inventory': inventory_filter,
         },
         'stats': {
             **summary_stats,
             'total_categories': categories.count(),
             'touristic_vessels_count': touristic_vessels_count,
-            'filtered_products_count': len(enhanced_products),
-            # Performance insights
-            'popular_products': len([p for p in enhanced_products if p['is_popular']]),
-            'profitable_products': len([p for p in enhanced_products if p['is_profitable']]),
-            'total_filtered_value': sum(p['inventory_value'] for p in enhanced_products),
+            'filtered_products_count': paginator.count,
+            'products_with_incomplete_pricing': products_needing_pricing,
         },
-        'today': today,
-        'cache_timestamp': datetime.now(),  # For debugging cache
+        'vessel_pricing_summary': vessel_pricing_summary,
+        'today': date.today(),
+        'cache_timestamp': datetime.now(),
+        'from_cache': False,
+        'cache_timeout_hours': ProductCacheHelper.PRODUCT_MANAGEMENT_CACHE_TIMEOUT / 3600,
+        'page_size': page_size,  # For template page size selector
     }
     
-    # Cache for 10 minutes (product data changes less frequently than dashboard)
-    cache.set(cache_key, context, 1800)  # 30 minutes
+    success = ProductCacheHelper.set_cached_data(cache_key, context)
+    if success:
+        print(f"Successfully cached data for: {cache_key}")
+    else:
+        print(f"Failed to cache data for: {cache_key}")
     
-    return render(request, 'frontend/admin/product_management.html', context)
+    return render(request, 'frontend/add_product.html', context)
 
 @login_required
 @user_passes_test(is_admin_or_manager)
