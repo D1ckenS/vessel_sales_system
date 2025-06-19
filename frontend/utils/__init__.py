@@ -83,6 +83,9 @@ class BilingualMessages:
             'pricing_copied_successfully': 'Pricing copied successfully from {source} to {target_count} vessels.',
             'no_source_pricing': 'No pricing found for source vessel {vessel}.',
             'invalid_vessel_product_combination': 'Invalid vessel-product combination for pricing.',
+            
+            # Category management
+            'category_deleted_success': 'Category "{name}" has been deleted successfully.',
         },
         'ar': {
             # Authentication messages (Arabic)
@@ -156,6 +159,9 @@ class BilingualMessages:
             'pricing_copied_successfully': 'تم نسخ التسعير بنجاح من {source} إلى {target_count} سفن.',
             'no_source_pricing': 'لم يتم العثور على تسعير للسفينة المصدر {vessel}.',
             'invalid_vessel_product_combination': 'مزيج غير صالح من السفينة والمنتج للتسعير.',
+            
+            # Category management (Arabic)
+            'category_deleted_success': 'تم حذف القسم "{name}" بنجاح.',
         }
     }
 

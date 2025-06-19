@@ -103,7 +103,7 @@ def delete_category(request, category_id):
             category = get_object_or_404(Category, id=category_id)
             
             # Check if category has products
-            if category.products.exists():
+            if category.product_set.exists():
                 BilingualMessages.error(request, 'category_has_products', name=category.name)
             else:
                 category_name = category.name

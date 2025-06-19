@@ -1,0 +1,152 @@
+﻿item_id,name,category,purchase_price,selling_price,is_duty_free
+109,بسكويت ايسبرج كبير,Snacks,0.25,0.5,FALSE
+110,بسكوت سادة صغير,Snacks,0.1,0.25,FALSE
+111,بسكويت سادة كبير,Snacks,0.15,0.5,FALSE
+113,معمول بالتمر,Snacks,0.0625,2,FALSE
+115,سوبر رول,Snacks,0.333333333,0.5,FALSE
+116,لوزين كب كيك,Snacks,0.125,0.25,FALSE
+117,اعشاب,Beverages,0.0675,0.25,FALSE
+118,شيبسي كبير,Snacks,0.6,1,FALSE
+119,شيبسي صغير,Snacks,0.15,0.5,FALSE
+120,دونات كيك,Snacks,0.1,0.25,FALSE
+122,نسكافيه 3*1,Beverages,0.18,0.5,FALSE
+123,سويس رول,Snacks,0.135416667,0.25,FALSE
+124,بسكويت توينز,Snacks,0.09375,0.25,FALSE
+125,ريري,Snacks,0.083333333,0.25,FALSE
+126,جي - تي,Snacks,0.083333333,0.25,FALSE
+127,ماري,Snacks,0.104545455,0.25,FALSE
+128,قداحة,Others,0.17,0.25,FALSE
+129,فاين,Others,0.083333333,0.25,FALSE
+130,كابتشينو,Beverages,0.1875,0.5,FALSE
+132,قهوة العميد شفرات,Beverages,0.177083333,0.75,FALSE
+133,كركور مالح,Snacks,1.35,2,FALSE
+138,ويفر عائلي,Snacks,0.3125,0.75,FALSE
+145,شيبسي كبير مصري,Snacks,0.25,0.5,FALSE
+147,مولتو مصري,Snacks,0.29,0.5,FALSE
+149,بسكوت اوريو مصري,Snacks,0.14,0.25,FALSE
+200,بيك رولز,Snacks,0.125,0.5,FALSE
+206,بسكوت ويفر مصري,Snacks,0.25,0.5,FALSE
+207,كيك كامارا مصري,Snacks,0.25,0.25,FALSE
+205,مياه وسط,Beverages,0.091666667,0.25,FALSE
+139,دايجيستف,Snacks,0.383333333,0.75,FALSE
+136,اقلام,Others,0.14,0.25,FALSE
+131,ويفر نبيل,Snacks,0.45,0.75,FALSE
+137,سبلاش زجاج,Beverages,0.4375,0.75,FALSE
+142,برينجلز كبير,Snacks,1.4,2,FALSE
+143,برينجلز صغير,Snacks,0.5,1,FALSE
+144,فيروز + شويبس + بريل,Beverages,0.33,0.5,FALSE
+146,شيبسي صغير مصري,Snacks,0.12,0.25,FALSE
+148,بسكوت بالتمر مصري,Snacks,0.12,0.25,FALSE
+204,دونات مشكل,Snacks,0.15,2,FALSE
+208,بسكوت تو ترو,Snacks,0.5,0.75,FALSE
+2001,مارلبورو احمر,Cigarettes,14.67630037,21,TRUE
+2002,مارلبورو ابيض,Cigarettes,14.67630037,21,TRUE
+2003,ال ام احمر,Cigarettes,9.004300227,14,TRUE
+2004,ال ام ابيض,Cigarettes,9.004300227,14,TRUE
+2005,وينستون احمر,Cigarettes,7.657200193,14,TRUE
+2006,وينستون لايت,Cigarettes,7.657200193,14,TRUE
+2007,وينستون سلفر,Cigarettes,7.657200193,14,TRUE
+2008,ميريت جولد,Cigarettes,14.46360036,21,TRUE
+2009,ال دي لايت,Cigarettes,5.813800147,14,TRUE
+2010,ال دي احمر,Cigarettes,5.813800147,14,TRUE
+2011,Red Bull,Perfumes & Make-Up,0.5,0.75,TRUE
+3001,خلاط بناسونيك,Electic Appliances,20,28,TRUE
+3002,خلاط كونتي + كبه 551,Electic Appliances,23,28,TRUE
+3003,خلاط هايبر هوم,Electic Appliances,18,28,TRUE
+3004,خلاط كونتي,Electic Appliances,18,28,TRUE
+3005,جريل سونا,Electic Appliances,26,40,TRUE
+3009,مكوى فيليبس,Electic Appliances,6,10,TRUE
+3013,غلاية قهوة,Electic Appliances,9,14,TRUE
+3016,ماكينة حلاقة ذقن 2024,Electic Appliances,7,14,TRUE
+3017,ماكينة حلاقة تنعيم,Electic Appliances,0,12,TRUE
+3018,ماكينة حلاقة رجالي 5800,Electic Appliances,12,14,TRUE
+3019,ماكينة حلاقة 5021 كيمي,Electic Appliances,8,14,TRUE
+3020,ماكينة حلاقة 60078,Electic Appliances,10,16,TRUE
+3021,ماكينة حلاقة حريمي Enzo,Electic Appliances,8,14,TRUE
+3022,ماكينة حلاقة كيمي 700,Electic Appliances,13,21,TRUE
+3023,سشوار ستار,Electic Appliances,13,20,TRUE
+3024,سشوار Clik,Electic Appliances,9,14,TRUE
+3025,سشوار كونتي,Electic Appliances,12,18,TRUE
+3026,مجدلة شعر Olsen,Electic Appliances,10,16,TRUE
+3027,ملمس كيمي للشعر 1212,Electic Appliances,10,16,TRUE
+3029,ملمس برتش,Electic Appliances,10,16,TRUE
+3030,بيبي ليز,Electic Appliances,8,14,TRUE
+3031,فرشاة شعر 9127,Electic Appliances,13,21,TRUE
+3032,حرام الدب,Electic Appliances,21,28,TRUE
+3034,ماكينة ماكس براون,Electic Appliances,12,25,TRUE
+3038,خلاط عمودي 3*1,Electic Appliances,15,25,TRUE
+3040,ماكينة حلاقة خيط,Electic Appliances,8.5,15,TRUE
+3047,مروحة سقف,Electic Appliances,54,70,TRUE
+3050,مكنسة شارب 2400,Electic Appliances,60,65,TRUE
+4001,عطر 100 مل متنوع,Perfumes & Make-Up,6,7,TRUE
+4002,عطر 30 مل متنوع,Perfumes & Make-Up,1.25,3,TRUE
+4003,هايجين 750 ملل,Perfumes & Make-Up,1.25,4,TRUE
+4005,جل اللجانس للشعر,Perfumes & Make-Up,1.583,3,TRUE
+4006,سبلاش لوشن للجسم,Perfumes & Make-Up,2,2,TRUE
+4007,مونكير,Perfumes & Make-Up,1,2,TRUE
+4008,كحل حريمي,Perfumes & Make-Up,0.75,2,TRUE
+4009,مسكارة,Perfumes & Make-Up,1.5,3,TRUE
+4010,احمر شفايف,Perfumes & Make-Up,1,3,TRUE
+4011,علبة مكياج مميز طقم,Perfumes & Make-Up,8,12,TRUE
+4012,علبة مكياج صغير,Perfumes & Make-Up,3.75,7,TRUE
+4013,علبة مكياج وسط,Perfumes & Make-Up,6.25,14,TRUE
+4014,علبة مكياج كبير,Perfumes & Make-Up,9,21,TRUE
+4015,مشط خشب,Perfumes & Make-Up,0.25,1,TRUE
+4016,فرشاة شعر فسفوري,Perfumes & Make-Up,0.75,3,TRUE
+4017,زبدة للجسم,Perfumes & Make-Up,1.25,2,TRUE
+4018,طقم عطور 5 قطع,Perfumes & Make-Up,7.25,15,TRUE
+4019,مزيل عرق NBC,Perfumes & Make-Up,2,4,TRUE
+4020,مزيل عرق كلاسيك,Perfumes & Make-Up,0.75,4,TRUE
+4021,صابون دوف متنوع,Perfumes & Make-Up,0.46,1,TRUE
+4022,كريم جونسون,Perfumes & Make-Up,1.9,2,TRUE
+4023,ماكينة حلاقة,Perfumes & Make-Up,3,5,TRUE
+4027,كريم نيفيا سوفت,Perfumes & Make-Up,1.65,2,TRUE
+4028,شفرات جيليت,Perfumes & Make-Up,0.23,0.5,TRUE
+4029,بخور غرف,Perfumes & Make-Up,2.25,4,TRUE
+4030,فازلين,Perfumes & Make-Up,1.35,2,TRUE
+4031,مشط للشعر,Perfumes & Make-Up,0.25,0.5,TRUE
+4032,شفرة حلاقة جيليت 3,Perfumes & Make-Up,4,5,TRUE
+4049,سبلاش فلورا,Perfumes & Make-Up,0.625,3,TRUE
+5001,شاحن N.S.M,Electronics,4,7,TRUE
+5002,شاحن سيارة,Electronics,2,5,TRUE
+5004,شاحن عادي A004,Electronics,1,3,TRUE
+5005,شاحن موبايل 219,Electronics,4,7,TRUE
+5006,وصلة شاحن S61T,Electronics,0.5,1,TRUE
+5007,سماعة 97,Electronics,9,14,TRUE
+5009,سماعة SPE 1645 BT,Electronics,7,12,TRUE
+5010,سماعة كشاف 165,Electronics,7,12,TRUE
+5012,وصله ثلاثية,Electronics,1,2,TRUE
+5013,وصلة شاحن MX,Electronics,4,5,TRUE
+5015,كاسة متعددة الاستعمال,Electronics,1,2,TRUE
+5016,سماعه بيجي GE11,Electronics,3.5,7,TRUE
+5017,علاقة موبايل,Electronics,1,2,TRUE
+5018,سماعة بلوتوث W13,Electronics,15,21,TRUE
+5019,سماعة بلوتوث W10,Electronics,17,21,TRUE
+5020,AIR PODS 112,Electronics,4,21,TRUE
+5021,سماعه سحب Q21,Electronics,6,10,TRUE
+5023,سماعة TW13,Electronics,0,21,TRUE
+5024,سماعه سلك,Electronics,0.75,2,TRUE
+5025,ساعة سمارت 7,Electronics,10,15,TRUE
+5026,سماعة YS-116,Electronics,2,5,TRUE
+5027,سماعة 117,Electronics,2.25,5,TRUE
+5028,سماعة T 2007,Electronics,3,7,TRUE
+5029,باور بنك,Electronics,9,15,TRUE
+5030,باور بنك M 20000,Electronics,15,21,TRUE
+5031,باور بنك 30000,Electronics,20,28,TRUE
+5032,وسادة رقبة,Electronics,2,2,TRUE
+5033,ساعة T90 Mini,Electronics,15,20,TRUE
+5036,سشوار تربو,Electronics,10,18,TRUE
+5038,سماعة J 31,Electronics,7,15,TRUE
+5039,سماعة طوق 860,Electronics,12,20,TRUE
+5040,ميدالية دبدوب,Electronics,0.75,3,TRUE
+5041,ساعة T500,Electronics,6,12,TRUE
+5042,ساعة V9,Electronics,23,35,TRUE
+5043,ساعة Watch 5,Electronics,25,40,TRUE
+5044,ساعة 4IN1 جديدة,Electronics,17,25,TRUE
+5045,سماعة K 340,Electronics,3.5,7,TRUE
+5047,سماعه بلوتوث عداد Q11,Electronics,5,10,TRUE
+5048,سماعة بلوتوث K55,Electronics,8,12,TRUE
+5049,سماعه سلك سحب 009,Electronics,5,10,TRUE
+5053,وصلة شاحن الوان,Electronics,0.5,2,TRUE
+5057,لوكس شحن تاتش,Electronics,3,10,TRUE
+5058,ساعة EW50,Electronics,9,12,TRUE
