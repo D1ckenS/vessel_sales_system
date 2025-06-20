@@ -174,6 +174,7 @@ urlpatterns = [
     # Individual export endpoints (Detail reports)
     path('export/trip/<int:trip_id>/', export_views.export_single_trip, name='export_single_trip'),
     path('export/po/<int:po_id>/', export_views.export_single_po, name='export_single_po'),
+    path('export/po-cart/', supply_views.export_po_cart, name='export_po_cart'),
 
     # Report exports
     path('export/monthly-report/', export_views.export_monthly_report, name='export_monthly_report'),

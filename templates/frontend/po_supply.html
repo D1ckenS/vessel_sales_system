@@ -2,6 +2,79 @@
 
 {% block title %}PO Supply - {{ po.po_number }} - Vessel Sales System{% endblock %}
 
+{% block extra_css %}
+<style>
+/* Quantity breakdown column styling */
+.quantity-breakdown {
+    min-width: 180px;
+}
+
+.quantity-breakdown .box-info {
+    font-size: 0.9rem;
+    color: #6c757d;
+    margin-bottom: 2px;
+}
+
+.quantity-breakdown .total-units {
+    font-weight: 600;
+    color: #0d6efd;
+}
+
+/* Cart summary styling */
+.cart-summary-section {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-top: 2px solid #dee2e6;
+}
+
+/* Unit cost display */
+.unit-cost-calculated {
+    font-size: 0.9rem;
+}
+
+.unit-cost-calculated .main-cost {
+    font-weight: 600;
+    color: #198754;
+}
+
+.unit-cost-calculated .calculation-note {
+    font-size: 0.75rem;
+    color: #6c757d;
+}
+
+/* Enhanced table row styling for better readability */
+.table tbody tr td {
+    vertical-align: middle;
+    padding: 12px 8px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .quantity-breakdown {
+        min-width: 140px;
+        font-size: 0.85rem;
+    }
+    
+    .cart-summary-section .row {
+        text-align: center !important;
+    }
+    
+    .cart-summary-section .col-md-4 {
+        margin-top: 10px;
+    }
+}
+
+/* Animation for cart updates */
+.cart-item-updated {
+    animation: highlightUpdate 0.5s ease-in-out;
+}
+
+@keyframes highlightUpdate {
+    0% { background-color: #fff3cd; }
+    100% { background-color: transparent; }
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <!-- Page Header -->
 <div class="row mb-4">
@@ -21,11 +94,6 @@
                 <a href="{% url 'frontend:supply_entry' %}" class="btn btn-outline-secondary">
                     <i class="bi bi-arrow-left"></i> <span data-translate="back_to_pos">Back to POs</span>
                 </a>
-                {% if can_edit %}
-                <button type="button" class="btn btn-success" id="completePOBtn" onclick="completePOSupplies()">
-                    <i class="bi bi-check-circle"></i> <span data-translate="complete_po">Complete PO</span> (<span dir="ltr" id="itemCountBadge">0</span>)
-                </button>
-                {% endif %}
             </div>
         </div>
     </div>
@@ -106,24 +174,31 @@
                                placeholder="Type product name or ID...">
                     </div>
                     
-                    <!-- Quantity and Cost -->
+                    <!-- Box and Total Cost -->
                     <div class="row mb-3">
-                        <div class="col-6">
+                        <div class="col-4">
                             <label class="form-label fw-bold">
-                                <i class="bi bi-123"></i> <span data-translate="quantity">Quantity</span>
+                                <i class="bi bi-box"></i> <span data-translate="num_boxes"># of Boxes</span>
                             </label>
-                            <input type="number" class="form-control form-control-lg" id="supplyQuantity" 
-                                   placeholder="0" min="1" step="1" disabled>
+                            <input type="number" class="form-control form-control-lg" id="numBoxes" 
+                                placeholder="0" min="1" step="1" disabled>
                         </div>
-                        <div class="col-6">
+                        <div class="col-4">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-grid-3x3"></i> <span data-translate="items_per_box">Items/Box</span>
+                            </label>
+                            <input type="number" class="form-control form-control-lg" id="itemsPerBox" 
+                                placeholder="0" min="1" step="1" disabled>
+                        </div>
+                        <div class="col-4">
                             <label class="form-label fw-bold">
                                 <i class="bi bi-currency-dollar"></i>
-                                <span data-translate="purchase_cost">Purchase Cost</span>
+                                <span data-translate="total_invoice_cost">Total Cost</span>
                                 (<span dir="ltr" data-currency-symbol>JOD</span>)
                             </label>
-                            <input type="number" class="form-control form-control-lg" id="purchaseCost" 
-                                   placeholder="0.000" min="0.001" step="0.001" disabled>
-                            <small class="text-muted"><span data-translate="cost_per_unit">Cost per unit</span></small>
+                            <input type="number" class="form-control form-control-lg" id="totalInvoiceCost" 
+                                placeholder="0.000" min="0.001" step="0.001" disabled>
+                            <small class="text-muted"><span data-translate="invoice_total">Total invoice amount</span></small>
                         </div>
                     </div>
                     
@@ -131,13 +206,21 @@
                     <div id="productInfo" class="mb-3" style="display: none;">
                         <div class="alert alert-info">
                             <div class="row">
-                                <div class="col-md-6">
+                                <div class="col-md-3">
                                     <strong><span data-translate="product_colon">Product:</span></strong>
                                     <div id="productName">-</div>
                                 </div>
-                                <div class="col-md-6">
-                                    <strong><span data-translate="total_cost_colon">Total Cost:</span></strong>
-                                    <div id="totalCost">0.000 <span data-currency-symbol>JOD</span></div>
+                                <div class="col-md-3">
+                                    <strong><span data-translate="total_quantity">Total Quantity:</span></strong>
+                                    <div id="calculatedQuantity">0 <span data-translate="units">units</span></div>
+                                </div>
+                                <div class="col-md-3">
+                                    <strong><span data-translate="unit_cost_calculated">Unit Cost:</span></strong>
+                                    <div id="calculatedUnitCost">0.000 <span data-currency-symbol>JOD</span></div>
+                                </div>
+                                <div class="col-md-3">
+                                    <strong><span data-translate="verification">Verification:</span></strong>
+                                    <div id="verificationTotal">0.000 <span data-currency-symbol>JOD</span></div>
                                 </div>
                             </div>
                         </div>
@@ -250,8 +333,8 @@
                             <tr>
                                 {% if not can_edit %}<th><span data-translate="time">Time</span></th>{% endif %}
                                 <th><span data-translate="product">Product</span></th>
-                                <th class="text-center"><span data-translate="quantity">Quantity</span></th>
-                                <th class="text-end"><span data-translate="unit_cost">Unit Cost</span></th>
+                                <th class="text-center"><span data-translate="quantity_breakdown">Quantity Breakdown</span></th>
+                                <th class="text-end"><span data-translate="unit_cost_calculated">Unit Cost</span></th>
                                 <th class="text-end"><span data-translate="total_cost">Total Cost</span></th>
                                 <th><span data-translate="notes">Notes</span></th>
                                 {% if can_edit %}
@@ -264,13 +347,36 @@
                         </tbody>
                     </table>
                 </div>
-                
+                {% if can_edit %}
                 <!-- Empty State -->
                 <div id="emptySuppliesState" class="text-center py-5" style="display: none;">
                     <i class="bi bi-cart-x text-muted" style="font-size: 3rem;"></i>
                     <h5 class="text-muted mt-3"><span data-translate="no_items_in_cart">No items in cart</span></h5>
                     <p class="text-muted"><span data-translate="use_form_po">Use the form above to add supply items to this purchase order</span></p>
                 </div>
+                <div class="card-footer bg-light">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-cart-check text-success me-2" style="font-size: 1.2rem;"></i>
+                                <strong><span data-translate="cart_summary">Cart Summary:</span></strong>
+                                <span class="ms-2">
+                                    <span id="cartSummaryItems" data-number>0</span> <span data-translate="total_units">total units</span>
+                                    • 
+                                    <span id="cartSummaryTotal" data-number>0.000</span>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <button type="button" class="btn btn-success btn-lg" id="completePOBtn" onclick="completePOSupplies()" disabled>
+                                <span id="completeBtnText">
+                                    <i class="bi bi-check-circle"></i> <span data-translate="complete_po">Complete PO</span>
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -348,6 +454,7 @@ document.addEventListener('DOMContentLoaded', function() {
             'export_completed_successfully': 'تم التصدير بنجاح',
         }
     };
+
     
     // Merge with global translations
     const currentTranslations = window.translator.translations;
@@ -365,14 +472,19 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('PO completed - displaying read-only data');
         {% if completed_supplies_json %}
         try {
-            const completedSupplies = JSON.parse('{{ completed_supplies_json|escapejs }}');
+            const completedSuppliesRaw = '{{ completed_supplies_json|escapejs }}';
+            const completedSupplies = JSON.parse(completedSuppliesRaw);
+
             if (completedSupplies && completedSupplies.length > 0) {
                 displayCompletedSupplies(completedSupplies);
                 updateCompletedPOTotals(completedSupplies);
+            } else {
+                console.log('🔍 No completed supplies to display');
             }
         } catch (e) {
             console.log('Error parsing completed supplies:', e);
         }
+        {% else %}
         {% endif %}
         // No need to load product catalog for completed POs
         updatePageTranslations();
@@ -410,7 +522,6 @@ function initializePOCart() {
     if (savedCart) {
         try {
             poSuppliesCart = JSON.parse(savedCart);
-            console.log('Loaded cart from localStorage:', poSuppliesCart);
         } catch (e) {
             console.log('Error parsing saved cart, starting fresh');
             poSuppliesCart = [];
@@ -424,7 +535,6 @@ function initializePOCart() {
             const existingSupplies = JSON.parse('{{ existing_supplies_json|escapejs }}');
             if (existingSupplies && existingSupplies.length > 0) {
                 poSuppliesCart = existingSupplies;
-                console.log('Loaded cart from existing supplies:', poSuppliesCart);
                 saveCartToStorage();
             }
         } catch (e) {
@@ -439,9 +549,7 @@ function saveCartToStorage() {
         const poId = document.getElementById('poId').value;
         const storageKey = `po_supplies_${poId}`;
         localStorage.setItem(storageKey, JSON.stringify(poSuppliesCart));
-        console.log('Cart saved to localStorage:', storageKey, poSuppliesCart);
     } catch (error) {
-        console.error('Error saving cart to localStorage:', error);
     }
 }
 
@@ -508,107 +616,130 @@ function displayProductCatalog() {
 }
 
 function displayCompletedSupplies(completedSupplies) {
+    
     const suppliesList = document.getElementById('suppliesList');
     const emptyState = document.getElementById('emptySuppliesState');
     
-    // Update count with number translation
-    updateNumberElement('suppliesListCount', completedSupplies.length);
+    if (!suppliesList) {
+        console.error('🔍 suppliesList element not found!');
+        return;
+    }
+    
+    // Update count
+    const suppliesListCount = document.getElementById('suppliesListCount');
+    if (suppliesListCount) {
+        suppliesListCount.textContent = completedSupplies.length;
+    }
     
     if (completedSupplies.length === 0) {
+        console.log('🔍 No completed supplies found, showing empty state');
         suppliesList.innerHTML = '';
-        emptyState.style.display = 'block';
-    } else {
-        emptyState.style.display = 'none';
-        suppliesList.innerHTML = completedSupplies.map(item => `
+        if (emptyState) emptyState.style.display = 'block';
+        return;
+    }
+    
+    if (emptyState) emptyState.style.display = 'none';
+    
+    // Build table rows that match the current table structure
+    const rows = completedSupplies.map((item, index) => {
+        
+        return `
             <tr>
-                <td><small data-number data-original="${item.created_at}">${translateNumber(item.created_at)}</small></td>
+                <td><small>${item.created_at}</small></td>
                 <td>
-                    <div>
-                        <strong>${item.product_name}</strong>
-                        <small class="text-muted d-block">${_('id_label')}: <span data-number data-original="${item.product_item_id}">${translateNumber(item.product_item_id)}</span></small>
-                        ${item.is_duty_free ? '<span class="badge bg-warning text-dark">' + _('duty_free') + '</span>' : ''}
+                    <div class="fw-bold">${item.product_name}</div>
+                    <small class="text-muted">${item.product_item_id}</small>
+                    ${item.product_barcode ? `<br><small class="text-muted">📊 ${item.product_barcode}</small>` : ''}
+                    ${item.is_duty_free ? '<br><span class="badge bg-warning">Duty Free</span>' : ''}
+                </td>
+                <td class="text-center quantity-breakdown">
+                    <div class="total-units fw-bold text-primary">
+                        ${item.quantity}
+                    </div>
+                    <small class="text-muted">units total</small>
+                </td>
+                <td class="text-end unit-cost-calculated">
+                    <div class="main-cost">
+                        ${item.unit_price.toFixed(3)} <span data-currency-symbol>JOD</span>
+                    </div>
+                    <small class="calculation-note">per unit</small>
+                </td>
+                <td class="text-end">
+                    <div class="fw-bold text-success">
+                        ${item.total_amount.toFixed(3)} <span data-currency-symbol>JOD</span>
                     </div>
                 </td>
-                <td class="text-center">
-                    <span class="fw-bold" data-number data-original="${item.quantity}">${translateNumber(item.quantity.toString())}</span>
-                    <small class="text-muted d-block">${_('units')}</small>
+                <td>
+                    <small class="text-muted">${item.notes || '-'}</small>
                 </td>
-                <td class="text-end">
-                    <span class="fw-bold" data-number data-original="${item.unit_price.toFixed(3)}">${translateNumber(item.unit_price.toFixed(3))}</span>
-                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
-                </td>
-                <td class="text-end">
-                    <span class="fw-bold text-primary" data-number data-original="${item.total_amount.toFixed(3)}">${translateNumber(item.total_amount.toFixed(3))}</span>
-                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
-                </td>
-                <td><small>${item.notes || '-'}</small></td>
             </tr>
-        `).join('');
-        
-        // Apply translations after DOM update
-        setTimeout(() => {
+        `;
+    });
+    
+    suppliesList.innerHTML = rows.join('');
+    
+    // Apply translations after DOM update
+    setTimeout(() => {
+        if (typeof updatePageTranslations === 'function') {
             updatePageTranslations();
-        }, 0);
-    }
+        }
+    }, 100);
+    
 }
 
 function updateCompletedPOTotals(completedSupplies) {
-    // Calculate totals from completed supplies data
+    // Calculate totals for completed PO
+    let totalQuantity = 0;
     let totalCost = 0;
     
     completedSupplies.forEach(item => {
-        totalCost += item.total_amount || 0;
+        totalQuantity += item.quantity;
+        totalCost += item.total_amount;
     });
     
-    const itemCount = completedSupplies.length;
-    const avgCost = itemCount > 0 ? totalCost / itemCount : 0;
+    // Update any summary elements if they exist
+    const summaryElements = {
+        'cartSummaryItems': totalQuantity,
+        'cartSummaryTotal': totalCost.toFixed(3)
+    };
     
-    // Update the summary card
-    const costElement = document.getElementById('poTotalCost');
-    if (costElement) {
-        costElement.setAttribute('data-original', totalCost.toFixed(3));
-        costElement.innerHTML = `<span data-number data-original="${totalCost.toFixed(3)}">${translateNumber(totalCost.toFixed(3))}</span> <span data-currency-symbol>JOD</span>`;
-    }
-    
-    const avgElement = document.getElementById('avgCostPerItem');
-    if (avgElement) {
-        avgElement.setAttribute('data-original', avgCost.toFixed(3));
-        avgElement.innerHTML = `<span data-number data-original="${avgCost.toFixed(3)}">${translateNumber(avgCost.toFixed(3))}</span> <span data-currency-symbol>JOD</span>`;
-    }
-    
-    // Apply translations to the updated elements
-    setTimeout(() => {
-        updatePageTranslations();
-    }, 0);
+    Object.entries(summaryElements).forEach(([elementId, value]) => {
+        const element = document.getElementById(elementId);
+        if (element) {
+            if (elementId === 'cartSummaryTotal') {
+                element.innerHTML = `<span data-number data-original="${value}">${translateNumber(value)}</span> <span data-currency-symbol>JOD</span>`;
+            } else {
+                element.innerHTML = `<span data-number data-original="${value}">${translateNumber(value.toString())}</span>`;
+            }
+        }
+    });
 }
 
 function selectProductFromCatalog(product) {
     selectedProduct = product;
     
-    // Update search field
-    document.getElementById('productSearch').value = product.name;
-    
-    // Update product info
+    // Update product info display
     document.getElementById('productName').textContent = product.name;
     document.getElementById('productInfo').style.display = 'block';
     
-    // Enable inputs
-    document.getElementById('supplyQuantity').disabled = false;
-    document.getElementById('purchaseCost').disabled = false;
+    // Enable form inputs
+    document.getElementById('numBoxes').disabled = false;
+    document.getElementById('itemsPerBox').disabled = false;
+    document.getElementById('totalInvoiceCost').disabled = false;
     
-    // Pre-fill purchase cost with default
-    document.getElementById('purchaseCost').value = product.purchase_price.toFixed(3);
+    // Pre-fill items per box with default (if available from product data)
+    // document.getElementById('itemsPerBox').value = product.default_items_per_box || '';
     
-    // Focus on quantity
-    document.getElementById('supplyQuantity').focus();
+    // Focus on boxes input
+    document.getElementById('numBoxes').focus();
     
-    // Update total cost
-    updateTotalCost();
+    // Update calculations
+    updateCalculations();
     validateForm();
 }
 
 function setupEventListeners() {
-    // Product search functionality
+    // Product search functionality (unchanged)
     let searchTimeout;
     document.getElementById('productSearch').addEventListener('input', function() {
         const searchTerm = this.value.trim().toLowerCase();
@@ -617,7 +748,6 @@ function setupEventListeners() {
         
         if (searchTerm.length >= 2) {
             searchTimeout = setTimeout(() => {
-                // Filter product catalog
                 const filteredProducts = productCatalog.filter(product => 
                     product.name.toLowerCase().includes(searchTerm) ||
                     product.item_id.toLowerCase().includes(searchTerm)
@@ -635,39 +765,60 @@ function setupEventListeners() {
         }
     });
 
-    document.getElementById('supplyQuantity').addEventListener('input', function() {
-        updateTotalCost();
+    // Box-based input event listeners
+    document.getElementById('numBoxes').addEventListener('input', function() {
+        updateCalculations();
         validateForm();
     });
 
-    document.getElementById('purchaseCost').addEventListener('input', function() {
-        updateTotalCost();
+    document.getElementById('itemsPerBox').addEventListener('input', function() {
+        updateCalculations();
         validateForm();
     });
 
-    // Form submission
+    document.getElementById('totalInvoiceCost').addEventListener('input', function() {
+        updateCalculations();
+        validateForm();
+    });
+
+    // Form submission (unchanged)
     document.getElementById('addSupplyForm').addEventListener('submit', function(e) {
         e.preventDefault();
         addToCart();
     });
 }
 
-function updateTotalCost() {
+function updateCalculations() {
     if (!selectedProduct) return;
     
-    const quantity = parseInt(document.getElementById('supplyQuantity').value) || 0;
-    const cost = parseFloat(document.getElementById('purchaseCost').value) || 0;
-    const total = quantity * cost;
-    document.getElementById('totalCost').innerHTML = `<span data-number data-original="${total.toFixed(3)}">${translateNumber(total.toFixed(3))}</span> <span data-currency-symbol>JOD</span>`;
+    const numBoxes = parseInt(document.getElementById('numBoxes').value) || 0;
+    const itemsPerBox = parseInt(document.getElementById('itemsPerBox').value) || 0;
+    const totalCost = parseFloat(document.getElementById('totalInvoiceCost').value) || 0;
+    
+    // Calculate derived values
+    const totalQuantity = numBoxes * itemsPerBox;
+    const unitCost = totalQuantity > 0 ? totalCost / totalQuantity : 0;
+    const verificationTotal = totalQuantity * unitCost; // Should equal totalCost
+    
+    // Update display
+    document.getElementById('calculatedQuantity').innerHTML = 
+        `<span data-number data-original="${totalQuantity}">${translateNumber(totalQuantity.toString())}</span> <span data-translate="units">units</span>`;
+    
+    document.getElementById('calculatedUnitCost').innerHTML = 
+        `<span data-number data-original="${unitCost.toFixed(3)}">${translateNumber(unitCost.toFixed(3))}</span> <span data-currency-symbol>JOD</span>`;
+    
+    document.getElementById('verificationTotal').innerHTML = 
+        `<span data-number data-original="${verificationTotal.toFixed(3)}">${translateNumber(verificationTotal.toFixed(3))}</span> <span data-currency-symbol>JOD</span>`;
 }
 
 function validateForm() {
-    const quantity = parseInt(document.getElementById('supplyQuantity').value) || 0;
-    const cost = parseFloat(document.getElementById('purchaseCost').value) || 0;
+    const numBoxes = parseInt(document.getElementById('numBoxes').value) || 0;
+    const itemsPerBox = parseInt(document.getElementById('itemsPerBox').value) || 0;
+    const totalCost = parseFloat(document.getElementById('totalInvoiceCost').value) || 0;
     const addBtn = document.getElementById('addSupplyBtn');
     const addBtnText = document.getElementById('addBtnText');
     
-    let isValid = selectedProduct && quantity > 0 && cost > 0;
+    let isValid = selectedProduct && numBoxes > 0 && itemsPerBox > 0 && totalCost > 0;
     let buttonText = editingIndex >= 0 ? _('update_item') : _('add_to_po');
     let buttonClass = 'btn btn-primary';
     
@@ -696,9 +847,14 @@ function validateForm() {
 function addToCart() {
     if (!selectedProduct) return;
     
-    const quantity = parseInt(document.getElementById('supplyQuantity').value);
-    const cost = parseFloat(document.getElementById('purchaseCost').value);
+    const numBoxes = parseInt(document.getElementById('numBoxes').value);
+    const itemsPerBox = parseInt(document.getElementById('itemsPerBox').value);
+    const totalCost = parseFloat(document.getElementById('totalInvoiceCost').value);
     const notes = document.getElementById('supplyNotes').value.trim();
+    
+    // Calculate final values for storage
+    const quantity = numBoxes * itemsPerBox;
+    const unitPrice = totalCost / quantity;
     
     const cartItem = {
         product_id: selectedProduct.id,
@@ -706,19 +862,20 @@ function addToCart() {
         product_item_id: selectedProduct.item_id,
         product_barcode: selectedProduct.barcode || '',
         is_duty_free: selectedProduct.is_duty_free,
-        quantity: quantity,
-        unit_price: cost,
-        total_amount: quantity * cost,
+        // Store box info for display but quantity/unit_price for backend
+        num_boxes: numBoxes,
+        items_per_box: itemsPerBox,
+        quantity: quantity,  // Calculated value for backend
+        unit_price: unitPrice,  // Calculated value for backend
+        total_amount: totalCost,  // Use input total cost
         notes: notes
     };
     
     if (editingIndex >= 0) {
-        // Update existing item
         poSuppliesCart[editingIndex] = cartItem;
         editingIndex = -1;
         exitEditMode();
     } else {
-        // Add new item
         poSuppliesCart.push(cartItem);
     }
     
@@ -760,22 +917,21 @@ function editCartItem(index) {
     selectedProduct = productCatalog.find(p => p.id === item.product_id);
     
     if (selectedProduct) {
-        // Populate form fields
+        // Populate form fields with box data
         document.getElementById('productSearch').value = item.product_name;
-        document.getElementById('supplyQuantity').value = item.quantity;
-        document.getElementById('supplyQuantity').disabled = false;
-        document.getElementById('purchaseCost').value = item.unit_price.toFixed(3);
-        document.getElementById('purchaseCost').disabled = false;
+        document.getElementById('numBoxes').value = item.num_boxes || '';
+        document.getElementById('itemsPerBox').value = item.items_per_box || '';
+        document.getElementById('totalInvoiceCost').value = item.total_amount.toFixed(3);
         document.getElementById('supplyNotes').value = item.notes || '';
         
-        // Update product info display
-        document.getElementById('productName').textContent = item.product_name;
-        document.getElementById('totalCost').innerHTML = `<span data-number data-original="${item.total_amount.toFixed(3)}">${translateNumber(item.total_amount.toFixed(3))}</span> <span data-currency-symbol>JOD</span>`;
-        document.getElementById('productInfo').style.display = 'block';
+        // Enable inputs
+        document.getElementById('numBoxes').disabled = false;
+        document.getElementById('itemsPerBox').disabled = false;
+        document.getElementById('totalInvoiceCost').disabled = false;
         
-        // Enable form
-        document.getElementById('addSupplyBtn').disabled = false;
-        document.getElementById('addSupplyBtn').className = 'btn btn-primary';
+        // Update calculations and display
+        updateCalculations();
+        validateForm();
         
         // Scroll to form
         document.getElementById('addSupplyForm').scrollIntoView({ behavior: 'smooth' });
@@ -785,20 +941,28 @@ function editCartItem(index) {
 function clearProductSelection() {
     selectedProduct = null;
     document.getElementById('productInfo').style.display = 'none';
-    document.getElementById('supplyQuantity').disabled = true;
-    document.getElementById('purchaseCost').disabled = true;
-    document.getElementById('supplyQuantity').value = '';
-    document.getElementById('purchaseCost').value = '';
-    const addBtn = document.getElementById('addSupplyBtn');
-    addBtn.disabled = true;
-    addBtn.className = 'btn btn-primary';
-    document.getElementById('addBtnText').textContent = _('add_to_po');
+    document.getElementById('numBoxes').disabled = true;
+    document.getElementById('itemsPerBox').disabled = true;
+    document.getElementById('totalInvoiceCost').disabled = true;
+    document.getElementById('addSupplyBtn').disabled = true;
+    document.getElementById('addSupplyBtn').className = 'btn btn-outline-primary';
+    document.getElementById('addBtnText').textContent = _('select_product_first');
 }
 
 function clearForm() {
-    document.getElementById('addSupplyForm').reset();
+    // Reset form fields
     document.getElementById('productSearch').value = '';
+    document.getElementById('numBoxes').value = '';
+    document.getElementById('itemsPerBox').value = '';
+    document.getElementById('totalInvoiceCost').value = '';
     document.getElementById('supplyNotes').value = '';
+    
+    // Reset edit mode
+    editingIndex = -1;
+    document.getElementById('formTitle').innerHTML = '<i class="bi bi-plus-circle"></i> ' + _('add_supply_item');
+    document.getElementById('addBtnText').textContent = _('add_to_po');
+    
+    // Clear product selection
     clearProductSelection();
 }
 
@@ -855,94 +1019,108 @@ function exitEditMode() {
 }
 
 function updateCartDisplay() {
-    const canEdit = {{ can_edit|yesno:"true,false" }};
-    
-    // For completed POs, the totals are already calculated in updateCompletedPOTotals
-    if (!canEdit) {
-        return; // Exit early for completed POs
-    }
-    
-    // Rest of the function for editable POs (cart functionality)
     const suppliesList = document.getElementById('suppliesList');
     const emptyState = document.getElementById('emptySuppliesState');
-    const suppliesListCount = document.getElementById('suppliesListCount');
-    const itemCount = document.getElementById('itemCount');
-    const itemCountBadge = document.getElementById('itemCountBadge');
+    const completePOBtn = document.getElementById('completePOBtn');
     
-    // Update counts
-    const count = poSuppliesCart.length;
-    updateNumberElement('suppliesListCount', count);
-    updateNumberElement('itemCount', count);
-    if (itemCountBadge) updateNumberElement('itemCountBadge', count);
-    
-    // Calculate totals
-    let totalCost = 0;
-    poSuppliesCart.forEach(item => {
-        totalCost += item.total_amount;
-    });
-    
-    // Update cost elements with proper number translation
-    const costElement = document.getElementById('poTotalCost');
-    if (costElement) {
-        costElement.setAttribute('data-original', totalCost.toFixed(3));
-        costElement.innerHTML = `<span data-number data-original="${totalCost.toFixed(3)}">${translateNumber(totalCost.toFixed(3))}</span> <span data-currency-symbol>JOD</span>`;
-    }
-    
-    const avgCost = count > 0 ? totalCost / count : 0;
-    const avgElement = document.getElementById('avgCostPerItem');
-    if (avgElement) {
-        avgElement.setAttribute('data-original', avgCost.toFixed(3));
-        avgElement.innerHTML = `<span data-number data-original="${avgCost.toFixed(3)}">${translateNumber(avgCost.toFixed(3))}</span> <span data-currency-symbol>JOD</span>`;
-    }
-    
-    // Update table
-    if (count === 0) {
+    if (poSuppliesCart.length === 0) {
         suppliesList.innerHTML = '';
         emptyState.style.display = 'block';
-    } else {
-        emptyState.style.display = 'none';
-        suppliesList.innerHTML = poSuppliesCart.map((item, index) => `
+        completePOBtn.disabled = true;
+        return;
+    }
+    
+    emptyState.style.display = 'none';
+    completePOBtn.disabled = false; // Enable when items exist
+    
+    let totalPOCost = 0;
+    let totalItems = 0;
+    
+    const rows = poSuppliesCart.map((item, index) => {
+        totalPOCost += item.total_amount;
+        totalItems += item.quantity;
+        
+        // Display box information if available, fallback to quantity
+        const quantityDisplay = item.num_boxes && item.items_per_box 
+            ? `
+                <div class="box-info text-primary fw-bold">
+                    ${item.num_boxes} boxes × ${item.items_per_box} = ${item.quantity}
+                </div>
+                <small class="text-muted">units total</small>
+              `
+            : `
+                <div class="total-units fw-bold text-primary">${item.quantity}</div>
+                <small class="text-muted">units total</small>
+              `;
+        
+        return `
             <tr>
                 <td>
-                    <div>
-                        <strong>${item.product_name}</strong>
-                        <small class="text-muted d-block">${_('id_label')}: <span data-number data-original="${item.product_item_id}">${translateNumber(item.product_item_id)}</span></small>
-                        ${item.is_duty_free ? '<span class="badge bg-warning text-dark">' + _('duty_free') + '</span>' : ''}
+                    <div class="fw-bold">${item.product_name}</div>
+                    <small class="text-muted">${item.product_item_id}</small>
+                    ${item.product_barcode ? `<br><small class="text-muted">📊 ${item.product_barcode}</small>` : ''}
+                    ${item.is_duty_free ? '<br><span class="badge bg-warning">Duty Free</span>' : ''}
+                </td>
+                <td class="text-center quantity-breakdown">
+                    ${quantityDisplay}
+                </td>
+                <td class="text-end unit-cost-calculated">
+                    <div class="main-cost">
+                        <span data-number data-original="${item.unit_price.toFixed(3)}">${translateNumber(item.unit_price.toFixed(3))}</span>
+                        <span data-currency-symbol>JOD</span>
+                    </div>
+                    <small class="calculation-note">per unit</small>
+                </td>
+                <td class="text-end">
+                    <div class="fw-bold text-success">
+                        <span data-number data-original="${item.total_amount.toFixed(3)}">${translateNumber(item.total_amount.toFixed(3))}</span>
+                        <span data-currency-symbol>JOD</span>
                     </div>
                 </td>
-                <td class="text-center">
-                    <span class="fw-bold" data-number data-original="${item.quantity}">${translateNumber(item.quantity.toString())}</span>
-                    <small class="text-muted d-block">${_('units')}</small>
-                </td>
-                <td class="text-end">
-                    <span class="fw-bold" data-number data-original="${item.unit_price.toFixed(3)}">${translateNumber(item.unit_price.toFixed(3))}</span>
-                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
-                </td>
-                <td class="text-end">
-                    <span class="fw-bold text-primary" data-number data-original="${item.total_amount.toFixed(3)}">${translateNumber(item.total_amount.toFixed(3))}</span>
-                    <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
-                </td>
                 <td>
-                    <small>${item.notes || '-'}</small>
+                    <small class="text-muted">${item.notes || '-'}</small>
                 </td>
                 <td class="text-center">
                     <div class="btn-group btn-group-sm">
-                        <button class="btn btn-outline-primary" onclick="editCartItem(${index})" title="${_('edit_item')}">
+                        <button type="button" class="btn btn-outline-primary btn-sm" 
+                                onclick="editCartItem(${index})" title="${_('edit_item')}">
                             <i class="bi bi-pencil"></i>
                         </button>
-                        <button class="btn btn-outline-danger" onclick="removeFromCart(${index})" title="${_('remove_item')}">
+                        <button type="button" class="btn btn-outline-danger btn-sm" 
+                                onclick="removeFromCart(${index})" title="${_('remove_item')}">
                             <i class="bi bi-trash"></i>
                         </button>
                     </div>
                 </td>
             </tr>
-        `).join('');
+        `;
+    }).join('');
+    
+    suppliesList.innerHTML = rows;
+    
+    // Update cart count in header
+    document.getElementById('suppliesListCount').textContent = poSuppliesCart.length;
+    
+    // Update summary if elements exist
+    const cartSummaryItems = document.getElementById('cartSummaryItems');
+    const cartSummaryTotal = document.getElementById('cartSummaryTotal');
+    const completeBtnText = document.getElementById('completeBtnText');
+    
+    if (cartSummaryItems) {
+        cartSummaryItems.innerHTML = 
+            `<span data-number data-original="${totalItems}">${translateNumber(totalItems.toString())}</span>`;
     }
     
-    // Apply translations after DOM update
-    setTimeout(() => {
-        updatePageTranslations();
-    }, 0);
+    if (cartSummaryTotal) {
+        cartSummaryTotal.innerHTML = 
+            `<span data-number data-original="${totalPOCost.toFixed(3)}">${translateNumber(totalPOCost.toFixed(3))}</span> <span data-currency-symbol>JOD</span>`;
+    }
+    
+    // Update complete button text with current stats
+    if (completeBtnText) {
+        completeBtnText.innerHTML = 
+            `<i class="bi bi-check-circle"></i> Complete PO (${poSuppliesCart.length} items, ${totalPOCost.toFixed(3)} JOD)`;
+    }
 }
 
 // Helper function for updating number elements
@@ -988,28 +1166,37 @@ async function completePOSupplies() {
         items: itemsToSend
     });
     
-    fetch('/supply/po/bulk-complete/', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-        },
-        body: JSON.stringify({
-            po_id: document.getElementById('poId').value,
-            items: itemsToSend
-        })
-    })
-    .then(response => {
+    try {
+        const response = await fetch('/supply/po/bulk-complete/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify({
+                po_id: document.getElementById('poId').value,
+                items: itemsToSend
+            })
+        });
+        
         console.log('Response status:', response.status);
-        return response.json();
-    })
-    .then(data => {
+        const data = await response.json();
         console.log('Response data:', data);
+        
         if (data.success) {
+            // Show success message
+            showAlert(data.message, 'success');
+            
+            // AUTO-EXPORT: Export cart with box breakdown before redirect
+            console.log('🚀 Auto-exporting cart verification report...');
+            await exportCartVerification();
+            
+            // Clean up localStorage
             const poId = document.getElementById('poId').value;
             const storageKey = `po_supplies_${poId}`;
             localStorage.removeItem(storageKey);
-            showAlert(data.message, 'success');
+            
+            // Redirect after export
             setTimeout(() => {
                 window.location.href = "{% url 'frontend:supply_entry' %}";
             }, 2000);
@@ -1018,17 +1205,12 @@ async function completePOSupplies() {
             completePOBtn.innerHTML = originalText;
             completePOBtn.disabled = false;
         }
-    })
-    .catch(error => {
+    } catch (error) {
         console.error('Error completing PO:', error);
         showAlert(_('error_completing_po'), 'danger');
         completePOBtn.innerHTML = originalText;
         completePOBtn.disabled = false;
-    });
-}
-
-function exportPOSupplies() {
-    alertTranslated('export_coming_soon');
+    }
 }
 
 function printPOSupplies() {
@@ -1207,6 +1389,79 @@ function exportSinglePO(poId, format) {
             btn.disabled = false;
         });
     });
+}
+
+async function exportCartVerification() {
+    if (!poSuppliesCart || poSuppliesCart.length === 0) {
+        console.log('No cart data to export');
+        return;
+    }
+    
+    console.log('🔍 Exporting cart verification with box breakdown...');
+    
+    try {
+        // Get current language for proper export
+        const currentLanguage = window.translator ? 
+            window.translator.currentLanguage : 'en';
+        
+        // Prepare cart data with box breakdown for export
+        const cartExportData = {
+            po_id: document.getElementById('poId').value,
+            cart_items: poSuppliesCart,
+            export_timestamp: new Date().toISOString(),
+            language: currentLanguage
+        };
+        
+        console.log('Cart export data:', cartExportData);
+        
+        // Export as PDF (most professional for verification)
+        const response = await fetch('/export/po-cart/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify({
+                ...cartExportData,
+                format: 'pdf'
+            })
+        });
+        
+        if (response.ok) {
+            // Handle file download
+            const contentDisposition = response.headers.get('Content-Disposition');
+            const filename = contentDisposition ? 
+                contentDisposition.split('filename=')[1].replace(/"/g, '') : 
+                `po_verification_${cartExportData.po_id}_${Date.now()}.pdf`;
+            
+            const blob = await response.blob();
+            
+            // Create download link
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            
+            console.log('✅ Cart verification export successful:', filename);
+            
+            // Show brief notification
+            showAlert(`📄 Verification report downloaded: ${filename}`, 'info');
+            
+        } else {
+            const errorData = await response.json();
+            console.error('Export failed:', errorData);
+            showAlert('Export failed: ' + (errorData.error || 'Unknown error'), 'warning');
+        }
+        
+    } catch (error) {
+        console.error('Error during cart export:', error);
+        showAlert('Export error: ' + error.message, 'warning');
+    }
 }
 </script>
 {% endblock %}

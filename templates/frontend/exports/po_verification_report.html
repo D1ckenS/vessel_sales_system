@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="{{ language|default:'en' }}" {% if language == 'ar' %}dir="rtl"{% endif %}>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @page {
+            margin: 1.5cm;
+            size: A4;
+            @top-center {
+                content: "{{ title }}";
+                font-size: 10pt;
+                color: #666;
+            }
+            @bottom-center {
+                content: "Page " counter(page) " of " counter(pages);
+                font-size: 8pt;
+                color: #666;
+            }
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 10pt;
+            line-height: 1.4;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+        
+        {% if language == 'ar' %}
+        body {
+            direction: rtl;
+            text-align: right;
+        }
+        table {
+            direction: rtl;
+        }
+        {% endif %}
+        
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #2c5aa0;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .header h1 {
+            font-size: 18pt;
+            font-weight: bold;
+            color: #2c5aa0;
+            margin: 0 0 5px 0;
+        }
+        
+        .header .subtitle {
+            font-size: 12pt;
+            color: #666;
+            margin: 0;
+        }
+        
+        .verification-banner {
+            background: linear-gradient(135deg, #e8f4fd 0%, #d1e7dd 100%);
+            border: 2px solid #0d6efd;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            text-align: center;
+        }
+        
+        .verification-banner h2 {
+            color: #0d6efd;
+            font-size: 14pt;
+            margin: 0 0 5px 0;
+        }
+        
+        .verification-banner p {
+            color: #495057;
+            margin: 0;
+            font-size: 10pt;
+        }
+        
+        .metadata {
+            display: table;
+            width: 100%;
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        
+        .metadata-row {
+            display: table-row;
+        }
+        
+        .metadata-row:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        
+        .metadata-label, .metadata-value {
+            display: table-cell;
+            padding: 8px 12px;
+            border-bottom: 1px solid #eee;
+            vertical-align: middle;
+        }
+        
+        .metadata-label {
+            font-weight: bold;
+            background-color: #2c5aa0;
+            color: white;
+            width: 30%;
+        }
+        
+        .metadata-value {
+            width: 70%;
+        }
+        
+        .section {
+            margin-bottom: 25px;
+            page-break-inside: avoid;
+        }
+        
+        .section-header {
+            background: linear-gradient(135deg, #2c5aa0 0%, #1e3d72 100%);
+            color: white;
+            padding: 10px 15px;
+            font-size: 12pt;
+            font-weight: bold;
+            border-radius: 5px 5px 0 0;
+            margin: 0;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+            font-size: 9pt;
+        }
+        
+        th {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            color: #495057;
+            font-weight: bold;
+            padding: 10px 8px;
+            border: 1px solid #dee2e6;
+            text-align: center;
+        }
+        
+        td {
+            padding: 8px;
+            border: 1px solid #dee2e6;
+            text-align: {% if language == 'ar' %}right{% else %}left{% endif %};
+        }
+        
+        tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        
+        .number-cell {
+            text-align: center;
+            font-family: monospace;
+            font-weight: bold;
+        }
+        
+        .status-normal {
+            color: #198754;
+            font-weight: bold;
+        }
+        
+        .status-alert {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        
+        .calculations-table {
+            background: #f8f9fa;
+            border: 2px solid #198754;
+            border-radius: 5px;
+        }
+        
+        .calculations-table th {
+            background: linear-gradient(135deg, #198754 0%, #146c43 100%);
+            color: white;
+        }
+        
+        .checklist {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 5px;
+            padding: 15px;
+        }
+        
+        .checklist-item {
+            padding: 5px 0;
+            font-size: 11pt;
+            border-bottom: 1px dotted #ccc;
+        }
+        
+        .checklist-item:last-child {
+            border-bottom: none;
+        }
+        
+        .alerts {
+            background: #f8d7da;
+            border: 2px solid #dc3545;
+            border-radius: 5px;
+            padding: 15px;
+        }
+        
+        .alert-item {
+            padding: 5px 0;
+            color: #721c24;
+            font-weight: bold;
+        }
+        
+        .summary {
+            background: linear-gradient(135deg, #d1e7dd 0%, #badbcc 100%);
+            border: 2px solid #198754;
+            border-radius: 5px;
+            padding: 15px;
+        }
+        
+        .summary-item {
+            display: table-row;
+        }
+        
+        .summary-label, .summary-value {
+            display: table-cell;
+            padding: 5px 10px;
+        }
+        
+        .summary-label {
+            font-weight: bold;
+            width: 60%;
+        }
+        
+        .summary-value {
+            text-align: {% if language == 'ar' %}left{% else %}right{% endif %};
+            font-family: monospace;
+            font-weight: bold;
+            color: #198754;
+        }
+        
+        .signature-section {
+            margin-top: 30px;
+            border: 2px solid #6c757d;
+            border-radius: 5px;
+            padding: 20px;
+        }
+        
+        .signature-row {
+            display: table-row;
+        }
+        
+        .signature-cell {
+            display: table-cell;
+            width: 33.33%;
+            padding: 15px 10px;
+            border-bottom: 1px solid #333;
+            text-align: center;
+        }
+        
+        .signature-label {
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        
+        .footer-note {
+            margin-top: 20px;
+            padding: 10px;
+            background: #e9ecef;
+            border-radius: 5px;
+            font-size: 8pt;
+            text-align: center;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <h1>{{ title }}</h1>
+        <p class="subtitle">{{ generation_date }}</p>
+    </div>
+    
+    <!-- Verification Banner -->
+    <div class="verification-banner">
+        <h2>🔍 {{ labels.financial_verification_report }}</h2>
+        <p>{{ labels.verification_instructions }}</p>
+    </div>
+    
+    <!-- Metadata Section -->
+    <div class="metadata">
+        {% for key, value in metadata.items %}
+        <div class="metadata-row">
+            <div class="metadata-label">{{ key }}</div>
+            <div class="metadata-value">{{ value }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <!-- Main Transaction Data -->
+    <div class="section">
+        <h3 class="section-header">📋 {{ labels.received_items_summary }}</h3>
+        {% for table in tables %}
+        <table>
+            <thead>
+                <tr>
+                    {% for header in table.headers %}
+                    <th>{{ header }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in table.rows %}
+                <tr>
+                    {% for cell in row %}
+                    <td class="{% if labels.currency_jod in cell %}number-cell{% endif %} {% if '✓' in cell %}status-normal{% elif '⚠' in cell %}status-alert{% endif %}">
+                        {{ cell }}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endfor %}
+    </div>
+    
+    <!-- Verification Calculations -->
+    <div class="section">
+        <h3 class="section-header">🔍 {{ labels.verification_calculations }}</h3>
+        <table class="calculations-table">
+            <thead>
+                <tr>
+                    <th>{{ labels.product }}</th>
+                    <th>{{ labels.calculation }}</th>
+                    <th>{{ labels.result }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for calc in verification_calculations %}
+                <tr>
+                    <td>{{ calc.product }}</td>
+                    <td class="number-cell">{{ calc.calculation }}</td>
+                    <td class="number-cell">{{ calc.result }}</td>
+                </tr>
+                {% endfor %}
+                <tr style="border-top: 3px solid #198754; background: #d1e7dd;">
+                    <td><strong>{{ labels.total_verification }}</strong></td>
+                    <td class="number-cell"><strong>{{ labels.sum_all_calculations }}</strong></td>
+                    <td class="number-cell"><strong>{{ metadata.total_cost }}</strong></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Summary -->
+    <div class="section">
+        <h3 class="section-header">💰 {{ labels.financial_summary }}</h3>
+        <div class="summary">
+            {% for key, value in summary_data.items %}
+            <div class="summary-item">
+                <div class="summary-label">{{ key }}:</div>
+                <div class="summary-value">{{ value }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <!-- Review Alerts -->
+    <div class="section">
+        <h3 class="section-header">⚠️ {{ labels.review_alerts }}</h3>
+        <div class="{% if verification_alerts.0 and labels.no_alerts_message not in verification_alerts.0 %}alerts{% else %}summary{% endif %}">
+            {% for alert in verification_alerts %}
+            <div class="{% if labels.no_alerts_message in alert %}summary-item{% else %}alert-item{% endif %}">
+                {{ alert }}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <!-- Verification Checklist -->
+    <div class="section">
+        <h3 class="section-header">✅ {{ labels.finance_checklist }}</h3>
+        <div class="checklist">
+            <div class="checklist-item">□ {{ labels.checklist_invoice_match }} ({{ total_cost_for_checklist|floatformat:3 }} {{ labels.currency_jod }})</div>
+            <div class="checklist-item">□ {{ labels.checklist_quantities }}</div>
+            <div class="checklist-item">□ {{ labels.checklist_costs }}</div>
+            <div class="checklist-item">□ {{ labels.checklist_alerts }}</div>
+            <div class="checklist-item">□ {{ labels.checklist_invoice_attached }}</div>
+            <div class="checklist-item">□ {{ labels.checklist_journal }}</div>
+            <div class="checklist-item">□ {{ labels.checklist_filed }}</div>
+        </div>
+    </div>
+    
+    <!-- Signature Section -->
+    <div class="signature-section">
+        <h3 style="text-align: center; margin-bottom: 20px; color: #2c5aa0;">{{ labels.approvals }}</h3>
+        <div style="display: table; width: 100%;">
+            <div class="signature-row">
+                <div class="signature-cell">
+                    <div class="signature-label">{{ labels.completed_by }}:</div>
+                    <div>_________________</div>
+                    <div style="margin-top: 10px;">{{ labels.date }}: _______</div>
+                </div>
+                <div class="signature-cell">
+                    <div class="signature-label">{{ labels.reviewed_by }}:</div>
+                    <div>_________________</div>
+                    <div style="margin-top: 10px;">{{ labels.date }}: _______</div>
+                </div>
+                <div class="signature-cell">
+                    <div class="signature-label">{{ labels.approved_by }}:</div>
+                    <div>_________________</div>
+                    <div style="margin-top: 10px;">{{ labels.date }}: _______</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Footer -->
+    <div class="footer-note">
+        {{ labels.system_generated_footer }} | {{ generation_date }} | {{ labels.verification_purposes }}
+    </div>
+</body>
+</html>

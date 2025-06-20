@@ -348,6 +348,124 @@ class ExcelExporter:
             # Return a JSON response instead of failing completely
             from django.http import JsonResponse
             return JsonResponse({'success': False, 'error': f'Failed to generate Excel file: {str(e)}'})
+    def add_section_header(self, header_text):
+        """Add a section header with special formatting"""
+        if not self.current_row:
+            self.current_row = 1
+        
+        # Add some spacing
+        self.current_row += 2
+        
+        # Add header with formatting
+        cell = self.worksheet.cell(row=self.current_row, column=1, value=header_text)
+        cell.font = Font(bold=True, size=14, color="FFFFFF")
+        cell.fill = PatternFill(start_color="2C5AA0", end_color="2C5AA0", fill_type="solid")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        
+        # Merge across multiple columns for better appearance
+        self.worksheet.merge_cells(f"A{self.current_row}:H{self.current_row}")
+        
+        # Add border
+        thin_border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+        cell.border = thin_border
+        
+        self.current_row += 1
+
+    def add_text_row(self, text_items):
+        """Add a row of text items (for checklists, alerts, etc.)"""
+        if not self.current_row:
+            self.current_row = 1
+        
+        for col_idx, text in enumerate(text_items, 1):
+            cell = self.worksheet.cell(row=self.current_row, column=col_idx, value=text)
+            cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+            
+            # Special formatting for checklist items
+            if text.startswith('□'):
+                cell.font = Font(bold=True, size=11)
+            elif text.startswith('⚠'):
+                cell.font = Font(bold=True, color="DC3545")
+                cell.fill = PatternFill(start_color="F8D7DA", end_color="F8D7DA", fill_type="solid")
+            elif text.startswith('✅') or text.startswith('✓'):
+                cell.font = Font(bold=True, color="198754")
+                cell.fill = PatternFill(start_color="D1E7DD", end_color="D1E7DD", fill_type="solid")
+        
+        # Merge across multiple columns for full-width text
+        if len(text_items) == 1:
+            self.worksheet.merge_cells(f"A{self.current_row}:H{self.current_row}")
+        
+        self.current_row += 1
+
+    def add_verification_table(self, headers, data, table_style="calculations"):
+        """Add a specially formatted verification table"""
+        # Add headers
+        for col_idx, header in enumerate(headers, 1):
+            cell = self.worksheet.cell(row=self.current_row, column=col_idx, value=header)
+            if table_style == "calculations":
+                cell.font = Font(bold=True, color="FFFFFF")
+                cell.fill = PatternFill(start_color="198754", end_color="198754", fill_type="solid")
+            else:
+                cell.font = Font(bold=True, color="495057")
+                cell.fill = PatternFill(start_color="F8F9FA", end_color="F8F9FA", fill_type="solid")
+            
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+            cell.border = Border(
+                left=Side(style='thin'),
+                right=Side(style='thin'),
+                top=Side(style='thin'),
+                bottom=Side(style='thin')
+            )
+        
+        self.current_row += 1
+        
+        # Add data rows
+        for row_data in data:
+            for col_idx, value in enumerate(row_data, 1):
+                cell = self.worksheet.cell(row=self.current_row, column=col_idx, value=value)
+                cell.alignment = Alignment(horizontal="center" if col_idx > 1 else "left", vertical="center")
+                cell.border = Border(
+                    left=Side(style='thin'),
+                    right=Side(style='thin'),
+                    top=Side(style='thin'),
+                    bottom=Side(style='thin')
+                )
+                
+                # Special formatting for monetary values
+                if isinstance(value, str) and 'JOD' in value:
+                    cell.font = Font(bold=True)
+                    cell.number_format = '0.000'
+            
+            self.current_row += 1
+
+    def add_verification_summary(self, total_amount):
+        """Add a verification summary row"""
+        # Add a prominent total verification row
+        verification_row = self.current_row
+        
+        # Create the verification summary
+        self.worksheet.cell(row=verification_row, column=1, value="TOTAL VERIFICATION")
+        self.worksheet.cell(row=verification_row, column=2, value="Sum of all calculations")
+        self.worksheet.cell(row=verification_row, column=3, value=f"{total_amount:.3f} JOD")
+        
+        # Format the entire row
+        for col in range(1, 4):
+            cell = self.worksheet.cell(row=verification_row, column=col)
+            cell.font = Font(bold=True, size=12)
+            cell.fill = PatternFill(start_color="D1E7DD", end_color="D1E7DD", fill_type="solid")
+            cell.border = Border(
+                left=Side(style='thick'),
+                right=Side(style='thick'),
+                top=Side(style='thick'),
+                bottom=Side(style='thick')
+            )
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+        
+        self.current_row += 1
 
 
 class PDFExporter:
