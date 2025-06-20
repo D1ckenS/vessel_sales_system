@@ -63,7 +63,7 @@
             </div>
             <div class="stats-label">
                 <span data-translate="daily_revenue">Daily Revenue</span> 
-                (<span data-currency-symbol>JOD</span>)
+                (<span dir="ltr" data-currency-symbol>JOD</span>)
                 {% if revenue_change != 0 %}
                 <small class="d-block {% if revenue_change > 0 %}text-success{% else %}text-danger{% endif %}">
                     {% if revenue_change > 0 %}↗{% else %}↘{% endif %} {{ revenue_change|floatformat:1 }}%
@@ -79,7 +79,7 @@
             </div>
             <div class="stats-label">
                 <span data-translate="daily_cost">Daily Cost</span> 
-                (<span data-currency-symbol>JOD</span>)
+                (<span dir="ltr" data-currency-symbol>JOD</span>)
                 <small class="d-block text-muted">
                     <span data-translate="supply_purchases">Supply Purchases</span>
                 </small>
@@ -109,7 +109,7 @@
             </div>
             <div class="stats-label">
                 <span data-translate="daily_profit">Daily Profit</span> 
-                (<span data-currency-symbol>JOD</span>)
+                (<span dir="ltr" data-currency-symbol>JOD</span>)
                 <small class="d-block text-muted">
                     {{ profit_margin|floatformat:1 }}% <span data-translate="margin">margin</span>
                 </small>

@@ -67,7 +67,7 @@
             </div>
             <div class="stats-label">
                 <span data-translate="monthly_revenue">Monthly Revenue</span> 
-                (<span data-currency-symbol>JOD</span>)
+                (<span dir="ltr" data-currency-symbol>JOD</span>)
                 {% if revenue_change != 0 %}
                 <small class="d-block {% if revenue_change > 0 %}text-success{% else %}text-danger{% endif %}">
                     {% if revenue_change > 0 %}↗{% else %}↘{% endif %} {{ revenue_change|floatformat:1 }}% <span data-translate="vs_last_month">vs last month</span>
@@ -83,7 +83,7 @@
             </div>
             <div class="stats-label">
                 <span data-translate="monthly_cost">Monthly Cost</span> 
-                (<span data-currency-symbol>JOD</span>)
+                (<span dir="ltr" data-currency-symbol>JOD</span>)
                 <small class="d-block text-muted">
                     <span data-translate="supply_purchases">Supply Purchases</span>
                 </small>
@@ -98,7 +98,7 @@
             </div>
             <div class="stats-label">
                 <span data-translate="monthly_profit">Monthly Profit</span> 
-                (<span data-currency-symbol>JOD</span>)
+                (<span dir="ltr" data-currency-symbol>JOD</span>)
                 <small class="d-block text-muted">
                     {{ profit_margin|floatformat:1 }}% <span data-translate="margin">margin</span>
                 </small>

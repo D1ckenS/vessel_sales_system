@@ -126,6 +126,7 @@ window.VesselSalesTranslations = {
         'administrator_desc': 'You have access to all operational features except system setup.',
         'viewer_access': 'Viewer Access',
         'viewer_desc': 'You have read-only access to inventory and basic reports.',
+        'purchase_order': 'Purchase Order',
         
         // Transactions page translations
         'all_transactions': 'All Transactions',
@@ -990,6 +991,7 @@ window.VesselSalesTranslations = {
         'no_recent_activity': 'لا يوجد نشاط حديث',
         'units_recent': ' وحدات • ',
         'general_products': 'منتجات عامة فقط',
+        'purchase_order': 'أمر شراء',
 
         // Dashboard-specific translations
         'vessel_operator_access': 'صلاحية مشغل السفينة',

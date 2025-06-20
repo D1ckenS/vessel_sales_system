@@ -90,7 +90,7 @@
                 <p class="text-muted mb-0"><span data-translate="monitor_stock_levels">Monitor stock levels by vessel</span></p>
             </div>
             <div class="d-flex gap-2">
-                <a href="{% url 'frontend:add_product' %}" class="btn btn-success">
+                <a href="{% url 'frontend:add_product_form' %}" class="btn btn-success">
                     <i class="bi bi-plus-circle"></i> <span data-translate="add_new_product">Add New Product</span>
                 </a>
                 <a href="{% url 'frontend:dashboard' %}" class="btn btn-outline-secondary">
@@ -841,7 +841,7 @@ function updateInventoryTable() {
             <td class="text-end">
                 ${item.total_quantity > 0 ? 
                     `<span class="fw-bold" data-number data-original="${item.current_cost.toFixed(3)}">${item.current_cost.toFixed(3)}</span>
-                     <small class="text-muted d-block"><span data-currency-symbol>JOD</span> (<span data-translate="fifo">FIFO</span>)</small>` : 
+                     <small class="text-muted d-block"><span data-currency-symbol>JOD</span> (<span dir="ltr" data-translate="fifo">FIFO</span>)</small>` : 
                     '<span class="text-muted">--</span>'
                 }
             </td>
@@ -874,7 +874,7 @@ function updateInventoryTable() {
     
     tableStats.innerHTML = `
         <span data-translate="showing">Showing</span> <span data-number data-original="${filteredData.length}">${filteredData.length}</span> <span data-translate="of">of</span> <span data-number data-original="${currentInventoryData.length}">${currentInventoryData.length}</span> <span data-translate="products">products</span>
-        ${hasFilters ? '(<span data-translate="filtered">filtered</span>)' : ''}
+        ${hasFilters ? '(<span dir="ltr" data-translate="filtered">filtered</span>)' : ''}
         <span data-translate="on">on</span> ${getVesselName(currentVessel)}
         ${hasFilters ? `<button class="btn btn-outline-secondary btn-sm ms-2" onclick="clearFilters()">
             <i class="bi bi-x-circle"></i> <span data-translate="clear_filters">Clear Filters</span>

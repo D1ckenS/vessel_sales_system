@@ -426,7 +426,7 @@
                         <div class="text-muted">
                             <span data-translate="showing_entries">Showing {{ trips|length }} of {{ stats.total_trips }} trips</span>
                             {% if filters.vessel or filters.status or filters.date_from or filters.date_to or filters.min_revenue %}
-                            (<span data-translate="filtered">filtered</span>)
+                            (<span dir="ltr" data-translate="filtered">filtered</span>)
                             {% endif %}
                         </div>
                         {% if filters.vessel or filters.status or filters.date_from or filters.date_to or filters.min_revenue %}

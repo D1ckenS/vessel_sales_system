@@ -158,8 +158,6 @@ def trip_sales(request, trip_id):
                 # Try to parse COGS from notes if it was logged during sale
                 if sale.notes and 'FIFO consumption:' in sale.notes:
                     # Parse the FIFO breakdown from notes
-                    # Example: "FIFO consumption: 50 units @ 1.200 JOD; 50 units @ 1.150 JOD"
-                    
                     fifo_pattern = r'(\d+(?:\.\d+)?)\s+units\s+@\s+(\d+(?:\.\d+)?)\s+JOD'
                     matches = re.findall(fifo_pattern, sale.notes)
                     
@@ -195,9 +193,9 @@ def trip_sales(request, trip_id):
                 'quantity': int(sale.quantity),
                 'unit_price': float(sale.unit_price),
                 'total_amount': float(sale.total_amount),
-                'total_cogs': total_cogs,  # ✅ Added
-                'total_profit': total_profit,  # ✅ Added
-                'is_duty_free': sale.product.is_duty_free,  # ✅ Added
+                'total_cogs': total_cogs,
+                'total_profit': total_profit,
+                'is_duty_free': sale.product.is_duty_free,
                 'notes': sale.notes or '',
                 'created_at': sale.created_at.strftime('%H:%M')
             })
@@ -207,9 +205,9 @@ def trip_sales(request, trip_id):
     
     context = {
         'trip': trip,
-        'existing_sales_json': existing_sales_json,  # JSON string
-        'completed_sales_json': completed_sales_json,  # JSON string
-        'can_edit': not trip.is_completed,  # Frontend can use this to show/hide edit features
+        'existing_sales_json': existing_sales_json,
+        'completed_sales_json': completed_sales_json,
+        'can_edit': not trip.is_completed,
     }
     
     return render(request, 'frontend/trip_sales.html', context)

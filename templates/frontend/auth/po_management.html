@@ -419,7 +419,7 @@
                         <div class="text-muted">
                             <span data-translate="showing_entries">Showing {{ purchase_orders|length }} of {{ stats.total_pos }} purchase orders</span>
                             {% if filters.vessel or filters.status or filters.date_from or filters.date_to %}
-                            (<span data-translate="filtered">filtered</span>)
+                            (<span dir="ltr" data-translate="filtered">filtered</span>)
                             {% endif %}
                         </div>
                         {% if filters.vessel or filters.status or filters.date_from or filters.date_to %}

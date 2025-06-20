@@ -45,7 +45,7 @@
                                 {% for vessel in vessels %}
                                 <option value="{{ vessel.id }}" data-name="{{ vessel.name }}" data-duty-free="{{ vessel.has_duty_free }}">
                                     <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
-                                    {% if vessel.has_duty_free %}<span class="text-success">(<span data-translate="duty_free">Duty-Free</span>)</span>{% endif %}
+                                    {% if vessel.has_duty_free %}<span class="text-success">(<span dir="ltr" data-translate="duty_free">Duty-Free</span>)</span>{% endif %}
                                 </option>
                                 {% endfor %}
                             </select>
@@ -139,7 +139,7 @@
                                 <td>
                                     <span class="fw-bold po-cost" data-number data-original="{{ po.total_cost|floatformat:3 }}">{{ po.total_cost|floatformat:3 }}</span>
                                     <small class="text-muted"><span data-currency-symbol>JOD</span></small>
-                                    <small class="text-muted d-block">(<span class="po-items" data-number data-original="{{ po.transaction_count }}">{{ po.transaction_count }}</span> <span data-translate="items">items</span>)</small>
+                                    <small class="text-muted d-block">(<span dir="ltr" class="po-items" data-number data-original="{{ po.transaction_count }}">{{ po.transaction_count }}</span> <span data-translate="items">items</span>)</small>
                                 </td>
                                 <td>
                                     {% if po.is_completed %}
