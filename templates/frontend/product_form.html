@@ -273,123 +273,6 @@
                     {% endif %}
                 </div>
             </div>
-            {% if mode == 'create' %}
-            <!-- Step 2: Initial Stock (Only for new products) -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">
-                            <i class="bi bi-2-circle"></i> <span data-translate="initial_stock_distribution">Initial Stock Distribution</span>
-                        </h5>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="enableInitialStock">
-                            <label class="form-check-label fw-bold" for="enableInitialStock">
-                                <span data-translate="add_initial_stock">Add Initial Stock</span>
-                            </label>
-                        </div>
-                    </div>
-                </div>
-                <div class="card-body" id="initialStockSection" style="display: none;">
-                    <div class="alert alert-info mb-4">
-                        <i class="bi bi-info-circle"></i>
-                        <strong><span data-translate="optional">Optional:</span></strong> <span data-translate="add_initial_stock_desc">Add initial stock to vessels. This will create SUPPLY transactions and inventory lots.</span>
-                    </div>
-
-                    <!-- Purchase Date -->
-                    <div class="row mb-4">
-                        <div class="col-md-4">
-                            <label class="form-label fw-bold">
-                                <i class="bi bi-calendar"></i> <span data-translate="purchase_date">Purchase Date</span>
-                            </label>
-                            <input type="date" class="form-control form-control-lg" name="purchase_date" value="{{ today|date:'Y-m-d' }}">
-                            <small class="text-muted"><span data-translate="date_stock_received">Date when stock was received</span></small>
-                        </div>
-                    </div>
-
-                    <!-- Vessel Stock Distribution -->
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead class="table-light">
-                                <tr>
-                                    <th class="border-0">
-                                        <i class="bi bi-check2-square"></i> <span data-translate="add_stock">Add Stock</span>
-                                    </th>
-                                    <th class="border-0">
-                                        <i class="bi bi-ship"></i> <span data-translate="vessel">Vessel</span>
-                                    </th>
-                                    <th class="border-0">
-                                        <i class="bi bi-123"></i> <span data-translate="quantity">Quantity</span>
-                                    </th>
-                                    <th class="border-0">
-                                        <i class="bi bi-currency-dollar"></i> <span data-translate="purchase_cost_jod">Purchase Cost (JOD)</span>
-                                    </th>
-                                    <th class="border-0">
-                                        <i class="bi bi-calculator"></i> <span data-translate="total_value">Total Value</span>
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for vessel in vessels %}
-                                <tr>
-                                    <td>
-                                        <div class="form-check">
-                                            <input class="form-check-input vessel-checkbox" type="checkbox" 
-                                                   name="vessel_{{ vessel.id }}_enabled" id="vessel_{{ vessel.id }}"
-                                                   data-vessel-id="{{ vessel.id }}" value="on">
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div>
-                                            <strong>
-                                                <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
-                                            </strong>
-                                            {% if vessel.has_duty_free %}
-                                            <span class="badge bg-warning ms-2"><span data-translate="duty_free">Duty-Free</span></span>
-                                            {% else %}
-                                            <span class="badge bg-info ms-2"><span data-translate="touristic">Touristic</span></span>
-                                            {% endif %}
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <input type="number" class="form-control quantity-input" 
-                                               name="vessel_{{ vessel.id }}_quantity" placeholder="0" 
-                                               min="1" step="1" readonly 
-                                               style="background-color: #f8f9fa;" 
-                                               data-vessel-id="{{ vessel.id }}">
-                                    </td>
-                                    <td>
-                                        <input type="number" class="form-control cost-input" 
-                                               name="vessel_{{ vessel.id }}_cost" placeholder="0.000" 
-                                               min="0.001" step="0.001" readonly 
-                                               style="background-color: #f8f9fa;"
-                                               data-vessel-id="{{ vessel.id }}">
-                                    </td>
-                                    <td>
-                                        <span class="fw-bold total-value" data-vessel-id="{{ vessel.id }}">0.000</span>
-                                        <small class="text-muted"><span data-currency-symbol>JOD</span></small>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                            <tfoot class="table-light">
-                                <tr>
-                                    <td colspan="4" class="text-end fw-bold"><span data-translate="total_initial_investment">Total Initial Investment:</span></td>
-                                    <td class="fw-bold text-primary">
-                                        <span id="grandTotal">0.000</span> <span data-currency-symbol>JOD</span>
-                                    </td>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-
-                    <!-- Duty-Free Warning -->
-                    <div id="dutyFreeWarning" class="alert alert-warning" style="display: none;">
-                        <i class="bi bi-exclamation-triangle"></i>
-                        <strong><span data-translate="duty_free_product_warning">Duty-Free Product Warning:</span></strong> <span data-translate="duty_free_vessel_only">This product can only be added to duty-free vessels. Regular vessels are disabled.</span>
-                    </div>
-                </div>
-            </div>
-            {% endif %}
             <!-- Form Actions -->
             <div class="card">
                 <div class="card-body">
@@ -485,66 +368,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 5000);
     }
 
-    // --- Initial Stock Logic ---
-    function initializeInitialStockFunctionality() {
-        const enableInitialStock = document.getElementById('enableInitialStock');
-        const initialStockSection = document.getElementById('initialStockSection');
-        const dutyFreeSwitch = document.getElementById('dutyFreeSwitch');
-        const dutyFreeWarning = document.getElementById('dutyFreeWarning');
-
-        if (!enableInitialStock || !initialStockSection || !dutyFreeSwitch || !dutyFreeWarning) return; // graceful exit if element is missing
-
-        enableInitialStock.addEventListener('change', function () {
-            if (this.checked) {
-                initialStockSection.style.display = 'block';
-                updateVesselAvailability();
-            } else {
-                initialStockSection.style.display = 'none';
-                clearAllVessels();
-                updateSaveWithStockButton();
-            }
-        });
-
-        dutyFreeSwitch.addEventListener('change', function () {
-            if (enableInitialStock.checked) {
-                updateVesselAvailability();
-            }
-        });
-
-        document.querySelectorAll('.vessel-checkbox').forEach(checkbox => {
-            checkbox.addEventListener('change', function () {
-                const vesselId = this.dataset.vesselId;
-                const quantityInput = document.querySelector(`input[name="vessel_${vesselId}_quantity"]`);
-                const costInput = document.querySelector(`input[name="vessel_${vesselId}_cost"]`);
-
-                if (this.checked) {
-                    quantityInput.readOnly = false;
-                    quantityInput.style.backgroundColor = 'white';
-                    costInput.readOnly = false;
-                    costInput.style.backgroundColor = 'white';
-                    quantityInput.focus();
-                } else {
-                    quantityInput.readOnly = true;
-                    quantityInput.style.backgroundColor = '#f8f9fa';
-                    quantityInput.value = '';
-                    costInput.readOnly = true;
-                    costInput.style.backgroundColor = '#f8f9fa';
-                    costInput.value = '';
-                    updateVesselTotal(vesselId);
-                }
-                updateSaveWithStockButton();
-            });
-        });
-
-        document.querySelectorAll('.quantity-input, .cost-input').forEach(input => {
-            input.addEventListener('input', function () {
-                const vesselId = this.dataset.vesselId;
-                updateVesselTotal(vesselId);
-                updateSaveWithStockButton();
-            });
-        });
-    }
-
     function updateVesselAvailability() {
         const dutyFreeSwitch = document.getElementById('dutyFreeSwitch');
         const isDutyFree = dutyFreeSwitch.checked;
@@ -568,7 +391,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const dutyFreeWarning = document.getElementById('dutyFreeWarning');
         dutyFreeWarning.style.display = isDutyFree ? 'block' : 'none';
 
-        updateSaveWithStockButton();
     }
 
     function clearVesselInputs(vesselId) {
@@ -623,37 +445,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         document.getElementById('grandTotal').textContent = grandTotal.toFixed(3);
     }
-
-    function updateSaveWithStockButton() {
-        if (!enableInitialStock.checked) {
-            saveWithStockBtn.disabled = true;
-            return;
-        }
-
-        let hasValidVessel = false;
-        document.querySelectorAll('.vessel-checkbox').forEach(checkbox => {
-            if (checkbox.checked) {
-                const vesselId = checkbox.dataset.vesselId;
-                const quantity = document.querySelector(`input[name="vessel_${vesselId}_quantity"]`).value;
-                const cost = document.querySelector(`input[name="vessel_${vesselId}_cost"]`).value;
-
-                if (quantity && cost && parseFloat(quantity) > 0 && parseFloat(cost) > 0) {
-                    hasValidVessel = true;
-                }
-            }
-        });
-
-        saveWithStockBtn.disabled = !hasValidVessel;
-    }
-
-    // Init all
-    initializeInitialStockFunctionality();
-    console.log({
-        enableInitialStock,
-        initialStockSection,
-        dutyFreeSwitch,
-        dutyFreeWarning
-        });
 });
 </script>
 {% endblock %}
