@@ -1,0 +1,1350 @@
+{% extends 'frontend/base.html' %}
+{% load dict_extras %}
+{% load url_helpers %}
+
+{% block title %}Product Management - Vessel Sales System{% endblock %}
+
+{% block extra_css %}
+<style>
+#productTabs .nav-link {
+    color: #0f4c75 !important;
+    font-weight: 600 !important;
+}
+
+#productTabs .nav-link:hover {
+    color: #0a3a5c !important;
+}
+
+#productTabs .nav-link.active {
+    color: #ffffff !important;
+    background-color: #0f4c75 !important;
+}
+
+/* Fix horizontal scroll by ensuring table responsiveness */
+.table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.table {
+    width: 100%;
+    max-width: 100%;
+    margin-bottom: 0;
+}
+
+.btn-group-sm .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+.card {
+    border: 1px solid rgba(0,0,0,.125);
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,.075);
+}
+
+.stats-card {
+    background: white;
+    border: 1px solid #e0e6ed;
+    border-radius: 8px;
+    padding: 1.5rem;
+    text-align: center;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.stats-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+/* Vessel pricing section styling */
+.vessel-pricing-card {
+    border-left: 4px solid #ffc107;
+    background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+}
+
+.pricing-warning {
+    background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+    border-left: 4px solid #ffc107;
+    color: #856404;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.pricing-completion-bar {
+    height: 8px;
+    border-radius: 4px;
+    background: #e9ecef;
+    overflow: hidden;
+}
+
+.pricing-completion-fill {
+    height: 100%;
+    transition: width 0.3s ease;
+}
+
+.completion-high { background: #28a745; }
+.completion-medium { background: #ffc107; }
+.completion-low { background: #dc3545; }
+
+.vessel-price-input {
+    border-radius: 8px;
+    border: 2px solid #e9ecef;
+    transition: all 0.3s ease;
+}
+
+.vessel-price-input:focus {
+    border-color: #ffc107;
+    box-shadow: 0 0 0 0.2rem rgba(255, 193, 7, 0.25);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .table-responsive {
+        border: none;
+    }
+    
+    .btn-group-sm {
+        flex-direction: column;
+    }
+    
+    .btn-group-sm .btn {
+        margin-bottom: 2px;
+        border-radius: 4px !important;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<body data-mode="{{ mode }}">
+<!-- Product Management Tabs -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>
+                    <i class="bi bi-box text-primary"></i> 
+                    <span data-translate="product_management">Product Management</span>
+                </h2>
+                <p class="text-muted mb-0"><span data-translate="manage_products_desc">Manage products, categories, and inventory</span></p>
+            </div>
+            <div class="d-flex gap-2">
+                {% if mode == 'list' %}
+                <a href="{% url 'frontend:category_management' %}" class="btn btn-info">
+                    <i class="bi bi-collection"></i> <span data-translate="manage_categories">Manage Categories</span>
+                </a>
+                <a href="{% url 'frontend:add_product_form' %}" class="btn btn-success">
+                    <i class="bi bi-plus-circle"></i> <span data-translate="add_new_product">Add New Product</span>
+                </a>
+                {% else %}
+                <a href="{% url 'frontend:product_management' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> <span data-translate="back_to_products">Back to Products</span>
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Navigation Tabs -->
+<div class="row mb-4">
+    <div class="col-12">
+        <ul class="nav nav-tabs nav-fill" id="productTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <a class="nav-link {% if mode == 'list' %}active{% endif %}" 
+                   href="{% url 'frontend:product_management' %}" role="tab">
+                    <i class="bi bi-list"></i> <span data-translate="product_list">Product List</span>
+                    {% if stats.total_products %}
+                    <span class="badge bg-primary ms-2" data-number data-original="{{ stats.total_products }}">{{ stats.total_products }}</span>
+                    {% endif %}
+                </a>
+            </li>
+            <li class="nav-item" role="presentation">
+                <a class="nav-link {% if mode == 'create' %}active{% endif %}" 
+                   href="{% url 'frontend:add_product_form' %}" role="tab">
+                    <i class="bi bi-plus-circle"></i> <span data-translate="add_product">Add Product</span>
+                </a>
+            </li>
+            {% if mode == 'edit' %}
+            <li class="nav-item" role="presentation">
+                <a class="nav-link active" href="#" role="tab">
+                    <i class="bi bi-pencil"></i> <span data-translate="edit_product">Edit Product</span>
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </div>
+</div>
+
+{% if mode == 'list' %}
+<!-- ===================== PRODUCT LIST VIEW ===================== -->
+
+<!-- Vessel Pricing Summary Alert -->
+{% if vessel_pricing_summary.vessels_with_incomplete_pricing > 0 %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="alert alert-warning border-0 shadow-sm">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-exclamation-triangle me-3" style="font-size: 1.5rem;"></i>
+                <div class="flex-grow-1">
+                    <h6 class="mb-1">
+                        <span data-number data-original="{{ vessel_pricing_summary.total_missing_prices }}">{{ vessel_pricing_summary.total_missing_prices }}</span>
+                        <span data-translate="products_missing_custom_pricing_touristic">products missing custom pricing for touristic vessels</span>
+                    </h6>
+                    <small class="mb-0">
+                        <span data-number data-original="{{ vessel_pricing_summary.vessels_with_incomplete_pricing }}">{{ vessel_pricing_summary.vessels_with_incomplete_pricing }}</span> 
+                        <span data-translate="vessels_incomplete_pricing">vessels have incomplete pricing for</span>
+                        <span data-number data-original="{{ vessel_pricing_summary.total_missing_prices }}">{{ vessel_pricing_summary.total_missing_prices }}</span> 
+                        <span data-translate="products">products</span>
+                    </small>
+                </div>
+                <div class="text-end">
+                    <button class="btn btn-warning btn-sm" onclick="showBulkPricingModal()">
+                        <i class="bi bi-gear"></i> <span data-translate="manage_pricing">Manage Pricing</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Enhanced Summary Cards with Pricing Info -->
+<div class="row mb-4">
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="stats-card">
+            <div class="stats-number text-primary" data-number data-original="{{ stats.total_products }}">{{ stats.total_products }}</div>
+            <div class="stats-label"><span data-translate="total_products">Total Products</span></div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="stats-card">
+            <div class="stats-number text-success" data-number data-original="{{ stats.active_products }}">{{ stats.active_products }}</div>
+            <div class="stats-label"><span data-translate="active_products">Active Products</span></div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="stats-card">
+            <div class="stats-number text-info" data-number data-original="{{ stats.general_products }}">{{ stats.general_products }}</div>
+            <div class="stats-label"><span data-translate="general_products">General Products</span></div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="stats-card">
+            <div class="stats-number text-warning" data-number data-original="{{ stats.products_with_incomplete_pricing }}">{{ stats.products_with_incomplete_pricing }}</div>
+            <div class="stats-label"><span data-translate="incomplete_pricing">Incomplete Pricing</span></div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-funnel"></i> <span data-translate="filter_products">Filter Products</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="GET">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold"><span data-translate="search_products">Search Products</span></label>
+                            <input type="text" class="form-control" name="search" value="{{ filters.search }}" 
+                                   placeholder="Name, Item ID, or Barcode..."
+                                   data-placeholder-en="Name, Item ID, or Barcode..."
+                                   data-placeholder-ar="الاسم، رقم الصنف، أو الباركود...">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold"><span data-translate="category">Category</span></label>
+                            <select class="form-select" name="category">
+                                <option value=""><span data-translate="all_categories">All Categories</span></option>
+                                {% for category in categories %}
+                                <option value="{{ category.id }}" {% if filters.category == category.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ category.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold"><span data-translate="department">Department</span></label>
+                            <select class="form-select" name="department">
+                                <option value=""><span data-translate="all_departments">All Departments</span></option>
+                                <option value="duty_free" {% if filters.department == 'duty_free' %}selected{% endif %}>
+                                    <span data-translate="duty_free">Duty-Free</span>
+                                </option>
+                                <option value="general" {% if filters.department == 'general' %}selected{% endif %}>
+                                    <span data-translate="general_products">General Products</span>
+                                </option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="bi bi-funnel"></i> <span data-translate="filter">Filter</span>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Enhanced Products Table with Pricing Info -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-table"></i> <span data-translate="products">Products</span> 
+                    (<span data-number data-original="{{ products|length }}">{{ products|length }}</span>)
+                </h5>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-success btn-sm" onclick="exportProducts()">
+                        <i class="bi bi-file-earmark-excel"></i> <span data-translate="export">Export</span>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive" style="max-width: 100%; overflow-x: auto;">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th><span data-translate="product">Product</span></th>
+                                <th><span data-translate="item_id">Item ID</span></th>
+                                <th><span data-translate="category">Category</span></th>
+                                <th class="text-end"><span data-translate="unit_cost">Unit Cost</span></th>
+                                <th class="text-end"><span data-translate="unit_selling_price">Unit Selling Price</span></th>
+                                <th class="text-center"><span data-translate="vessel_pricing">Vessel Pricing</span></th>
+                                <th class="text-center"><span data-translate="total_stock">Total Stock</span></th>
+                                <th class="text-center"><span data-translate="status">Status</span></th>
+                                <th class="text-center"><span data-translate="actions">Actions</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if products %}
+                                {% for product in products %}
+                                <tr>
+                                    <td>
+                                        <div>
+                                            <strong>{{ product.name }}</strong>
+                                            {% if product.is_duty_free %}
+                                            <span class="badge bg-warning text-dark ms-1"><span data-translate="duty_free">Duty-Free</span></span>
+                                            {% endif %}
+                                        </div>
+                                        {% if product.barcode %}
+                                        <small class="text-muted">{{ product.barcode }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td><code data-number data-original="{{ product.item_id }}">{{ product.item_id }}</code></td>
+                                    <td>{{ product.category.name }}</td>
+                                    <td class="text-end">
+                                        <span data-number data-original="{{ product.purchase_price|floatformat:3 }}">{{ product.purchase_price|floatformat:3 }}</span>
+                                        <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+                                    </td>
+                                    <td class="text-end">
+                                        <span data-number data-original="{{ product.selling_price|floatformat:3 }}">{{ product.selling_price|floatformat:3 }}</span>
+                                        <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+                                    </td>
+                                    <td class="text-center">
+                                        {% if product.is_duty_free %}
+                                            <span class="badge bg-secondary"><span data-translate="not_applicable">N/A</span></span>
+                                        {% else %}
+                                            {% if product.vessel_pricing_info.has_vessel_pricing %}
+                                                <div class="text-center">
+                                                    <span class="badge bg-success">
+                                                        <span data-number data-original="{{ product.vessel_pricing_info.vessel_prices_count }}">{{ product.vessel_pricing_info.vessel_prices_count }}</span>
+                                                        <span data-translate="vessels">vessels</span>
+                                                    </span>
+                                                    <div class="pricing-completion-bar mt-1">
+                                                        <div class="pricing-completion-fill 
+                                                            {% if product.vessel_pricing_info.pricing_completion >= 80 %}completion-high
+                                                            {% elif product.vessel_pricing_info.pricing_completion >= 50 %}completion-medium
+                                                            {% else %}completion-low{% endif %}"
+                                                            style="width: {{ product.vessel_pricing_info.pricing_completion }}%">
+                                                        </div>
+                                                    </div>
+                                                    <small class="text-muted">
+                                                        <span data-number data-original="{{ product.vessel_pricing_info.pricing_completion|floatformat:0 }}">{{ product.vessel_pricing_info.pricing_completion|floatformat:0 }}</span>%
+                                                    </small>
+                                                </div>
+                                            {% else %}
+                                                {% if product.vessel_pricing_info.missing_prices_count > 0 %}
+                                                    <span class="badge bg-warning text-dark">
+                                                        <i class="bi bi-exclamation-triangle"></i> 
+                                                        <span data-translate="missing">Missing</span>
+                                                    </span>
+                                                {% else %}
+                                                    <span class="badge bg-success"><span data-translate="complete">Complete</span></span>
+                                                {% endif %}
+                                            {% endif %}
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge {% if product.total_inventory > 10 %}bg-success{% elif product.total_inventory > 0 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                            data-number data-original="{{ product.total_inventory }}">{{ product.total_inventory }}</span>
+                                        <small class="text-muted d-block"><span data-translate="units">units</span></small>
+                                    </td>
+                                    <td class="text-center">
+                                        {% if product.active %}
+                                        <span class="badge bg-success"><span data-translate="active">Active</span></span>
+                                        {% else %}
+                                        <span class="badge bg-secondary"><span data-translate="inactive">Inactive</span></span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{% url 'frontend:edit_product' product.id %}" class="btn btn-outline-primary" 
+                                            data-translate-title="edit_product">
+                                                <i class="bi bi-pencil"></i>
+                                            </a>
+                                            <button class="btn btn-outline-danger" onclick="deleteProduct({{ product.id }}, '{{ product.name|escapejs }}')" 
+                                                    data-translate-title="delete_product">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                            <tr>
+                                <td colspan="8" class="text-center text-muted py-4">
+                                    <i class="bi bi-box" style="font-size: 2rem;"></i>
+                                    <p class="mt-2 mb-0"><span data-translate="no_products_found">No products found</span></p>
+                                    <small><span data-translate="try_adjusting_filters">Try adjusting your filter criteria</span></small>
+                                </td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% if page_obj %}
+            <div class="card-footer bg-light">
+                <div class="row align-items-center">
+                    <!-- Results Info -->
+                    <div class="col-md-6 col-sm-12 mb-2 mb-md-0">
+                        <div class="d-flex align-items-center gap-3">
+                            <span class="text-muted">
+                                Showing <strong>{{ page_obj.start_index }}</strong> - 
+                                <strong>{{ page_obj.end_index }}</strong> of 
+                                <strong>{{ page_obj.paginator.count }}</strong> products
+                            </span>
+                            
+                            <!-- Page Size Selector -->
+                            <select class="form-select form-select-sm" style="width: auto;" 
+                                    onchange="changePageSize(this.value)">
+                                <option value="30" {% if page_size == 30 %}selected{% endif %}>30 per page</option>
+                                <option value="50" {% if page_size == 50 %}selected{% endif %}>50 per page</option>
+                                <option value="100" {% if page_size == 100 %}selected{% endif %}>100 per page</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Basic Pagination -->
+                    <div class="col-md-6 col-sm-12">
+                        <nav aria-label="Products pagination">
+                            <ul class="pagination pagination-sm justify-content-md-end justify-content-center mb-0">
+                                
+                                <!-- Previous -->
+                                {% if page_obj.has_previous %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page=1{% if filters.search %}&search={{ filters.search }}{% endif %}{% if filters.category %}&category={{ filters.category }}{% endif %}{% if filters.status %}&status={{ filters.status }}{% endif %}&per_page={{ page_size }}">
+                                            <i class="bi bi-chevron-double-left"></i>
+                                        </a>
+                                    </li>
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if filters.search %}&search={{ filters.search }}{% endif %}{% if filters.category %}&category={{ filters.category }}{% endif %}{% if filters.status %}&status={{ filters.status }}{% endif %}&per_page={{ page_size }}">
+                                            <i class="bi bi-chevron-left"></i>
+                                        </a>
+                                    </li>
+                                {% else %}
+                                    <li class="page-item disabled">
+                                        <span class="page-link"><i class="bi bi-chevron-double-left"></i></span>
+                                    </li>
+                                    <li class="page-item disabled">
+                                        <span class="page-link"><i class="bi bi-chevron-left"></i></span>
+                                    </li>
+                                {% endif %}
+                                
+                                <!-- Page Numbers (simplified) -->
+                                {% for page_num in page_obj.paginator.page_range %}
+                                    {% if page_num == page_obj.number %}
+                                        <li class="page-item active">
+                                            <span class="page-link">{{ page_num }}</span>
+                                        </li>
+                                    {% elif page_num > page_obj.number|add:'-3' and page_num < page_obj.number|add:'3' %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page={{ page_num }}{% if filters.search %}&search={{ filters.search }}{% endif %}{% if filters.category %}&category={{ filters.category }}{% endif %}{% if filters.status %}&status={{ filters.status }}{% endif %}&per_page={{ page_size }}">
+                                                {{ page_num }}
+                                            </a>
+                                        </li>
+                                    {% endif %}
+                                {% endfor %}
+                                
+                                <!-- Next -->
+                                {% if page_obj.has_next %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if filters.search %}&search={{ filters.search }}{% endif %}{% if filters.category %}&category={{ filters.category }}{% endif %}{% if filters.status %}&status={{ filters.status }}{% endif %}&per_page={{ page_size }}">
+                                            <i class="bi bi-chevron-right"></i>
+                                        </a>
+                                    </li>
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if filters.search %}&search={{ filters.search }}{% endif %}{% if filters.category %}&category={{ filters.category }}{% endif %}{% if filters.status %}&status={{ filters.status }}{% endif %}&per_page={{ page_size }}">
+                                            <i class="bi bi-chevron-double-right"></i>
+                                        </a>
+                                    </li>
+                                {% else %}
+                                    <li class="page-item disabled">
+                                        <span class="page-link"><i class="bi bi-chevron-right"></i></span>
+                                    </li>
+                                    <li class="page-item disabled">
+                                        <span class="page-link"><i class="bi bi-chevron-double-right"></i></span>
+                                    </li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+                
+                <!-- Page Jump -->
+                <div class="row mt-2 pt-2 border-top">
+                    <div class="col-12 text-center">
+                        <div class="d-inline-flex align-items-center gap-2">
+                            <span class="text-muted small">Go to page:</span>
+                            <input type="number" id="pageJumpInput" class="form-control form-control-sm" 
+                                style="width: 80px;" min="1" max="{{ page_obj.paginator.num_pages }}" 
+                                value="{{ page_obj.number }}">
+                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="jumpToPage()">Go</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}            
+        </div>
+    </div>
+</div>
+
+{% else %}
+<!-- ===================== CREATE/EDIT FORM VIEW ===================== -->
+
+<div class="row">
+    <div class="col-lg-10 mx-auto">
+        <form method="POST" id="addProductForm">
+            {% csrf_token %}
+            
+            <!-- Step 1: Product Information -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-1-circle"></i> <span data-translate="product_information">Product Information</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <!-- Product Name -->
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-tag"></i> <span data-translate="product_name">Product Name</span> *
+                            </label>
+                            <input type="text" class="form-control form-control-lg" name="name" 
+                                   value="{% if product %}{{ product.name }}{% endif %}"
+                                   placeholder="e.g., بيبسي 250 ملل or Pepsi 250ml"
+                                   data-placeholder-en="e.g., بيبسي 250 ملل or Pepsi 250ml"
+                                   data-placeholder-ar="مثال: بيبسي 250 ملل او Pepsi 250ml"
+                                   required>
+                            <small class="text-muted"><span data-translate="arabic_english_name">Arabic or English name</span></small>
+                        </div>
+
+                        <!-- Item ID -->
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-hash"></i> <span data-translate="item_id">Item ID</span> *
+                            </label>
+                            <input type="text" class="form-control form-control-lg" name="item_id" 
+                                   value="{% if product %}{{ product.item_id }}{% endif %}"
+                                   placeholder="e.g., 105, PEPSI250, etc."
+                                   data-placeholder-en="e.g., 105, PEPSI250, etc."
+                                   data-placeholder-ar="مثال: 105, PEPSI250, الخ"
+                                   required>
+                            <small class="text-muted"><span data-translate="unique_identifier_manual">Unique identifier - enter manually</span></small>
+                        </div>
+
+                        <!-- Barcode -->
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-upc-scan"></i> <span data-translate="barcode">Barcode</span>
+                            </label>
+                            <div class="input-group">
+                                <input type="text" class="form-control form-control-lg" name="barcode" 
+                                       value="{% if product %}{{ product.barcode|default:'' }}{% endif %}"
+                                       placeholder="Optional barcode"
+                                       data-placeholder-en="Optional barcode"
+                                       data-placeholder-ar="باركود اختياري">
+                                <button class="btn btn-outline-secondary" type="button" onclick="showComingSoon()">
+                                    <i class="bi bi-upc-scan"></i> <span data-translate="scan">Scan</span>
+                                </button>
+                            </div>
+                            <small class="text-muted"><span data-translate="optional_leave_empty">Optional - leave empty if not available</span></small>
+                        </div>
+
+                        <!-- Category -->
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-collection"></i> <span data-translate="category">Category</span> *
+                            </label>
+                            <select class="form-select form-select-lg" name="category" required>
+                                <option value=""><span data-translate="select_category">Select category...</span></option>
+                                {% for category in categories %}
+                                <option value="{{ category.id }}" {% if product and product.category.id == category.id %}selected{% endif %}>
+                                    {{ category.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">
+                                <span data-translate="choose_appropriate_category">Choose appropriate product category</span> - 
+                                <a href="{% url 'frontend:category_management' %}" target="_blank"><span data-translate="create_new_category">Create new category</span></a>
+                            </small>
+                        </div>
+
+                        <!-- Purchase Price -->
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-currency-dollar"></i> <span data-translate="purchase_price_jod">Purchase Price (JOD)</span> *
+                            </label>
+                            <input type="number" class="form-control form-control-lg" name="purchase_price" 
+                                   value="{% if product %}{{ product.purchase_price }}{% endif %}"
+                                   placeholder="0.000" min="0.001" step="0.001" required>
+                            <small class="text-muted"><span data-translate="cost_price_3_decimal">Cost price - 3 decimal places</span></small>
+                        </div>
+
+                        <!-- Selling Price -->
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-cash"></i> <span data-translate="selling_price_jod">Selling Price (JOD)</span> *
+                            </label>
+                            <input type="number" class="form-control form-control-lg" name="selling_price" 
+                                   value="{% if product %}{{ product.selling_price }}{% endif %}"
+                                   placeholder="0.000" min="0.001" step="0.001" required id="defaultSellingPrice">
+                            <small class="text-muted"><span data-translate="customer_price_3_decimal">Customer price - 3 decimal places</span></small>
+                        </div>
+
+                        <!-- Product Options -->
+                        <div class="col-12 mb-3">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" name="is_duty_free" id="dutyFreeSwitch"
+                                               {% if product and product.is_duty_free %}checked{% endif %}
+                                               onchange="toggleVesselPricing()">
+                                        <label class="form-check-label fw-bold" for="dutyFreeSwitch">
+                                            <i class="bi bi-star"></i> <span data-translate="duty_free_product">Duty-Free Product</span>
+                                        </label>
+                                        <small class="text-muted d-block"><span data-translate="only_duty_free_vessels">Only available on duty-free vessels</span></small>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" name="active" id="activeSwitch" 
+                                               {% if not product or product.active %}checked{% endif %}>
+                                        <label class="form-check-label fw-bold" for="activeSwitch">
+                                            <i class="bi bi-check-circle"></i> <span data-translate="active_product">Active Product</span>
+                                        </label>
+                                        <small class="text-muted d-block"><span data-translate="available_for_transactions">Product available for transactions</span></small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 1.5: Vessel-Specific Pricing (NEW SECTION) -->
+            <!-- Enhanced Vessel Pricing Section -->
+            <div class="card mb-4 vessel-pricing-card" id="vesselPricingSection" {% if product and product.is_duty_free %}style="display: none;"{% endif %}>
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="bi bi-ship"></i> <span data-translate="touristic_vessel_pricing">Touristic Vessel Pricing</span>
+                            <span class="badge bg-warning text-dark ms-2"><span data-translate="optional">Optional</span></span>
+                        </h5>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="enableVesselPricing" 
+                                {% if existing_vessel_prices %}checked{% endif %}>
+                            <label class="form-check-label fw-bold" for="enableVesselPricing">
+                                <span data-translate="set_custom_pricing">Set Custom Pricing</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body" id="vesselPricingContent" {% if not existing_vessel_prices %}style="display: none;"{% endif %}>
+                    <!-- Enhanced Warning Section -->
+                    <div class="alert alert-info border-0 mb-3">
+                        <div class="d-flex align-items-start">
+                            <i class="bi bi-info-circle me-3 mt-1"></i>
+                            <div>
+                                <h6 class="mb-2"><span data-translate="vessel_pricing_info">Vessel Pricing Information:</span></h6>
+                                <ul class="mb-0 small">
+                                    <li><span data-translate="vessel_pricing_desc_1">Set different selling prices for touristic vessels (Babel & Dahab)</span></li>
+                                    <li><span data-translate="vessel_pricing_desc_2">If not set, products will use the default selling price above</span></li>
+                                    <li><span data-translate="vessel_pricing_desc_3">⚠️ Sales on touristic vessels without custom pricing will show warnings</span></li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if touristic_vessels %}
+                    <div class="row">
+                        {% for vessel in touristic_vessels %}
+                        <div class="col-md-6 mb-3">
+                            <div class="card border-warning">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="mb-0">
+                                            <i class="bi bi-ship text-warning"></i>
+                                            <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
+                                        </h6>
+                                        <span class="badge bg-secondary"><span data-translate="touristic">Touristic</span></span>
+                                    </div>
+                                    
+                                    <div class="mb-2">
+                                        <label class="form-label fw-bold small">
+                                            <span data-translate="custom_selling_price">Custom Selling Price (JOD)</span>
+                                        </label>
+                                        <input type="number" 
+                                            class="form-control vessel-price-input" 
+                                            name="vessel_price_{{ vessel.id }}"
+                                            id="vessel_price_{{ vessel.id }}"
+                                            value="{% if existing_vessel_prices %}{{ existing_vessel_prices|get_item:vessel.id }}{% endif %}"
+                                            placeholder="0.000" 
+                                            min="0.001" 
+                                            step="0.001"
+                                            onchange="calculatePriceDifference({{ vessel.id }})">
+                                    </div>
+                                    
+                                    <div class="price-difference-display" id="priceDiff_{{ vessel.id }}" style="display: none;">
+                                        <small class="text-muted">
+                                            <span data-translate="difference_from_default">Difference from default:</span> 
+                                            <span class="fw-bold" id="diffAmount_{{ vessel.id }}">+0.000 JOD</span>
+                                            (<span id="diffPercent_{{ vessel.id }}">+0%</span>)
+                                        </small>
+                                    </div>
+                                    
+                                    <!-- NEW: Missing Price Warning -->
+                                    <div class="missing-price-warning mt-2" id="missingWarning_{{ vessel.id }}" style="display: none;">
+                                        <small class="text-warning">
+                                            <i class="bi bi-exclamation-triangle"></i>
+                                            <span data-translate="no_custom_price_warning">No custom price - will use default pricing</span>
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <span data-translate="no_touristic_vessels">No touristic vessels found. Vessel-specific pricing is only available for non-duty-free vessels.</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if mode == 'create' %}
+            <!-- Step 2: Initial Stock (Only for new products) -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="bi bi-2-circle"></i> <span data-translate="initial_stock_distribution">Initial Stock Distribution</span>
+                        </h5>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="enableInitialStock">
+                            <label class="form-check-label fw-bold" for="enableInitialStock">
+                                <span data-translate="add_initial_stock">Add Initial Stock</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body" id="initialStockSection" style="display: none;">
+                    <div class="alert alert-info mb-4">
+                        <i class="bi bi-info-circle"></i>
+                        <strong><span data-translate="optional">Optional:</span></strong> <span data-translate="add_initial_stock_desc">Add initial stock to vessels. This will create SUPPLY transactions and inventory lots.</span>
+                    </div>
+
+                    <!-- Purchase Date -->
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-calendar"></i> <span data-translate="purchase_date">Purchase Date</span>
+                            </label>
+                            <input type="date" class="form-control form-control-lg" name="purchase_date" value="{{ today|date:'Y-m-d' }}">
+                            <small class="text-muted"><span data-translate="date_stock_received">Date when stock was received</span></small>
+                        </div>
+                    </div>
+
+                    <!-- Vessel Stock Distribution -->
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="border-0">
+                                        <i class="bi bi-check2-square"></i> <span data-translate="add_stock">Add Stock</span>
+                                    </th>
+                                    <th class="border-0">
+                                        <i class="bi bi-ship"></i> <span data-translate="vessel">Vessel</span>
+                                    </th>
+                                    <th class="border-0">
+                                        <i class="bi bi-123"></i> <span data-translate="quantity">Quantity</span>
+                                    </th>
+                                    <th class="border-0">
+                                        <i class="bi bi-currency-dollar"></i> <span data-translate="purchase_cost_jod">Purchase Cost (JOD)</span>
+                                    </th>
+                                    <th class="border-0">
+                                        <i class="bi bi-calculator"></i> <span data-translate="total_value">Total Value</span>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for vessel in vessels %}
+                                <tr>
+                                    <td>
+                                        <div class="form-check">
+                                            <input class="form-check-input vessel-checkbox" type="checkbox" 
+                                                   name="vessel_{{ vessel.id }}_enabled" id="vessel_{{ vessel.id }}"
+                                                   data-vessel-id="{{ vessel.id }}" value="on">
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div>
+                                            <strong>
+                                                <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
+                                            </strong>
+                                            {% if vessel.has_duty_free %}
+                                            <span class="badge bg-warning ms-2"><span data-translate="duty_free">Duty-Free</span></span>
+                                            {% else %}
+                                            <span class="badge bg-info ms-2"><span data-translate="touristic">Touristic</span></span>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <input type="number" class="form-control quantity-input" 
+                                               name="vessel_{{ vessel.id }}_quantity" placeholder="0" 
+                                               min="1" step="1" readonly 
+                                               style="background-color: #f8f9fa;" 
+                                               data-vessel-id="{{ vessel.id }}">
+                                    </td>
+                                    <td>
+                                        <input type="number" class="form-control cost-input" 
+                                               name="vessel_{{ vessel.id }}_cost" placeholder="0.000" 
+                                               min="0.001" step="0.001" readonly 
+                                               style="background-color: #f8f9fa;"
+                                               data-vessel-id="{{ vessel.id }}">
+                                    </td>
+                                    <td>
+                                        <span class="fw-bold total-value" data-vessel-id="{{ vessel.id }}">0.000</span>
+                                        <small class="text-muted"><span data-currency-symbol>JOD</span></small>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot class="table-light">
+                                <tr>
+                                    <td colspan="4" class="text-end fw-bold"><span data-translate="total_initial_investment">Total Initial Investment:</span></td>
+                                    <td class="fw-bold text-primary">
+                                        <span id="grandTotal">0.000</span> <span data-currency-symbol>JOD</span>
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    <!-- Duty-Free Warning -->
+                    <div id="dutyFreeWarning" class="alert alert-warning" style="display: none;">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <strong><span data-translate="duty_free_product_warning">Duty-Free Product Warning:</span></strong> <span data-translate="duty_free_vessel_only">This product can only be added to duty-free vessels. Regular vessels are disabled.</span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Action Buttons -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'frontend:product_management' %}" class="btn btn-outline-secondary btn-lg me-md-2">
+                            <i class="bi bi-arrow-left"></i> <span data-translate="back_to_products">Back to Products</span>
+                        </a>
+                        {% if mode == 'edit' %}
+                        <button type="submit" name="action" value="edit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-check-circle"></i> <span data-translate="update_product">Update Product</span>
+                        </button>
+                        {% else %}
+                        <button type="submit" name="action" value="product_only" class="btn btn-primary btn-lg me-md-2">
+                            <i class="bi bi-box"></i> <span data-translate="save_product_only">Save Product Only</span>
+                        </button>
+                        <button type="submit" name="action" value="with_stock" class="btn btn-success btn-lg" id="saveWithStockBtn" disabled>
+                            <i class="bi bi-plus-circle"></i> <span data-translate="save_with_initial_stock">Save with Initial Stock</span>
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Enhanced translations for vessel pricing
+document.addEventListener('DOMContentLoaded', function() {
+    
+    // Update page translations
+    window.updatePageTranslations();
+    
+    // Initialize page-specific functionality
+    {% if mode == 'create' %}
+    initializeInitialStockFunctionality();
+    {% endif %}
+    
+    // Initialize vessel pricing functionality
+    initializeVesselPricingFunctionality();
+
+    setTimeout(() => {
+        updatePageTitle();
+    }, 100);
+});
+
+function updateMissingPriceWarnings() {
+    const enableVesselPricing = document.getElementById('enableVesselPricing');
+    const defaultPriceInput = document.getElementById('defaultSellingPrice');
+    
+    if (!enableVesselPricing || !defaultPriceInput) return;
+    
+    const defaultPrice = parseFloat(defaultPriceInput.value) || 0;
+    const vesselPricingEnabled = enableVesselPricing.checked;
+    
+    {% for vessel in touristic_vessels %}
+    const vesselPriceInput{{ vessel.id }} = document.getElementById('vessel_price_{{ vessel.id }}');
+    const missingWarning{{ vessel.id }} = document.getElementById('missingWarning_{{ vessel.id }}');
+    
+    if (vesselPriceInput{{ vessel.id }} && missingWarning{{ vessel.id }}) {
+        const vesselPrice = parseFloat(vesselPriceInput{{ vessel.id }}.value) || 0;
+        
+        if (vesselPricingEnabled && vesselPrice === 0 && defaultPrice > 0) {
+            missingWarning{{ vessel.id }}.style.display = 'block';
+        } else {
+            missingWarning{{ vessel.id }}.style.display = 'none';
+        }
+    }
+    {% endfor %}
+}
+
+// Vessel pricing functionality
+function initializeVesselPricingFunctionality() {
+    const enableVesselPricing = document.getElementById('enableVesselPricing');
+    const vesselPricingContent = document.getElementById('vesselPricingContent');
+    const defaultPriceInput = document.getElementById('defaultSellingPrice');
+    
+    // Existing toggle functionality
+    if (enableVesselPricing && vesselPricingContent) {
+        enableVesselPricing.addEventListener('change', function() {
+            if (this.checked) {
+                vesselPricingContent.style.display = 'block';
+            } else {
+                vesselPricingContent.style.display = 'none';
+                clearAllVesselPrices();
+            }
+            updateMissingPriceWarnings(); // NEW
+        });
+    }
+    
+    // NEW: Update warnings when default price changes
+    if (defaultPriceInput) {
+        defaultPriceInput.addEventListener('input', updateMissingPriceWarnings);
+    }
+    
+    // Existing vessel price inputs listeners
+    {% for vessel in touristic_vessels %}
+    const vesselInput{{ vessel.id }} = document.getElementById('vessel_price_{{ vessel.id }}');
+    if (vesselInput{{ vessel.id }}) {
+        vesselInput{{ vessel.id }}.addEventListener('input', updateMissingPriceWarnings);
+    }
+    {% endfor %}
+    
+    // Initial check
+    updateMissingPriceWarnings();
+}
+
+function toggleVesselPricing() {
+    const dutyFreeSwitch = document.getElementById('dutyFreeSwitch');
+    const vesselPricingSection = document.getElementById('vesselPricingSection');
+    
+    if (dutyFreeSwitch && vesselPricingSection) {
+        if (dutyFreeSwitch.checked) {
+            // Duty-free product - hide vessel pricing
+            vesselPricingSection.style.display = 'none';
+            clearAllVesselPrices();
+        } else {
+            // General product - show vessel pricing
+            vesselPricingSection.style.display = 'block';
+        }
+    }
+}
+
+function calculatePriceDifference(vesselId) {
+    const defaultPriceInput = document.getElementById('defaultSellingPrice');
+    const vesselPriceInput = document.getElementById(`vessel_price_${vesselId}`);
+    const priceDiffDisplay = document.getElementById(`priceDiff_${vesselId}`);
+    const diffAmountSpan = document.getElementById(`diffAmount_${vesselId}`);
+    const diffPercentSpan = document.getElementById(`diffPercent_${vesselId}`);
+    
+    if (!defaultPriceInput || !vesselPriceInput || !priceDiffDisplay) return;
+    
+    const defaultPrice = parseFloat(defaultPriceInput.value) || 0;
+    const vesselPrice = parseFloat(vesselPriceInput.value) || 0;
+    
+    if (vesselPrice > 0 && defaultPrice > 0) {
+        const difference = vesselPrice - defaultPrice;
+        const percentage = (difference / defaultPrice) * 100;
+        
+        // Format difference with sign
+        const diffSign = difference >= 0 ? '+' : '';
+        const diffFormatted = diffSign + difference.toFixed(3);
+        const percentFormatted = diffSign + percentage.toFixed(1) + '%';
+        
+        // Apply number translation
+        const translatedDiff = window.translateNumber ? window.translateNumber(Math.abs(difference).toFixed(3)) : Math.abs(difference).toFixed(3);
+        const translatedPercent = window.translateNumber ? window.translateNumber(Math.abs(percentage).toFixed(1)) : Math.abs(percentage).toFixed(1);
+        
+        diffAmountSpan.textContent = diffSign + translatedDiff + ' JOD';
+        diffPercentSpan.textContent = diffSign + translatedPercent + '%';
+        
+        // Color coding
+        if (difference > 0) {
+            diffAmountSpan.className = 'fw-bold text-success';
+            diffPercentSpan.className = 'text-success';
+        } else if (difference < 0) {
+            diffAmountSpan.className = 'fw-bold text-danger';
+            diffPercentSpan.className = 'text-danger';
+        } else {
+            diffAmountSpan.className = 'fw-bold text-muted';
+            diffPercentSpan.className = 'text-muted';
+        }
+        
+        priceDiffDisplay.style.display = 'block';
+    } else {
+        priceDiffDisplay.style.display = 'none';
+    }
+}
+
+function clearAllVesselPrices() {
+    {% for vessel in touristic_vessels %}
+    const vesselPriceInput{{ vessel.id }} = document.getElementById('vessel_price_{{ vessel.id }}');
+    const priceDiffDisplay{{ vessel.id }} = document.getElementById('priceDiff_{{ vessel.id }}');
+    
+    if (vesselPriceInput{{ vessel.id }}) {
+        vesselPriceInput{{ vessel.id }}.value = '';
+    }
+    if (priceDiffDisplay{{ vessel.id }}) {
+        priceDiffDisplay{{ vessel.id }}.style.display = 'none';
+    }
+    {% endfor %}
+}
+
+// Update default price changes to recalculate differences
+document.addEventListener('DOMContentLoaded', function() {
+    const defaultPriceInput = document.getElementById('defaultSellingPrice');
+    if (defaultPriceInput) {
+        defaultPriceInput.addEventListener('input', function() {
+            {% for vessel in touristic_vessels %}
+            calculatePriceDifference({{ vessel.id }});
+            {% endfor %}
+        });
+    }
+});
+
+// Show bulk pricing modal (placeholder)
+function showBulkPricingModal() {
+    // Redirect to the bulk pricing management page
+    window.location.href = "{% url 'frontend:bulk_pricing_management' %}";
+}
+
+{% if mode == 'create' %}
+// Keep existing initial stock functionality
+function initializeInitialStockFunctionality() {
+    // ... (existing initial stock code remains the same)
+    const enableInitialStock = document.getElementById('enableInitialStock');
+    const initialStockSection = document.getElementById('initialStockSection');
+    const saveWithStockBtn = document.getElementById('saveWithStockBtn');
+    const dutyFreeSwitch = document.getElementById('dutyFreeSwitch');
+    const dutyFreeWarning = document.getElementById('dutyFreeWarning');
+    
+    // Toggle initial stock section
+    enableInitialStock.addEventListener('change', function() {
+        if (this.checked) {
+            initialStockSection.style.display = 'block';
+            updateVesselAvailability();
+        } else {
+            initialStockSection.style.display = 'none';
+            clearAllVessels();
+            updateSaveButton();
+        }
+    });
+    
+    // Handle duty-free toggle
+    dutyFreeSwitch.addEventListener('change', function() {
+        if (enableInitialStock.checked) {
+            updateVesselAvailability();
+        }
+    });
+    
+    // Handle vessel checkbox changes
+    document.querySelectorAll('.vessel-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const vesselId = this.dataset.vesselId;
+            const quantityInput = document.querySelector(`input[name="vessel_${vesselId}_quantity"]`);
+            const costInput = document.querySelector(`input[name="vessel_${vesselId}_cost"]`);
+            
+            if (this.checked) {
+                quantityInput.readOnly = false;
+                quantityInput.style.backgroundColor = 'white';
+                costInput.readOnly = false;
+                costInput.style.backgroundColor = 'white';
+                quantityInput.focus();
+            } else {
+                quantityInput.readOnly = true;
+                quantityInput.style.backgroundColor = '#f8f9fa';
+                quantityInput.value = '';
+                costInput.readOnly = true;
+                costInput.style.backgroundColor = '#f8f9fa';
+                costInput.value = '';
+                updateVesselTotal(vesselId);
+            }
+            updateSaveButton();
+        });
+    });
+    
+    // Handle quantity and cost changes
+    document.querySelectorAll('.quantity-input, .cost-input').forEach(input => {
+        input.addEventListener('input', function() {
+            const vesselId = this.dataset.vesselId;
+            updateVesselTotal(vesselId);
+            updateSaveButton();
+        });
+    });
+    
+    function updateVesselAvailability() {
+        const isDutyFree = dutyFreeSwitch.checked;
+        
+        document.querySelectorAll('.vessel-checkbox').forEach(checkbox => {
+            const row = checkbox.closest('tr');
+            const vesselId = checkbox.dataset.vesselId;
+            const vesselHasDutyFree = row.querySelector('.badge') !== null;
+            
+            if (isDutyFree && !vesselHasDutyFree) {
+                // Duty-free product, non-duty-free vessel - disable
+                checkbox.disabled = true;
+                checkbox.checked = false;
+                row.style.opacity = '0.5';
+                clearVesselInputs(vesselId);
+            } else {
+                // Enable vessel
+                checkbox.disabled = false;
+                row.style.opacity = '1';
+            }
+        });
+        
+        // Show/hide duty-free warning
+        if (isDutyFree) {
+            dutyFreeWarning.style.display = 'block';
+        } else {
+            dutyFreeWarning.style.display = 'none';
+        }
+        
+        updateSaveButton();
+    }
+    
+    function clearVesselInputs(vesselId) {
+        const quantityInput = document.querySelector(`input[name="vessel_${vesselId}_quantity"]`);
+        const costInput = document.querySelector(`input[name="vessel_${vesselId}_cost"]`);
+        
+        quantityInput.value = '';
+        quantityInput.readOnly = true;
+        quantityInput.style.backgroundColor = '#f8f9fa';
+        costInput.value = '';
+        costInput.readOnly = true;
+        costInput.style.backgroundColor = '#f8f9fa';
+        
+        updateVesselTotal(vesselId);
+    }
+    
+    function clearAllVessels() {
+        document.querySelectorAll('.vessel-checkbox').forEach(checkbox => {
+            checkbox.checked = false;
+            checkbox.disabled = false;
+            const vesselId = checkbox.dataset.vesselId;
+            clearVesselInputs(vesselId);
+            checkbox.closest('tr').style.opacity = '1';
+        });
+        dutyFreeWarning.style.display = 'none';
+        updateGrandTotal();
+    }
+    
+    function updateVesselTotal(vesselId) {
+        const quantityInput = document.querySelector(`input[name="vessel_${vesselId}_quantity"]`);
+        const costInput = document.querySelector(`input[name="vessel_${vesselId}_cost"]`);
+        const totalElement = document.querySelector(`.total-value[data-vessel-id="${vesselId}"]`);
+        
+        const quantity = parseFloat(quantityInput.value) || 0;
+        const cost = parseFloat(costInput.value) || 0;
+        const total = quantity * cost;
+        
+        totalElement.textContent = total.toFixed(3);
+        updateGrandTotal();
+    }
+    
+    function updateGrandTotal() {
+        let grandTotal = 0;
+        document.querySelectorAll('.total-value').forEach(element => {
+            const value = parseFloat(element.textContent) || 0;
+            grandTotal += value;
+        });
+        
+        document.getElementById('grandTotal').textContent = grandTotal.toFixed(3);
+    }
+    
+    function updateSaveButton() {
+        if (!enableInitialStock.checked) {
+            saveWithStockBtn.disabled = true;
+            return;
+        }
+        
+        let hasValidVessel = false;
+        document.querySelectorAll('.vessel-checkbox').forEach(checkbox => {
+            if (checkbox.checked) {
+                const vesselId = checkbox.dataset.vesselId;
+                const quantity = document.querySelector(`input[name="vessel_${vesselId}_quantity"]`).value;
+                const cost = document.querySelector(`input[name="vessel_${vesselId}_cost"]`).value;
+                
+                if (quantity && cost && parseFloat(quantity) > 0 && parseFloat(cost) > 0) {
+                    hasValidVessel = true;
+                }
+            }
+        });
+        
+        saveWithStockBtn.disabled = !hasValidVessel;
+    }
+}
+{% endif %}
+
+// Product list functionality
+{% if mode == 'list' %}
+function deleteProduct(productId, productName) {
+    confirmTranslated('confirm_delete_product', { name: productName }).then(confirmed => {
+        if (confirmed) {
+            // Create form and submit
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = `/products/manage/${productId}/delete/`;
+            
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrfmiddlewaretoken';
+            csrfInput.value = csrfToken;
+            form.appendChild(csrfInput);
+            
+            document.body.appendChild(form);
+            form.submit();
+        }
+    });
+}
+
+function exportProducts() {
+    alertTranslated('export_products');
+}
+{% endif %}
+
+function showComingSoon() {
+    alertTranslated('barcode_coming_soon');
+}
+
+function updatePageTitle() {
+    if (!window.translator || !window.translator._) {
+        return;
+    }
+    
+    // Get the mode dynamically
+    const mode = '{{ mode }}';
+    
+    // Get translated strings
+    let translatedTitle = '';
+    if (mode === 'edit') {
+        translatedTitle = window.translator._('edit_product');
+    } else if (mode === 'create') {
+        translatedTitle = window.translator._('add_new_product');
+    } else {
+        translatedTitle = window.translator._('product_management');
+    }
+    
+    const vesselSalesSystem = window.translator._('vessel_sales_system');
+
+    // Update the document title
+    document.title = `${translatedTitle} - ${vesselSalesSystem}`;
+}
+
+function changePageSize(newSize) {
+    const url = new URL(window.location);
+    url.searchParams.set('per_page', newSize);
+    url.searchParams.set('page', '1');
+    window.location.href = url.toString();
+}
+
+function jumpToPage() {
+    const pageInput = document.getElementById('pageJumpInput');
+    const pageNumber = parseInt(pageInput.value);
+    
+    // Get maxPage from the input's max attribute instead of template variable
+    const maxPage = parseInt(pageInput.getAttribute('max')) || 1;
+    
+    if (pageNumber >= 1 && pageNumber <= maxPage) {
+        const url = new URL(window.location);
+        url.searchParams.set('page', pageNumber);
+        window.location.href = url.toString();
+    } else {
+        alert('Please enter a valid page number between 1 and ' + maxPage);
+        // Get current page from input value attribute
+        const currentPage = parseInt(pageInput.getAttribute('value')) || 1;
+        pageInput.value = currentPage;
+    }
+}
+
+function handlePageJump(event) {
+    if (event.key === 'Enter') {
+        jumpToPage();
+    }
+}
+
+// Add translations for new terms
+if (typeof translations !== 'undefined') {
+    Object.assign(translations, {
+        'showing': 'Showing',
+        'of': 'of',
+        'per_page': 'Per page',
+        'go_to_page': 'Go to page',
+        'go': 'Go'
+    });
+}
+
+// 🔥 **Listen for Language Toggle Event**
+window.addEventListener("languageChanged", updatePageTitle);
+</script>
+{% endblock %}

@@ -388,36 +388,79 @@ function loadAvailableProducts() {
 
 function displayAvailableProducts() {
     const tbody = document.getElementById('availableProductsList');
-    
+    tbody.innerHTML = ''; // Clear any existing rows
+
     if (availableProducts.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="3" class="text-center text-muted py-4">
-                    <i class="bi bi-box" style="font-size: 2rem;"></i>
-                    <p class="mt-2 mb-0">${_('no_products_available')}</p>
-                </td>
-            </tr>
-        `;
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 3;
+        td.className = 'text-center text-muted py-4';
+
+        const icon = document.createElement('i');
+        icon.className = 'bi bi-box';
+        icon.style.fontSize = '2rem';
+
+        const message = document.createElement('p');
+        message.className = 'mt-2 mb-0';
+        message.textContent = _('no_products_available');
+
+        td.appendChild(icon);
+        td.appendChild(message);
+        tr.appendChild(td);
+        tbody.appendChild(tr);
         return;
     }
-    
-    tbody.innerHTML = availableProducts.map(product => `
-        <tr class="cursor-pointer" onclick="selectProductFromList(${JSON.stringify(product).replace(/"/g, '&quot;')})">
-            <td>
-                <div>
-                    <strong>${product.name}</strong>
-                    ${product.is_duty_free ? '<span class="badge bg-warning text-dark ms-1">' + _('duty_free') + '</span>' : ''}
-                </div>
-            </td>
-            <td><code data-number data-original="${product.item_id}">${translateNumber(product.item_id)}</code></td>
-            <td class="text-end">
-                <span class="fw-bold text-success" data-number data-original="${product.total_quantity}">${translateNumber(product.total_quantity.toString())}</span>
-                <small class="text-muted d-block">${_('units')}</small>
-            </td>
-        </tr>
-    `).join('');
-    
-    // Apply translations after DOM update
+
+    availableProducts.forEach(product => {
+        const tr = document.createElement('tr');
+        tr.className = 'cursor-pointer';
+        tr.onclick = () => selectProductFromList(product);
+
+        const tdName = document.createElement('td');
+        const nameDiv = document.createElement('div');
+
+        const strong = document.createElement('strong');
+        strong.textContent = product.name;
+        nameDiv.appendChild(strong);
+
+        if (product.is_duty_free) {
+            const badge = document.createElement('span');
+            badge.className = 'badge bg-warning text-dark ms-1';
+            badge.textContent = _('duty_free');
+            nameDiv.appendChild(badge);
+        }
+
+        tdName.appendChild(nameDiv);
+
+        const tdId = document.createElement('td');
+        const code = document.createElement('code');
+        code.setAttribute('data-number', '');
+        code.setAttribute('data-original', product.item_id);
+        code.textContent = translateNumber(product.item_id);
+        tdId.appendChild(code);
+
+        const tdQty = document.createElement('td');
+        tdQty.className = 'text-end';
+
+        const qtySpan = document.createElement('span');
+        qtySpan.className = 'fw-bold text-success';
+        qtySpan.setAttribute('data-number', '');
+        qtySpan.setAttribute('data-original', product.total_quantity);
+        qtySpan.textContent = translateNumber(product.total_quantity.toString());
+
+        const unitsSmall = document.createElement('small');
+        unitsSmall.className = 'text-muted d-block';
+        unitsSmall.textContent = _('units');
+
+        tdQty.appendChild(qtySpan);
+        tdQty.appendChild(unitsSmall);
+
+        tr.appendChild(tdName);
+        tr.appendChild(tdId);
+        tr.appendChild(tdQty);
+        tbody.appendChild(tr);
+    });
+
     setTimeout(() => {
         updatePageTranslations();
     }, 0);
@@ -739,19 +782,23 @@ async function completeTransfer() {
         showAlert(_('add_one_item_first'), 'warning');
         return;
     }
-    
+
     const confirmed = await confirmTranslated('complete_transfer_confirm', {
         count: transferCart.length
     });
     if (!confirmed) return;
-    
+
     const completeTransferBtn = document.getElementById('completeTransferBtn');
     const originalText = completeTransferBtn.innerHTML;
-    
-    completeTransferBtn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> ${_('completing')}`;
+
+    // Clear and build spinner manually
+    completeTransferBtn.textContent = '';
+    const spinner = document.createElement('span');
+    spinner.className = 'spinner-border spinner-border-sm';
+    completeTransferBtn.appendChild(spinner);
+    completeTransferBtn.append(` ${_('completing')}`);
     completeTransferBtn.disabled = true;
-    
-    // Prepare data
+
     const transferData = {
         transfer_session_id: document.getElementById('transferSessionId').value,
         items: transferCart.map(item => ({
@@ -760,23 +807,24 @@ async function completeTransfer() {
             notes: item.notes || ''
         }))
     };
-    
-    fetch('/transfer/bulk-complete/', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-        },
-        body: JSON.stringify(transferData)
-    })
-    .then(response => response.json())
-    .then(data => {
+
+    try {
+        const response = await fetch('/transfer/bulk-complete/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify(transferData)
+        });
+
+        const data = await response.json();
+
         if (data.success) {
-            // Clear cart from storage
             const transferSessionId = document.getElementById('transferSessionId').value;
             const storageKey = `transfer_session_${transferSessionId}`;
             localStorage.removeItem(storageKey);
-            
+
             showAlert(_('transfer_completed'), 'success');
             setTimeout(() => {
                 window.location.href = "{% url 'frontend:transfer_entry' %}";
@@ -786,13 +834,12 @@ async function completeTransfer() {
             completeTransferBtn.innerHTML = originalText;
             completeTransferBtn.disabled = false;
         }
-    })
-    .catch(error => {
+    } catch (error) {
         console.error('Error completing transfer:', error);
         showAlert(_('error_completing_transfer'), 'danger');
         completeTransferBtn.innerHTML = originalText;
         completeTransferBtn.disabled = false;
-    });
+    }
 }
 
 function exportTransferItems() {
@@ -806,20 +853,33 @@ function printTransferItems() {
 function showAlert(message, type) {
     const container = document.querySelector('.container') || document.querySelector('body');
     const firstRow = container.querySelector('.row');
-    
+
+    // Create alert div
     const alertDiv = document.createElement('div');
-    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
-    alertDiv.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
+    alertDiv.classList.add('alert', `alert-${type}`, 'alert-dismissible', 'fade', 'show');
     
+    // Create message span
+    const messageSpan = document.createElement('span');
+    messageSpan.textContent = message;
+    
+    // Create close button
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'btn-close';
+    closeBtn.setAttribute('data-bs-dismiss', 'alert');
+    
+    // Append elements to alert
+    alertDiv.appendChild(messageSpan);
+    alertDiv.appendChild(closeBtn);
+    
+    // Insert into DOM
     if (firstRow) {
         container.insertBefore(alertDiv, firstRow);
     } else {
         container.appendChild(alertDiv);
     }
-    
+
+    // Auto-remove after 5 seconds
     setTimeout(() => {
         if (alertDiv && alertDiv.parentNode) {
             alertDiv.remove();

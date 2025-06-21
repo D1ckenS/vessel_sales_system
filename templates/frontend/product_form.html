@@ -151,22 +151,23 @@
                                 <input type="text" class="form-control" id="item_id" name="item_id" 
                                        value="{% if product %}{{ product.item_id }}{% endif %}" 
                                        placeholder=" " required>
-                                <label for="item_id"><span data-translate="item_id">Item ID</span> *</label>
+                                       <label for="item_id"><span data-translate="item_id">Item ID</span> *</label>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <div class="form-floating">
-                                <select class="form-select" id="category" name="category" required>
-                                    <option value=""><span data-translate="select_category">Select Category</span></option>
-                                    {% for category in categories %}
-                                    <option value="{{ category.id }}" {% if product and product.category.id == category.id %}selected{% endif %}>
-                                        {{ category.name }}
-                                    </option>
-                                    {% endfor %}
-                                </select>
+                            <div id="ajaxAlert" class="alert d-none" role="alert"></div>
+                            
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <div class="form-floating">
+                                        <select class="form-select" id="category" name="category" required>
+                                            <option value=""><span data-translate="select_category">Select Category</span></option>
+                                            {% for category in categories %}
+                                            <option value="{{ category.id }}" {% if product and product.category.id == category.id %}selected{% endif %}>
+                                                {{ category.name }}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
                                 <label for="category"><span data-translate="category">Category</span> *</label>
                             </div>
                         </div>
@@ -201,10 +202,10 @@
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="is_duty_free" name="is_duty_free" 
+                                <input class="form-check-input" type="checkbox" id="dutyFreeSwitch" name="is_duty_free" 
                                        {% if product and product.is_duty_free %}checked{% endif %}
                                        onchange="toggleVesselPricing()">
-                                <label class="form-check-label" for="is_duty_free">
+                                <label class="form-check-label" for="dutyFreeSwitch">
                                     <span data-translate="duty_free_product">Duty-Free Product</span>
                                 </label>
                                 <div class="form-text">
@@ -272,7 +273,123 @@
                     {% endif %}
                 </div>
             </div>
+            {% if mode == 'create' %}
+            <!-- Step 2: Initial Stock (Only for new products) -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="bi bi-2-circle"></i> <span data-translate="initial_stock_distribution">Initial Stock Distribution</span>
+                        </h5>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="enableInitialStock">
+                            <label class="form-check-label fw-bold" for="enableInitialStock">
+                                <span data-translate="add_initial_stock">Add Initial Stock</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body" id="initialStockSection" style="display: none;">
+                    <div class="alert alert-info mb-4">
+                        <i class="bi bi-info-circle"></i>
+                        <strong><span data-translate="optional">Optional:</span></strong> <span data-translate="add_initial_stock_desc">Add initial stock to vessels. This will create SUPPLY transactions and inventory lots.</span>
+                    </div>
 
+                    <!-- Purchase Date -->
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-calendar"></i> <span data-translate="purchase_date">Purchase Date</span>
+                            </label>
+                            <input type="date" class="form-control form-control-lg" name="purchase_date" value="{{ today|date:'Y-m-d' }}">
+                            <small class="text-muted"><span data-translate="date_stock_received">Date when stock was received</span></small>
+                        </div>
+                    </div>
+
+                    <!-- Vessel Stock Distribution -->
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="border-0">
+                                        <i class="bi bi-check2-square"></i> <span data-translate="add_stock">Add Stock</span>
+                                    </th>
+                                    <th class="border-0">
+                                        <i class="bi bi-ship"></i> <span data-translate="vessel">Vessel</span>
+                                    </th>
+                                    <th class="border-0">
+                                        <i class="bi bi-123"></i> <span data-translate="quantity">Quantity</span>
+                                    </th>
+                                    <th class="border-0">
+                                        <i class="bi bi-currency-dollar"></i> <span data-translate="purchase_cost_jod">Purchase Cost (JOD)</span>
+                                    </th>
+                                    <th class="border-0">
+                                        <i class="bi bi-calculator"></i> <span data-translate="total_value">Total Value</span>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for vessel in vessels %}
+                                <tr>
+                                    <td>
+                                        <div class="form-check">
+                                            <input class="form-check-input vessel-checkbox" type="checkbox" 
+                                                   name="vessel_{{ vessel.id }}_enabled" id="vessel_{{ vessel.id }}"
+                                                   data-vessel-id="{{ vessel.id }}" value="on">
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div>
+                                            <strong>
+                                                <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
+                                            </strong>
+                                            {% if vessel.has_duty_free %}
+                                            <span class="badge bg-warning ms-2"><span data-translate="duty_free">Duty-Free</span></span>
+                                            {% else %}
+                                            <span class="badge bg-info ms-2"><span data-translate="touristic">Touristic</span></span>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <input type="number" class="form-control quantity-input" 
+                                               name="vessel_{{ vessel.id }}_quantity" placeholder="0" 
+                                               min="1" step="1" readonly 
+                                               style="background-color: #f8f9fa;" 
+                                               data-vessel-id="{{ vessel.id }}">
+                                    </td>
+                                    <td>
+                                        <input type="number" class="form-control cost-input" 
+                                               name="vessel_{{ vessel.id }}_cost" placeholder="0.000" 
+                                               min="0.001" step="0.001" readonly 
+                                               style="background-color: #f8f9fa;"
+                                               data-vessel-id="{{ vessel.id }}">
+                                    </td>
+                                    <td>
+                                        <span class="fw-bold total-value" data-vessel-id="{{ vessel.id }}">0.000</span>
+                                        <small class="text-muted"><span data-currency-symbol>JOD</span></small>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot class="table-light">
+                                <tr>
+                                    <td colspan="4" class="text-end fw-bold"><span data-translate="total_initial_investment">Total Initial Investment:</span></td>
+                                    <td class="fw-bold text-primary">
+                                        <span id="grandTotal">0.000</span> <span data-currency-symbol>JOD</span>
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    <!-- Duty-Free Warning -->
+                    <div id="dutyFreeWarning" class="alert alert-warning" style="display: none;">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <strong><span data-translate="duty_free_product_warning">Duty-Free Product Warning:</span></strong> <span data-translate="duty_free_vessel_only">This product can only be added to duty-free vessels. Regular vessels are disabled.</span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
             <!-- Form Actions -->
             <div class="card">
                 <div class="card-body">
@@ -313,124 +430,230 @@
 
 {% block extra_js %}
 <script>
-// Form functionality
-function toggleVesselPricing() {
-    const isDutyFree = document.getElementById('is_duty_free').checked;
-    const vesselPricingCard = document.getElementById('vesselPricingCard');
-    
-    if (isDutyFree) {
-        vesselPricingCard.style.display = 'none';
-        // Clear all vessel pricing inputs
-        document.querySelectorAll('.vessel-price-input').forEach(input => {
-            input.value = '';
-        });
-    } else {
-        vesselPricingCard.style.display = 'block';
-    }
-    
-    {% if mode == 'create' %}
-    updateSaveWithStockButton();
-    {% endif %}
-}
-
-{% if mode == 'create' %}
-function updateSaveWithStockButton() {
+document.addEventListener('DOMContentLoaded', () => {
+    // --- Field Validity & Save Button Control ---
+    const saveBtn = document.getElementById('saveProductBtn');
     const saveWithStockBtn = document.getElementById('saveWithStockBtn');
-    
-    // Check if at least one vessel has valid pricing
-    let hasValidVessel = false;
-    const isDutyFree = document.getElementById('is_duty_free').checked;
-    
-    if (isDutyFree) {
-        hasValidVessel = true; // Duty-free products don't need vessel pricing
-    } else {
-        // Check vessel pricing inputs
-        document.querySelectorAll('.vessel-price-input').forEach(input => {
-            const price = parseFloat(input.value);
-            if (price > 0) {
-                hasValidVessel = true;
+    let fieldValidity = { item_id: true, name: true };
+
+    ['item_id', 'name'].forEach(fieldId => {
+        const input = document.getElementById(fieldId);
+        if (!input) return;
+
+        const checkExists = async () => {
+            const currentValue = input.value.trim();
+            if (!currentValue) return;
+
+            const param = `${fieldId}=${encodeURIComponent(currentValue)}`;
+            const response = await fetch(`/products/check-exists/?${param}`);
+            const data = await response.json();
+
+            if (data.exists) {
+                showAlert(`${fieldId.toUpperCase()} already exists`, 'warning');
+                input.classList.add('is-invalid');
+                fieldValidity[fieldId] = false;
+            } else {
+                input.classList.remove('is-invalid');
+                fieldValidity[fieldId] = true;
+            }
+
+            const isFormValid = fieldValidity.item_id && fieldValidity.name;
+            if (saveBtn) saveBtn.disabled = !isFormValid;
+            if (saveWithStockBtn) saveWithStockBtn.disabled = !isFormValid;
+        };
+
+        input.addEventListener('blur', checkExists);
+        input.addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                checkExists();
             }
         });
-    }
-    
-    saveWithStockBtn.disabled = !hasValidVessel;
-}
-
-// Add event listeners to vessel price inputs
-document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.vessel-price-input').forEach(input => {
-        input.addEventListener('input', updateSaveWithStockButton);
     });
-    
-    // Initial check
-    updateSaveWithStockButton();
-});
-{% endif %}
 
-{% if mode == 'edit' %}
-function deleteProduct(productId, productName) {
-    confirmTranslated('confirm_delete_product', { name: productName }).then(confirmed => {
-        if (confirmed) {
-            // Create form and submit
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = `/products/manage/${productId}/delete/`;
-            
-            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-            const csrfInput = document.createElement('input');
-            csrfInput.type = 'hidden';
-            csrfInput.name = 'csrfmiddlewaretoken';
-            csrfInput.value = csrfToken;
-            form.appendChild(csrfInput);
-            
-            document.body.appendChild(form);
-            form.submit();
+    // --- Styled AJAX Alert ---
+    function showAlert(message, type = 'info') {
+        const alertEl = document.getElementById('ajaxAlert');
+        if (!alertEl) return;
+
+        alertEl.className = `alert alert-${type}`;
+        alertEl.textContent = message;
+        alertEl.classList.remove('d-none');
+
+        setTimeout(() => {
+            alertEl.classList.add('d-none');
+        }, 5000);
+    }
+
+    // --- Initial Stock Logic ---
+    function initializeInitialStockFunctionality() {
+        const enableInitialStock = document.getElementById('enableInitialStock');
+        const initialStockSection = document.getElementById('initialStockSection');
+        const dutyFreeSwitch = document.getElementById('dutyFreeSwitch');
+        const dutyFreeWarning = document.getElementById('dutyFreeWarning');
+
+        if (!enableInitialStock || !initialStockSection || !dutyFreeSwitch || !dutyFreeWarning) return; // graceful exit if element is missing
+
+        enableInitialStock.addEventListener('change', function () {
+            if (this.checked) {
+                initialStockSection.style.display = 'block';
+                updateVesselAvailability();
+            } else {
+                initialStockSection.style.display = 'none';
+                clearAllVessels();
+                updateSaveWithStockButton();
+            }
+        });
+
+        dutyFreeSwitch.addEventListener('change', function () {
+            if (enableInitialStock.checked) {
+                updateVesselAvailability();
+            }
+        });
+
+        document.querySelectorAll('.vessel-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', function () {
+                const vesselId = this.dataset.vesselId;
+                const quantityInput = document.querySelector(`input[name="vessel_${vesselId}_quantity"]`);
+                const costInput = document.querySelector(`input[name="vessel_${vesselId}_cost"]`);
+
+                if (this.checked) {
+                    quantityInput.readOnly = false;
+                    quantityInput.style.backgroundColor = 'white';
+                    costInput.readOnly = false;
+                    costInput.style.backgroundColor = 'white';
+                    quantityInput.focus();
+                } else {
+                    quantityInput.readOnly = true;
+                    quantityInput.style.backgroundColor = '#f8f9fa';
+                    quantityInput.value = '';
+                    costInput.readOnly = true;
+                    costInput.style.backgroundColor = '#f8f9fa';
+                    costInput.value = '';
+                    updateVesselTotal(vesselId);
+                }
+                updateSaveWithStockButton();
+            });
+        });
+
+        document.querySelectorAll('.quantity-input, .cost-input').forEach(input => {
+            input.addEventListener('input', function () {
+                const vesselId = this.dataset.vesselId;
+                updateVesselTotal(vesselId);
+                updateSaveWithStockButton();
+            });
+        });
+    }
+
+    function updateVesselAvailability() {
+        const dutyFreeSwitch = document.getElementById('dutyFreeSwitch');
+        const isDutyFree = dutyFreeSwitch.checked;
+
+        document.querySelectorAll('.vessel-checkbox').forEach(checkbox => {
+            const row = checkbox.closest('tr');
+            const vesselId = checkbox.dataset.vesselId;
+            const vesselHasDutyFree = row.querySelector('.badge') !== null;
+
+            if (isDutyFree && !vesselHasDutyFree) {
+                checkbox.disabled = true;
+                checkbox.checked = false;
+                row.style.opacity = '0.5';
+                clearVesselInputs(vesselId);
+            } else {
+                checkbox.disabled = false;
+                row.style.opacity = '1';
+            }
+        });
+
+        const dutyFreeWarning = document.getElementById('dutyFreeWarning');
+        dutyFreeWarning.style.display = isDutyFree ? 'block' : 'none';
+
+        updateSaveWithStockButton();
+    }
+
+    function clearVesselInputs(vesselId) {
+        const quantityInput = document.querySelector(`input[name="vessel_${vesselId}_quantity"]`);
+        const costInput = document.querySelector(`input[name="vessel_${vesselId}_cost"]`);
+
+        quantityInput.value = '';
+        quantityInput.readOnly = true;
+        quantityInput.style.backgroundColor = '#f8f9fa';
+
+        costInput.value = '';
+        costInput.readOnly = true;
+        costInput.style.backgroundColor = '#f8f9fa';
+
+        updateVesselTotal(vesselId);
+    }
+
+    function clearAllVessels() {
+        document.querySelectorAll('.vessel-checkbox').forEach(checkbox => {
+            checkbox.checked = false;
+            checkbox.disabled = false;
+            const vesselId = checkbox.dataset.vesselId;
+            clearVesselInputs(vesselId);
+            checkbox.closest('tr').style.opacity = '1';
+        });
+
+        const dutyFreeWarning = document.getElementById('dutyFreeWarning');
+        dutyFreeWarning.style.display = 'none';
+
+        updateGrandTotal();
+    }
+
+    function updateVesselTotal(vesselId) {
+        const quantityInput = document.querySelector(`input[name="vessel_${vesselId}_quantity"]`);
+        const costInput = document.querySelector(`input[name="vessel_${vesselId}_cost"]`);
+        const totalElement = document.querySelector(`.total-value[data-vessel-id="${vesselId}"]`);
+
+        const quantity = parseFloat(quantityInput.value) || 0;
+        const cost = parseFloat(costInput.value) || 0;
+        const total = quantity * cost;
+
+        totalElement.textContent = total.toFixed(3);
+        updateGrandTotal();
+    }
+
+    function updateGrandTotal() {
+        let grandTotal = 0;
+        document.querySelectorAll('.total-value').forEach(element => {
+            const value = parseFloat(element.textContent) || 0;
+            grandTotal += value;
+        });
+
+        document.getElementById('grandTotal').textContent = grandTotal.toFixed(3);
+    }
+
+    function updateSaveWithStockButton() {
+        if (!enableInitialStock.checked) {
+            saveWithStockBtn.disabled = true;
+            return;
         }
-    });
-}
-{% endif %}
 
-// Form validation
-document.getElementById('productForm').addEventListener('submit', function(e) {
-    const requiredFields = ['name', 'item_id', 'category', 'purchase_price', 'selling_price'];
-    let isValid = true;
-    
-    requiredFields.forEach(fieldName => {
-        const field = document.getElementById(fieldName);
-        if (!field.value.trim()) {
-            field.classList.add('is-invalid');
-            isValid = false;
-        } else {
-            field.classList.remove('is-invalid');
-        }
-    });
-    
-    if (!isValid) {
-        e.preventDefault();
-        alertTranslated('required_fields_missing');
+        let hasValidVessel = false;
+        document.querySelectorAll('.vessel-checkbox').forEach(checkbox => {
+            if (checkbox.checked) {
+                const vesselId = checkbox.dataset.vesselId;
+                const quantity = document.querySelector(`input[name="vessel_${vesselId}_quantity"]`).value;
+                const cost = document.querySelector(`input[name="vessel_${vesselId}_cost"]`).value;
+
+                if (quantity && cost && parseFloat(quantity) > 0 && parseFloat(cost) > 0) {
+                    hasValidVessel = true;
+                }
+            }
+        });
+
+        saveWithStockBtn.disabled = !hasValidVessel;
     }
+
+    // Init all
+    initializeInitialStockFunctionality();
+    console.log({
+        enableInitialStock,
+        initialStockSection,
+        dutyFreeSwitch,
+        dutyFreeWarning
+        });
 });
-
-document.getElementById('item_id').addEventListener('blur');
-
-function updatePageTitle() {
-    if (!window.translator || !window.translator._) {
-        return;
-    }
-    
-    const mode = '{{ mode }}';
-    let translatedTitle = '';
-    if (mode === 'edit') {
-        translatedTitle = window.translator._('edit_product');
-    } else {
-        translatedTitle = window.translator._('add_new_product');
-    }
-    
-    const vesselSalesSystem = window.translator._('vessel_sales_system');
-    document.title = `${translatedTitle} - ${vesselSalesSystem}`;
-}
-
-// Listen for Language Toggle Event
-window.addEventListener("languageChanged", updatePageTitle);
 </script>
 {% endblock %}

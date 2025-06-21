@@ -55,6 +55,7 @@ urlpatterns = [
     path('products/manage/', product_views.product_list_view, name='product_management'),  # Compatibility
     path('products/create/', product_views.product_create_view, name='product_create'),
     path('products/add/', product_views.product_create_view, name='add_product_form'),  # Compatibility
+    path('products/check-exists/', product_views.check_product_exists, name='check_product_exists'),
     path('products/edit/<int:product_id>/', product_views.product_edit_view, name='product_edit'),
 
     # Category Management

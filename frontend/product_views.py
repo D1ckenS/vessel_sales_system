@@ -1,22 +1,22 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.db.models import Count, Q, Sum, F, Prefetch, Case, When, Value, CharField, FloatField, BooleanField
-from django.db.models.functions import Cast, Coalesce
+from django.db.models import Count, Q, Sum, Prefetch
+from django.db.models.functions import Coalesce
 from django.core.cache import cache
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from frontend.utils.cache_helpers import PerfectPagination, ProductCacheHelper
 from .permissions import is_admin_or_manager
 from .utils import BilingualMessages
 from products.models import Product, Category
-from .utils import get_vessel_display_name
-from transactions.models import VesselProductPrice, InventoryLot, Transaction, get_all_vessel_pricing_summary
+from transactions.models import VesselProductPrice, InventoryLot, get_all_vessel_pricing_summary
 from django.db import transaction
 from vessels.models import Vessel
 from decimal import Decimal
-from datetime import date, timedelta, datetime
+from datetime import date, datetime
 import decimal
-from django.db import models, connection
-import hashlib
+from django.http import JsonResponse
+from django.views.decorators.http import require_GET
+from django.db import connection
 import traceback
 
 @login_required
@@ -567,7 +567,7 @@ def product_create_view(request):
                         except (ValueError, decimal.InvalidOperation):
                             BilingualMessages.error(request, 'invalid_vessel_price', vessel_name=vessel.name)
                             return redirect('frontend:product_create')
-            
+
             # Create product
             with transaction.atomic():
                 product = Product.objects.create(
@@ -592,7 +592,7 @@ def product_create_view(request):
                     )
             
             # Clear caches
-            cache.delete_pattern('product_*')
+            ProductCacheHelper.clear_product_management_cache()
             cache.delete('active_categories')
             cache.delete('vessel_pricing_summary')
             
@@ -604,8 +604,28 @@ def product_create_view(request):
                 return redirect('frontend:product_list')
                 
         except Exception as e:
-            BilingualMessages.error(request, 'error_creating_product')
+            BilingualMessages.error(request, 'error_creating_product', error=str(e))
             return redirect('frontend:product_create')
+
+@require_GET
+@login_required
+@user_passes_test(is_admin_or_manager)
+def check_product_exists(request):
+    item_id = request.GET.get('item_id', '').strip()
+    name = request.GET.get('name', '').strip()
+
+    exists = False
+    conflict_field = None
+
+    if item_id and Product.objects.filter(item_id=item_id).exists():
+        exists = True
+        conflict_field = 'item_id'
+    elif name and Product.objects.filter(name__iexact=name).exists():
+        exists = True
+        conflict_field = 'name'
+
+    return JsonResponse({'exists': exists, 'field': conflict_field})
+
 
 @login_required
 @user_passes_test(is_admin_or_manager)
@@ -774,6 +794,7 @@ def delete_product(request, product_id):
                 product.delete()
                 BilingualMessages.success(request, 'product_deleted', name=product_name)
             
+            ProductCacheHelper.clear_all_product_cache()
             return redirect('frontend:product_management')
             
         except Exception as e:
@@ -793,17 +814,3 @@ def get_vessel_badge_class(vessel_name):
         'dahab': 'bg-info',
     }
     return colors.get(vessel_name.lower(), 'bg-primary')
-
-# 🚀 BONUS: Add this cache clearing function
-def clear_product_ultra_cache():
-    """Call this after any product changes"""
-    cache.delete_pattern('product_list_ultra_*')
-    cache.delete('categories_ultra_v2')
-    cache.delete('vessel_pricing_ultra_v2')
-    cache.delete('touristic_vessels_count_v2')
-
-# 🚀 NUCLEAR CACHE CLEAR FUNCTION  
-def clear_perfect_cache():
-    """Call after product/category changes"""
-    cache.delete_pattern('perfect_*')
-    print("🔥 PERFECT CACHE CLEARED")
