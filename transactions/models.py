@@ -530,7 +530,7 @@ class Transaction(models.Model):
         
         # Clear product cache since inventory changed
         try:
-            
+        
             ProductCacheHelper.clear_cache_after_product_update()
         except:
             pass

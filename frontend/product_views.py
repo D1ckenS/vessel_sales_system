@@ -23,12 +23,18 @@ import hashlib
 def product_list_view(request):
     """PERFECT NUCLEAR: 6 queries maximum, full pagination compatibility"""
     
+    # 🔍 DEBUG: Check cache version at start
+    print(f"🔍 Cache version at START: {ProductCacheHelper._get_cache_version()}")
+    
     # Get filter parameters
     search_query = request.GET.get('search', '').strip()
     category_filter = request.GET.get('category', '').strip()
     department_filter = request.GET.get('department', '').strip()
     page_number = request.GET.get('page', 1)
     page_size = int(request.GET.get('per_page', 30))
+    
+    # 🔍 DEBUG: Check if filters trigger cache clearing
+    print(f"🔍 Filters applied: search='{search_query}', category='{category_filter}', department='{department_filter}'")
     
     # Validate inputs
     if page_size not in [30, 50, 100]:
@@ -46,9 +52,16 @@ def product_list_view(request):
         'category': category_filter,
         'status': department_filter
     }
-    filters_str = f"{filters_dict.get('search', '')}_{filters_dict.get('category', '')}_{filters_dict.get('department', '')}"
-    filters_hash = hashlib.md5(filters_str.encode()).hexdigest()[:8]
-    cache_key = f"perfect_product_list_{filters_hash}_{page_number}_{page_size}"
+    # NEW
+    cache_key = ProductCacheHelper.get_product_list_cache_key(
+        search=search_query,
+        category=category_filter,
+        department=department_filter,
+        page_number=page_number,
+        page_size=page_size
+    )
+    
+    print(f"🔍 Generated cache key: {cache_key}")
     
     cached_data = cache.get(cache_key)
     if cached_data:
@@ -271,6 +284,7 @@ def product_list_view(request):
     print(f"🔥 Categories source check:")
     print(f"🔥 Cache categories count: {len(ultimate_static_cache['categories'])}")
     print(f"🔥 Using cached categories: {len(categories)}")
+    print(f"🔍 Cache version at END (miss): {ProductCacheHelper._get_cache_version()}")
     
     return render(request, 'frontend/product_list.html', context)
 @login_required

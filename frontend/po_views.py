@@ -220,7 +220,8 @@ def delete_po(request, po_id):
 
         if transaction_count > 0:
             with transaction.atomic():
-                po.supply_transactions.all().delete()
+                for transaction_obj in po.supply_transactions.all():
+                    transaction_obj.delete()
                 po.delete()
             
             try:
