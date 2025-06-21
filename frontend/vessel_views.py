@@ -4,8 +4,9 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.http import JsonResponse
 from django.db import models
 from django.db.models import Sum, F, Count, Q
+from frontend.utils.cache_helpers import VesselManagementCacheHelper
 from frontend.utils.validation_helpers import ValidationHelper
-from transactions.models import Transaction, Trip, PurchaseOrder
+from transactions.models import Transaction, Trip, PurchaseOrder, VesselProductPrice
 from vessels.models import Vessel
 from django.views.decorators.http import require_http_methods
 from datetime import date, datetime, timedelta
@@ -24,12 +25,22 @@ from .permissions import (
 @login_required
 @user_passes_test(is_admin_or_manager)
 def vessel_management(request):
-    """CLEANED: Vessel management - removed unused pricing warnings collection"""
+    """🚀 CACHED: 2 queries on cache hit, 5 queries on cache miss"""
     
     reference_date = date.today()
     thirty_days_ago = reference_date - timedelta(days=30)
     
+    # 🚀 CACHE: Check for cached vessel management data
+    cache_key = f"vessel_management_{reference_date}"
+    cached_data = cache.get(cache_key)
+    
+    if cached_data:
+        print("🚀 VESSEL MANAGEMENT CACHE HIT!")
+        return render(request, 'frontend/auth/vessel_management.html', cached_data)
+    
+    # 🚀 QUERY 1: Get ALL vessels with only essential statistics - NO pricing annotations
     vessels_data = Vessel.objects.annotate(
+        # Only trip and revenue statistics - NO pricing-related annotations
         total_trips=Count(
             'trips', 
             filter=models.Q(trips__is_completed=True),
@@ -64,22 +75,33 @@ def vessel_management(request):
                 trips__trip_date__lte=reference_date
             )
         )
-    ).order_by('name')
+    ).order_by('-active', 'name')
     
-    vessel_stats = vessels_data.aggregate(
-        total_vessels=Count('id'),
-        active_vessels=Count('id', filter=models.Q(active=True)),
-        duty_free_vessels=Count('id', filter=models.Q(has_duty_free=True)),
-        inactive_vessels=Count('id', filter=models.Q(active=False))
-    )
+    # Force evaluation to prevent re-evaluation
+    vessels_list = list(vessels_data)
     
-    pricing_summary = get_all_vessel_pricing_summary()
+    # 🚀 QUERY 2: Get total general products (simple count)
+    from products.models import Product
+    total_general_products = Product.objects.filter(
+        active=True, is_duty_free=False
+    ).count()
     
+    # 🚀 QUERY 3: Get ALL vessel pricing data in one simple query - NO joins
+    all_vessel_pricing = list(VesselProductPrice.objects.filter(
+        product__active=True,
+        product__is_duty_free=False
+    ).values_list('vessel_id', 'product_id'))
+    
+    # 🚀 PYTHON PROCESSING: Group pricing data by vessel
+    from collections import defaultdict
+    vessel_custom_products = defaultdict(set)
+    for vessel_id, product_id in all_vessel_pricing:
+        vessel_custom_products[vessel_id].add(product_id)
+    
+    # 🚀 PYTHON PROCESSING: Build vessel_data - ALL calculations in Python
     vessel_data = []
-    
-    for vessel in vessels_data:
-        pricing_warnings = get_vessel_pricing_warnings(vessel)
-        
+    for vessel in vessels_list:
+        # Calculate pricing using Python only - NO database queries
         if vessel.has_duty_free:
             pricing_data = {
                 'is_duty_free': True,
@@ -87,20 +109,28 @@ def vessel_management(request):
                 'products_priced': 0,
                 'total_products': 0
             }
+            pricing_warnings = {
+                'has_warnings': False,
+                'missing_price_count': 0
+            }
         else:
-            total_general_products = pricing_summary['total_general_products']
-            missing_count = pricing_warnings['missing_price_count']
-            products_priced = total_general_products - missing_count
-            completion_pct = (products_priced / max(total_general_products, 1)) * 100
+            # Count custom products for this vessel
+            products_with_custom_pricing = len(vessel_custom_products.get(vessel.id, set()))
+            missing_count = total_general_products - products_with_custom_pricing
+            completion_pct = (products_with_custom_pricing / max(total_general_products, 1)) * 100
             
             pricing_data = {
                 'is_duty_free': False,
-                'completion_percentage': round(completion_pct, 0),
-                'products_priced': products_priced,
+                'completion_percentage': round(completion_pct, 1),
+                'products_priced': products_with_custom_pricing,
                 'total_products': total_general_products
             }
+            pricing_warnings = {
+                'has_warnings': missing_count > 0,
+                'missing_price_count': missing_count
+            }
         
-        vessel_data.append({
+        vessel_info = {
             'vessel': vessel,
             'trips_30d': vessel.trips_30d or 0,
             'total_trips': vessel.total_trips or 0,
@@ -108,7 +138,33 @@ def vessel_management(request):
             'total_passengers_30d': vessel.total_passengers_30d or 0,
             'pricing_warnings': pricing_warnings,
             'pricing_data': pricing_data,
-        })
+        }
+        
+        vessel_data.append(vessel_info)
+    
+    # 🚀 PYTHON PROCESSING: Calculate stats from processed vessels
+    total_vessels = len(vessels_list)
+    active_vessels = len([v for v in vessels_list if v.active])
+    duty_free_vessels = len([v for v in vessels_list if v.has_duty_free and v.active])
+    inactive_vessels = total_vessels - active_vessels
+    
+    vessel_stats = {
+        'total_vessels': total_vessels,
+        'active_vessels': active_vessels,
+        'duty_free_vessels': duty_free_vessels,
+        'inactive_vessels': inactive_vessels,
+    }
+    
+    # 🚀 PYTHON PROCESSING: Calculate pricing summary for warnings
+    touristic_vessels = [v for v in vessel_data if not v['vessel'].has_duty_free]
+    vessels_with_incomplete_pricing = len([v for v in touristic_vessels if v['pricing_warnings']['has_warnings']])
+    total_missing_prices = sum(v['pricing_warnings']['missing_price_count'] for v in touristic_vessels)
+    
+    pricing_summary = {
+        'vessels_with_incomplete_pricing': vessels_with_incomplete_pricing,
+        'total_missing_prices': total_missing_prices,
+        'total_general_products': total_general_products,
+    }
     
     context = {
         'vessel_data': vessel_data,
@@ -116,8 +172,22 @@ def vessel_management(request):
         'pricing_summary': pricing_summary,
         'reference_date': reference_date,
         'thirty_days_ago': thirty_days_ago,
-        'today': date.today(),
+        'today': reference_date,
     }
+    
+    # 🚀 CACHE: Store data for 1 hour (vessels rarely change, but revenue/trips do)
+    cache.set(cache_key, context, 3600)  # 1 hour timeout
+    
+    print(f"🚀 VESSEL MANAGEMENT CACHE MISS: {len(vessel_data)} vessels cached for 1 hour")
+    print(f"🔍 Total general products: {total_general_products}")
+    print(f"🔍 Vessels with incomplete pricing: {vessels_with_incomplete_pricing}")
+    
+    # Debug first few vessels
+    for vessel_info in vessel_data[:3]:
+        vessel = vessel_info['vessel']
+        pricing = vessel_info['pricing_data']
+        status = "ACTIVE" if vessel.active else "INACTIVE"
+        print(f"🔍 {vessel.name} ({status}): {pricing['products_priced']}/{pricing['total_products']} ({pricing['completion_percentage']}%)")
     
     return render(request, 'frontend/auth/vessel_management.html', context)
 
@@ -223,6 +293,12 @@ def create_vessel(request):
                 created_by=request.user
             )
             
+            # Clear vessel management cache
+            try:
+                VesselManagementCacheHelper.clear_vessel_management_cache()
+            except Exception as e:
+                print(f"⚠️ Cache clear error: {e}")
+            
             return JsonResponseHelper.success(
                 message=f'Vessel "{vessel.name}" created successfully',
                 data={
@@ -230,6 +306,7 @@ def create_vessel(request):
                     'vessel_name': vessel.name
                 }
             )
+        
             
         except Exception as e:
             return JsonResponseHelper.error(str(e))
@@ -264,6 +341,12 @@ def edit_vessel(request, vessel_id):
             vessel.active = data['active']
             vessel.save()
             
+            # Clear vessel management cache  
+            try:
+                VesselManagementCacheHelper.clear_vessel_management_cache()
+            except Exception as e:
+                print(f"⚠️ Cache clear error: {e}")
+                
             return JsonResponseHelper.success(
                 message=f'Vessel "{vessel.name}" updated successfully',
                 vessel_name=vessel.name
@@ -294,6 +377,13 @@ def toggle_vessel_status(request, vessel_id):
             return JsonResponseHelper.error(
                 f'Cannot deactivate vessel. Has {incomplete_counts["incomplete_trips"]} incomplete trips and {incomplete_counts["incomplete_pos"]} incomplete purchase orders.'
             )
+    
+    # 🚀 ADD HERE - Clear vessel management cache before successful toggle
+    try:
+        from frontend.utils.cache_helpers import VesselManagementCacheHelper
+        VesselManagementCacheHelper.clear_vessel_management_cache()
+    except Exception as e:
+        print(f"⚠️ Cache clear error: {e}")
     
     return CRUDHelper.toggle_boolean_field(vessel, 'active', 'Vessel')
 

@@ -279,3 +279,28 @@ class VesselCacheHelper:
             'cache_key': cls.CACHE_KEY,
             'timeout': cls.CACHE_TIMEOUT
         }
+
+class VesselManagementCacheHelper:
+    """Cache helper for vessel management page"""
+    
+    @classmethod
+    def clear_vessel_management_cache(cls):
+        """Clear vessel management cache when vessels are modified"""
+        from django.core.cache import cache
+        from datetime import date, timedelta
+        
+        cleared_keys = []
+        
+        # Clear cache for today and recent days (in case timezone differences)
+        today = date.today()
+        for days_back in range(3):  # Clear last 3 days to be safe
+            cache_date = today - timedelta(days=days_back)
+            cache_key = f"vessel_management_{cache_date}"
+            if cache.delete(cache_key):
+                cleared_keys.append(cache_key)
+        
+        # Also clear vessel dropdown cache since vessel list might have changed
+        VesselCacheHelper.clear_cache()
+        
+        print(f"🚀 VESSEL MANAGEMENT CACHE CLEARED: {len(cleared_keys)} keys")
+        return True, len(cleared_keys)
