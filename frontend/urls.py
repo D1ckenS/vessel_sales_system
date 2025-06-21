@@ -44,11 +44,11 @@ urlpatterns = [
     path('groups/<int:group_id>/delete/', group_views.delete_group, name='delete_group'),
     path('groups/<int:group_id>/details/', group_views.group_details, name='group_details'),
     path('setup-groups/', group_views.setup_groups, name='setup_groups'),
-    
+
     # =============================================================================
     # INVENTORY MANAGEMENT
     # =============================================================================
-    
+
     # Product Management
     path('products/manage/<int:product_id>/delete/', product_views.delete_product, name='delete_product'),
     path('products/', product_views.product_list_view, name='product_list'),
@@ -57,7 +57,8 @@ urlpatterns = [
     path('products/add/', product_views.product_create_view, name='add_product_form'),  # Compatibility
     path('products/check-exists/', product_views.check_product_exists, name='check_product_exists'),
     path('products/edit/<int:product_id>/', product_views.product_edit_view, name='product_edit'),
-
+    path('products/debug-cache/', product_views.debug_cache_status, name='debug_cache_status'),
+    
     # Category Management
     path('categories/manage/', category_views.category_management, name='category_management'),
     path('categories/create/', category_views.create_category, name='create_category'),

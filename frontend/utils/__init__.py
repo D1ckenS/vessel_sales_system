@@ -125,7 +125,7 @@ class BilingualMessages:
             'required_fields_missing': 'يرجى ملء جميع الحقول المطلوبة.',
             'purchase_date_required': 'تاريخ الشراء مطلوب للمخزون الأولي.',
             'no_valid_stock_data': 'لم يتم توفير بيانات مخزون صالحة',
-            'cannot_add_duty_free': 'لا يمكن إضافة منتج معفى من الرسوم إلى {vessel_name}',
+            'cannot_add_duty_free': 'لا يمكن إضافة منتج سوق حرة إلى {vessel_name}',
             'invalid_vessel_data': 'بيانات غير صالحة لـ {vessel_name}',
             
             # Trip messages (Arabic)

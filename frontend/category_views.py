@@ -4,6 +4,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Count, Q
 from .utils import BilingualMessages
 from products.models import Category
+from frontend.utils.cache_helpers import ProductCacheHelper
 
 @login_required
 @user_passes_test(is_admin_or_manager) 
@@ -47,7 +48,8 @@ def create_category(request):
                 active=active,
                 created_by=request.user
             )
-            
+            ProductCacheHelper.clear_product_management_cache()
+
             BilingualMessages.success(request, 'category_created_success', name=category.name)
             return redirect('frontend:category_management')
             
@@ -109,11 +111,12 @@ def delete_category(request, category_id):
                 category_name = category.name
                 category.delete()
                 BilingualMessages.success(request, 'category_deleted_success', name=category_name)
-            
+
+            ProductCacheHelper.clear_product_management_cache()
             return redirect('frontend:category_management')
             
         except Exception as e:
             BilingualMessages.error(request, 'error_deleting_category', error=str(e))
             return redirect('frontend:category_management')
-    
+
     return redirect('frontend:category_management')

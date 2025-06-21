@@ -26,10 +26,36 @@
     box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,.075);
 }
 
+/* 🆕 RESTORED: Enhanced vessel pricing styling */
 .vessel-pricing-card {
     border-left: 4px solid #ffc107;
     background: linear-gradient(135deg, #fff3cd, #ffeaa7);
 }
+
+.pricing-warning {
+    background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+    border-left: 4px solid #ffc107;
+    color: #856404;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.pricing-completion-bar {
+    height: 8px;
+    border-radius: 4px;
+    background: #e9ecef;
+    overflow: hidden;
+}
+
+.pricing-completion-fill {
+    height: 100%;
+    transition: width 0.3s ease;
+}
+
+.completion-high { background: #28a745; }
+.completion-medium { background: #ffc107; }
+.completion-low { background: #dc3545; }
 
 .vessel-price-input {
     border-radius: 8px;
@@ -42,6 +68,7 @@
     box-shadow: 0 0 0 0.2rem rgba(255, 193, 7, 0.25);
 }
 
+/* 🆕 RESTORED: Better form styling */
 .form-floating > label {
     opacity: 0.65;
 }
@@ -50,6 +77,16 @@
 .form-floating > .form-control:not(:placeholder-shown) ~ label {
     opacity: 0.85;
     transform: scale(0.85) translateY(-0.5rem) translateX(0.15rem);
+}
+
+/* 🆕 ENHANCED: Better spacing and layout */
+.form-control-lg {
+    padding: 0.75rem 1rem;
+    font-size: 1.1rem;
+}
+
+.fw-bold {
+    font-weight: 600 !important;
 }
 
 @media (max-width: 768px) {
@@ -125,68 +162,80 @@
 
 <!-- Product Form -->
 <div class="row">
-    <div class="col-lg-8 mx-auto">
+    <div class="col-lg-10 mx-auto">
         <form method="POST" id="productForm" novalidate>
             {% csrf_token %}
             
             <!-- Basic Product Information -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h5 class="mb-0">
-                        <i class="bi bi-info-circle"></i> <span data-translate="basic_information">Basic Information</span>
-                    </h5>
+            <div class="card-body">
+                <div class="row">
+                    <!-- Product Name - Enhanced -->
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-tag"></i> <span data-translate="product_name">Product Name</span> *
+                        </label>
+                        <input type="text" class="form-control form-control-lg" name="name" 
+                            value="{% if product %}{{ product.name }}{% endif %}" 
+                            placeholder="e.g., بيبسي 250 ملل or Pepsi 250ml"
+                            data-placeholder-en="e.g., بيبسي 250 ملل or Pepsi 250ml"
+                            data-placeholder-ar="مثال: بيبسي 250 ملل او Pepsi 250ml"
+                            required>
+                        <small class="text-muted"><span data-translate="arabic_english_name">Arabic or English name</span></small>
+                    </div>
+
+                    <!-- Item ID - Enhanced -->
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-hash"></i> <span data-translate="item_id">Item ID</span> *
+                        </label>
+                        <input type="text" class="form-control form-control-lg" name="item_id" 
+                            value="{% if product %}{{ product.item_id }}{% endif %}" 
+                            placeholder="e.g., 105, PEPSI250, etc."
+                            data-placeholder-en="e.g., 105, PEPSI250, etc."
+                            data-placeholder-ar="مثال: 105، PEPSI250، إلخ"
+                            required>
+                        <small class="text-muted"><span data-translate="unique_identifier_manual">Unique identifier - enter manually</span></small>
+                    </div>
                 </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <div class="form-floating">
-                                <input type="text" class="form-control" id="name" name="name" 
-                                       value="{% if product %}{{ product.name }}{% endif %}" 
-                                       placeholder=" " required>
-                                <label for="name"><span data-translate="product_name">Product Name</span> *</label>
-                            </div>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <div class="form-floating">
-                                <input type="text" class="form-control" id="item_id" name="item_id" 
-                                       value="{% if product %}{{ product.item_id }}{% endif %}" 
-                                       placeholder=" " required>
-                                       <label for="item_id"><span data-translate="item_id">Item ID</span> *</label>
-                                    </div>
-                                </div>
-                            </div>
-                            <div id="ajaxAlert" class="alert d-none" role="alert"></div>
-                            
-                            <div class="row">
-                                <div class="col-md-4 mb-3">
-                                    <div class="form-floating">
-                                        <select class="form-select" id="category" name="category" required>
-                                            <option value=""><span data-translate="select_category">Select Category</span></option>
-                                            {% for category in categories %}
-                                            <option value="{{ category.id }}" {% if product and product.category.id == category.id %}selected{% endif %}>
-                                                {{ category.name }}
-                                            </option>
-                                            {% endfor %}
-                                        </select>
-                                <label for="category"><span data-translate="category">Category</span> *</label>
-                            </div>
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <div class="form-floating">
-                                <input type="number" class="form-control" id="purchase_price" name="purchase_price" 
-                                       value="{% if product %}{{ product.purchase_price }}{% endif %}" 
-                                       step="0.001" min="0" placeholder=" " required>
-                                <label for="purchase_price"><span data-translate="purchase_price">Purchase Price (JOD)</span> *</label>
-                            </div>
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <div class="form-floating">
-                                <input type="number" class="form-control" id="selling_price" name="selling_price" 
-                                       value="{% if product %}{{ product.selling_price }}{% endif %}" 
-                                       step="0.001" min="0" placeholder=" " required>
-                                <label for="selling_price"><span data-translate="selling_price">Selling Price (JOD)</span> *</label>
-                            </div>
-                        </div>
+                <div id="ajaxAlert" class="alert d-none" role="alert"></div>
+                
+                <div class="row">
+                    <!-- Category -->
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-collection"></i> <span data-translate="category">Category</span> *
+                        </label>
+                        <select class="form-select form-select-lg" name="category" required>
+                            <option value=""><span data-translate="select_category">Select category...</span></option>
+                            {% for category in categories %}
+                            <option value="{{ category.id }}" {% if product and product.category.id == category.id %}selected{% endif %}>
+                                {{ category.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted"><span data-translate="choose_appropriate_category">Choose appropriate product category</span></small>
+                    </div>
+                    
+                    <!-- Purchase Price -->
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-currency-dollar"></i> <span data-translate="purchase_price_jod">Purchase Price (JOD)</span> *
+                        </label>
+                        <input type="number" class="form-control form-control-lg" name="purchase_price" 
+                            value="{% if product %}{{ product.purchase_price }}{% endif %}" 
+                            step="0.001" min="0" placeholder="0.000" required>
+                        <small class="text-muted"><span data-translate="cost_price_3_decimal">Cost price - 3 decimal places</span></small>
+                    </div>
+                    
+                    <!-- Selling Price -->
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-tag-fill"></i> <span data-translate="selling_price_jod">Selling Price (JOD)</span> *
+                        </label>
+                        <input type="number" class="form-control form-control-lg" name="selling_price" 
+                            value="{% if product %}{{ product.selling_price }}{% endif %}" 
+                            step="0.001" min="0" placeholder="0.000" required>
+                        <small class="text-muted"><span data-translate="customer_price_3_decimal">Customer price - 3 decimal places</span></small>
                     </div>
                 </div>
             </div>
@@ -231,45 +280,89 @@
 
             <!-- Vessel-Specific Pricing (for General Products only) -->
             <div class="card mb-4 vessel-pricing-card" id="vesselPricingCard" 
-                 style="{% if product and product.is_duty_free %}display: none;{% endif %}">
+                style="{% if product and product.is_duty_free %}display: none;{% endif %}">
                 <div class="card-header">
-                    <h5 class="mb-0">
-                        <i class="bi bi-ship"></i> <span data-translate="vessel_pricing">Vessel-Specific Pricing</span>
-                    </h5>
-                    <small class="text-muted">
-                        <span data-translate="vessel_pricing_desc">Set different selling prices for each touristic vessel</span>
-                    </small>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="bi bi-ship"></i> <span data-translate="vessel_pricing">Vessel-Specific Pricing</span>
+                            <span class="badge bg-warning text-dark ms-2"><span data-translate="optional">Optional</span></span>
+                        </h5>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="enableVesselPricing" 
+                                {% if existing_vessel_prices %}checked{% endif %}>
+                            <label class="form-check-label fw-bold" for="enableVesselPricing">
+                                <span data-translate="set_custom_pricing">Set Custom Pricing</span>
+                            </label>
+                        </div>
+                    </div>
                 </div>
-                <div class="card-body">
-                    {% if touristic_vessels %}
-                        <div class="row">
-                            {% for vessel in touristic_vessels %}
-                            <div class="col-md-6 mb-3">
-                                <div class="form-floating">
-                                    <input type="number" 
-                                           class="form-control vessel-price-input" 
-                                           id="vessel_price_{{ vessel.id }}" 
-                                           name="vessel_price_{{ vessel.id }}" 
-                                           value="{% if existing_vessel_prices %}{{ existing_vessel_prices|get_item:vessel.id|default_if_none:'' }}{% endif %}"
-                                           step="0.001" 
-                                           min="0" 
-                                           placeholder=" ">
-                                    <label for="vessel_price_{{ vessel.id }}">
-                                        <i class="bi bi-ship"></i> {{ vessel.name }} <span data-translate="price">Price</span> (JOD)
-                                    </label>
-                                </div>
+                <div class="card-body" id="vesselPricingContent" {% if not existing_vessel_prices %}style="display: none;"{% endif %}>
+                    <!-- Enhanced Info Alert -->
+                    <div class="alert alert-info border-0 mb-3">
+                        <div class="d-flex align-items-start">
+                            <i class="bi bi-info-circle me-3 mt-1"></i>
+                            <div>
+                                <h6 class="mb-2"><span data-translate="vessel_pricing_info">Vessel Pricing Information:</span></h6>
+                                <ul class="mb-0 small">
+                                    <li><strong><span data-translate="default_behavior">Default:</span></strong> <span data-translate="uses_general_selling_price">Uses general selling price for all vessels</span></li>
+                                    <li><strong><span data-translate="custom_pricing">Custom:</span></strong> <span data-translate="set_specific_prices">Set specific prices for individual vessels</span></li>
+                                    <li><strong><span data-translate="blank_fields">Blank fields:</span></strong> <span data-translate="will_use_default">Will use the default selling price</span></li>
+                                </ul>
                             </div>
-                            {% endfor %}
                         </div>
-                        <div class="alert alert-info">
-                            <i class="bi bi-info-circle"></i>
-                            <span data-translate="vessel_pricing_optional">Vessel-specific pricing is optional. Leave blank to use the default selling price.</span>
-                        </div>
+                    </div>
+
+                    {% if touristic_vessels %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th><i class="bi bi-ship"></i> <span data-translate="vessel">Vessel</span></th>
+                                    <th class="text-center"><i class="bi bi-currency-dollar"></i> <span data-translate="selling_price_jod">Selling Price (JOD)</span></th>
+                                    <th class="text-center"><span data-translate="status">Status</span></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for vessel in touristic_vessels %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <span class="badge bg-primary me-2">{{ vessel.name|slice:":2"|upper }}</span>
+                                            <div>
+                                                <strong class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</strong>
+                                                <br><small class="text-muted"><span data-translate="general_vessel">General Vessel</span></small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="text-center">
+                                        <input type="number" 
+                                            class="form-control vessel-price-input text-center"
+                                            name="vessel_price_{{ vessel.id }}" 
+                                            value="{% if existing_vessel_prices %}{{ existing_vessel_prices|get_item:vessel.id }}{% endif %}"
+                                            step="0.001" min="0" 
+                                            placeholder="{% if product %}{{ product.selling_price }}{% else %}0.000{% endif %}">
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-success"><span data-translate="active">Active</span></span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="mt-3 p-3 bg-light rounded">
+                        <small class="text-muted">
+                            <i class="bi bi-lightbulb"></i> 
+                            <strong><span data-translate="tip">Tip:</span></strong> 
+                            <span data-translate="vessel_pricing_tip">Leave blank to use the default selling price. Custom prices override the general selling price for specific vessels.</span>
+                        </small>
+                    </div>
                     {% else %}
-                        <div class="alert alert-warning">
-                            <i class="bi bi-exclamation-triangle"></i>
-                            <span data-translate="no_touristic_vessels">No touristic vessels found. Contact administrator to add vessels.</span>
-                        </div>
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <span data-translate="no_touristic_vessels">No touristic vessels found. Contact administrator to add vessels.</span>
+                    </div>
                     {% endif %}
                 </div>
             </div>
@@ -280,28 +373,24 @@
                         <div class="col-md-8">
                             <div class="d-flex gap-2 flex-wrap">
                                 {% if mode == 'edit' %}
-                                    <button type="submit" name="action" value="save" class="btn btn-primary">
+                                    <button type="submit" name="action" value="save" class="btn btn-primary btn-lg">
                                         <i class="bi bi-check-circle"></i> <span data-translate="update_product">Update Product</span>
                                     </button>
                                 {% else %}
-                                    <button type="submit" name="action" value="save" class="btn btn-primary">
+                                    <button type="submit" name="action" value="save" class="btn btn-primary btn-lg">
                                         <i class="bi bi-check-circle"></i> <span data-translate="save_product">Save Product</span>
                                     </button>
-                                    <button type="submit" name="action" value="save_and_add_stock" class="btn btn-success" id="saveWithStockBtn">
-                                        <i class="bi bi-plus-square"></i> <span data-translate="save_and_add_stock">Save & Add Stock</span>
-                                    </button>
                                 {% endif %}
-                                <a href="{% url 'frontend:product_list' %}" class="btn btn-outline-secondary">
+                                <a href="{% url 'frontend:product_list' %}" class="btn btn-outline-secondary btn-lg">
                                     <i class="bi bi-x-circle"></i> <span data-translate="cancel">Cancel</span>
                                 </a>
                             </div>
                         </div>
-                        <div class="col-md-4 text-md-end">
-                            {% if mode == 'edit' %}
-                                <button type="button" class="btn btn-outline-danger" onclick="deleteProduct({{ product.id }}, '{{ product.name }}')">
-                                    <i class="bi bi-trash"></i> <span data-translate="delete_product">Delete Product</span>
-                                </button>
-                            {% endif %}
+                        <div class="col-md-4 text-end">
+                            <small class="text-muted">
+                                <i class="bi bi-info-circle"></i> 
+                                <span data-translate="form_help">All required fields marked with *</span>
+                            </small>
                         </div>
                     </div>
                 </div>
@@ -446,5 +535,161 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('grandTotal').textContent = grandTotal.toFixed(3);
     }
 });
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Enhanced vessel pricing toggle
+    const enableVesselPricing = document.getElementById('enableVesselPricing');
+    const vesselPricingContent = document.getElementById('vesselPricingContent');
+    
+    if (enableVesselPricing) {
+        enableVesselPricing.addEventListener('change', function() {
+            if (this.checked) {
+                vesselPricingContent.style.display = 'block';
+                vesselPricingContent.style.animation = 'fadeIn 0.3s ease';
+            } else {
+                vesselPricingContent.style.display = 'none';
+            }
+        });
+    }
+    
+    // Enhanced duty-free toggle
+    const dutyFreeSwitch = document.getElementById('dutyFreeSwitch');
+    const vesselPricingCard = document.getElementById('vesselPricingCard');
+    
+    if (dutyFreeSwitch) {
+        dutyFreeSwitch.addEventListener('change', function() {
+            if (this.checked) {
+                vesselPricingCard.style.display = 'none';
+            } else {
+                vesselPricingCard.style.display = 'block';
+            }
+        });
+    }
+    
+    // Enhanced form validation with better UX
+    const form = document.getElementById('productForm');
+    const inputs = form.querySelectorAll('input[required], select[required]');
+    
+    inputs.forEach(input => {
+        input.addEventListener('blur', function() {
+            if (this.value.trim() === '') {
+                this.classList.add('is-invalid');
+            } else {
+                this.classList.remove('is-invalid');
+                this.classList.add('is-valid');
+            }
+        });
+        
+        input.addEventListener('input', function() {
+            if (this.classList.contains('is-invalid') && this.value.trim() !== '') {
+                this.classList.remove('is-invalid');
+                this.classList.add('is-valid');
+            }
+        });
+    });
+    
+    // Enhanced AJAX validation for item_id and name
+    const nameInput = document.querySelector('input[name="name"]');
+    const itemIdInput = document.querySelector('input[name="item_id"]');
+    const ajaxAlert = document.getElementById('ajaxAlert');
+    
+    function showAlert(message, type = 'warning') {
+        ajaxAlert.className = `alert alert-${type}`;
+        ajaxAlert.textContent = message;
+        ajaxAlert.classList.remove('d-none');
+        
+        setTimeout(() => {
+            ajaxAlert.classList.add('d-none');
+        }, 3000);
+    }
+    
+    function checkUniqueness(field, value) {
+        if (value.trim() === '') return;
+        
+        fetch(`/products/check-exists/?${field}=${encodeURIComponent(value)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.exists) {
+                    showAlert(`${field === 'item_id' ? 'Item ID' : 'Product name'} already exists!`, 'danger');
+                    if (field === 'item_id') {
+                        itemIdInput.classList.add('is-invalid');
+                    } else {
+                        nameInput.classList.add('is-invalid');
+                    }
+                }
+            })
+            .catch(error => console.error('Error:', error));
+    }
+    
+    // Debounced uniqueness checking
+    let timeout;
+    [nameInput, itemIdInput].forEach(input => {
+        if (input) {
+            input.addEventListener('input', function() {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => {
+                    const field = this.name;
+                    const value = this.value;
+                    checkUniqueness(field, value);
+                }, 500);
+            });
+        }
+    });
+    
+    // Enhanced placeholder translation
+    function updatePlaceholders() {
+        const currentLang = window.translator ? window.translator.currentLanguage : 'en';
+        
+        document.querySelectorAll('[data-placeholder-en], [data-placeholder-ar]').forEach(element => {
+            const placeholder = element.getAttribute(`data-placeholder-${currentLang}`);
+            if (placeholder) {
+                element.placeholder = placeholder;
+            }
+        });
+    }
+    
+    // Update placeholders on language change
+    if (window.translator) {
+        window.addEventListener('languageChanged', updatePlaceholders);
+        updatePlaceholders(); // Initial call
+    }
+    
+    // Enhanced form submission with loading state
+    form.addEventListener('submit', function(e) {
+        const submitButtons = form.querySelectorAll('button[type="submit"]');
+        
+        submitButtons.forEach(btn => {
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
+            btn.disabled = true;
+            
+            // Re-enable after 5 seconds as failsafe
+            setTimeout(() => {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }, 5000);
+        });
+    });
+});
+
+// CSS animations
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .is-invalid {
+        border-color: #dc3545 !important;
+        box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25) !important;
+    }
+    
+    .is-valid {
+        border-color: #198754 !important;
+        box-shadow: 0 0 0 0.2rem rgba(25, 135, 84, 0.25) !important;
+    }
+`;
+document.head.appendChild(style);
 </script>
 {% endblock %}

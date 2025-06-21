@@ -1,0 +1,88 @@
+{% extends 'frontend/base.html' %}
+
+{% block title %}Cache Debug - Vessel Sales System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>
+                    <i class="bi bi-speedometer2 text-primary"></i> 
+                    Cache Debug Status
+                </h2>
+                <p class="text-muted mb-0">Monitor and manage application cache</p>
+            </div>
+            <a href="{% url 'frontend:product_list' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Products
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-list-check"></i> Cache Status
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Cache Key</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for key, exists in cache_status.items %}
+                            <tr>
+                                <td><code>{{ key }}</code></td>
+                                <td>
+                                    {% if exists %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Cleared</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-tools"></i> Actions
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    {% csrf_token %}
+                    <button type="submit" name="action" value="clear_all" 
+                            class="btn btn-warning w-100"
+                            onclick="return confirm('Clear all product-related cache?')">
+                        <i class="bi bi-trash"></i> Clear All Cache
+                    </button>
+                </form>
+                
+                <hr>
+                
+                <div class="alert alert-info">
+                    <small>
+                        <strong>Tip:</strong> Cache is automatically cleared when you create, update, or delete products.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

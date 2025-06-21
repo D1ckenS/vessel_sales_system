@@ -1,6 +1,6 @@
 from django.core.cache import cache
 from vessels.models import Vessel
-from datetime import date
+from datetime import timedelta
 import fnmatch
 
 class VesselCacheHelper:
@@ -72,196 +72,214 @@ from datetime import date
 import hashlib
 
 class ProductCacheHelper:
-    """Cache management for product-related pages with configurable timeouts"""
+    """Enhanced cache management for product-related operations"""
     
     # Cache timeouts (in seconds)
-    PRODUCT_MANAGEMENT_CACHE_TIMEOUT = 86400  # 24 hours (daily refresh)
-    PRODUCT_STATS_CACHE_TIMEOUT = 43200       # 12 hours (twice daily)
-    PRODUCT_PRICING_CACHE_TIMEOUT = 21600     # 6 hours (for pricing changes)
-    
-    # Alternative timeouts for different scenarios:
-    # WEEKLY_REFRESH = 604800    # 7 days
-    # DAILY_REFRESH = 86400      # 24 hours  
-    # HOURLY_REFRESH = 3600      # 1 hour
+    PRODUCT_MANAGEMENT_CACHE_TIMEOUT = 86400  # 24 hours
+    PRODUCT_STATS_CACHE_TIMEOUT = 43200       # 12 hours
+    PRODUCT_PRICING_CACHE_TIMEOUT = 21600     # 6 hours
     
     CACHE_KEY_PREFIX = 'product_mgmt'
     
+    # 🆕 COMPREHENSIVE: All cache keys used in the system
+    STATIC_CACHE_KEYS = [
+        'perfect_static_v2',
+        'perfect_incomplete_pricing_v2',
+        'active_categories',
+        'vessel_pricing_summary',
+        'ultimate_static_cache',
+        'pricing_warnings_cache',
+        'touristic_vessels_count',
+        'category_cache',
+        'vessel_cache',
+    ]
+    
+    # 🆕 PATTERN-BASED: Cache key patterns to clear
+    CACHE_PATTERNS = [
+        'product_mgmt_*',
+        'product_list_*',
+        'product_form_*',
+        'inventory_*',
+        'vessel_pricing_*',
+        'category_*',
+        'reports_dashboard_*',
+        'daily_report_*',
+        'monthly_report_*',
+    ]
+    
     @classmethod
     def get_cache_key(cls, filters_dict, page_number=1, page_size=30):
-        """
-        Generate consistent cache key for product management pages
+        """Generate consistent cache key for product management pages"""
+        from datetime import date
+        import hashlib
         
-        Args:
-            filters_dict: Dictionary of filter parameters
-            page_number: Current page number
-            page_size: Items per page
-        
-        Returns:
-            str: Cache key for the specific filter/page combination
-        """
         today = date.today()
-        
-        # Create filter string from dictionary
         filter_string = f"{filters_dict.get('search', '')}_{filters_dict.get('category', '')}_{filters_dict.get('status', '')}_{page_number}_{page_size}"
-        
-        # Create hash of filter combination
         filter_hash = hashlib.md5(filter_string.encode()).hexdigest()[:8]
-        
         return f'{cls.CACHE_KEY_PREFIX}_page_{today}_{filter_hash}'
-    
-    @classmethod
-    def get_cached_data(cls, cache_key):
-        """
-        Get cached data with fallback handling
-        
-        Args:
-            cache_key: Cache key to retrieve
-            
-        Returns:
-            dict or None: Cached data if exists and valid
-        """
-        try:
-            return cache.get(cache_key)
-        except Exception as e:
-            print(f"Cache retrieval error: {e}")
-            return None
-    
-    @classmethod
-    def set_cached_data(cls, cache_key, data, timeout=None):
-        """
-        Set cached data with default timeout
-        
-        Args:
-            cache_key: Cache key to set
-            data: Data to cache
-            timeout: Cache timeout (uses default if None)
-        """
-        if timeout is None:
-            timeout = cls.PRODUCT_MANAGEMENT_CACHE_TIMEOUT
-            
-        try:
-            cache.set(cache_key, data, timeout)
-            return True
-        except Exception as e:
-            print(f"Cache storage error: {e}")
-            return False
-    
-    @classmethod
-    def clear_product_management_cache(cls):
-        """
-        Clear all product management cache entries.
-        Call this when products are created, updated, or deleted.
-        """
-        try:
-            today = date.today()
-            
-            # Clear cache for common filter combinations and page sizes
-            statuses = ['', 'active', 'inactive']
-            categories = [''] + [str(i) for i in range(1, 21)]  # Support up to 20 categories
-            page_sizes = [30, 50, 100]
-            
-            cleared_count = 0
-            
-            # Clear first 10 pages for each combination
-            for page_num in range(1, 11):
-                for status in statuses:
-                    for category in categories[:6]:  # Limit to first 6 categories for performance
-                        for page_size in page_sizes:
-                            # Generate cache key
-                            filters = {'search': '', 'category': category, 'status': status}
-                            cache_key = cls.get_cache_key(filters, page_num, page_size)
-                            
-                            if cache.delete(cache_key):
-                                cleared_count += 1
-            
-            print(f"Cleared {cleared_count} product management cache entries")
-            return True
-            
-        except Exception as e:
-            print(f"Error clearing product cache: {e}")
-            return False
     
     @classmethod
     def clear_all_product_cache(cls):
         """
-        Nuclear option: Clear all product-related cache.
-        Use this when major changes happen (like bulk updates, system maintenance).
+        🚀 NUCLEAR OPTION: Clear ALL product-related cache
+        This is the most comprehensive cache clearing method
         """
+        from django.core.cache import cache
+        from datetime import date
+        
+        cleared_keys = []
+        
         try:
-            # Clear all cache entries with our prefix
+            # 1. Clear all static cache keys
+            for cache_key in cls.STATIC_CACHE_KEYS:
+                if cache.delete(cache_key):
+                    cleared_keys.append(cache_key)
+            
+            # 2. Clear paginated cache (last 30 days)
             today = date.today()
-            yesterday = date.today().replace(day=date.today().day-1) if date.today().day > 1 else date.today()
+            for days_back in range(30):
+                cache_date = today - timedelta(days=days_back)
+                
+                # Clear different filter combinations
+                statuses = ['', 'active', 'inactive']
+                categories = [''] + [str(i) for i in range(1, 21)]
+                page_sizes = [30, 50, 100]
+                
+                for page_num in range(1, 21):  # Clear first 20 pages
+                    for status in statuses:
+                        for category in categories[:6]:  # Limit to first 6 categories
+                            for page_size in page_sizes:
+                                filters = {'search': '', 'category': category, 'status': status}
+                                cache_key = f'{cls.CACHE_KEY_PREFIX}_page_{cache_date}_{page_num}_{page_size}_{hash(f"{filters}")}'
+                                if cache.delete(cache_key):
+                                    cleared_keys.append(cache_key)
             
-            # Clear today and yesterday's cache (in case of timezone issues)
-            for cache_date in [today, yesterday]:
-                # Try to clear common patterns
-                for i in range(100):  # Clear up to 100 different combinations
-                    cache_key = f'{cls.CACHE_KEY_PREFIX}_page_{cache_date}_{i:08x}'
-                    cache.delete(cache_key)
+            # 3. Clear vessel-related cache (affects pricing)
+            try:
+                from frontend.utils.cache_helpers import VesselCacheHelper
+                VesselCacheHelper.clear_cache()
+                cleared_keys.append('vessel_cache_cleared')
+            except:
+                pass
             
-            # Clear related dashboard caches that might include product stats
-            related_cache_patterns = [
-                'reports_dashboard_*',
-                'daily_report_*', 
-                'monthly_report_*',
-                'inventory_*'
+            # 4. Clear dashboard and report caches
+            dashboard_keys = [
+                'dashboard_quick_stats',
+                'dashboard_recent_activity',
+                'dashboard_performance_metrics',
             ]
+            for key in dashboard_keys:
+                if cache.delete(key):
+                    cleared_keys.append(key)
             
-            for pattern in related_cache_patterns:
-                try:
-                    cache.delete(pattern)
-                except:
-                    pass
+            print(f"🔥 CACHE CLEARED: {len(cleared_keys)} keys removed")
+            print(f"🔥 Keys: {cleared_keys[:10]}{'...' if len(cleared_keys) > 10 else ''}")
             
-            # Clear vessel cache as it might be affected by product changes
-            from .cache_helpers import VesselCacheHelper
-            VesselCacheHelper.clear_cache()
-            
-            print("Cleared all product-related cache entries")
-            return True
+            return True, len(cleared_keys)
             
         except Exception as e:
-            print(f"Error clearing all product cache: {e}")
-            return False
+            print(f"🔥 CACHE CLEAR ERROR: {e}")
+            return False, 0
     
     @classmethod
-    def get_cache_stats(cls):
-        """Get cache statistics and configuration for debugging"""
-        return {
-            'cache_timeouts': {
-                'product_management': f"{cls.PRODUCT_MANAGEMENT_CACHE_TIMEOUT/3600:.1f} hours",
-                'product_stats': f"{cls.PRODUCT_STATS_CACHE_TIMEOUT/3600:.1f} hours", 
-                'product_pricing': f"{cls.PRODUCT_PRICING_CACHE_TIMEOUT/3600:.1f} hours",
-            },
-            'cache_prefix': cls.CACHE_KEY_PREFIX,
-            'today_date': date.today(),
-            'helper_available': True,
-            'clear_function': 'ProductCacheHelper.clear_product_management_cache()',
-            'nuclear_clear': 'ProductCacheHelper.clear_all_product_cache()'
-        }
-    
-    @classmethod
-    def update_cache_timeout(cls, timeout_hours=24):
+    def clear_product_management_cache(cls):
         """
-        Update cache timeout for product management (useful for different deployment scenarios)
+        🎯 TARGETED: Clear product management specific cache
+        Use this for most product operations (create, update, delete)
+        """
+        from django.core.cache import cache
+        from datetime import date, timedelta
         
-        Args:
-            timeout_hours: Number of hours to cache data
-        """
-        cls.PRODUCT_MANAGEMENT_CACHE_TIMEOUT = int(timeout_hours * 3600)
-        print(f"Updated product management cache timeout to {timeout_hours} hours")
+        cleared_keys = []
+        
+        try:
+            # 1. Clear critical static keys
+            critical_keys = [
+                'perfect_static_v2',
+                'perfect_incomplete_pricing_v2',
+                'active_categories',
+                'vessel_pricing_summary',
+            ]
+            
+            for key in critical_keys:
+                if cache.delete(key):
+                    cleared_keys.append(key)
+            
+            # 2. Clear recent paginated cache (last 7 days)
+            today = date.today()
+            for days_back in range(7):
+                cache_date = today - timedelta(days=days_back)
+                
+                # Clear common filter combinations
+                for page_num in range(1, 11):  # First 10 pages
+                    for status in ['', 'active', 'inactive']:
+                        for category in ['', '1', '2', '3']:  # First few categories
+                            for page_size in [30, 50]:  # Common page sizes
+                                filters = {'search': '', 'category': category, 'status': status}
+                                filter_hash = hash(f"{filters}_{page_num}_{page_size}")
+                                cache_key = f'{cls.CACHE_KEY_PREFIX}_page_{cache_date}_{filter_hash}'
+                                if cache.delete(cache_key):
+                                    cleared_keys.append(cache_key)
+            
+            print(f"🎯 TARGETED CACHE CLEARED: {len(cleared_keys)} keys")
+            return True, len(cleared_keys)
+            
+        except Exception as e:
+            print(f"🎯 TARGETED CACHE ERROR: {e}")
+            return False, 0
     
     @classmethod
-    def is_cache_enabled(cls):
-        """Check if caching is enabled and working"""
-        try:
-            test_key = f"{cls.CACHE_KEY_PREFIX}_test"
-            cache.set(test_key, "test_value", 60)
-            result = cache.get(test_key) == "test_value"
-            cache.delete(test_key)
-            return result
-        except:
-            return False
+    def clear_cache_after_product_create(cls):
+        """Specific cache clearing after product creation"""
+        success, count = cls.clear_product_management_cache()
+        
+        # Also clear category cache since product count changed
+        from django.core.cache import cache
+        cache.delete('category_cache')
+        cache.delete('active_categories')
+        
+        print(f"✅ PRODUCT CREATED - Cache cleared: {count} keys")
+        return success
+    
+    @classmethod
+    def clear_cache_after_product_delete(cls):
+        """Specific cache clearing after product deletion"""
+        success, count = cls.clear_all_product_cache()
+        
+        print(f"🗑️ PRODUCT DELETED - Full cache clear: {count} keys")
+        return success
+    
+    @classmethod
+    def clear_cache_after_product_update(cls):
+        """Specific cache clearing after product update"""
+        success, count = cls.clear_product_management_cache()
+        
+        # Clear pricing cache since prices might have changed
+        from django.core.cache import cache
+        cache.delete('vessel_pricing_summary')
+        cache.delete('pricing_warnings_cache')
+        
+        print(f"📝 PRODUCT UPDATED - Cache cleared: {count} keys")
+        return success
+    
+    @classmethod
+    def debug_cache_status(cls):
+        """Debug method to check cache status"""
+        from django.core.cache import cache
+        
+        cache_status = {}
+        
+        # Check static keys
+        for key in cls.STATIC_CACHE_KEYS:
+            cache_status[key] = cache.get(key) is not None
+        
+        # Count active cache entries
+        active_count = sum(1 for exists in cache_status.values() if exists)
+        
+        print(f"🔍 CACHE STATUS: {active_count}/{len(cls.STATIC_CACHE_KEYS)} static keys active")
+        print(f"🔍 Active keys: {[k for k, v in cache_status.items() if v]}")
+        
+        return cache_status
         
 # 🚀 PERFECT PAGINATION - Full template compatibility
 class PerfectPagination:
