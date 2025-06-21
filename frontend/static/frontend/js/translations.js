@@ -218,6 +218,8 @@ window.VesselSalesTranslations = {
         'use_form_sales': 'Use the form above to add sales items to this trip',
         'sales_items': 'Sales Items',
         'show_inventory': 'Show Inventory',
+        'use_form_trip': 'Use the form above to add sales items to this trip',
+        'profit': 'Profit',
         
         // Supply Entry translations
         'create_po_description': 'Create purchase order and receive inventory shipments',
@@ -1136,6 +1138,8 @@ window.VesselSalesTranslations = {
         'no_items_in_cart': 'لا يوجد عناصر في السلة',
         'use_form_sales': 'استخدم النموذج بالأعلى لاضافة المبيعات لهذه الرحلة',
         'sales_items': 'عناصر المبيعات',
+        'use_form_trip': 'استخدم النموذج أعلاه لإضافة عناصر المبيعات إلى هذه الرحلة',
+        'profit': 'الربح',
         
         // Supply Entry translations (Arabic)
         'receive_stock': 'استلام البضائع',

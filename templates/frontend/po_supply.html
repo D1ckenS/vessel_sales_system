@@ -83,7 +83,7 @@
             <div>
                 <h2>
                     <i class="bi bi-box-seam text-primary"></i> 
-                    <span data-translate="po_supply">PO Supply</span>: <span class="po-number-display" data-original="{{ po.po_number }}">{{ po.po_number }}</span>
+                    <span data-translate="po_supply">PO Supply</span>: <span class="po-number" data-original="{{ po.po_number }}">{{ po.po_number }}</span>
                 </h2>
                 <p class="text-muted mb-0">
                     <i class="bi bi-ship"></i> <span class="vessel-name" data-en="{{ po.vessel.name }}" data-ar="{{ po.vessel.name_ar }}">{{ po.vessel.name }}</span> •
@@ -126,9 +126,11 @@
                         </h3>
                     </div>
                     <div class="col-md-3">
-                        <h6 class="mb-1 opacity-75"><span data-translate="avg_cost_per_item">Avg Cost per Item</span></h6>
-                        <h3 class="mb-0" id="avgCostPerItem">
-                            <span class="avg-cost-display" data-number data-original="0.000">0.000</span> <span data-currency-symbol>JOD</span>
+                        <h6 class="mb-1 opacity-75"><span data-translate="vessel">Vessel</span></h6>
+                        <h3 class="mb-0">
+                            <span class="vessel-name" data-en="{{ po.vessel.name }}" data-ar="{{ po.vessel.name_ar|default:po.vessel.name }}">
+                                {{ po.vessel.name }}
+                            </span>
                         </h3>
                     </div>
                     <div class="col-md-3">
@@ -424,6 +426,7 @@ document.addEventListener('DOMContentLoaded', function() {
             'po_completed_desc': 'This purchase order has been completed and is now read-only. All items have been received and inventory has been updated.',
             'completion_date': 'Completed:',
             'export_completed_successfully': 'Export completed successfully',
+            'warning': 'Warning',
         },
         ar: {
             'product_catalog': 'كتالوج المنتجات',
@@ -452,6 +455,7 @@ document.addEventListener('DOMContentLoaded', function() {
             'po_completed_desc': 'تم إكمال أمر الشراء هذا وهو الآن للقراءة فقط. تم استلام جميع العناصر وتحديث المخزون.',
             'completion_date': 'تاريخ الإكمال:',
             'export_completed_successfully': 'تم التصدير بنجاح',
+            'warning': 'تحذير',
         }
     };
 
@@ -1097,6 +1101,15 @@ function updateCartDisplay() {
     }).join('');
     
     suppliesList.innerHTML = rows;
+    
+    // 🆕 UPDATE HEADER: Real-time header updates for non-completed POs
+    if (poSuppliesCart.length > 0) {
+        // Update Total Cost in header
+        updateNumberElement('poTotalCost', totalPOCost.toFixed(3));
+        
+        // Update Items Count in header  
+        updateNumberElement('itemCount', poSuppliesCart.length.toString());
+    }
     
     // Update cart count in header
     document.getElementById('suppliesListCount').textContent = poSuppliesCart.length;

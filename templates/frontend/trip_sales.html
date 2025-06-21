@@ -2,6 +2,37 @@
 
 {% block title %}Trip Sales - {{ trip.trip_number }} - Vessel Sales System{% endblock %}
 
+{% block extra_css%}
+<style>
+/* Cart summary styling - matching PO Supply */
+.cart-summary-section {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-top: 2px solid #dee2e6;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .cart-summary-section .row {
+        text-align: center !important;
+    }
+    
+    .cart-summary-section .col-md-4 {
+        margin-top: 10px;
+    }
+}
+
+/* Animation for cart updates */
+.cart-item-updated {
+    animation: highlightUpdate 0.5s ease-in-out;
+}
+
+@keyframes highlightUpdate {
+    0% { background-color: #fff3cd; }
+    100% { background-color: transparent; }
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <!-- Page Header -->
 <div class="row mb-4">
@@ -10,7 +41,7 @@
             <div>
                 <h2>
                     <i class="bi bi-cart-plus text-success"></i> 
-                    <span data-translate="trip_sales">Trip Sales</span>: <span data-number data-original="{{ trip.trip_number }}">{{ trip.trip_number }}</span>
+                    <span data-translate="trip_sales">Trip Sales</span>: <span class="trip-number" data-original="{{ trip.trip_number }}">{{ trip.trip_number }}</span>
                 </h2>
                 <p class="text-muted mb-0">
                     <i class="bi bi-ship"></i> <span class="vessel-name" data-en="{{ trip.vessel.name }}" data-ar="{{ trip.vessel.name_ar }}">{{ trip.vessel.name }}</span> •
@@ -22,11 +53,6 @@
                 <a href="{% url 'frontend:sales_entry' %}" class="btn btn-outline-secondary">
                     <i class="bi bi-arrow-left"></i> <span data-translate="back_to_trips">Back to Trips</span>
                 </a>
-                {% if can_edit %}
-                <button type="button" class="btn btn-success" id="completeTripBtn" onclick="completeTripSales()">
-                    <i class="bi bi-check-circle"></i> <span data-translate="complete_trip">Complete Trip</span> (<span dir="ltr" id="itemCountBadge">0</span>)
-                </button>
-                {% endif %}
             </div>
         </div>
     </div>
@@ -298,13 +324,41 @@
                         </tbody>
                     </table>
                 </div>
-                
+                {% if can_edit %}
                 <!-- Empty State -->
                 <div id="emptySalesState" class="text-center py-5" style="display: none;">
                     <i class="bi bi-cart-x text-muted" style="font-size: 3rem;"></i>
                     <h5 class="text-muted mt-3"><span data-translate="no_items_in_cart">No items in cart</span></h5>
-                    <p class="text-muted"><span data-translate="use_form_sales">Use the form above to add sales items to this trip</span></p>
+                    <p class="text-muted"><span data-translate="use_form_trip">Use the form above to add sales items to this trip</span></p>
                 </div>
+
+                <!-- Cart Summary Footer -->
+                <div class="card-footer bg-light cart-summary-section">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-cart-check text-success me-2" style="font-size: 1.2rem;"></i>
+                                <strong><span data-translate="cart_summary">Cart Summary:</span></strong>
+                                <span class="ms-2">
+                                    <span id="cartSummaryItems" data-number>0</span> <span data-translate="items">items</span>
+                                    • 
+                                    <strong><span id="cartSummaryRevenue" data-number>0.000</span> <span data-currency-symbol>JOD</span></strong>
+                                    {% if user_permissions.can_view_financials %}
+                                    • <span data-translate="profit">Profit:</span> <span id="cartSummaryProfit" data-number>0.000</span> <span data-currency-symbol>JOD</span>
+                                    {% endif %}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <button type="button" class="btn btn-success btn-lg" id="completeTripBtn" onclick="completeTripSales()" disabled>
+                                <span id="completeBtnText">
+                                    <i class="bi bi-check-circle"></i> <span data-translate="complete_trip">Complete Trip</span>
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -1029,13 +1083,12 @@ function updateCartDisplay() {
     const emptyState = document.getElementById('emptySalesState');
     const salesListCount = document.getElementById('salesListCount');
     const itemCount = document.getElementById('itemCount');
-    const itemCountBadge = document.getElementById('itemCountBadge');
+    const completeTripBtn = document.getElementById('completeTripBtn');
     
     // Update counts
     const count = tripSalesCart.length;
     updateNumberElement('salesListCount', count);
     updateNumberElement('itemCount', count);
-    if (itemCountBadge) updateNumberElement('itemCountBadge', count);
     
     // Calculate totals
     let totalRevenue = 0;
@@ -1048,7 +1101,7 @@ function updateCartDisplay() {
         totalProfit += item.total_profit || 0;
     });
     
-    // Update revenue elements with proper number translation
+    // Update header revenue elements (existing functionality)
     const revenueElement = document.getElementById('tripRevenue');
     if (revenueElement) {
         revenueElement.setAttribute('data-original', totalRevenue.toFixed(3));
@@ -1070,12 +1123,50 @@ function updateCartDisplay() {
         }
     }
     
+    // 🆕 NEW: Update footer cart summary elements
+    const cartSummaryItems = document.getElementById('cartSummaryItems');
+    const cartSummaryRevenue = document.getElementById('cartSummaryRevenue');
+    const cartSummaryProfit = document.getElementById('cartSummaryProfit');
+    const completeBtnText = document.getElementById('completeBtnText');
+    
+    if (cartSummaryItems) {
+        cartSummaryItems.innerHTML = 
+            `<span data-number data-original="${count}">${translateNumber(count.toString())}</span>`;
+    }
+    
+    if (cartSummaryRevenue) {
+        cartSummaryRevenue.innerHTML = 
+            `<span data-number data-original="${totalRevenue.toFixed(3)}">${translateNumber(totalRevenue.toFixed(3))}</span>`;
+    }
+    
+    if (cartSummaryProfit && canViewFinancials) {
+        cartSummaryProfit.innerHTML = 
+            `<span data-number data-original="${totalProfit.toFixed(3)}">${translateNumber(totalProfit.toFixed(3))}</span>`;
+    }
+    
+    // Update complete button text with current stats
+    if (completeBtnText) {
+        completeBtnText.innerHTML = 
+            `<i class="bi bi-check-circle"></i> ${_('complete_trip')} (${count} items, ${totalRevenue.toFixed(3)} JOD)`;
+    }
+    
+    // Enable/disable complete button based on cart contents
+    if (completeTripBtn) {
+        if (count === 0) {
+            completeTripBtn.disabled = true;
+            emptyState.style.display = 'block';
+        } else {
+            completeTripBtn.disabled = false;
+            emptyState.style.display = 'none';
+        }
+    }
+    
     // Update table
     if (count === 0) {
         salesList.innerHTML = '';
-        emptyState.style.display = 'block';
+        if (emptyState) emptyState.style.display = 'block';
     } else {
-        emptyState.style.display = 'none';
+        if (emptyState) emptyState.style.display = 'none';
         salesList.innerHTML = tripSalesCart.map((item, index) => {
             // Build table row with conditional COGS and profit columns
             let row = `
@@ -1084,23 +1175,27 @@ function updateCartDisplay() {
                         <div>
                             <strong>${item.product_name}</strong>
                             <small class="text-muted d-block">${_('id_label')}: <span data-number data-original="${item.product_item_id}">${translateNumber(item.product_item_id)}</span></small>
-                            ${item.is_duty_free ? '<span class="badge bg-warning text-dark">' + _('duty_free') + '</span>' : ''}
+                            ${item.is_duty_free ? '<br><span class="badge bg-warning text-dark">' + _('duty_free') + '</span>' : ''}
                         </div>
                     </td>
                     <td class="text-center">
-                        <span class="fw-bold" data-number data-original="${item.quantity}">${translateNumber(item.quantity.toString())}</span>
+                        <span class="fw-bold text-primary" data-number data-original="${item.quantity}">${translateNumber(item.quantity.toString())}</span>
                         <small class="text-muted d-block">${_('units')}</small>
                     </td>
                     <td class="text-end">
-                        <span class="fw-bold" data-number data-original="${item.unit_price.toFixed(3)}">${translateNumber(item.unit_price.toFixed(3))}</span>
+                        <span data-number data-original="${item.unit_price.toFixed(3)}">${translateNumber(item.unit_price.toFixed(3))}</span>
+                        <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+                    </td>
+                    <td class="text-end">
+                        <strong class="text-success" data-number data-original="${item.total_amount.toFixed(3)}">${translateNumber(item.total_amount.toFixed(3))}</strong>
                         <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
                     </td>`;
             
-            // Add COGS and profit columns only if user has financial permissions
+            // Add COGS column if user has financial permissions
             if (canViewFinancials) {
                 row += `
                     <td class="text-end">
-                        <span class="fw-bold text-warning" data-number data-original="${(item.total_cogs || 0).toFixed(3)}">${translateNumber((item.total_cogs || 0).toFixed(3))}</span>
+                        <span class="text-warning" data-number data-original="${(item.total_cogs || 0).toFixed(3)}">${translateNumber((item.total_cogs || 0).toFixed(3))}</span>
                         <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
                     </td>
                     <td class="text-end">
@@ -1110,10 +1205,6 @@ function updateCartDisplay() {
             }
             
             row += `
-                    <td class="text-end">
-                        <span class="fw-bold text-success" data-number data-original="${item.total_amount.toFixed(3)}">${translateNumber(item.total_amount.toFixed(3))}</span>
-                        <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
-                    </td>
                     <td>
                         <small>${item.notes || '-'}</small>
                     </td>

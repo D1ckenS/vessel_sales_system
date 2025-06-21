@@ -1,3 +1,4 @@
+from django.utils import timezone
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
@@ -21,6 +22,24 @@ from django.http import HttpResponse
 import weasyprint
 import io
 import logging
+from .utils.helpers import (format_currency,
+    format_currency_or_none,
+    format_percentage,
+    format_negative_if_supply,
+    get_fifo_cost_for_transfer,
+    calculate_transfer_amounts,
+    calculate_totals_by_type,
+    calculate_product_level_summary,
+    translate_numbers_to_arabic,
+    get_vessel_name_by_language,
+    format_date_for_language,
+    format_datetime_for_language,
+    safe_float,
+    safe_int,
+    format_date,
+    get_date_range_from_request,
+    create_safe_response
+    )
 from .permissions import (
     operations_access_required,
     reports_access_required,
@@ -537,18 +556,17 @@ def export_po_cart(request):
     """Export PO cart data with box breakdown for verification - AUTO-EXPORT during completion"""
     try:
         data = json.loads(request.body)
-        
+    
         po_id = data.get('po_id')
         cart_items = data.get('cart_items', [])
-        export_format = data.get('format', 'pdf')
         language = data.get('language', 'en')
         
         if not po_id or not cart_items:
             return JsonResponse({'success': False, 'error': 'PO ID and cart items required'})
         
         # Get translated labels using existing system
-        from frontend.export_views import get_translated_labels
-        labels = get_translated_labels(request, {'language': language})
+        labels = get_translated_labels(request, data)
+        language = labels['language']
         
         # Get PO for metadata
         try:
@@ -585,33 +603,47 @@ def export_po_cart(request):
             
             # Create enhanced quantity breakdown display
             if num_boxes and items_per_box:
-                quantity_breakdown = f"{num_boxes} {labels['boxes']} × {items_per_box} = {quantity} {labels['units_total']}"
-                calculation_verification = f"{num_boxes} × {items_per_box} × {unit_price:.3f} = {total_amount:.3f} {labels['currency_jod']}"
+                quantity_breakdown = (
+                    f"{translate_numbers_to_arabic(str(num_boxes), language)} {labels['boxes']} × "
+                    f"{translate_numbers_to_arabic(str(items_per_box), language)} = "
+                    f"{translate_numbers_to_arabic(str(quantity), language)} {labels['units_total']}"
+                )
+
+                calculation_verification = (
+                    f"{translate_numbers_to_arabic(str(num_boxes), language)} × "
+                    f"{translate_numbers_to_arabic(str(items_per_box), language)} × "
+                    f"{translate_numbers_to_arabic(f'{unit_price:.3f}', language)} = "
+                    f"{translate_numbers_to_arabic(f'{total_amount:.3f}', language)} {labels['jod']}"
+                )
             else:
-                quantity_breakdown = f"{quantity} {labels['units_total']}"
-                calculation_verification = f"{quantity} × {unit_price:.3f} = {total_amount:.3f} {labels['currency_jod']}"
+                quantity_breakdown = f"{translate_numbers_to_arabic(str(quantity), language)} {labels['units_total']}"
+                calculation_verification = (
+                    f"{translate_numbers_to_arabic(str(quantity), language)} × "
+                    f"{translate_numbers_to_arabic(f'{unit_price:.3f}', language)} = "
+                    f"{translate_numbers_to_arabic(f'{total_amount:.3f}', language)} {labels['jod']}"
+                )
             
             # Smart cost verification
             product_default_cost = float(product.purchase_price) if product.purchase_price else 0
-            cost_status = f"✓ {labels['normal_status']}"
+            cost_status = labels['normal_status']
             
             if product_default_cost > 0:
                 variance_pct = ((unit_price - product_default_cost) / product_default_cost) * 100
                 
                 if variance_pct > 20:
-                    cost_status = f"⚠ {labels['high_cost_status']} (+{variance_pct:.1f}%)"
-                    verification_alerts.append(f"{product.name}: Unit cost {unit_price:.3f} {labels['currency_jod']} is {variance_pct:.1f}% above standard ({product_default_cost:.3f} {labels['currency_jod']})")
+                    cost_status = f"{labels['high_cost_status']} (+{variance_pct:.1f}%)"
+                    verification_alerts.append(f"{product.name}: Unit cost {unit_price:.3f} {labels['jod']} is {variance_pct:.1f}% above standard ({product_default_cost:.3f} {labels['jod']})")
                 elif variance_pct < -20:
-                    cost_status = f"⚠ {labels['low_cost_status']} ({variance_pct:.1f}%)"
-                    verification_alerts.append(f"{product.name}: Unit cost {unit_price:.3f} {labels['currency_jod']} is {abs(variance_pct):.1f}% below standard ({product_default_cost:.3f} {labels['currency_jod']})")
+                    cost_status = f"{labels['low_cost_status']} ({variance_pct:.1f}%)"
+                    verification_alerts.append(f"{product.name}: Unit cost {unit_price:.3f} {labels['jod']} is {abs(variance_pct):.1f}% below standard ({product_default_cost:.3f} {labels['jod']})")
             
             # Enhanced cart item for export
             enhanced_item = {
                 'product_name': product.name,
-                'product_item_id': product.item_id,
+                'product_item_id': translate_numbers_to_arabic(product.item_id, language),
                 'quantity_breakdown': quantity_breakdown,
-                'unit_cost_display': f"{unit_price:.3f} {labels['currency_jod']} {labels['per_unit']}",
-                'total_amount_display': f"{total_amount:.3f} {labels['currency_jod']}",
+                'unit_cost_display': f"{translate_numbers_to_arabic(f'{unit_price:.3f}', language)} {labels['jod']} {labels['per_unit']}",
+                'total_amount_display': f"{translate_numbers_to_arabic(f'{total_amount:.3f}', language)} {labels['jod']}",
                 'cost_status': cost_status,
                 'calculation_verification': calculation_verification,
                 'notes': item.get('notes', ''),
@@ -626,16 +658,21 @@ def export_po_cart(request):
         # Enhanced metadata with proper status
         status_display = f"{labels['completed_status']} ({labels['auto_generated']})"
         
+        # Get vessel name in appropriate language
+        vessel_name = get_vessel_name_by_language(po.vessel, language)
+        
+        local_dt = timezone.localtime(timezone.now()).replace(tzinfo=None)
+        
         metadata = {
-            labels['export_date']: datetime.now().strftime('%d/%m/%Y %H:%M'),
-            labels['po_number']: str(po.po_number),
-            labels['vessel']: po.vessel.name,
-            labels['po_date']: po.po_date.strftime('%d/%m/%Y'),
+            labels['export_date']: format_datetime_for_language(local_dt, language),
+            labels['po_number']: translate_numbers_to_arabic(str(po.po_number), language),
+            labels['vessel']: vessel_name,
+            labels['po_date']: format_datetime_for_language(local_dt, language),
             labels['status']: status_display,
-            labels['total_cost']: f"{total_cost:.3f} {labels['currency_jod']}",
-            labels['total_items']: f"{len(enhanced_cart_data)} {labels['products']}",
-            labels['total_quantity']: f"{total_quantity:.0f} {labels['units']}",
-            labels['average_cost_per_unit']: f"{(total_cost / total_quantity) if total_quantity > 0 else 0:.3f} {labels['currency_jod']}",
+            labels['total_cost']: f"{translate_numbers_to_arabic(f'{total_cost:.3f}',language)} {labels['jod']}",
+            labels['total_items']: f"{translate_numbers_to_arabic(str(len(enhanced_cart_data)), language)} {labels['products']}",
+            labels['total_quantity']: f"{translate_numbers_to_arabic(f'{total_quantity:.0f}', language)} {labels['units']}",
+            labels['average_cost_per_item_jod']: f"{translate_numbers_to_arabic(f'{(total_cost / total_quantity) if total_quantity > 0 else 0:.3f}', language)} {labels['jod']}",
             labels['verification_alerts']: f"{len(verification_alerts)} {labels['items_flagged']}" if verification_alerts else labels['no_alerts_message'],
             labels['generated_by']: request.user.username,
             labels['export_type']: labels['auto_generated']
@@ -668,11 +705,14 @@ def export_po_cart(request):
         
         # Summary data
         summary_data = {
-            labels['total_products']: str(len(enhanced_cart_data)),
-            labels['total_quantity']: f"{total_quantity:.0f} {labels['units']}",
-            labels['total_cost']: f"{total_cost:.3f} {labels['currency_jod']}",
-            labels['average_cost_per_unit']: f"{(total_cost / total_quantity) if total_quantity > 0 else 0:.3f} {labels['currency_jod']}",
-            labels['verification_status']: f"{len(verification_alerts)} {labels['alerts']}" if verification_alerts else labels['no_alerts_message']
+            labels['total_products']: translate_numbers_to_arabic(str(len(enhanced_cart_data)), language),
+            labels['total_quantity']: f"{translate_numbers_to_arabic(f'{total_quantity:.0f}', language)} {labels['units']}",
+            labels['total_cost']: f"{translate_numbers_to_arabic(f'{total_cost:.3f}',language)} {labels['jod']}",
+            labels['verification_status']: (
+                f"{translate_numbers_to_arabic(str(len(verification_alerts)), language)} {labels['alerts']}"
+                if verification_alerts
+                else labels['all_items_normal']
+            )
         }
         
         # Verification calculations for transparency
@@ -684,12 +724,13 @@ def export_po_cart(request):
             }
             for item in enhanced_cart_data
         ]
+        po_number_translated = translate_numbers_to_arabic(str(po.po_number), language)
         
         # Generate title
         if language == 'ar':
-            report_title = f"تقرير التحقق من أمر الشراء {po.po_number} ({labels['auto_generated']})"
+            report_title = f"{labels['po_report_title']} {po_number_translated} ({labels['auto_generated']})"
         else:
-            report_title = f"PO {po.po_number} Verification Report ({labels['auto_generated']})"
+            report_title = f"{labels['po_report_title']} {po.po_number} ({labels['auto_generated']})"
         
         # Generate PDF using verification template
         try:
@@ -710,10 +751,10 @@ def export_po_cart(request):
                 'summary_data': summary_data,
                 'orientation': 'portrait',
                 'language': language,
-                'generation_date': datetime.now().strftime('%d/%m/%Y %H:%M'),
+                'generation_date': format_date_for_language(local_dt, language),
                 'has_logo': False,
                 'is_cart_export': True,
-                'total_cost_for_checklist': total_cost,
+                'total_cost_for_checklist': translate_numbers_to_arabic(f'{total_cost:.3f}', language),
                 'generated_on_text': labels['generated_on'],
                 'report_info_text': labels['report_information'],
                 'summary_text': labels['summary'],
