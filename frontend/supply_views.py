@@ -22,6 +22,7 @@ from django.http import HttpResponse
 import weasyprint
 import io
 import logging
+from frontend.utils.cache_helpers import ProductCacheHelper
 from .utils.helpers import (format_currency,
     format_currency_or_none,
     format_percentage,
@@ -364,6 +365,12 @@ def po_bulk_complete(request):
             po.is_completed = True
             po.save(update_fields=['is_completed', 'updated_at'])
             print(f"🔍 Marked PO {po.po_number} as completed")
+        
+        try:
+            ProductCacheHelper.clear_cache_after_product_update()
+            print("🔥 Product cache cleared after supply completion")
+        except Exception as e:
+            print(f"⚠️ Cache clear error: {e}")
         
         return JsonResponse({
             'success': True,

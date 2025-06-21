@@ -8,6 +8,7 @@ from vessels.models import Vessel
 from products.models import Product
 from django.db.models import Sum, F, Count
 from django.db import transaction
+from frontend.utils.cache_helpers import ProductCacheHelper
 
 class InventoryLot(models.Model):
     """Tracks individual purchase batches for FIFO inventory management"""
@@ -515,6 +516,26 @@ class Transaction(models.Model):
         Transaction.objects.filter(pk=transfer_in.pk).update(
             notes=transfer_in.notes
         )
+    def delete(self, *args, **kwargs):
+        """Custom delete to clean up inventory lots for supply transactions"""
+        if self.transaction_type == 'SUPPLY':
+            # Find and delete the InventoryLot created by this supply transaction
+            InventoryLot.objects.filter(
+                vessel=self.vessel,
+                product=self.product,
+                purchase_date=self.transaction_date,
+                purchase_price=self.unit_price,
+                original_quantity=int(self.quantity)
+            ).delete()
+        
+        # Clear product cache since inventory changed
+        try:
+            
+            ProductCacheHelper.clear_cache_after_product_update()
+        except:
+            pass
+        
+        super().delete(*args, **kwargs)
 
 class VesselProductPrice(models.Model):
     """Custom pricing for specific vessel-product combinations (touristic vessels only)"""

@@ -98,6 +98,7 @@ class ProductCacheHelper:
     CACHE_PATTERNS = [
         'product_mgmt_*',
         'product_list_*',
+        'perfect_product_list_*',
         'product_form_*',
         'inventory_*',
         'vessel_pricing_*',
@@ -125,60 +126,68 @@ class ProductCacheHelper:
         This is the most comprehensive cache clearing method
         """
         from django.core.cache import cache
-        from datetime import date
+        from django.core.cache.utils import make_key
+        import re
         
         cleared_keys = []
         
         try:
-            # 1. Clear all static cache keys
+            # Get Django cache backend
+            cache_backend = cache._cache if hasattr(cache, '_cache') else cache
+            
+            # Try to get all keys (works with Redis, Memcached, etc.)
+            if hasattr(cache_backend, 'keys'):
+                # Redis backend
+                all_keys = cache_backend.keys('*')
+                for key in all_keys:
+                    key_str = key.decode('utf-8') if isinstance(key, bytes) else str(key)
+                    # Clear any key that contains product-related patterns
+                    if any(pattern.replace('*', '') in key_str for pattern in [
+                        'product_mgmt', 'perfect_product_list', 'perfect_static', 
+                        'vessel_pricing', 'category_cache', 'active_categories'
+                    ]):
+                        if cache.delete(key_str):
+                            cleared_keys.append(key_str)
+            
+            # Fallback: Clear known static keys
             for cache_key in cls.STATIC_CACHE_KEYS:
                 if cache.delete(cache_key):
                     cleared_keys.append(cache_key)
             
-            # 2. Clear paginated cache (last 30 days)
+            # Fallback: Try common cache key patterns for last 30 days
+            from datetime import date, timedelta
             today = date.today()
+            
             for days_back in range(30):
                 cache_date = today - timedelta(days=days_back)
                 
-                # Clear different filter combinations
-                statuses = ['', 'active', 'inactive']
-                categories = [''] + [str(i) for i in range(1, 21)]
-                page_sizes = [30, 50, 100]
-                
-                for page_num in range(1, 21):  # Clear first 20 pages
-                    for status in statuses:
-                        for category in categories[:6]:  # Limit to first 6 categories
-                            for page_size in page_sizes:
-                                filters = {'search': '', 'category': category, 'status': status}
-                                cache_key = f'{cls.CACHE_KEY_PREFIX}_page_{cache_date}_{page_num}_{page_size}_{hash(f"{filters}")}'
-                                if cache.delete(cache_key):
-                                    cleared_keys.append(cache_key)
+                # Try all reasonable combinations
+                for page_num in range(1, 21):
+                    for page_size in [30, 50, 100]:
+                        for search in ['']:
+                            for category in ['', '1', '2', '3', '4', '5']:
+                                for status in ['', 'active', 'inactive']:
+                                    # Try both new and old key formats
+                                    
+                                    # New format
+                                    import hashlib
+                                    filter_string = f"{search}_{category}_{status}_{page_num}_{page_size}"
+                                    filter_hash = hashlib.md5(filter_string.encode()).hexdigest()[:8]
+                                    new_key = f'product_mgmt_page_{cache_date}_{filter_hash}'
+                                    if cache.delete(new_key):
+                                        cleared_keys.append(new_key)
+                                    
+                                    # Old perfect format
+                                    filters_dict = {'search': search, 'category': category, 'department': status}
+                                    old_key = f"perfect_product_list_{hash(str(filters_dict))}_{page_num}_{page_size}"
+                                    if cache.delete(old_key):
+                                        cleared_keys.append(old_key)
             
-            # 3. Clear vessel-related cache (affects pricing)
-            try:
-                from frontend.utils.cache_helpers import VesselCacheHelper
-                VesselCacheHelper.clear_cache()
-                cleared_keys.append('vessel_cache_cleared')
-            except:
-                pass
-            
-            # 4. Clear dashboard and report caches
-            dashboard_keys = [
-                'dashboard_quick_stats',
-                'dashboard_recent_activity',
-                'dashboard_performance_metrics',
-            ]
-            for key in dashboard_keys:
-                if cache.delete(key):
-                    cleared_keys.append(key)
-            
-            print(f"🔥 CACHE CLEARED: {len(cleared_keys)} keys removed")
-            print(f"🔥 Keys: {cleared_keys[:10]}{'...' if len(cleared_keys) > 10 else ''}")
-            
+            print(f"🔥 NUCLEAR CACHE CLEARED: {len(cleared_keys)} keys removed")
             return True, len(cleared_keys)
             
         except Exception as e:
-            print(f"🔥 CACHE CLEAR ERROR: {e}")
+            print(f"🔥 NUCLEAR CACHE ERROR: {e}")
             return False, 0
     
     @classmethod
@@ -189,6 +198,7 @@ class ProductCacheHelper:
         """
         from django.core.cache import cache
         from datetime import date, timedelta
+        import hashlib
         
         cleared_keys = []
         
@@ -205,7 +215,7 @@ class ProductCacheHelper:
                 if cache.delete(key):
                     cleared_keys.append(key)
             
-            # 2. Clear recent paginated cache (last 7 days)
+            # 2. Clear recent paginated cache (last 7 days) - FIXED HASH METHOD
             today = date.today()
             for days_back in range(7):
                 cache_date = today - timedelta(days=days_back)
@@ -215,11 +225,30 @@ class ProductCacheHelper:
                     for status in ['', 'active', 'inactive']:
                         for category in ['', '1', '2', '3']:  # First few categories
                             for page_size in [30, 50]:  # Common page sizes
-                                filters = {'search': '', 'category': category, 'status': status}
-                                filter_hash = hash(f"{filters}_{page_num}_{page_size}")
+                                # USE SAME METHOD AS get_cache_key
+                                filters_dict = {'search': '', 'category': category, 'status': status}
+                                filter_string = f"{filters_dict.get('search', '')}_{filters_dict.get('category', '')}_{filters_dict.get('status', '')}_{page_num}_{page_size}"
+                                filter_hash = hashlib.md5(filter_string.encode()).hexdigest()[:8]
                                 cache_key = f'{cls.CACHE_KEY_PREFIX}_page_{cache_date}_{filter_hash}'
                                 if cache.delete(cache_key):
                                     cleared_keys.append(cache_key)
+            
+            # 3. Clear old perfect_product_list cache keys
+            for days_back in range(7):
+                cache_date = today - timedelta(days=days_back)
+                for page_num in range(1, 11):
+                    for page_size in [30, 50]:
+                        for search in ['']:
+                            for category in ['', '1', '2', '3']:
+                                for department in ['', 'active', 'inactive']:
+                                    filters_dict = {
+                                        'search': search,
+                                        'category': category,
+                                        'department': department
+                                    }
+                                    old_cache_key = f"perfect_product_list_{hash(str(filters_dict))}_{page_num}_{page_size}"
+                                    if cache.delete(old_cache_key):
+                                        cleared_keys.append(old_cache_key)
             
             print(f"🎯 TARGETED CACHE CLEARED: {len(cleared_keys)} keys")
             return True, len(cleared_keys)
@@ -231,36 +260,70 @@ class ProductCacheHelper:
     @classmethod
     def clear_cache_after_product_create(cls):
         """Specific cache clearing after product creation"""
-        success, count = cls.clear_product_management_cache()
-        
-        # Also clear category cache since product count changed
         from django.core.cache import cache
+        import hashlib
+        
+        cleared_keys = []
+        
+        # Clear predictable cache keys  
+        for page_num in range(1, 21):
+            for page_size in [30, 50, 100]:
+                for search in ['']:
+                    for category in ['', '1', '2', '3', '4', '5']:
+                        for department in ['', 'active', 'inactive']:
+                            filters_str = f"{search}_{category}_{department}"
+                            filters_hash = hashlib.md5(filters_str.encode()).hexdigest()[:8]
+                            cache_key = f"perfect_product_list_{filters_hash}_{page_num}_{page_size}"
+                            if cache.delete(cache_key):
+                                cleared_keys.append(cache_key)
+        
+        # Clear static keys + category cache since product count changed
+        for key in cls.STATIC_CACHE_KEYS:
+            if cache.delete(key):
+                cleared_keys.append(key)
+        
         cache.delete('category_cache')
         cache.delete('active_categories')
         
-        print(f"✅ PRODUCT CREATED - Cache cleared: {count} keys")
-        return success
+        print(f"✅ PRODUCT CREATED - Cache cleared: {len(cleared_keys)} keys")
+        return True, len(cleared_keys)
     
     @classmethod
     def clear_cache_after_product_delete(cls):
         """Specific cache clearing after product deletion"""
-        success, count = cls.clear_all_product_cache()
+        # Use the same comprehensive clearing as create
+        success, count = cls.clear_cache_after_product_create()
         
         print(f"🗑️ PRODUCT DELETED - Full cache clear: {count} keys")
-        return success
+        return success, count
     
     @classmethod
     def clear_cache_after_product_update(cls):
         """Specific cache clearing after product update"""
-        success, count = cls.clear_product_management_cache()
-        
-        # Clear pricing cache since prices might have changed
         from django.core.cache import cache
-        cache.delete('vessel_pricing_summary')
-        cache.delete('pricing_warnings_cache')
+        import hashlib
         
-        print(f"📝 PRODUCT UPDATED - Cache cleared: {count} keys")
-        return success
+        cleared_keys = []
+        
+        # Clear predictable cache keys
+        for page_num in range(1, 21):
+            for page_size in [30, 50, 100]:
+                for search in ['']:
+                    for category in ['', '1', '2', '3', '4', '5']:
+                        for department in ['', 'active', 'inactive']:
+                            filters_str = f"{search}_{category}_{department}"
+                            filters_hash = hashlib.md5(filters_str.encode()).hexdigest()[:8]
+                            cache_key = f"perfect_product_list_{filters_hash}_{page_num}_{page_size}"
+                            if cache.delete(cache_key):
+                                cleared_keys.append(cache_key)
+        
+        # Clear static keys
+        for key in cls.STATIC_CACHE_KEYS:
+            if cache.delete(key):
+                cleared_keys.append(key)
+        
+        print(f"📝 PRODUCT UPDATED - Cache cleared: {len(cleared_keys)} keys")
+        return True, len(cleared_keys)
     
     @classmethod
     def debug_cache_status(cls):

@@ -1,255 +1,22 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.db.models import Count, Q, Sum, Prefetch
+from django.db.models import Count, Q, Sum
 from django.db.models.functions import Coalesce
 from django.core.cache import cache
-from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from frontend.utils.cache_helpers import PerfectPagination, ProductCacheHelper
 from .permissions import is_admin_or_manager, is_superuser_only
 from .utils import BilingualMessages
 from products.models import Product, Category
-from transactions.models import VesselProductPrice, InventoryLot, get_all_vessel_pricing_summary
+from transactions.models import VesselProductPrice
 from django.db import transaction
 from vessels.models import Vessel
 from decimal import Decimal
-from datetime import date, datetime
+from datetime import date
 import decimal
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from django.db import connection
-import traceback
-
-@login_required
-@user_passes_test(is_admin_or_manager)
-def product_management(request):
-    """HEAVILY OPTIMIZED: Product management with pagination, smart caching, and minimal queries"""
-    
-    # Get filter parameters
-    search_query = request.GET.get('search', '').strip()
-    category_filter = request.GET.get('category', '').strip()
-    status_filter = request.GET.get('status', '').strip()
-    page_number = request.GET.get('page', 1)
-    page_size = int(request.GET.get('per_page', 30))
-    
-    # Validate page size
-    if page_size not in [30, 50, 100]:
-        page_size = 30
-    
-    # Validate page number
-    try:
-        page_number = int(page_number)
-        if page_number < 1:
-            page_number = 1
-    except (ValueError, TypeError):
-        page_number = 1
-    
-    filters_dict = {
-        'search': search_query,
-        'category': category_filter,
-        'status': status_filter
-    }
-    
-    # Generate cache key using the helper
-    cache_key = ProductCacheHelper.get_cache_key(filters_dict, page_number, page_size)
-    
-    # Try to get cached data
-    cached_data = ProductCacheHelper.get_cached_data(cache_key)
-    if cached_data:
-        cached_data['from_cache'] = True
-        cached_data['cache_key'] = cache_key  # For debugging
-        return render(request, 'frontend/add_product.html', cached_data)
-    
-    print(f"Cache miss - generating fresh data for: {cache_key}")
-    
-    # Get touristic vessel count once (for pricing calculations)
-    touristic_vessels_count = Vessel.objects.filter(
-        active=True, 
-        has_duty_free=False
-    ).count()
-    
-    # Build base queryset with all optimizations
-    products_base = Product.objects.select_related(
-        'category', 'created_by'
-    ).prefetch_related(
-        # Optimize inventory lots prefetch - only active ones
-        Prefetch(
-            'inventory_lots',
-            queryset=InventoryLot.objects.filter(remaining_quantity__gt=0).select_related('vessel'),
-            to_attr='active_inventory_lots'
-        ),
-        # Optimize vessel prices prefetch - only for active touristic vessels
-        Prefetch(
-            'vessel_prices',
-            queryset=VesselProductPrice.objects.filter(
-                vessel__active=True,
-                vessel__has_duty_free=False
-            ).select_related('vessel'),
-            to_attr='active_vessel_prices'
-        )
-    ).annotate(
-        # SQLite3-compatible inventory calculation
-        total_inventory=Sum(
-            'inventory_lots__remaining_quantity',
-            filter=Q(inventory_lots__remaining_quantity__gt=0)
-        ),
-        # Count unique vessels with inventory
-        inventory_vessels_count=Count(
-            'inventory_lots__vessel', 
-            distinct=True, 
-            filter=Q(inventory_lots__remaining_quantity__gt=0)
-        ),
-        # Count custom pricing for touristic vessels only
-        custom_pricing_count=Count(
-            'vessel_prices',
-            filter=Q(
-                vessel_prices__vessel__active=True,
-                vessel_prices__vessel__has_duty_free=False
-            )
-        )
-    )
-    
-    if search_query:
-        products_base = products_base.filter(
-            Q(name__icontains=search_query) |
-            Q(item_id__icontains=search_query) |
-            Q(barcode__icontains=search_query)
-        )
-    
-    if category_filter:
-        try:
-            category_id = int(category_filter)
-            products_base = products_base.filter(category_id=category_id)
-        except (ValueError, TypeError):
-            pass  # Invalid category filter, ignore
-    
-    if status_filter == 'active':
-        products_base = products_base.filter(active=True)
-    elif status_filter == 'inactive':
-        products_base = products_base.filter(active=False)
-    
-    # Order consistently for pagination
-    products_base = products_base.order_by('item_id', 'id')
-    
-    paginator = Paginator(products_base, page_size)
-    
-    try:
-        products_page = paginator.page(page_number)
-    except PageNotAnInteger:
-        # If page is not an integer, deliver first page
-        products_page = paginator.page(1)
-    except EmptyPage:
-        # If page is out of range, deliver last page
-        products_page = paginator.page(paginator.num_pages)
-    
-    # Convert current page to list to avoid re-querying
-    current_page_products = list(products_page.object_list)
-    
-    # Process enhanced product data efficiently for current page only
-    enhanced_products = []
-    for product in current_page_products:
-        # Calculate inventory status efficiently using annotated data
-        inventory_qty = product.total_inventory or 0
-        if inventory_qty == 0:
-            inventory_status = 'out'
-            inventory_class = 'danger'
-        elif inventory_qty <= 5:
-            inventory_status = 'low'
-            inventory_class = 'warning'
-        else:
-            inventory_status = 'good'
-            inventory_class = 'success'
-        
-        # Calculate pricing completeness for general products using annotated data
-        pricing_completion = 100  # Default for duty-free products
-        needs_pricing = False
-        
-        if not product.is_duty_free and touristic_vessels_count > 0:
-            pricing_completion = (product.custom_pricing_count / touristic_vessels_count) * 100
-            needs_pricing = product.custom_pricing_count < touristic_vessels_count
-        
-        enhanced_products.append({
-            'product': product,
-            'inventory_status': inventory_status,
-            'inventory_class': inventory_class,
-            'pricing_completion': round(pricing_completion, 1),
-            'needs_pricing': needs_pricing,
-            'inventory_value': float((inventory_qty * product.selling_price) if inventory_qty else 0),
-            'vessel_pricing_info': {
-                'has_vessel_pricing': product.custom_pricing_count > 0,
-                'vessel_prices_count': product.custom_pricing_count,
-                'missing_prices_count': max(0, touristic_vessels_count - product.custom_pricing_count),
-                'pricing_completion': pricing_completion,
-            }
-        })
-    
-    # Use separate optimized query for stats to avoid affecting pagination performance
-    summary_stats = Product.objects.aggregate(
-        total_products=Count('id'),
-        active_products=Count('id', filter=Q(active=True)),
-        inactive_products=Count('id', filter=Q(active=False)),
-        duty_free_products=Count('id', filter=Q(is_duty_free=True, active=True)),
-        general_products=Count('id', filter=Q(is_duty_free=False, active=True)),
-        products_with_inventory=Count(
-            'id', 
-            distinct=True, 
-            filter=Q(inventory_lots__remaining_quantity__gt=0)
-        )
-    )
-    
-    # Calculate products needing pricing efficiently
-    products_needing_pricing = Product.objects.filter(
-        active=True,
-        is_duty_free=False
-    ).annotate(
-        pricing_count=Count(
-            'vessel_prices',
-            filter=Q(
-                vessel_prices__vessel__active=True,
-                vessel_prices__vessel__has_duty_free=False
-            )
-        )
-    ).filter(pricing_count__lt=touristic_vessels_count).count()
-    
-    categories = Category.objects.filter(active=True).annotate(
-        product_count=Count('products'),
-        active_product_count=Count('products', filter=Q(products__active=True))
-    ).order_by('name')
-    
-    vessel_pricing_summary = get_all_vessel_pricing_summary()
-    
-    context = {
-        'mode': 'list',
-        'products': enhanced_products,
-        'page_obj': products_page,
-        'paginator': paginator,
-        'categories': categories,
-        'filters': {
-            'search': search_query,
-            'category': category_filter,
-            'status': status_filter,
-        },
-        'stats': {
-            **summary_stats,
-            'total_categories': categories.count(),
-            'touristic_vessels_count': touristic_vessels_count,
-            'filtered_products_count': paginator.count,
-            'products_with_incomplete_pricing': products_needing_pricing,
-        },
-        'vessel_pricing_summary': vessel_pricing_summary,
-        'today': date.today(),
-        'cache_timestamp': datetime.now(),
-        'from_cache': False,
-        'cache_timeout_hours': ProductCacheHelper.PRODUCT_MANAGEMENT_CACHE_TIMEOUT / 3600,
-        'page_size': page_size,  # For template page size selector
-    }
-    
-    success = ProductCacheHelper.set_cached_data(cache_key, context)
-    if success:
-        print(f"Successfully cached data for: {cache_key}")
-    else:
-        print(f"Failed to cache data for: {cache_key}")
-    
-    return render(request, 'frontend/add_product.html', context)
+import hashlib
 
 @login_required
 @user_passes_test(is_admin_or_manager)
@@ -277,9 +44,11 @@ def product_list_view(request):
     filters_dict = {
         'search': search_query,
         'category': category_filter,
-        'department': department_filter
+        'status': department_filter
     }
-    cache_key = f"perfect_product_list_{hash(str(filters_dict))}_{page_number}_{page_size}"
+    filters_str = f"{filters_dict.get('search', '')}_{filters_dict.get('category', '')}_{filters_dict.get('department', '')}"
+    filters_hash = hashlib.md5(filters_str.encode()).hexdigest()[:8]
+    cache_key = f"perfect_product_list_{filters_hash}_{page_number}_{page_size}"
     
     cached_data = cache.get(cache_key)
     if cached_data:
@@ -495,7 +264,7 @@ def product_list_view(request):
     }
     
     # 🚀 PERFECT CACHE
-    cache.set(cache_key, context, 2700)  # 45 minutes
+    cache.set(cache_key, context, ProductCacheHelper.PRODUCT_MANAGEMENT_CACHE_TIMEOUT)
     print(f"🔥 PERFECT CACHED: {cache_key}")
     print(f"🔥 Vessel count: {touristic_vessels_count}")
     print(f"🔥 Incomplete pricing: {incomplete_pricing_cache}")
@@ -737,7 +506,7 @@ def product_edit_view(request, product_id):
                     )
                 
                 print(f"🔥 Vessel prices updated: {len(vessel_prices_data)} prices")
-            
+        
             # Clear caches AFTER successful transaction
             try:
                 ProductCacheHelper.clear_cache_after_product_update()

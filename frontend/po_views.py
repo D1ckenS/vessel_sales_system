@@ -1,32 +1,17 @@
 from django.utils import timezone
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth import authenticate, login, logout
+from django.shortcuts import render, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.contrib.auth.models import User, Group, Permission
-from django.contrib import messages
 from django.http import JsonResponse
-from django.db import transaction, models
-from django.db.models import Sum, F, Count, Q, Avg
+from django.db import transaction
 from frontend.utils.cache_helpers import VesselCacheHelper
-from frontend.utils.validation_helpers import ValidationHelper
 from .utils.query_helpers import TransactionQueryHelper
-from transactions.models import Transaction, Trip, PurchaseOrder, InventoryLot
-from vessels.models import Vessel
-from .utils import BilingualMessages
+from transactions.models import PurchaseOrder
 from django.views.decorators.http import require_http_methods
 from django.core.exceptions import ValidationError
-from django.contrib.auth.password_validation import validate_password
-from datetime import date, datetime, timedelta
-import json
-import secrets
-import string
-from django.core.cache import cache
-from .permissions import is_admin_or_manager, admin_or_manager_required, is_superuser_only, superuser_required
-import traceback
-from products.models import Product
-from transactions.models import get_all_vessel_pricing_summary, get_vessel_pricing_warnings
-from .permissions import get_user_role, UserRoles
-from .utils.response_helpers import FormResponseHelper, JsonResponseHelper
+from datetime import  datetime
+from frontend.utils.cache_helpers import ProductCacheHelper
+from .permissions import is_admin_or_manager
+from .utils.response_helpers import JsonResponseHelper
 from .utils.crud_helpers import CRUDHelper, AdminActionHelper
 from .permissions import (
     operations_access_required,
@@ -237,6 +222,13 @@ def delete_po(request, po_id):
             with transaction.atomic():
                 po.supply_transactions.all().delete()
                 po.delete()
+            
+            try:
+                
+                ProductCacheHelper.clear_cache_after_product_update()
+                print("🔥 Product cache cleared after PO deletion")
+            except Exception as e:
+                print(f"⚠️ Cache clear error: {e}")
 
             return JsonResponseHelper.success(
                 message=f'PO {po_number} and all {transaction_count} transactions deleted successfully. Inventory removed.'
