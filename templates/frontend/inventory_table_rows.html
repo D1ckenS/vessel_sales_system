@@ -1,4 +1,5 @@
 {% load i18n %}
+{% load static %}
 
 {% for item in inventory_data %}
 <tr {% if item.stock_status == 'low' %}class="table-warning"{% elif item.stock_status == 'out' %}class="table-danger"{% endif %}>
