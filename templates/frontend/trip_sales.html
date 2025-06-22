@@ -68,9 +68,7 @@
                         <h6 class="mb-1 opacity-75"><span data-translate="trip_revenue">Trip Revenue</span></h6>
                         <h3 class="mb-0" id="tripRevenue">
                             {% if trip.is_completed %}
-                                <span data-number data-original="{{ trip.total_revenue|floatformat:3 }}">{{ trip.total_revenue|floatformat:3 }}</span> <span data-currency-symbol>JOD</span>
-                            {% else %}
-                                <span data-number data-original="0.000">0.000</span> <span data-currency-symbol>JOD</span>
+                            <span id="trip-revenue-display">0.000 JOD</span>
                             {% endif %}
                         </h3>
                     </div>
@@ -78,9 +76,7 @@
                         <h6 class="mb-1 opacity-75"><span data-translate="items_in_cart">Items In Cart</span></h6>
                         <h3 class="mb-0" id="itemCount">
                             {% if trip.is_completed %}
-                                <span data-number data-original="{{ trip.transaction_count }}">{{ trip.transaction_count }}</span>
-                            {% else %}
-                                <span data-number data-original="0">0</span>
+                            <span id="trip-items-count">0</span>
                             {% endif %}
                         </h3>
                     </div>
@@ -1603,5 +1599,45 @@ function showTripExportModal(tripId) {
         this.remove();
     });
 }
+
+// Calculate totals from cart data (no server queries needed)
+function updateTripTotals() {
+    let totalRevenue = 0;
+    let totalCogs = 0;
+    let itemCount = 0;
+
+    // Use existing cart data (already provided by optimized view)
+    if (tripSalesCart && tripSalesCart.length > 0) {
+        tripSalesCart.forEach(item => {
+            totalRevenue += item.total_amount;
+            totalCogs += item.total_cogs || (item.total_amount * 0.7); // fallback
+            itemCount++;
+        });
+    }
+
+    // For completed trips, use completed_sales_json
+    if (typeof completedSales !== 'undefined' && completedSales.length > 0) {
+        completedSales.forEach(item => {
+            totalRevenue += item.total_amount;
+            totalCogs += item.total_cogs || 0;
+            itemCount++;
+        });
+    }
+
+    // Update DOM elements
+    document.getElementById('trip-revenue-display').textContent = totalRevenue.toFixed(3) + ' JOD';
+    document.getElementById('trip-items-count').textContent = itemCount;
+    
+    // Update other financial displays
+    const totalProfit = totalRevenue - totalCogs;
+    if (document.getElementById('trip-profit-display')) {
+        document.getElementById('trip-profit-display').textContent = totalProfit.toFixed(3) + ' JOD';
+    }
+}
+
+// Call this function when page loads and when cart changes
+document.addEventListener('DOMContentLoaded', function() {
+    updateTripTotals();
+});
 </script>
 {% endblock %}

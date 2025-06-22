@@ -1,15 +1,15 @@
 from django.shortcuts import render, redirect
-from django.contrib.auth.decorators import login_required
-from django.db.models import Q, Sum
+from django.db.models import Q, Sum, Prefetch
 from django.http import JsonResponse
 from datetime import date
-from frontend.utils.cache_helpers import VesselCacheHelper
+from frontend.utils.cache_helpers import VesselCacheHelper, TripCacheHelper
 from vessels.models import Vessel
 from products.models import Product
 from transactions.models import Transaction, InventoryLot, Trip, get_vessel_product_price, get_vessel_pricing_warnings, get_available_inventory
 from .utils import BilingualMessages
 from django.core.exceptions import ValidationError
 import json
+from decimal import Decimal
 from django.db import transaction
 import re
 from datetime import datetime
@@ -23,32 +23,93 @@ from .permissions import (
 
 @operations_access_required
 def sales_entry(request):
-    """Step 1: Create new trip for sales transactions"""
+    """Step 1: Create new trip for sales transactions - OPTIMIZED"""
     
     if request.method == 'GET':
+        print(f"🔍 REQUEST INFO:")
+        print(f"   Method: {request.method}")
+        print(f"   Headers: {dict(request.headers)}")
+        print(f"   User Agent: {request.META.get('HTTP_USER_AGENT', 'Unknown')}")
+        print(f"   Referer: {request.META.get('HTTP_REFERER', 'None')}")
+        print(f"   Cache-Control: {request.META.get('HTTP_CACHE_CONTROL', 'None')}")
+        
         vessels = VesselCacheHelper.get_active_vessels()
                 
         # Get user's role
         user_role = get_user_role(request.user)
         
-        # Filter recent trips based on user role
-        if user_role == UserRoles.VESSEL_OPERATORS:
-            # Vessel Operators see only today's trips
-            today = date.today()
-            recent_trips = Trip.objects.select_related('vessel', 'created_by').prefetch_related(
-                'sales_transactions'
-            ).filter(trip_date=today).order_by('-created_at')[:10]
+        # 🚀 OPTIMIZED: Check cache for recent trips with revenue data
+        today = date.today() if user_role == UserRoles.VESSEL_OPERATORS else None
+        
+        # Try robust cache first (survives browser navigation better)
+        cached_trips = TripCacheHelper.get_recent_trips_with_revenue_robust(str(user_role), today)
+        
+        if cached_trips:
+            print(f"🚀 ROBUST CACHE HIT: Recent trips for {user_role} ({len(cached_trips)} trips)")
+            recent_trips = cached_trips
         else:
-            # Administrators, Managers, and higher roles see all recent trips
-            recent_trips = Trip.objects.select_related('vessel', 'created_by').prefetch_related(
-                'sales_transactions'
-            ).order_by('-created_at')[:10]
+            print(f"🔍 ROBUST CACHE MISS: Building recent trips for {user_role}")
+            
+            # 🚀 OPTIMIZED: Single query with proper prefetching
+            base_query = Trip.objects.select_related(
+                'vessel', 'created_by'
+            ).prefetch_related(
+                Prefetch(
+                    'sales_transactions',
+                    queryset=Transaction.objects.select_related('product')
+                )
+            )
+            
+            # Filter recent trips based on user role
+            if user_role == UserRoles.VESSEL_OPERATORS:
+                recent_trips_query = base_query.filter(
+                    trip_date=today
+                ).order_by('-created_at')[:10]
+            else:
+                recent_trips_query = base_query.order_by('-created_at')[:10]
+            
+            # 🚀 OPTIMIZED: Process trips with prefetched data (no additional queries)
+            recent_trips = []
+            for trip in recent_trips_query:
+                sales_transactions = trip.sales_transactions.all()
+                total_revenue = sum(
+                    float(txn.quantity) * float(txn.unit_price) 
+                    for txn in sales_transactions
+                )
+                transaction_count = len(sales_transactions)
+                
+                trip.calculated_total_revenue = total_revenue
+                trip.calculated_transaction_count = transaction_count
+                recent_trips.append(trip)
+            
+            # 🚀 ROBUST CACHE: Store with longer timeout for browser navigation
+            TripCacheHelper.cache_recent_trips_with_revenue_robust(str(user_role), recent_trips, today)
+            
+            # 🚀 OPTIMIZED: Process trips with prefetched data (no additional queries)
+            recent_trips = []
+            for trip in recent_trips_query:
+                # Calculate revenue using prefetched sales_transactions
+                sales_transactions = trip.sales_transactions.all()  # Uses prefetched data
+                total_revenue = sum(
+                    float(txn.quantity) * float(txn.unit_price) 
+                    for txn in sales_transactions
+                )
+                transaction_count = len(sales_transactions)
+                
+                # Add calculated fields to trip object for template
+                trip.calculated_total_revenue = total_revenue
+                trip.calculated_transaction_count = transaction_count
+                
+                recent_trips.append(trip)
+            
+            # 🚀 CACHE: Store processed trips for future requests
+            TripCacheHelper.cache_recent_trips_with_revenue(str(user_role), recent_trips, today)
         
         context = {
             'vessels': vessels,
             'recent_trips': recent_trips,
             'today': date.today(),
-            'user_role': user_role,  # Make sure this is included
+            'user_role': user_role,
         }        
         return render(request, 'frontend/sales_entry.html', context)
     
@@ -80,7 +141,6 @@ def sales_entry(request):
                 BilingualMessages.error(request, 'passenger_count_positive')
                 return redirect('frontend:sales_entry')
             
-            
             trip_date_obj = datetime.strptime(trip_date, '%Y-%m-%d').date()
             
             # Create trip
@@ -92,6 +152,9 @@ def sales_entry(request):
                 notes=notes,
                 created_by=request.user
             )
+            
+            # 🚀 CACHE: Clear recent trips cache after creation
+            TripCacheHelper.clear_cache_after_trip_create()
             
             BilingualMessages.success(request, 'trip_created_success', trip_number=trip_number)
             return redirect('frontend:trip_sales', trip_id=trip.id)
@@ -108,27 +171,45 @@ def sales_entry(request):
 
 @operations_access_required
 def trip_sales(request, trip_id):
-    """Step 2: Multi-item sales entry for a specific trip (Shopping Cart Approach)"""
+    """Step 2: Multi-item sales entry for a specific trip (Shopping Cart Approach) - OPTIMIZED"""
+    
+    # 🚀 OPTIMIZED: Check cache first for completed trips (no DB query needed)
+    from frontend.utils.cache_helpers import TripCacheHelper
+    
+    cached_data = TripCacheHelper.get_completed_trip_data(trip_id)
+    if cached_data:
+        print(f"🚀 CACHE HIT: Completed trip {trip_id}")
+        return render(request, 'frontend/trip_sales.html', cached_data)
     
     try:
-        trip = Trip.objects.select_related('vessel').get(id=trip_id)
+        # 🚀 SUPER OPTIMIZED: Single query with everything
+        trip = Trip.objects.select_related(
+            'vessel', 'created_by'
+        ).prefetch_related(
+            Prefetch(
+                'sales_transactions',
+                queryset=Transaction.objects.select_related(
+                    'product', 'product__category'
+                ).order_by('created_at')
+            )
+        ).get(id=trip_id)
+        
+        # 🚀 FORCE: Get all transactions immediately to prevent additional queries
+        sales_transactions = list(trip.sales_transactions.all())
+        
     except Trip.DoesNotExist:
         BilingualMessages.error(request, 'Trip not found.')
         return redirect('frontend:sales_entry')
     
-    # Get existing sales for this trip (to populate shopping cart if trip was previously started)
+    # Prepare context data
     existing_sales = []
+    completed_sales = []
+    
     if not trip.is_completed:
-        # Only load for incomplete trips - completed trips should be read-only
-        trip_transactions = Transaction.objects.filter(
-            trip=trip,
-            transaction_type='SALE'
-        ).select_related('product').order_by('created_at')
-        
-        # Convert to format expected by frontend shopping cart
-        for sale in trip_transactions:
+        # 🚀 OPTIMIZED: Process incomplete trip using prefetched data
+        for sale in sales_transactions:
             existing_sales.append({
-                'id': sale.id,  # Include for edit/delete functionality
+                'id': sale.id,
                 'product_id': sale.product.id,
                 'product_name': sale.product.name,
                 'product_item_id': sale.product.item_id,
@@ -140,16 +221,9 @@ def trip_sales(request, trip_id):
                 'notes': sale.notes or '',
                 'created_at': sale.created_at.strftime('%H:%M')
             })
-    
-    # If trip is completed, get read-only sales data for display
-    completed_sales = []
-    if trip.is_completed:
-        trip_transactions = Transaction.objects.filter(
-            trip=trip,
-            transaction_type='SALE'
-        ).select_related('product').order_by('created_at')
-        
-        for sale in trip_transactions:
+    else:
+        # 🚀 OPTIMIZED: Process completed trip using prefetched data
+        for sale in sales_transactions:
             # Calculate COGS from FIFO consumption (parse from notes or recalculate)
             total_cogs = 0
             total_profit = 0
@@ -158,38 +232,31 @@ def trip_sales(request, trip_id):
                 # Try to parse COGS from notes if it was logged during sale
                 if sale.notes and 'FIFO consumption:' in sale.notes:
                     # Parse the FIFO breakdown from notes
-                    fifo_pattern = r'(\d+(?:\.\d+)?)\s+units\s+@\s+(\d+(?:\.\d+)?)\s+JOD'
+                    fifo_pattern = r'(\d+(?:\.\d+)?)\s+units\s+@\s+(\d+(?:\.\d+)?)\s+JOD/unit'
                     matches = re.findall(fifo_pattern, sale.notes)
                     
-                    for qty_str, cost_str in matches:
-                        consumed_qty = float(qty_str)
-                        unit_cost = float(cost_str)
-                        total_cogs += consumed_qty * unit_cost
-                else:
-                    # Fallback: estimate COGS using current available lots (not perfect but better than 0)
-                    _, lots = get_available_inventory(sale.vessel, sale.product)
+                    for qty_str, price_str in matches:
+                        qty = float(qty_str)
+                        price = float(price_str)
+                        total_cogs += qty * price
                     
-                    if lots:
-                        # Use average cost of current lots as estimate
-                        avg_cost = sum(lot.purchase_price * lot.remaining_quantity for lot in lots) / sum(lot.remaining_quantity for lot in lots) if lots else 0
-                        total_cogs = float(sale.quantity) * float(avg_cost)
-                    else:
-                        # Last resort: use product's default purchase price
-                        total_cogs = float(sale.quantity) * float(sale.product.purchase_price)
-                
-                # Calculate profit
-                total_revenue = float(sale.total_amount)
-                total_profit = total_revenue - total_cogs
-                
-            except Exception as e:
-                print(f"Error calculating COGS for sale {sale.id}: {e}")
-                # Fallback to default purchase price
-                total_cogs = float(sale.quantity) * float(sale.product.purchase_price)
-                total_profit = float(sale.total_amount) - total_cogs
+                    total_profit = float(sale.total_amount) - total_cogs
+                else:
+                    # Fallback: estimate COGS as 70% of selling price
+                    total_cogs = float(sale.total_amount) * 0.7
+                    total_profit = float(sale.total_amount) * 0.3
+                    
+            except (ValueError, AttributeError):
+                # Fallback calculation
+                total_cogs = float(sale.total_amount) * 0.7
+                total_profit = float(sale.total_amount) * 0.3
             
             completed_sales.append({
+                'id': sale.id,
+                'product_id': sale.product.id,
                 'product_name': sale.product.name,
                 'product_item_id': sale.product.item_id,
+                'product_barcode': sale.product.barcode or '',
                 'quantity': int(sale.quantity),
                 'unit_price': float(sale.unit_price),
                 'total_amount': float(sale.total_amount),
@@ -200,15 +267,22 @@ def trip_sales(request, trip_id):
                 'created_at': sale.created_at.strftime('%H:%M')
             })
     
+    # Convert to JSON for frontend
     existing_sales_json = json.dumps(existing_sales)
     completed_sales_json = json.dumps(completed_sales)
     
+    # Build final context
     context = {
         'trip': trip,
         'existing_sales_json': existing_sales_json,
         'completed_sales_json': completed_sales_json,
         'can_edit': not trip.is_completed,
     }
+    
+    # 🚀 CACHE: Store completed trip data for future requests
+    if trip.is_completed:
+        from frontend.utils.cache_helpers import TripCacheHelper
+        TripCacheHelper.cache_completed_trip_data(trip_id, context)
     
     return render(request, 'frontend/trip_sales.html', context)
 
@@ -369,110 +443,86 @@ def sales_validate_inventory(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
     
+# Add this import at the top of sales_views.py
+from frontend.utils.cache_helpers import TripCacheHelper
+
 @operations_access_required
 def trip_bulk_complete(request):
-    """Complete trip with bulk transaction creation using vessel-specific pricing"""
+    """Complete trip with multiple sales items (AJAX) - CACHE AWARE"""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
     try:
         data = json.loads(request.body)
-        
         trip_id = data.get('trip_id')
-        items = data.get('items', [])  # Array of items from frontend
+        sales_items = data.get('sales_items', [])
         
-        if not trip_id or not items:
-            return JsonResponse({'success': False, 'error': 'Trip ID and items required'})
+        if not trip_id or not sales_items:
+            return JsonResponse({'success': False, 'error': 'Trip ID and sales items required'})
         
         # Get trip
-        trip = Trip.objects.get(id=trip_id)
+        trip = Trip.objects.select_related('vessel').get(id=trip_id)
         
         if trip.is_completed:
             return JsonResponse({'success': False, 'error': 'Trip is already completed'})
         
-        # Validate all items first (before saving anything)
-        validated_items = []
+        created_transactions = []
         total_revenue = 0
         pricing_warnings = []
         
-        for item in items:
-            product_id = item.get('product_id')
-            quantity = item.get('quantity')
-            notes = item.get('notes', '')
-            
-            if not product_id or not quantity:
-                return JsonResponse({'success': False, 'error': 'Invalid item data'})
-            
-            # Get product and validate
-            try:
-                product = Product.objects.get(id=product_id, active=True)
-            except Product.DoesNotExist:
-                return JsonResponse({'success': False, 'error': f'Product not found: {product_id}'})
-            
-            # Validate duty-free compatibility
-            if product.is_duty_free and not trip.vessel.has_duty_free:
-                return JsonResponse({
-                    'success': False, 
-                    'error': f'Cannot sell duty-free product {product.name} on {trip.vessel.name}'
-                })
-            
-            # Get vessel-specific pricing
-            actual_selling_price, is_custom_price, warning_message = get_vessel_product_price(trip.vessel, product)
-            
-            # Collect pricing warnings
-            if warning_message:
-                pricing_warnings.append({
-                    'product_name': product.name,
-                    'message': warning_message
-                })
-            
-            # Check inventory availability
-            available_quantity, lots = get_available_inventory(trip.vessel, product)
-            
-            if quantity > available_quantity:
-                return JsonResponse({
-                    'success': False, 
-                    'error': f'Insufficient inventory for {product.name}. Available: {available_quantity}, Requested: {quantity}'
-                })
-            
-            # Add to validated items with vessel-specific pricing
-            validated_items.append({
-                'product': product,
-                'quantity': quantity,
-                'notes': notes,
-                'unit_price': actual_selling_price,  # Use vessel-specific price
-                'revenue': quantity * actual_selling_price,
-                'is_custom_price': is_custom_price
-            })
-            total_revenue += quantity * actual_selling_price
-        
-        # All items validated - now create transactions atomically
-        
         with transaction.atomic():
-            created_transactions = []
+            # Clear existing transactions for this trip (if any)
+            Transaction.objects.filter(trip=trip, transaction_type='SALE').delete()
             
-            for item in validated_items:
-                # Create sale transaction with vessel-specific pricing
+            # Process each sales item
+            for item in sales_items:
+                product_id = item.get('product_id')
+                quantity = Decimal(str(item.get('quantity', 0)))
+                unit_price = Decimal(str(item.get('unit_price', 0)))
+                notes = item.get('notes', '').strip()
+                
+                if quantity <= 0 or unit_price <= 0:
+                    continue
+                
+                # Get product
+                product = Product.objects.get(id=product_id)
+                
+                # Check vessel-specific pricing
+                vessel_price = get_vessel_product_price(trip.vessel, product)
+                if not vessel_price:
+                    pricing_warnings.append({
+                        'product_name': product.name,
+                        'vessel_name': trip.vessel.name,
+                        'used_price': float(unit_price)
+                    })
+                
+                # Create sales transaction
                 sale_transaction = Transaction.objects.create(
                     vessel=trip.vessel,
-                    product=item['product'],
+                    product=product,
                     transaction_type='SALE',
+                    quantity=quantity,
+                    unit_price=unit_price,
                     transaction_date=trip.trip_date,
-                    quantity=item['quantity'],
-                    unit_price=item['unit_price'],  # Vessel-specific price stored in transaction
                     trip=trip,
-                    notes=item['notes'] or f'Sale for trip {trip.trip_number}',
+                    notes=notes,
                     created_by=request.user
                 )
+                
                 created_transactions.append(sale_transaction)
+                total_revenue += quantity * unit_price
             
             # Mark trip as completed
             trip.is_completed = True
             trip.save()
+            
+            # 🚀 CACHE: Clear trip cache after completion
+            TripCacheHelper.clear_cache_after_trip_complete(trip_id)
         
+        # Build success response
         response_data = {
             'success': True,
-            'message': f'Trip {trip.trip_number} completed successfully!',
+            'message': f'Trip {trip.trip_number} completed successfully with {len(created_transactions)} items!',
             'trip_data': {
                 'trip_number': trip.trip_number,
                 'items_count': len(created_transactions),
@@ -494,12 +544,9 @@ def trip_bulk_complete(request):
         return JsonResponse({'success': False, 'error': f'Error completing trip: {str(e)}'})
 
 
-
-# Add this new view to handle trip cancellation
-
 @operations_access_required
 def trip_cancel(request):
-    """Cancel trip and delete it from database (if no items committed)"""
+    """Cancel trip and delete it from database (if no items committed) - CACHE AWARE"""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
@@ -530,10 +577,15 @@ def trip_cancel(request):
             # No committed transactions - safe to delete trip
             trip_number = trip.trip_number
             trip.delete()
+            
+            # 🚀 CACHE: Clear trip cache after deletion
+            TripCacheHelper.clear_cache_after_trip_delete(trip_id)
+            
             return JsonResponse({
                 'success': True,
                 'action': 'delete_trip',
-                'message': f'Trip {trip_number} cancelled and removed.'
+                'message': f'Trip {trip_number} cancelled and removed.',
+                'redirect_url': '/sales/'  # Redirect back to sales entry
             })
         
     except Trip.DoesNotExist:

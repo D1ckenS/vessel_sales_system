@@ -179,6 +179,213 @@ class ProductCacheHelper:
             timeout = cls.PRODUCT_MANAGEMENT_CACHE_TIMEOUT
         return cache.set(cache_key, data, timeout)
 
+# 🚀 TRIP CACHE HELPER - Following ProductCacheHelper patterns
+class TripCacheHelper:
+    """Cache management for trip operations with version control"""
+    
+    # Cache timeouts (in seconds)
+    COMPLETED_TRIP_CACHE_TIMEOUT = 86400   # 24 hours (completed trips never change)
+    RECENT_TRIPS_CACHE_TIMEOUT = 1800      # 30 minutes (recent trips change frequently)
+    TRIP_FINANCIAL_CACHE_TIMEOUT = 43200   # 12 hours (financial calculations)
+    
+    CACHE_KEY_PREFIX = 'trip_mgmt'
+    
+    # Trip-related cache keys
+    TRIP_CACHE_KEYS = [
+        'trip_financial_summary',
+        'recent_trips_with_revenue',
+        'completed_trip_data',
+        'trip_revenue_calculations',
+    ]
+    
+    # 🚀 GLOBAL CACHE VERSION: Following ProductCacheHelper pattern
+    @classmethod
+    def _get_cache_version(cls):
+        """Get current cache version for trip lists"""
+        return cache.get('trip_cache_version', 1)
+    
+    @classmethod
+    def _increment_cache_version(cls):
+        """Increment cache version to invalidate ALL trip cache"""
+        current_version = cls._get_cache_version()
+        new_version = current_version + 1
+        cache.set('trip_cache_version', new_version, None)  # Never expires
+        print(f"🔥 TRIP CACHE VERSION BUMPED: {current_version} → {new_version}")
+        return new_version
+    
+    @classmethod
+    def get_completed_trip_cache_key(cls, trip_id):
+        """Generate cache key for completed trip data (never changes)"""
+        return f"completed_trip_{trip_id}_financial_data"
+    
+    @classmethod
+    def get_recent_trips_cache_key(cls, user_role, date_filter=None):
+        """Generate cache key for recent trips with revenue data"""
+        cache_version = cls._get_cache_version()
+        date_str = date_filter.strftime('%Y%m%d') if date_filter else 'all'
+        return f"recent_trips_v{cache_version}_{user_role}_{date_str}"
+    
+    @classmethod
+    def get_trip_financial_cache_key(cls, trip_id):
+        """Generate cache key for trip financial calculations"""
+        cache_version = cls._get_cache_version()
+        return f"trip_financial_v{cache_version}_{trip_id}"
+    
+    # 🚀 COMPLETED TRIP CACHING (never changes, can cache forever)
+    @classmethod
+    def get_completed_trip_data(cls, trip_id):
+        """Get cached completed trip data"""
+        cache_key = cls.get_completed_trip_cache_key(trip_id)
+        return cache.get(cache_key)
+    
+    @classmethod
+    def cache_completed_trip_data(cls, trip_id, context_data):
+        """Cache completed trip data (24 hour timeout)"""
+        cache_key = cls.get_completed_trip_cache_key(trip_id)
+        cache.set(cache_key, context_data, cls.COMPLETED_TRIP_CACHE_TIMEOUT)
+        print(f"🚀 CACHED COMPLETED TRIP: {trip_id}")
+        return True
+    
+    # 🚀 RECENT TRIPS CACHING (for sales_entry page)
+    @classmethod
+    def get_recent_trips_with_revenue(cls, user_role, date_filter=None):
+        """Get cached recent trips with revenue calculations"""
+        cache_key = cls.get_recent_trips_cache_key(user_role, date_filter)
+        return cache.get(cache_key)
+    
+    @classmethod
+    def cache_recent_trips_with_revenue(cls, user_role, trips_data, date_filter=None):
+        """Cache recent trips with revenue data (30 minute timeout)"""
+        cache_key = cls.get_recent_trips_cache_key(user_role, date_filter)
+        cache.set(cache_key, trips_data, cls.RECENT_TRIPS_CACHE_TIMEOUT)
+        print(f"🚀 CACHED RECENT TRIPS: {user_role}, {len(trips_data)} trips")
+        return True
+    
+    # 🚀 FINANCIAL CALCULATIONS CACHING
+    @classmethod
+    def get_trip_financial_data(cls, trip_id):
+        """Get cached trip financial calculations"""
+        cache_key = cls.get_trip_financial_cache_key(trip_id)
+        return cache.get(cache_key)
+    
+    @classmethod
+    def cache_trip_financial_data(cls, trip_id, financial_data):
+        """Cache trip financial calculations"""
+        cache_key = cls.get_trip_financial_cache_key(trip_id)
+        cache.set(cache_key, financial_data, cls.TRIP_FINANCIAL_CACHE_TIMEOUT)
+        return True
+    
+    # 🚀 CACHE MANAGEMENT (following ProductCacheHelper patterns)
+    @classmethod
+    def clear_all_trip_cache(cls):
+        """🚀 NUCLEAR OPTION: Clear ALL trip-related cache instantly"""
+        cleared_keys = []
+        
+        try:
+            # Method 1: Version bump (always works, instant)
+            cls._increment_cache_version()
+            cleared_keys.append('trip_cache_version_bumped')
+            
+            # Method 2: Clear static keys
+            for cache_key in cls.TRIP_CACHE_KEYS:
+                if cache.delete(cache_key):
+                    cleared_keys.append(cache_key)
+            
+            print(f"🚀 TRIP CACHE CLEARED: {len(cleared_keys)} operations")
+            return True, len(cleared_keys)
+            
+        except Exception as e:
+            print(f"❌ TRIP CACHE CLEAR FAILED: {e}")
+            return False, 0
+    
+    @classmethod
+    def clear_cache_after_trip_update(cls, trip_id=None):
+        """Clear trip cache after trip modifications"""
+        cleared_keys = []
+        
+        # Version bump clears all versioned cache
+        cls._increment_cache_version()
+        cleared_keys.append('version_bumped')
+        
+        # Clear specific completed trip if provided
+        if trip_id:
+            completed_cache_key = cls.get_completed_trip_cache_key(trip_id)
+            if cache.delete(completed_cache_key):
+                cleared_keys.append(f'completed_trip_{trip_id}')
+        
+        print(f"🚀 TRIP CACHE UPDATED: {len(cleared_keys)} operations")
+        return True, len(cleared_keys)
+    
+    @classmethod
+    def clear_cache_after_trip_create(cls):
+        """Clear cache after trip creation"""
+        return cls.clear_cache_after_trip_update()
+    
+    @classmethod
+    def clear_cache_after_trip_delete(cls, trip_id):
+        """Clear cache after trip deletion"""
+        return cls.clear_cache_after_trip_update(trip_id)
+    
+    @classmethod
+    def clear_cache_after_trip_complete(cls, trip_id):
+        """Clear cache after trip completion (important for recent trips)"""
+        return cls.clear_cache_after_trip_update(trip_id)
+    
+    # 🚀 CONVENIENCE METHODS
+    @classmethod
+    def debug_trip_cache_status(cls):
+        """🔍 DEBUG: Check trip cache status"""
+        cache_status = {}
+        
+        # Check static keys
+        for key in cls.TRIP_CACHE_KEYS:
+            cache_status[key] = cache.get(key) is not None
+        
+        # Add version info
+        cache_status['trip_cache_version'] = cls._get_cache_version()
+        
+        # Count active cache entries
+        active_count = sum(1 for exists in cache_status.values() if isinstance(exists, bool) and exists)
+        
+        print(f"🔍 TRIP CACHE STATUS: {active_count}/{len(cls.TRIP_CACHE_KEYS)} static keys active")
+        print(f"🔍 Trip Cache Version: {cache_status['trip_cache_version']}")
+        
+        return cache_status
+    
+    @classmethod
+    def get_recent_trips_cache_key_robust(cls, user_role, date_filter=None):
+        """Generate cache key that's more resistant to browser navigation issues"""
+        # Don't use version for recent trips - they should persist across trip views
+        date_str = date_filter.strftime('%Y%m%d') if date_filter else 'all'
+        # Use a separate version just for recent trips
+        recent_trips_version = cache.get('recent_trips_version', 1)
+        return f"recent_trips_stable_v{recent_trips_version}_{user_role}_{date_str}"
+
+    @classmethod
+    def get_recent_trips_with_revenue_robust(cls, user_role, date_filter=None):
+        """Get cached recent trips with more stable cache key"""
+        cache_key = cls.get_recent_trips_cache_key_robust(user_role, date_filter)
+        cached_data = cache.get(cache_key)
+        if cached_data:
+            print(f"🚀 ROBUST CACHE HIT: {cache_key}")
+        return cached_data
+
+    @classmethod
+    def cache_recent_trips_with_revenue_robust(cls, user_role, trips_data, date_filter=None):
+        """Cache recent trips with more stable cache key (2 hour timeout)"""
+        cache_key = cls.get_recent_trips_cache_key_robust(user_role, date_filter)
+        # Longer timeout to survive browser navigation
+        cache.set(cache_key, trips_data, 7200)  # 2 hours
+        print(f"🚀 ROBUST CACHE SET: {cache_key}, {len(trips_data)} trips, 2hr timeout")
+        return True
+
+    @classmethod
+    def clear_recent_trips_cache_only_when_needed(cls):
+        """Only clear recent trips cache when actually needed (new trips created)"""
+        recent_trips_version = cache.get('recent_trips_version', 1)
+        cache.set('recent_trips_version', recent_trips_version + 1, None)
+        print(f"🔥 RECENT TRIPS VERSION BUMP: {recent_trips_version} → {recent_trips_version + 1}")
+        return True
 
 # 🚀 PERFECT PAGINATION - Full template compatibility
 class PerfectPagination:
