@@ -891,6 +891,7 @@ window.VesselSalesTranslations = {
         'email_reports': 'Email Reports',
         'inventory_management': 'Inventory Management',
         'vessel_sales_system': 'Vessel Sales System',
+        'inventory_check': 'Inventory Check',
 
     },
     
@@ -1783,5 +1784,6 @@ window.VesselSalesTranslations = {
         'email_reports': 'إرسال التقارير بالبريد',
         'inventory_management': 'إدارة المخزون',
         'vessel_sales_system': 'نظام مبيعات السفن',
+        'inventory_check': 'تحقق المخزون',
     }
 };

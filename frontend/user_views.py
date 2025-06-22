@@ -7,8 +7,10 @@ from frontend.utils.validation_helpers import ValidationHelper
 from .utils import BilingualMessages
 from django.views.decorators.http import require_http_methods
 import secrets
+from django.db.models import Count
 import string
 from django.core.cache import cache
+from frontend.utils.cache_helpers import UserManagementCacheHelper
 from .utils.response_helpers import FormResponseHelper, JsonResponseHelper
 from .utils.crud_helpers import CRUDHelper, AdminActionHelper
 from .permissions import (
@@ -76,6 +78,11 @@ def create_user(request):
                     is_staff=data['is_staff']
                 )
                 
+                try:
+                    
+                    UserManagementCacheHelper.clear_user_management_cache()
+                except Exception as e:
+                    print(f"⚠️ Cache clear error: {e}")
                 if data['group_ids']:
                     groups = Group.objects.filter(id__in=data['group_ids'])
                     user.groups.set(groups)
@@ -151,6 +158,11 @@ def edit_user(request, user_id):
                 else:
                     user.groups.clear()
             
+            try:
+                UserManagementCacheHelper.clear_user_management_cache()
+            except Exception as e:
+                print(f"⚠️ Cache clear error: {e}")
+                
             group_names = list(user.groups.values_list('name', flat=True))
             group_info = f" and assigned to groups: {', '.join(group_names)}" if group_names else ""
             
@@ -186,6 +198,11 @@ def reset_user_password(request, user_id):
         user.set_password(new_password)
         user.save()
         
+        try:
+            UserManagementCacheHelper.clear_user_management_cache()
+        except Exception as e:
+            print(f"⚠️ Cache clear error: {e}")
+            
         return JsonResponseHelper.success(
             message=f'Password reset for user "{user.username}"',
             new_password=new_password
@@ -206,7 +223,11 @@ def toggle_user_status(request, user_id):
     user, error = CRUDHelper.safe_get_object(User, user_id, 'User')
     if error:
         return error
-    
+    try:
+        UserManagementCacheHelper.clear_user_management_cache()
+    except Exception as e:
+        print(f"⚠️ Cache clear error: {e}")
+        
     return CRUDHelper.toggle_boolean_field(user, 'is_active', 'User')
 
 @login_required
@@ -249,17 +270,68 @@ def change_password(request):
 @login_required
 @user_passes_test(is_admin_or_manager)
 def user_management(request):
-    """Enhanced user management with statistics"""
-    users = User.objects.all().order_by('username')
-    groups = Group.objects.all().order_by('name')
-    
-    active_users_count = users.filter(is_active=True).count()
-    staff_users_count = users.filter(is_staff=True).count()
-    
+    """🚀 Optimized: Minimal queries with caching, no template-based N+1"""
+
+    # 🔒 Cache check
+    cache_key = "user_management_data"
+    cached_data = cache.get(cache_key)
+
+    if cached_data:
+        print("🚀 USER MANAGEMENT CACHE HIT")
+        return render(request, 'frontend/auth/user_management.html', cached_data)
+
+    print("🚀 USER MANAGEMENT CACHE MISS - Building fresh data")
+
+    # 📦 Fetch users and prefetch groups
+    users = User.objects.prefetch_related('groups').order_by('username')
+    users_list = list(users)  # Force evaluation
+
+    # Annotate group counts
+    groups = Group.objects.annotate(user_count=Count('user')).order_by('name')
+    groups_list = list(groups)
+
+    # 🧮 Build user stats
+    total_users = len(users_list)
+    active_users = sum(1 for user in users_list if user.is_active)
+    inactive_users = total_users - active_users
+    staff_users = sum(1 for user in users_list if user.is_staff)
+    superusers = sum(1 for user in users_list if user.is_superuser)
+    users_with_groups = sum(1 for user in users_list if user.groups.exists())
+    users_without_groups = total_users - users_with_groups
+
+    # 🧮 Group stats
+    total_groups = len(groups_list)
+    empty_groups = sum(1 for group in groups_list if group.user_count == 0)
+
+    # 🧠 Precompute group data to avoid repeated .all() calls in template
+    for user in users_list:
+        user.group_ids = [group.id for group in user.groups.all()]
+        user.group_names = [group.name for group in user.groups.all()]
+
+    # 📦 Package context
     context = {
-        'users': users,
-        'groups': groups,
-        'active_users_count': active_users_count,
-        'staff_users_count': staff_users_count,
+        'users': users_list,
+        'groups': groups_list,
+        'stats': {
+            'total_users': total_users,
+            'active_users': active_users,
+            'inactive_users': inactive_users,
+            'staff_users': staff_users,
+            'superuser_count': superusers,
+            'users_with_groups': users_with_groups,
+            'users_without_groups': users_without_groups,
+        },
+        'group_stats': {
+            'total_groups': total_groups,
+            'empty_groups': empty_groups,
+            'groups_with_users': total_groups - empty_groups,
+        },
+        'active_users_count': active_users,
+        'staff_users_count': staff_users,
     }
+
+    # 💾 Cache for 30 minutes
+    cache.set(cache_key, context, 1800)
+
+    print(f"🚀 Cached {total_users} users & {total_groups} groups")
     return render(request, 'frontend/auth/user_management.html', context)

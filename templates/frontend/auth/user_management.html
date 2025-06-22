@@ -127,8 +127,8 @@
                                     <td>{{ user.get_full_name|default:"-" }}</td>
                                     <td>{{ user.email|default:"-" }}</td>
                                     <td>
-                                        {% for group in user.groups.all %}
-                                            <span class="badge" style="background: var(--secondary-blue); color: white;">{{ group.name }}</span>
+                                        {% for group_name in user.group_names %}
+                                            <span class="badge" style="background: var(--secondary-blue); color: white;">{{ group_name }}</span>
                                         {% empty %}
                                             <span class="text-muted" data-translate="no_groups">No groups</span>
                                         {% endfor %}
@@ -167,13 +167,13 @@
                                     </td>
                                     <td>
                                         <div class="btn-group">
-                                            <button type="button" class="btn btn-sm btn-outline-primary" 
-                                                    onclick="editUser({{ user.id }}, '{{ user.username|escapejs }}', '{{ user.first_name|escapejs }}', '{{ user.last_name|escapejs }}', '{{ user.email|escapejs }}', {{ user.is_active|yesno:'true,false' }}, {{ user.is_staff|yesno:'true,false' }}, [{% for group in user.groups.all %}{{ group.id }}{% if not forloop.last %},{% endif %}{% endfor %}])"
+                                            <button type="button" class="btn btn-sm btn-outline-primary"
+                                                    onclick="editUser({{ user.id }}, '{{ user.username|escapejs }}', '{{ user.first_name|escapejs }}', '{{ user.last_name|escapejs }}', '{{ user.email|escapejs }}', {{ user.is_active|yesno:'true,false' }}, {{ user.is_staff|yesno:'true,false' }}, [{{ user.group_ids|join:',' }}])"
                                                     data-translate-title="edit_user">
                                                 <i class="bi bi-pencil"></i>
                                             </button>
                                             <button type="button" class="btn btn-sm btn-outline-info"
-                                                    onclick="manageUserGroups({{ user.id }}, '{{ user.username|escapejs }}', [{% for group in user.groups.all %}{{ group.id }}{% if not forloop.last %},{% endif %}{% endfor %}])"
+                                                    onclick="manageUserGroups({{ user.id }}, '{{ user.username|escapejs }}', [{{ user.group_ids|join:',' }}])"
                                                     data-translate-title="manage_groups">
                                                 <i class="bi bi-people"></i>
                                             </button>
@@ -458,7 +458,7 @@
                                         {% elif group.name == 'Inventory Staff' %}bg-info
                                         {% elif group.name == 'Viewers' %}bg-secondary
                                         {% else %}bg-dark{% endif %} ms-2">
-                                        {{ group.user_set.count }} <span data-translate="users">users</span>
+                                        {{ group.user_count }} <span data-translate="users">users</span>
                                     </span>
                                 </label>
                             </div>

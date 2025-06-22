@@ -1591,7 +1591,7 @@ def export_single_po(request, po_id):
                             'rows': transaction_data
                         }
                     ],
-                    'verification_alerts': f"{verification_alerts}" if verification_alerts else {labels['no_alerts_message']},
+                    'verification_alerts': verification_alerts if verification_alerts else [labels['no_alerts_message']],
                     'summary_data': summary_data,
                     'orientation': 'portrait',
                     'language': language,

@@ -4,8 +4,10 @@ from django.contrib.auth.models import User, Group, Permission
 from django.db import transaction
 from frontend.utils.validation_helpers import ValidationHelper
 from django.views.decorators.http import require_http_methods
+from django.db.models import Count, Q
 from django.core.cache import cache
 from .permissions import is_admin_or_manager, is_superuser_only
+from frontend.utils.cache_helpers import UserManagementCacheHelper
 from .utils.response_helpers import FormResponseHelper, JsonResponseHelper
 from .utils.crud_helpers import CRUDHelper, AdminActionHelper
 from .permissions import (
@@ -34,6 +36,11 @@ def manage_user_groups(request, user_id):
                     groups = Group.objects.filter(id__in=group_ids)
                     user.groups.set(groups)
             
+            try:
+                UserManagementCacheHelper.clear_user_management_cache()
+            except Exception as e:
+                print(f"⚠️ Cache clear error: {e}")
+                
             return FormResponseHelper.success_redirect(
                 request, 'frontend:user_management',
                 'Groups updated for user "{username}"',
@@ -120,29 +127,38 @@ def setup_groups(request):
     
     return JsonResponseHelper.method_not_allowed(['POST'])
 
-@login_required 
+@login_required
 @user_passes_test(is_superuser_only)
 def group_management(request):
-    """Complete group management interface"""
-    groups = Group.objects.all().order_by('name')
+    cache_key = "group_management_data"
+    cached_data = cache.get(cache_key)
+
+    if cached_data:
+        print("🚀 GROUP MGMT CACHE HIT")
+        return render(request, 'frontend/auth/group_management.html', cached_data)
+
+    print("🚀 GROUP MGMT CACHE MISS — Building data")
     
-    for group in groups:
-        group.user_count = group.user_set.count()
-        group.active_user_count = group.user_set.filter(is_active=True).count()
-    
-    # Overall statistics
-    total_groups = groups.count()
-    total_users_in_groups = User.objects.filter(groups__isnull=False).distinct().count()
-    users_without_groups = User.objects.filter(groups__isnull=True).count()
+    groups = Group.objects.annotate(
+        user_count=Count('user'),
+        active_user_count=Count('user', filter=Q(user__is_active=True))
+    ).order_by('name')
+
+    user_stats = User.objects.aggregate(
+        total_with_groups=Count('id', filter=Q(groups__isnull=False), distinct=True),
+        total_without_groups=Count('id', filter=Q(groups__isnull=True))
+    )
     
     context = {
-        'groups': groups,
+        'groups': list(groups),  # force eval
         'stats': {
-            'total_groups': total_groups,
-            'total_users_in_groups': total_users_in_groups,
-            'users_without_groups': users_without_groups,
+            'total_groups': groups.count(),
+            'total_users_in_groups': user_stats['total_with_groups'],
+            'users_without_groups': user_stats['total_without_groups'],
         }
     }
+
+    cache.set(cache_key, context, 1800)  # cache for 30 mins
     return render(request, 'frontend/auth/group_management.html', context)
 
 @login_required
@@ -161,6 +177,12 @@ def create_group(request):
         try:
             group = Group.objects.create(name=data['name'].strip())
             
+            try:
+                
+                UserManagementCacheHelper.clear_user_management_cache()
+            except Exception as e:
+                print(f"⚠️ Cache clear error: {e}")
+                
             return JsonResponseHelper.success(
                 message=f'Group "{group.name}" created successfully',
                 data={
@@ -212,6 +234,11 @@ def edit_group(request, group_id):
         group.name = data['name'].strip()
         group.save()
         
+        try:
+            UserManagementCacheHelper.clear_user_management_cache()
+        except Exception as e:
+            print(f"⚠️ Cache clear error: {e}")
+        
         return JsonResponseHelper.success(
             message=f'Group renamed from "{old_name}" to "{group.name}"',
             data={
@@ -254,6 +281,11 @@ def delete_group(request, group_id):
         with transaction.atomic():
             group.user_set.clear()
             group.delete()
+        
+        try:
+            UserManagementCacheHelper.clear_user_management_cache()
+        except Exception as e:
+            print(f"⚠️ Cache clear error: {e}")
         
         return JsonResponseHelper.success(
             message=f'Group "{group_name}" and user assignments deleted successfully'

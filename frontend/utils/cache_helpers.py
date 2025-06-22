@@ -304,3 +304,23 @@ class VesselManagementCacheHelper:
         
         print(f"🚀 VESSEL MANAGEMENT CACHE CLEARED: {len(cleared_keys)} keys")
         return True, len(cleared_keys)
+    
+class UserManagementCacheHelper:
+    """Cache helper for user management page"""
+    
+    @classmethod
+    def clear_user_management_cache(cls):
+        """Clear user management cache when users/groups are modified"""
+        from django.core.cache import cache
+        
+        cache_keys = [
+            'user_management_data',
+        ]
+        
+        cleared_keys = []
+        for key in cache_keys:
+            if cache.delete(key):
+                cleared_keys.append(key)
+        
+        print(f"🚀 USER MANAGEMENT CACHE CLEARED: {len(cleared_keys)} keys")
+        return True, len(cleared_keys)
