@@ -624,38 +624,7 @@ window.updatePageTranslations = function() {
     });
 
     // Only process elements that are specifically marked as time-ago elements
-    document.querySelectorAll('.transaction-time[data-time], .po-time-ago[data-time], [data-time-ago]').forEach(element => {
-        const originalTime = element.getAttribute('data-time') || element.getAttribute('data-time-ago');
-        const currentLang = window.translator.currentLanguage;
-        
-        if (currentLang === 'ar') {
-            // Convert common English time phrases to Arabic (handle plurals)
-            let arabicTime = originalTime
-                .replace(/(\d+)\s*days?/g, (match, num) => translateNumber(num) + ' يوم')
-                .replace(/(\d+)\s*hours?/g, (match, num) => translateNumber(num) + ' ساعة') 
-                .replace(/(\d+)\s*minutes?/g, (match, num) => translateNumber(num) + ' دقيقة')
-                .replace(/(\d+)\s*weeks?/g, (match, num) => translateNumber(num) + ' أسبوع')
-                .replace(/(\d+)\s*months?/g, (match, num) => translateNumber(num) + ' شهر')
-                .replace(/(\d+)\s*years?/g, (match, num) => translateNumber(num) + ' سنة')
-                .replace(/,\s*/g, '، ')  // Replace comma with Arabic comma
-                .replace(/\s+/g, ' ')  // Clean up extra spaces
-                .trim();
-            
-            // Add "مضت" if not already there
-            if (!arabicTime.includes('مضت')) {
-                arabicTime += ' مضت';
-            }
-            
-            element.textContent = arabicTime;
-        } else {
-            // For English, ensure "ago" is present
-            const timeWithoutAgo = originalTime.replace(' ago', '').replace(' مضت', '');
-            element.textContent = timeWithoutAgo + ' ago';
-        }
-    });
-
-    // Only process elements that are specifically marked as time-ago elements
-    document.querySelectorAll('.activity-time[data-time], .po-time-ago[data-time], [data-time-ago]').forEach(element => {
+    document.querySelectorAll('.transaction-time[data-time], .activity-time[data-time], .po-time-ago[data-time], [data-time-ago]').forEach(element => {
         const originalTime = element.getAttribute('data-time') || element.getAttribute('data-time-ago');
         const currentLang = window.translator.currentLanguage;
         

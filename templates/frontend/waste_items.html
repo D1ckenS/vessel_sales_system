@@ -1,239 +1,313 @@
-<!-- Complete waste_items.html template -->
 {% extends 'frontend/base.html' %}
 
-{% block title %}
-    <span data-translate="waste_items">Waste Items</span> - {{ waste_report.report_number }} - Vessel Sales System
+{% block title %}Waste Items - {{ waste_report.report_number }} - Vessel Sales System{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Cart summary styling - matching trip_sales */
+.cart-summary-section {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-top: 2px solid #dee2e6;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .cart-summary-section .row {
+        text-align: center !important;
+    }
+    
+    .cart-summary-section .col-md-4 {
+        margin-top: 10px;
+    }
+}
+
+/* Animation for cart updates */
+.cart-item-updated {
+    animation: highlightUpdate 0.5s ease-in-out;
+}
+
+@keyframes highlightUpdate {
+    0% { background-color: #fff3cd; }
+    100% { background-color: transparent; }
+}
+
+/* Dynamic height for products table */
+#productsTableContainer {
+    height: auto;
+    min-height: 500px;
+    max-height: 1000px;
+}
+
+/* Match heights between cards */
+@media (min-width: 768px) {
+    .card.h-100 {
+        height: auto !important;
+    }
+    
+    .col-md-6 .card {
+        min-height: 600px;
+    }
+}
+
+/* Product selection hover effect */
+.cursor-pointer {
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.cursor-pointer:hover {
+    background-color: rgba(0, 123, 255, 0.1);
+}
+</style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid">
 {% csrf_token %}
-    <!-- Page Header -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h2 class="mb-0">
-                        <i class="bi bi-trash me-2" style="color: var(--danger-red);"></i>
-                        <span data-translate="waste_items">Waste Items</span> - {{ waste_report.report_number }}
-                    </h2>
-                    <p class="text-muted mb-0">
-                        {{ waste_report.vessel.name }} • {{ waste_report.report_date|date:"d/m/Y" }}
-                        {% if not can_edit %}
-                        • <span class="badge bg-success ms-1"><span data-translate="completed">Completed</span></span>
-                        {% endif %}
-                    </p>
-                </div>
-                <div>
-                    {% if can_edit %}
-                    <button type="button" class="btn btn-outline-danger me-2" onclick="cancelWasteReport()">
-                        <i class="bi bi-x-circle me-2"></i>
-                        <span data-translate="cancel_waste">Cancel Waste</span>
-                    </button>
-                    {% endif %}
-                    <a href="{% url 'frontend:waste_entry' %}" class="btn btn-outline-secondary">
-                        <i class="bi bi-arrow-left me-2"></i>
-                        <span data-translate="back_to_waste_entry">Back to Waste Entry</span>
-                    </a>
-                </div>
+
+<!-- Page Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>
+                    <i class="bi bi-trash text-danger"></i> 
+                    <span data-translate="waste_items">Waste Items</span>: <span data-number data-original="{{ waste_report.report_number }}">{{ waste_report.report_number }}</span>
+                </h2>
+                <p class="text-muted mb-0">
+                    <i class="bi bi-ship"></i> <span class="vessel-name" data-en="{{ waste_report.vessel.name }}" data-ar="{{ waste_report.vessel.name_ar }}">{{ waste_report.vessel.name }}</span> •
+                    <i class="bi bi-calendar"></i> <span data-waste-date data-original="{{ waste_report.report_date|date:'d/m/Y' }}">{{ waste_report.report_date|date:"d/m/Y" }}</span>
+                </p>
+            </div>
+            <div class="d-flex gap-2">
+                <a href="{% url 'frontend:waste_entry' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> <span data-translate="back_to_waste_entry">Back to Waste Entry</span>
+                </a>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- Waste Summary Cards -->
-    <div class="row mb-4">
-        <div class="col-md-3 col-sm-6 mb-3">
-            <div class="stats-card" style="background: linear-gradient(135deg, var(--danger-red) 0%, #e74c3c 100%); color: white;">
-                <div class="stats-number" id="wasteTotalCost">0.000</div>
-                <div class="stats-label text-white"><span data-translate="total_waste_cost">Total Waste Cost</span> (JOD)</div>
-            </div>
-        </div>
-        <div class="col-md-3 col-sm-6 mb-3">
-            <div class="stats-card" style="background: linear-gradient(135deg, var(--warning-orange) 0%, #f39c12 100%); color: white;">
-                <div class="stats-number" id="wasteItemCount">0</div>
-                <div class="stats-label text-white"><span data-translate="items_to_waste">Items to Waste</span></div>
-            </div>
-        </div>
-        <div class="col-md-3 col-sm-6 mb-3">
-            <div class="stats-card" style="background: linear-gradient(135deg, var(--primary-blue) 0%, #3498db 100%); color: white;">
-                <div class="stats-number">{{ waste_report.vessel.name }}</div>
-                <div class="stats-label text-white"><span data-translate="vessel">Vessel</span></div>
-            </div>
-        </div>
-        <div class="col-md-3 col-sm-6 mb-3">
-            <div class="stats-card" style="background: linear-gradient(135deg, var(--purple) 0%, #9b59b6 100%); color: white;">
-                <div class="stats-number">{{ waste_report.report_date|date:"d/m" }}</div>
-                <div class="stats-label text-white"><span data-translate="waste_date">Waste Date</span></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Main Content Row -->
-    <div class="row">
-        {% if can_edit %}
-        <!-- Add Waste Item Form -->
-        <div class="col-lg-6 mb-4">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">
-                        <i class="bi bi-plus-circle me-2"></i>
-                        <span data-translate="add_waste_item">Add Waste Item</span>
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <form id="wasteItemForm">
-                        <!-- Product Search -->
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">
-                                <i class="bi bi-search me-1"></i>
-                                <span data-translate="search_products">Search Products</span>
-                            </label>
-                            <input type="text" id="productSearch" class="form-control" 
-                                   placeholder="Search by name, ID, or barcode..."
-                                   data-placeholder-en="Search by name, ID, or barcode..."
-                                   data-placeholder-ar="البحث بالاسم أو الرقم أو الباركود...">
-                        </div>
-
-                        <!-- Selected Product Info -->
-                        <div id="selectedProductInfo" style="display: none;" class="mb-3">
-                            <div class="alert alert-info">
-                                <strong id="selectedProductName"></strong>
-                                <small class="d-block" id="selectedProductDetails"></small>
-                            </div>
-                        </div>
-
-                        <!-- Quantity and Damage Reason -->
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label class="form-label fw-bold">
-                                    <span data-translate="quantity">Quantity</span>
-                                </label>
-                                <input type="number" id="wasteQuantity" class="form-control" 
-                                       min="1" step="1" placeholder="0" onchange="updateWasteCost()">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-bold">
-                                    <span data-translate="damage_reason">Damage Reason</span>
-                                </label>
-                                <select id="damageReason" class="form-select" required>
-                                    <option value="" data-translate="select_damage_reason">Select damage reason...</option>
-                                    {% for value, label in damage_reasons %}
-                                    <option value="{{ value }}">{{ label }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                        </div>
-
-                        <!-- Cost Display -->
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">
-                                <span data-translate="waste_cost">Waste Cost</span>
-                            </label>
-                            <div class="input-group">
-                                <input type="number" id="wasteCost" class="form-control" 
-                                           step="0.001" min="0" readonly>
-                                    <span class="input-group-text">JOD</span>
-                                </div>
-                            </div>
-
-                        <!-- Notes -->
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">
-                                <span data-translate="notes">Notes (Optional)</span>
-                            </label>
-                            <textarea id="wasteNotes" class="form-control" rows="2" 
-                                      placeholder="Additional details about the waste..."
-                                      data-placeholder-en="Additional details about the waste..."
-                                      data-placeholder-ar="تفاصيل إضافية حول المهدر..."></textarea>
-                        </div>
-
-                        <!-- Action Buttons -->
-                        <div class="d-grid gap-2">
-                            <button type="button" id="addToWasteBtn" class="btn btn-danger" disabled onclick="addToWasteCart()">
-                                <i class="bi bi-plus-circle me-2"></i>
-                                <span data-translate="add_to_waste">Add to Waste</span>
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <!-- Product Search Results -->
-        <div class="col-lg-6 mb-4">
-            <div class="card catalog-panel">
-                <div class="card-header">
-                    <h5 class="mb-0">
-                        <i class="bi bi-boxes"></i> <span data-translate="available_products_for">Available products for</span> 
-                        <span class="vessel-name" data-en="{{ waste_report.vessel.name }}" data-ar="{{ waste_report.vessel.name_ar }}">{{ waste_report.vessel.name }}</span>
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div id="productResults" class="scrollable-panel">
-                        <div class="text-center text-muted py-4">
-                            <i class="bi bi-hourglass-split display-4"></i>
-                            <p class="mt-2" data-translate="loading_products">Loading available products...</p>
-                        </div>
+<!-- Waste Summary Card -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card" style="background: linear-gradient(135deg, #dc3545, #c82333); color: white;">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <h6 class="mb-1 opacity-75"><span data-translate="total_waste_cost">Total Waste Cost</span></h6>
+                        <h3 class="mb-0" id="wasteRevenue">
+                            <span id="waste-cost-display" data-number data-original="0.000">0.000</span> <span data-currency-symbol>JOD</span>
+                        </h3>
                     </div>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-    </div>
-
-    <!-- Waste Items Cart/List -->
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">
-                        <i class="bi bi-list-ul me-2"></i>
-                        {% if can_edit %}
-                            <span data-translate="waste_cart">Waste Cart</span>
-                        {% else %}
-                            <span data-translate="waste_items">Waste Items</span>
-                        {% endif %}
-                    </h5>
-                    {% if can_edit %}
-                    <div>
-                        <button type="button" class="btn btn-success" id="completeWasteBtn" onclick="completeWasteReport()" disabled>
-                            <i class="bi bi-check-circle me-2"></i>
-                            <span data-translate="complete_waste_report">Complete Waste Report</span>
-                        </button>
+                    <div class="col-md-3">
+                        <h6 class="mb-1 opacity-75"><span data-translate="items_to_waste">Items to Waste</span></h6>
+                        <h3 class="mb-0" id="itemCount">
+                            <span id="waste-items-count" data-number data-original="0">0</span>
+                        </h3>
                     </div>
-                    {% endif %}
-                </div>
-                <div class="card-body">
-                    {% if can_edit %}
-                    <!-- Editable Cart -->
-                    <div id="wasteCartItems">
-                        <div class="text-center text-muted py-4">
-                            <i class="bi bi-cart display-4"></i>
-                            <p class="mt-2" data-translate="no_items_in_waste_cart">No items in waste cart</p>
-                            <small data-translate="use_form_waste">Use the form above to add waste items</small>
-                        </div>
+                    <div class="col-md-3">
+                        <h6 class="mb-1 opacity-75"><span data-translate="vessel">Vessel</span></h6>
+                        <h3 class="mb-0">
+                            <span class="vessel-name" data-en="{{ waste_report.vessel.name }}" data-ar="{{ waste_report.vessel.name_ar|default:waste_report.vessel.name }}">
+                                {{ waste_report.vessel.name }}
+                            </span>
+                        </h3>
                     </div>
-                    {% else %}
-                    <!-- Completed Report (Read-only) -->
-                    <div class="alert alert-success">
-                        <i class="bi bi-check-circle me-2"></i>
-                        <strong data-translate="waste_report_completed">Waste Report Completed</strong>
-                        <p class="mb-0 mt-1" data-translate="waste_report_completed_desc">
-                            This waste report has been completed and is now read-only. All items have been removed from inventory.
-                        </p>
+                    <div class="col-md-3">
+                        <h6 class="mb-1 opacity-75"><span data-translate="status">Status</span></h6>
+                        <h3 class="mb-0">
+                            {% if can_edit %}
+                            <span class="badge bg-warning fs-6"><span data-translate="in_progress">In Progress</span></span>
+                            {% else %}
+                            <span class="badge bg-success fs-6"><span data-translate="completed">Completed</span></span>
+                            {% endif %}
+                        </h3>
                     </div>
-                    
-                    <div id="completedWasteItems">
-                        <!-- Will be populated by JavaScript -->
-                    </div>
-                    {% endif %}
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Hidden data for JavaScript -->
+<!-- Main Content Row -->
+<div class="row">
+    {% if can_edit %}
+    <!-- LEFT SIDE: Add Waste Item Form -->
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0" id="formTitle">
+                    <i class="bi bi-plus-circle"></i> <span data-translate="add_waste_item">Add Waste Item</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                <form id="addWasteForm">
+                    <!-- Product Search -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-search"></i> <span data-translate="search_products">Search Products</span>
+                        </label>
+                        <input type="text" id="productSearch" class="form-control form-control-lg" 
+                               placeholder="Type product name or ID..."
+                               data-placeholder-en="Type product name or ID..."
+                               data-placeholder-ar="اكتب اسم المنتج أو الرقم...">
+                    </div>
+
+                    <!-- Selected Product Info -->
+                    <div id="productInfo" style="display: none;" class="mb-3">
+                        <div class="alert alert-info">
+                            <strong id="productName"></strong>
+                            <small class="d-block text-muted" id="productDetails"></small>
+                            <small class="d-block" id="availableStock"></small>
+                        </div>
+                    </div>
+
+                    <!-- Quantity -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">
+                            <span data-translate="quantity">Quantity</span>
+                        </label>
+                        <input type="number" id="wasteQuantity" class="form-control form-control-lg"
+                        placeholder="0" disabled>
+                    </div>
+
+                    <!-- Damage Reason -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">
+                            <span data-translate="damage_reason">Damage Reason</span>
+                        </label>
+                        <select id="damageReason" class="form-select" required>
+                            <option value="" data-translate="select_damage_reason">Select damage reason...</option>
+                            {% for value, label in damage_reasons %}
+                            <option value="{{ value }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Notes -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">
+                            <span data-translate="notes">Notes (Optional)</span>
+                        </label>
+                        <textarea id="wasteNotes" class="form-control" rows="2" 
+                                  placeholder="Additional details about the waste..."
+                                  data-placeholder-en="Additional details about the waste..."
+                                  data-placeholder-ar="تفاصيل إضافية حول المهدر..."></textarea>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="d-grid gap-2">
+                        <button type="button" id="addWasteBtn" class="btn btn-danger" disabled>
+                            <i class="bi bi-plus-circle"></i> <span id="addBtnText" data-translate="add_to_waste">Add to Waste</span>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="clearForm()">
+                            <i class="bi bi-x-circle"></i> <span data-translate="clear_form">Clear Form</span>
+                        </button>
+                        <button type="button" class="btn btn-outline-danger" onclick="cancelEdit()">
+                            <i class="bi bi-x-circle"></i> <span data-translate="cancel">Cancel</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- RIGHT SIDE: Available Products -->
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-boxes"></i> <span data-translate="available_products_for">Available products for</span> 
+                    <span class="vessel-name" data-en="{{ waste_report.vessel.name }}" data-ar="{{ waste_report.vessel.name_ar }}">{{ waste_report.vessel.name }}</span>
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <div id="productsTableContainer" style="overflow-y: auto;">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th><span data-translate="product_name">Product Name</span></th>
+                                <th><span data-translate="product_id">Product ID</span></th>
+                                <th class="text-end"><span data-translate="stock_available">Stock Available</span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="availableProductsList">
+                            <!-- Will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <!-- For completed reports: Show summary information -->
+    <div class="col-12">
+        <div class="alert alert-success">
+            <div class="row">
+                <div class="col-md-8">
+                    <h5 class="alert-heading">
+                        <i class="bi bi-check-circle"></i> <span data-translate="waste_report_completed">Waste Report Completed</span>
+                    </h5>
+                    <p class="mb-0">
+                        <span data-translate="waste_report_completed_desc">This waste report has been completed and is now read-only. All items have been removed from inventory.</span>
+                    </p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <small class="text-muted">
+                        <span data-translate="completed">Completed</span>: 
+                        <span data-waste-date data-original="{{ waste_report.updated_at|date:'d/m/Y H:i' }}">{{ waste_report.updated_at|date:"d/m/Y H:i" }}</span>
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Waste Cart Section -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-list-ul"></i>
+                    {% if can_edit %}
+                        <span data-translate="waste_cart">Waste Cart</span>
+                    {% else %}
+                        <span data-translate="waste_items">Waste Items</span>
+                        (<span dir="ltr" id="cartItemsBadge">0</span>)
+                    {% endif %}
+                </h5>
+                {% if can_edit %}
+                <div>
+                    <button type="button" id="completeWasteBtn" class="btn btn-success" disabled>
+                        <i class="bi bi-check-circle"></i> <span data-translate="complete_waste_report">Complete Waste Report</span>
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+            <div class="card-body" id="cartBody">
+                {% if can_edit %}
+                <!-- Cart will be populated by JavaScript -->
+                <div class="text-center text-muted py-4" id="emptyCart">
+                    <i class="bi bi-cart display-4"></i>
+                    <p class="mt-2 mb-0"><span data-translate="no_items_in_cart">No items in cart</span></p>
+                    <small><span data-translate="use_form_waste">Use the form above to add waste items</span></small>
+                </div>
+                {% else %}
+                <div id="completedWasteItems">
+                    <!-- Will be populated by JavaScript for completed reports -->
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Hidden Inputs -->
+<input type="hidden" id="wasteId" value="{{ waste_report.id }}">
+
+<!-- Hidden Data -->
 <script type="application/json" id="wasteData">
 {
     "wasteReport": {
@@ -249,39 +323,72 @@
 {% endblock %}
 
 {% block extra_js %}
-<!-- Include the fixed JavaScript from previous artifact -->
 <script>
-// Global waste cart state
+// Global state - following trip_sales pattern
 let wasteItemsCart = [];
 let selectedProduct = null;
 let availableProducts = [];
+let editingIndex = -1;
 
-// Initialize waste items page
+// Initialize page - following trip_sales pattern
 document.addEventListener('DOMContentLoaded', function() {
     window.registerPageTitle('waste_items', 'Waste Items');
     
-    // Load waste data
     const wasteData = JSON.parse(document.getElementById('wasteData').textContent);
     
     if (wasteData.wasteReport.can_edit) {
-        // Load existing items into cart
-        wasteItemsCart = wasteData.existingWasteItems || [];
-        updateWasteCartDisplay();
-        
-        // Initialize search functionality
-        initializeProductSearch();
-        
-        // Load available products on page load (like sales does)
+        // FIXED: Add localStorage persistence like trip_sales
+        initializeWasteCart();
         loadAvailableProducts();
+        setupEventListeners();
+        updateCartDisplay();
     } else {
-        // Display completed items
         displayCompletedWasteItems(wasteData.completedWasteItems || []);
     }
     
     updateWasteTotals();
 });
 
-// Load all available products on page load
+// FIXED: Add localStorage persistence like trip_sales
+function initializeWasteCart() {
+    const wasteId = document.getElementById('wasteId').value;
+    const storageKey = `waste_items_${wasteId}`;
+    
+    // Try to load from localStorage first
+    const savedCart = localStorage.getItem(storageKey);
+    if (savedCart) {
+        try {
+            wasteItemsCart = JSON.parse(savedCart);
+            console.log('Loaded cart from localStorage:', wasteItemsCart);
+        } catch (e) {
+            console.log('Error parsing saved cart, starting fresh');
+            wasteItemsCart = [];
+        }
+    }
+    
+    // If no saved cart, load from existing waste items (backend data)
+    if (wasteItemsCart.length === 0) {
+        const wasteData = JSON.parse(document.getElementById('wasteData').textContent);
+        if (wasteData.existingWasteItems && wasteData.existingWasteItems.length > 0) {
+            wasteItemsCart = wasteData.existingWasteItems;
+            console.log('Loaded cart from existing waste:', wasteItemsCart);
+            saveCartToStorage();
+        }
+    }
+}
+
+function saveCartToStorage() {
+    try {
+        const wasteId = document.getElementById('wasteId').value;
+        const storageKey = `waste_items_${wasteId}`;
+        localStorage.setItem(storageKey, JSON.stringify(wasteItemsCart));
+        console.log('Cart saved to localStorage:', storageKey, wasteItemsCart);
+    } catch (error) {
+        console.error('Error saving cart to localStorage:', error);
+    }
+}
+
+// Load available products - following trip_sales pattern
 function loadAvailableProducts() {
     const wasteData = JSON.parse(document.getElementById('wasteData').textContent);
     
@@ -289,7 +396,7 @@ function loadAvailableProducts() {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': getCsrfToken()
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
         },
         body: JSON.stringify({
             vessel_id: wasteData.wasteReport.vessel_id
@@ -298,33 +405,181 @@ function loadAvailableProducts() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            displayProductResults(data.products);
             availableProducts = data.products;
+            updateAvailableProductsList();
         } else {
-            console.error('Error loading available products:', data.error);
-            clearProductResults();
+            console.error('Error loading products:', data.error);
         }
     })
     .catch(error => {
-        console.error('Error loading available products:', error);
-        clearProductResults();
+        console.error('Error loading products:', error);
     });
 }
 
-function initializeProductSearch() {
-    const searchInput = document.getElementById('productSearch');
-    let searchTimeout;
+// FIXED: Update available products table with click handlers
+function updateAvailableProductsList() {
+    const tbody = document.getElementById('availableProductsList');
     
-    searchInput.addEventListener('input', function() {
-        const searchTerm = this.value.trim();
+    if (availableProducts.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-4">No products available</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = availableProducts.map(product => `
+        <tr class="cursor-pointer" onclick="selectProductFromList(${JSON.stringify(product).replace(/"/g, '&quot;')})">
+            <td>
+                <strong>${product.name}</strong>
+                ${product.barcode ? `<br><small class="text-muted">Barcode: ${product.barcode}</small>` : ''}
+                ${product.is_duty_free ? '<span class="badge bg-warning text-dark ms-1">Duty-Free</span>' : ''}
+            </td>
+            <td>
+                <span class="badge bg-light text-dark">${product.item_id}</span>
+            </td>
+            <td class="text-end">
+                <span class="badge bg-primary">${product.available_quantity}</span>
+                <br><small class="text-muted">${product.current_cost.toFixed(3)} JOD/unit</small>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// FIXED: Add selectProductFromList function like trip_sales
+function selectProductFromList(product) {
+    selectedProduct = product;
+    
+    // FIXED: Update search field like po_supply and trip_sales
+    document.getElementById('productSearch').value = product.name;
+    
+    // Update product info with waste cost information
+    document.getElementById('productName').textContent = product.name;
+    document.getElementById('productDetails').textContent = `ID: ${product.item_id}`;
+    document.getElementById('availableStock').textContent = `Available: ${product.available_quantity} units • Cost: ${product.current_cost.toFixed(3)} JOD/unit`;
+    document.getElementById('productInfo').style.display = 'block';
+    
+    // Enable form inputs
+    document.getElementById('wasteQuantity').max = product.available_quantity;
+    document.getElementById('wasteQuantity').disabled = false;
+    
+    updateWasteCost();
+    validateWasteForm();
+    
+    // Focus on quantity input
+    document.getElementById('wasteQuantity').focus();
+}
+
+// Product search - following trip_sales pattern
+function setupEventListeners() {
+    // Product search functionality
+    let searchTimeout;
+    document.getElementById('productSearch').addEventListener('input', function() {
+        const searchTerm = this.value.trim().toLowerCase();
         
         clearTimeout(searchTimeout);
         
         if (searchTerm.length >= 2) {
             searchTimeout = setTimeout(() => searchProducts(searchTerm), 300);
-        } else {
-            // When search is cleared, reload all available products
+        } else if (searchTerm.length === 0) {
+            // FIXED: Reset to show all products when search is completely cleared
             loadAvailableProducts();
+        }
+    });
+    
+    // Add form validation event listeners
+    document.getElementById('wasteQuantity').addEventListener('input', function() {
+        updateWasteCost();
+        validateWasteForm();
+    });
+
+    document.getElementById('damageReason').addEventListener('change', function() {
+        validateWasteForm();
+    });
+    
+    // Add to waste button
+    document.getElementById('addWasteBtn').addEventListener('click', function() {
+        if (!validateWasteForm()) {
+            return;
+        }
+        
+        const quantity = parseInt(document.getElementById('wasteQuantity').value);
+        const damageReason = document.getElementById('damageReason').value;
+        const notes = document.getElementById('wasteNotes').value.trim();
+        
+        const wasteItem = {
+            product_id: selectedProduct.id,
+            product_name: selectedProduct.name,
+            product_item_id: selectedProduct.item_id,
+            quantity: quantity,
+            unit_cost: selectedProduct.current_cost,
+            total_cost: quantity * selectedProduct.current_cost,
+            damage_reason: damageReason,
+            notes: notes
+        };
+        
+        if (editingIndex >= 0) {
+            wasteItemsCart[editingIndex] = wasteItem;
+            exitEditMode();
+        } else {
+            const existingIndex = wasteItemsCart.findIndex(item => item.product_id === selectedProduct.id);
+            if (existingIndex !== -1) {
+                wasteItemsCart[existingIndex] = wasteItem;
+            } else {
+                wasteItemsCart.push(wasteItem);
+            }
+        }
+        
+        saveCartToStorage();
+        updateCartDisplay();
+        updateWasteTotals();
+        clearForm();
+    });
+    
+    // Complete waste report button
+    document.getElementById('completeWasteBtn').addEventListener('click', async function() {
+        if (wasteItemsCart.length === 0) {
+            showAlert('Please add at least one item to complete the waste report', 'warning');
+            return;
+        }
+        
+        const totalCost = wasteItemsCart.reduce((sum, item) => sum + item.total_cost, 0);
+        
+        // FIXED: Use proper confirmation dialog
+        const message = `Complete waste report with ${wasteItemsCart.length} items?\n\nTotal Waste Value: ${totalCost.toFixed(3)} JOD\n\nThis will permanently remove items from inventory.`;
+        
+        if (confirm(message)) {
+            const wasteData = JSON.parse(document.getElementById('wasteData').textContent);
+            
+            try {
+                const response = await fetch('{% url "frontend:waste_bulk_complete" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: JSON.stringify({
+                        waste_id: wasteData.wasteReport.id,
+                        items: wasteItemsCart
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Clear localStorage
+                    const wasteId = document.getElementById('wasteId').value;
+                    const storageKey = `waste_items_${wasteId}`;
+                    localStorage.removeItem(storageKey);
+                    
+                    showAlert(data.message, 'success');
+                    setTimeout(() => {
+                        window.location.href = '{% url "frontend:waste_entry" %}';
+                    }, 1500);
+                } else {
+                    showAlert(data.error, 'danger');
+                }
+            } catch (error) {
+                console.error('Error completing waste report:', error);
+                showAlert('Error completing waste report', 'danger');
+            }
         }
     });
 }
@@ -336,7 +591,7 @@ function searchProducts(searchTerm) {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': getCsrfToken()
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
         },
         body: JSON.stringify({
             search: searchTerm,
@@ -346,290 +601,279 @@ function searchProducts(searchTerm) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            displayProductResults(data.products);
+            availableProducts = data.products;
+            updateAvailableProductsList();
         } else {
-            showError(data.error);
+            showAlert(data.error, 'danger');
         }
     })
     .catch(error => {
         console.error('Error searching products:', error);
-        showError('Error searching products');
+        showAlert('Error searching products', 'danger');
     });
-}
-
-function displayProductResults(products) {
-    const resultsContainer = document.getElementById('productResults');
-    
-    if (products.length === 0) {
-        resultsContainer.innerHTML = `
-            <div class="text-center text-muted py-4">
-                <i class="bi bi-inbox display-4"></i>
-                <p class="mt-2" data-translate="no_products_found">No products found</p>
-            </div>
-        `;
-        return;
-    }
-    
-    const resultsHtml = products.map(product => `
-        <div class="product-item border rounded p-3 mb-2 cursor-pointer" onclick="selectProduct(${product.id})">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h6 class="mb-1">${product.name}</h6>
-                    <small class="text-muted">ID: ${product.item_id}</small>
-                    ${product.barcode ? `<small class="text-muted"> • Barcode: ${product.barcode}</small>` : ''}
-                </div>
-                <div class="text-end">
-                    <div class="fw-bold">${product.available_quantity} <span data-translate="available">available</span></div>
-                    <small class="text-muted">${product.current_cost.toFixed(3)} JOD/unit</small>
-                </div>
-            </div>
-        </div>
-    `).join('');
-    
-    resultsContainer.innerHTML = resultsHtml;
-    availableProducts = products;
-}
-
-function selectProduct(productId) {
-    selectedProduct = availableProducts.find(p => p.id === productId);
-    
-    if (selectedProduct) {
-        // Update selected product display
-        document.getElementById('selectedProductName').textContent = selectedProduct.name;
-        document.getElementById('selectedProductDetails').textContent = 
-            `ID: ${selectedProduct.item_id} • Available: ${selectedProduct.available_quantity} • Cost: ${selectedProduct.current_cost.toFixed(3)} JOD/unit`;
-        document.getElementById('selectedProductInfo').style.display = 'block';
-        
-        // Set max quantity
-        document.getElementById('wasteQuantity').max = selectedProduct.available_quantity;
-        document.getElementById('wasteQuantity').value = 1;
-        
-        // Update cost calculation
-        updateWasteCost();
-        
-        // Enable add button
-        document.getElementById('addToWasteBtn').disabled = false;
-    }
 }
 
 function updateWasteCost() {
     const quantity = parseInt(document.getElementById('wasteQuantity').value) || 0;
-    const costInput = document.getElementById('wasteCost');
     
     if (selectedProduct && quantity > 0) {
         const totalCost = quantity * selectedProduct.current_cost;
-        costInput.value = totalCost.toFixed(3);
-    } else {
-        costInput.value = '0.000';
+        // Cost is calculated and used in validation
     }
 }
 
-function addToWasteCart() {
-    if (!selectedProduct) {
-        showError('Please select a product first');
-        return;
-    }
-    
-    const quantity = parseInt(document.getElementById('wasteQuantity').value);
+// FIXED: Proper validation function like trip_sales
+function validateWasteForm() {
+    const quantity = parseInt(document.getElementById('wasteQuantity').value) || 0;
     const damageReason = document.getElementById('damageReason').value;
-    const notes = document.getElementById('wasteNotes').value.trim();
+    const addBtn = document.getElementById('addWasteBtn');
+    const addBtnText = document.getElementById('addBtnText');
     
-    // Validation
-    if (!quantity || quantity <= 0) {
-        showError('Please enter a valid quantity');
-        return;
-    }
+    let isValid = true;
+    let buttonText = _('add_to_waste');
     
-    if (quantity > selectedProduct.available_quantity) {
-        showError(`Quantity cannot exceed available stock (${selectedProduct.available_quantity})`);
-        return;
-    }
-    
-    if (!damageReason) {
-        showError('Please select a damage reason');
-        return;
-    }
-    
-    // Check if product already in cart
-    const existingIndex = wasteItemsCart.findIndex(item => item.product_id === selectedProduct.id);
-    
-    if (existingIndex !== -1) {
-        // Update existing item
-        wasteItemsCart[existingIndex].quantity = quantity;
-        wasteItemsCart[existingIndex].damage_reason = damageReason;
-        wasteItemsCart[existingIndex].notes = notes;
-        wasteItemsCart[existingIndex].total_cost = quantity * selectedProduct.current_cost;
+    if (!selectedProduct) {
+        isValid = false;
+        buttonText = _('select_product_first');
+    } else if (!quantity || quantity <= 0) {
+        isValid = false;
+        buttonText = _('enter_valid_quantity');
+    } else if (quantity > selectedProduct.available_quantity) {
+        isValid = false;
+        buttonText = `Max: ${selectedProduct.available_quantity}`;
+    } else if (!damageReason) {
+        isValid = false;
+        buttonText = _('select_damage_reason');
     } else {
-        // Add new item
-        wasteItemsCart.push({
-            product_id: selectedProduct.id,
-            product_name: selectedProduct.name,
-            product_item_id: selectedProduct.item_id,
-            quantity: quantity,
-            unit_cost: selectedProduct.current_cost,
-            total_cost: quantity * selectedProduct.current_cost,
-            damage_reason: damageReason,
-            notes: notes
-        });
+        // Check if product already in cart
+        const existingIndex = wasteItemsCart.findIndex(item => item.product_id === selectedProduct.id);
+        if (existingIndex !== -1 && editingIndex === -1) {
+            buttonText = _('already_in_cart');
+        }
     }
     
-    updateWasteCartDisplay();
-    updateWasteTotals();
-    clearForm();
-    showSuccess('Item added to waste cart successfully!');
+    addBtn.disabled = !isValid;
+    addBtnText.textContent = buttonText;
+    
+    // Update button styling
+    if (!isValid) {
+        addBtn.classList.add('btn-secondary');
+        addBtn.classList.remove('btn-danger');
+    } else {
+        addBtn.classList.add('btn-danger');
+        addBtn.classList.remove('btn-secondary');
+    }
+    
+    return isValid;
 }
 
-function removeFromWasteCart(index) {
-    wasteItemsCart.splice(index, 1);
-    updateWasteCartDisplay();
-    updateWasteTotals();
-    showSuccess('Item removed from waste cart');
-}
-
-function updateWasteCartDisplay() {
-    const cartContainer = document.getElementById('wasteCartItems');
+// FIXED: Cart management like trip_sales
+function updateCartDisplay() {
+    const cartBody = document.getElementById('cartBody');
+    const emptyCart = document.getElementById('emptyCart');
+    const completeBtn = document.getElementById('completeWasteBtn');
     
     if (wasteItemsCart.length === 0) {
-        cartContainer.innerHTML = `
-            <div class="text-center text-muted py-4">
-                <i class="bi bi-cart display-4"></i>
-                <p class="mt-2" data-translate="no_items_in_waste_cart">No items in waste cart</p>
-                <small data-translate="use_form_waste">Use the form above to add waste items</small>
-            </div>
-        `;
+        if (emptyCart) emptyCart.style.display = 'block';
+        if (completeBtn) completeBtn.disabled = true;
         return;
     }
     
-    const cartHtml = wasteItemsCart.map((item, index) => `
-        <div class="border rounded p-3 mb-2">
-            <div class="d-flex justify-content-between align-items-start">
-                <div class="flex-grow-1">
-                    <h6 class="mb-1">${item.product_name}</h6>
-                    <small class="text-muted">ID: ${item.product_item_id}</small>
-                    <div class="mt-2">
-                        <span class="badge bg-warning">${item.damage_reason}</span>
-                        <span class="ms-2">${item.quantity} × ${item.unit_cost.toFixed(3)} = ${item.total_cost.toFixed(3)} JOD</span>
-                    </div>
-                    ${item.notes ? `<small class="text-muted d-block mt-1">Notes: ${item.notes}</small>` : ''}
-                </div>
-                <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeFromWasteCart(${index})">
-                    <i class="bi bi-trash"></i>
-                </button>
-            </div>
-        </div>
-    `).join('');
+    if (emptyCart) emptyCart.style.display = 'none';
+    if (completeBtn) completeBtn.disabled = false;
     
-    cartContainer.innerHTML = cartHtml;
+    const cartHtml = `
+        <div class="table-responsive">
+            <table class="table table-sm table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Product</th>
+                        <th>Quantity</th>
+                        <th>Cost</th>
+                        <th>Reason</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${wasteItemsCart.map((item, index) => `
+                        <tr class="cursor-pointer" onclick="editWasteItem(${index})">
+                            <td>
+                                <strong>${item.product_name}</strong>
+                                <small class="d-block text-muted">ID: ${item.product_item_id}</small>
+                                ${item.notes ? `<small class="text-muted d-block">📝 ${item.notes}</small>` : ''}
+                            </td>
+                            <td><span class="badge bg-primary">${item.quantity}</span></td>
+                            <td><span class="fw-bold text-danger">${item.total_cost.toFixed(3)} JOD</span></td>
+                            <td><span class="badge bg-warning">${item.damage_reason}</span></td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); editWasteItem(${index})">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation(); removeWasteItem(${index})">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+    
+    cartBody.innerHTML = cartHtml;
 }
 
 function updateWasteTotals() {
-    const totalItems = wasteItemsCart.length;
-    const totalCost = wasteItemsCart.reduce((sum, item) => sum + item.total_cost, 0);
-    
-    document.getElementById('wasteItemCount').textContent = totalItems;
-    document.getElementById('wasteTotalCost').textContent = totalCost.toFixed(3);
-    
-    // Enable/disable complete button
-    const completeBtn = document.getElementById('completeWasteBtn');
-    if (completeBtn) {
-        completeBtn.disabled = totalItems === 0;
-    }
-}
-
-function completeWasteReport() {
-    if (wasteItemsCart.length === 0) {
-        showError('Please add at least one item to complete the waste report');
-        return;
-    }
-    
-    const totalCost = wasteItemsCart.reduce((sum, item) => sum + item.total_cost, 0);
-    
-    if (!confirm(`Complete waste report with ${wasteItemsCart.length} items?\n\nTotal Waste Value: ${totalCost.toFixed(3)} JOD\n\nThis will permanently remove items from inventory.`)) {
-        return;
-    }
+    let totalItems = 0;
+    let totalCost = 0;
     
     const wasteData = JSON.parse(document.getElementById('wasteData').textContent);
     
-    fetch('{% url "frontend:waste_bulk_complete" %}', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': getCsrfToken()
-        },
-        body: JSON.stringify({
-            waste_id: wasteData.wasteReport.id,
-            items: wasteItemsCart
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showSuccess(data.message);
-            setTimeout(() => {
-                window.location.href = '{% url "frontend:waste_entry" %}';
-            }, 1500);
-        } else {
-            showError(data.error);
+    // For completed reports, calculate from completed items
+    if (!wasteData.wasteReport.can_edit && wasteData.completedWasteItems) {
+        totalItems = wasteData.completedWasteItems.length;
+        totalCost = wasteData.completedWasteItems.reduce((sum, item) => sum + item.total_amount, 0);
+    } else {
+        // For active reports, calculate from cart
+        totalItems = wasteItemsCart.length;
+        totalCost = wasteItemsCart.reduce((sum, item) => sum + item.total_cost, 0);
+    }
+    
+    // Update header card using the translation-aware method
+    if (window.updateNumberElement) {
+        window.updateNumberElement('waste-cost-display', totalCost.toFixed(3));
+        window.updateNumberElement('waste-items-count', totalItems);
+    } else {
+        // Fallback method
+        const costElement = document.getElementById('waste-cost-display');
+        const itemsElement = document.getElementById('waste-items-count');
+        
+        if (costElement) {
+            costElement.setAttribute('data-original', totalCost.toFixed(3));
+            costElement.textContent = window.translateNumber ? 
+                window.translateNumber(totalCost.toFixed(3)) : totalCost.toFixed(3);
         }
-    })
-    .catch(error => {
-        console.error('Error completing waste report:', error);
-        showError('Error completing waste report');
-    });
+        
+        if (itemsElement) {
+            itemsElement.setAttribute('data-original', totalItems.toString());
+            itemsElement.textContent = window.translateNumber ? 
+                window.translateNumber(totalItems.toString()) : totalItems;
+        }
+    }
+    
+    // Update badge
+    const badgeElement = document.getElementById('cartItemsBadge') || document.getElementById('completedItemsBadge');
+    if (badgeElement) {
+        badgeElement.textContent = window.translateNumber ? 
+            window.translateNumber(totalItems.toString()) : totalItems;
+    }
+    
+    // Apply translations to updated elements
+    setTimeout(() => {
+        if (window.updatePageTranslations) {
+            window.updatePageTranslations();
+        }
+    }, 0);
 }
 
-function cancelWasteReport() {
-    if (!confirm('Cancel this waste report?\n\nThis will remove the report and clear your cart. Any unsaved items will be lost.')) {
+// Edit/Remove functions - following trip_sales pattern
+function editWasteItem(index) {
+    const item = wasteItemsCart[index];
+    editingIndex = index;
+    
+    selectedProduct = availableProducts.find(p => p.id === item.product_id);
+    
+    if (selectedProduct) {
+        // FIXED: Populate search field when editing
+        document.getElementById('productSearch').value = item.product_name;
+        document.getElementById('wasteQuantity').value = item.quantity;
+        document.getElementById('damageReason').value = item.damage_reason;
+        document.getElementById('wasteNotes').value = item.notes || '';
+        
+        selectProductFromList(selectedProduct);
+        
+        document.getElementById('formTitle').innerHTML = '<i class="bi bi-pencil"></i> ' + _('edit_waste_item');
+        document.getElementById('addBtnText').textContent = _('update_item');
+        
+        // Scroll to form
+        document.getElementById('addWasteForm').scrollIntoView({ behavior: 'smooth' });
+    }
+}
+
+async function removeWasteItem(index) {
+    const confirmed = confirm('Remove this item from the waste cart?');
+    if (confirmed) {
+        wasteItemsCart.splice(index, 1);
+        saveCartToStorage();
+        updateCartDisplay();
+        updateWasteTotals();
+        showAlert('Item removed from waste cart', 'info');
+    }
+}
+
+function exitEditMode() {
+    editingIndex = -1;
+    document.getElementById('formTitle').innerHTML = '<i class="bi bi-plus-circle"></i> ' + _('add_waste_item');
+    document.getElementById('addBtnText').textContent = _('add_to_waste');
+}
+
+// Cancel logic - following trip_sales pattern
+async function cancelEdit() {
+    if (editingIndex >= 0) {
+        exitEditMode();
+        clearForm();
         return;
     }
     
-    const wasteData = JSON.parse(document.getElementById('wasteData').textContent);
-    
-    fetch('{% url "frontend:waste_cancel" %}', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': getCsrfToken()
-        },
-        body: JSON.stringify({
-            waste_id: wasteData.wasteReport.id
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showSuccess(data.message);
-            if (data.redirect_url) {
+    const confirmed = confirm('Cancel this waste report?\n\nThis will remove the report and clear your cart. Any unsaved items will be lost.');
+    if (confirmed) {
+        const wasteData = JSON.parse(document.getElementById('wasteData').textContent);
+        
+        try {
+            const response = await fetch('{% url "frontend:waste_cancel" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({
+                    waste_id: wasteData.wasteReport.id
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                // Clear localStorage
+                const wasteId = document.getElementById('wasteId').value;
+                const storageKey = `waste_items_${wasteId}`;
+                localStorage.removeItem(storageKey);
+                
+                showAlert(data.message, 'success');
                 setTimeout(() => {
-                    window.location.href = data.redirect_url;
+                    window.location.href = '{% url "frontend:waste_entry" %}';
                 }, 1500);
+            } else {
+                showAlert(data.error, 'danger');
             }
-        } else {
-            showError(data.error);
+        } catch (error) {
+            console.error('Error canceling waste report:', error);
+            showAlert('Error canceling waste report', 'danger');
         }
-    })
-    .catch(error => {
-        console.error('Error canceling waste report:', error);
-        showError('Error canceling waste report');
-    });
+    }
 }
 
+// Helper functions - following trip_sales pattern
 function clearForm() {
-    document.getElementById('wasteItemForm').reset();
-    document.getElementById('selectedProductInfo').style.display = 'none';
-    document.getElementById('addToWasteBtn').disabled = true;
+    document.getElementById('addWasteForm').reset();
+    document.getElementById('productInfo').style.display = 'none';
+    document.getElementById('wasteQuantity').disabled = true;
+    document.getElementById('addWasteBtn').disabled = true;
     selectedProduct = null;
+    validateWasteForm();
 }
 
-function clearProductResults() {
-    document.getElementById('productResults').innerHTML = `
-        <div class="text-center text-muted py-4">
-            <i class="bi bi-search display-4"></i>
-            <p class="mt-2" data-translate="search_products_to_waste">Search for products to add to waste</p>
-        </div>
-    `;
-}
-
+// FIXED: Enhanced completed items display with full translation support
 function displayCompletedWasteItems(items) {
     const container = document.getElementById('completedWasteItems');
     
@@ -637,43 +881,92 @@ function displayCompletedWasteItems(items) {
         container.innerHTML = `
             <div class="text-center text-muted py-4">
                 <i class="bi bi-inbox display-4"></i>
-                <p class="mt-2">No completed waste items found</p>
+                <p class="mt-2" data-translate="no_completed_items">No completed items found</p>
             </div>
         `;
+        
+        // Apply translations to the new content
+        if (window.updatePageTranslations) {
+            window.updatePageTranslations();
+        }
         return;
     }
     
-    const itemsHtml = items.map(item => `
-        <div class="border rounded p-3 mb-2">
-            <div class="d-flex justify-content-between align-items-start">
-                <div>
-                    <h6 class="mb-1">${item.product_name}</h6>
-                    <small class="text-muted">ID: ${item.product_item_id}</small>
-                    <div class="mt-2">
-                        <span class="badge bg-warning">${item.damage_reason}</span>
-                        <span class="ms-2">${item.quantity} × ${item.unit_price.toFixed(3)} = ${item.total_amount.toFixed(3)} JOD</span>
-                    </div>
-                    ${item.notes ? `<small class="text-muted d-block mt-1">Notes: ${item.notes}</small>` : ''}
-                </div>
-                <small class="text-muted">${item.created_at}</small>
-            </div>
+    const itemsHtml = `
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th><span data-translate="time">Time</span></th>
+                        <th><span data-translate="product">Product</span></th>
+                        <th><span data-translate="quantity">Quantity</span></th>
+                        <th><span data-translate="cost">Cost</span></th>
+                        <th><span data-translate="damage_reason">Reason</span></th>
+                        <th><span data-translate="notes">Notes</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${items.map(item => `
+                        <tr>
+                            <td><small class="text-muted">${item.created_at}</small></td>
+                            <td>
+                                <strong>${item.product_name}</strong>
+                                <small class="d-block text-muted">
+                                    <span data-translate="id_label">ID</span>: 
+                                    <span data-number data-original="${item.product_item_id}">${item.product_item_id}</span>
+                                </small>
+                            </td>
+                            <td>
+                                <span class="badge bg-primary">
+                                    <span data-number data-original="${item.quantity}">${item.quantity}</span>
+                                </span>
+                            </td>
+                            <td>
+                                <span class="fw-bold text-danger">
+                                    <span data-number data-original="${item.total_amount.toFixed(3)}">${item.total_amount.toFixed(3)}</span> 
+                                    <span data-currency-symbol>JOD</span>
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge bg-warning" data-translate="${item.damage_reason.toLowerCase()}">${item.damage_reason}</span>
+                            </td>
+                            <td>
+                                <small class="text-muted">${item.notes || '-'}</small>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
         </div>
-    `).join('');
+    `;
     
     container.innerHTML = itemsHtml;
+    
+    // IMPORTANT: Apply translations after inserting dynamic content
+    setTimeout(() => {
+        if (window.updatePageTranslations) {
+            window.updatePageTranslations();
+        }
+    }, 0);
 }
 
-// Utility functions
-function getCsrfToken() {
-    return document.querySelector('[name=csrfmiddlewaretoken]').value;
+// Translation helpers - using existing system
+function _(key) {
+    return window.translator ? window.translator._(key) : key;
 }
 
-function showSuccess(message) {
-    alert('✅ ' + message);
-}
-
-function showError(message) {
-    alert('❌ ' + message);
+// FIXED: Use existing showAlert function properly
+function showAlert(message, type) {
+    // Use the global window.showAlert if available, otherwise fallback to alert
+    if (typeof window.showAlert === 'function' && window.showAlert !== showAlert) {
+        window.showAlert(message, type);
+    } else if (typeof bootstrap !== 'undefined' && document.querySelector('.toast-container')) {
+        // Use Bootstrap toast if available
+        const toastHtml = `<div class="toast" role="alert"><div class="toast-body">${message}</div></div>`;
+        document.querySelector('.toast-container').insertAdjacentHTML('beforeend', toastHtml);
+    } else {
+        alert(message);
+    }
 }
 </script>
 {% endblock %}

@@ -309,7 +309,7 @@ def waste_bulk_complete(request):
     try:
         data = json.loads(request.body)
         waste_id = data.get('waste_id')
-        items = data.get('items', [])  # ← Changed from 'waste_items' to 'items'
+        items = data.get('items', [])
         
         if not waste_id or not items:
             return JsonResponse({'success': False, 'error': 'Waste ID and items required'})
@@ -322,7 +322,11 @@ def waste_bulk_complete(request):
         created_transactions = []
         total_cost = 0
         
+        # FIXED: Use select_for_update to prevent database locks
         with transaction.atomic():
+            # Lock the waste report to prevent concurrent updates
+            waste_report = WasteReport.objects.select_for_update().get(id=waste_id)
+            
             # Clear existing transactions for this waste report
             Transaction.objects.filter(waste_report=waste_report, transaction_type='WASTE').delete()
             
@@ -336,39 +340,46 @@ def waste_bulk_complete(request):
                 if quantity <= 0:
                     continue
                 
-                product = Product.objects.get(id=product_id)
-                
-                # Get FIFO cost for waste tracking
-                oldest_lot = InventoryLot.objects.filter(
-                    vessel=waste_report.vessel,
-                    product=product,
-                    remaining_quantity__gt=0
-                ).order_by('purchase_date', 'created_at').first()
-                
-                unit_cost = oldest_lot.purchase_price if oldest_lot else product.purchase_price
-                
-                # Create waste transaction (will use existing FIFO logic to consume inventory)
-                waste_transaction = Transaction.objects.create(
-                    vessel=waste_report.vessel,
-                    product=product,
-                    transaction_type='WASTE',
-                    quantity=quantity,
-                    unit_price=unit_cost,
-                    transaction_date=waste_report.report_date,
-                    waste_report=waste_report,
-                    damage_reason=damage_reason,
-                    notes=f"Waste Report: {waste_report.report_number}. Reason: {damage_reason}. {notes}",
-                    created_by=request.user
-                )
-                
-                created_transactions.append(waste_transaction)
-                total_cost += quantity * unit_cost
+                try:
+                    product = Product.objects.select_for_update().get(id=product_id)
+                    
+                    # Get FIFO cost for waste tracking
+                    oldest_lot = InventoryLot.objects.filter(
+                        vessel=waste_report.vessel,
+                        product=product,
+                        remaining_quantity__gt=0
+                    ).order_by('purchase_date', 'created_at').first()
+                    
+                    if not oldest_lot:
+                        continue  # Skip if no inventory available
+                    
+                    unit_cost = oldest_lot.purchase_price
+                    
+                    # Create waste transaction
+                    waste_transaction = Transaction.objects.create(
+                        vessel=waste_report.vessel,
+                        product=product,
+                        transaction_type='WASTE',
+                        quantity=quantity,
+                        unit_price=unit_cost,
+                        transaction_date=waste_report.report_date,
+                        waste_report=waste_report,
+                        damage_reason=damage_reason,
+                        notes=f"Waste Report: {waste_report.report_number}. Reason: {damage_reason}. {notes}",
+                        created_by=request.user
+                    )
+                    
+                    created_transactions.append(waste_transaction)
+                    total_cost += quantity * unit_cost
+                    
+                except Product.DoesNotExist:
+                    continue  # Skip invalid products
             
             # Mark waste report as completed
             waste_report.is_completed = True
             waste_report.save()
         
-        response_data = {
+        return JsonResponse({
             'success': True,
             'message': f'Waste report {waste_report.report_number} completed successfully with {len(created_transactions)} items!',
             'waste_data': {
@@ -377,9 +388,7 @@ def waste_bulk_complete(request):
                 'total_cost': float(total_cost),
                 'vessel': waste_report.vessel.name
             }
-        }
-        
-        return JsonResponse(response_data)
+        })
         
     except Exception as e:
         return JsonResponse({'success': False, 'error': f'Error completing waste report: {str(e)}'})

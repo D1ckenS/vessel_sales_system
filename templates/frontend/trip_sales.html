@@ -280,8 +280,11 @@
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
                     <i class="bi bi-list"></i> 
-                    {% if can_edit %}<span data-translate="sales_cart">Sales Cart</span>{% else %}<span data-translate="sales_items">Sales Items</span>{% endif %} 
-                    (<span dir="ltr" id="salesListCount">0</span>)
+                    {% if can_edit %}
+                        <span data-translate="sales_cart">Sales Cart</span>
+                    {% else %}
+                        <span data-translate="sales_items">Sales Items</span>{% endif %} 
+                        (<span dir="ltr" id="salesListCount">0</span>)
                 </h5>
                 <div class="d-flex gap-2">
                     {% if not can_edit %}
@@ -380,7 +383,6 @@ document.addEventListener('DOMContentLoaded', function() {
             'available_products_for': 'Available products for',
             'product_name': 'Product Name',
             'product_id': 'Product ID',
-            'stock_available': 'Stock Available',
             'complete_trip_confirm': 'Complete trip with {count} items?\n\nTotal Revenue: {revenue} JOD\nTotal COGS: {cogs} JOD\nTotal Profit: {profit} JOD\n\nThis action cannot be undone.',
             'add_one_item_first': 'Please add at least one item to complete the trip.',
             'item_added_success': 'Item added to cart successfully!',
@@ -424,7 +426,6 @@ document.addEventListener('DOMContentLoaded', function() {
             'available_products_for': 'المنتجات المتوفرة لـ',
             'product_name': 'اسم المنتج',
             'product_id': 'رقم المنتج',
-            'stock_available': 'المخزون المتوفر',
             'complete_trip_confirm': 'إكمال الرحلة مع {count} عنصر؟\n\nإجمالي الإيرادات: {revenue} دينار\nإجمالي تكلفة البضاعة: {cogs} دينار\nإجمالي الربح: {profit} دينار\n\nلا يمكن التراجع عن هذا الإجراء.',
             'add_one_item_first': 'يرجى إضافة عنصر واحد على الأقل لإكمال الرحلة.',
             'item_added_success': 'تم إضافة العنصر إلى السلة بنجاح!',

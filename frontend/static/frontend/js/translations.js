@@ -54,6 +54,8 @@ window.VesselSalesTranslations = {
         'trip_management': 'Trip Management',
         'po_management': 'PO Management',
         'legacy_admin': 'Legacy Admin',
+        'stock_available': 'Stock Available',
+        'cost': 'Cost',
         
         // User Management translations
         'add_user': 'Add User',
@@ -382,6 +384,12 @@ window.VesselSalesTranslations = {
         'waste': 'Waste',
         'waste_report_number_exists': 'Waste report number {report_number} already exists. Please use a different number.',
         'available_products_for': 'Available products for',
+        'continue': 'Continue',
+        'cancel_waste': 'Cancel Waste',
+        'back_to_waste_entry': 'Back to Waste Entry',
+        'waste_date': 'Waste Date',
+        'enter_valid_quantity': 'Please enter a valid quantity',
+        'insufficient_stock': 'Insufficient stock',
 
         // Comprehensive Reports
         '': 'Comprehensive Report',
@@ -1001,6 +1009,8 @@ window.VesselSalesTranslations = {
         'po_management': 'إدارة أوامر الشراء',
         'legacy_admin': 'الإدارة القديمة',
         'legacy_admin_desc': 'ادارة المستخدمين والادوار والصلاحيات',
+        'stock_available': 'الموجود في المخزون',
+        'cost': 'التكلفة',
         
         // User Management translations
         'user_management_desc': 'ادارة المستخدمين والادوار والصلاحيات',
@@ -1147,9 +1157,14 @@ window.VesselSalesTranslations = {
         'create_first_waste_report': 'يرجى انشاء تقرير الإهدار أولا من خلال النموذج بالاسفل',
         'add_to_waste': 'اضافة إلى المهدر',
         'search_products_to_waste': 'ابحث عن منتجات لاضافتها للمهدر',
+        'no_items_in_waste_cart': 'لا يوجد عناصر في سلة الاتلاف',
         'use_form_waste': 'استخدم النموذج بالأعلى لاضافة منتجات للمهدر',
         'waste': 'اتلاف',
         'available_products_for': 'المنتجات المتوفرة لـ',
+        'continue': 'متابعة',
+        'cancel_waste': 'الغاء الاتلاف',
+        'back_to_waste_entry': 'العودة لتسجيل الاهدار',
+        'waste_date': 'تاريخ الاتلاف',
         
         // Transactions page translations
         'all_transactions': 'جميع الحركات',
@@ -1182,6 +1197,8 @@ window.VesselSalesTranslations = {
         'export_feature_coming_soon': 'ميزة التصدير قريباً!',
         'excel_file_description': 'سيتم إنشاء ملف Excel بحدات الحركات.',
         'id_label': 'رقم',
+        'enter_valid_quantity': 'يرجى ادخال كمية صحيحة',
+        'insufficient_stock': 'لا يوجد كمية كافية في المخزون',
         
         // Sales Entry Form Translations
         'create_trip_description': 'إنشاء رحلة جديدة وتسجيل معاملات المبيعات',
