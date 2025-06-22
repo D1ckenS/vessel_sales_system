@@ -1,12 +1,13 @@
-<!-- CREATE: templates/frontend/waste_items.html -->
+<!-- Complete waste_items.html template -->
 {% extends 'frontend/base.html' %}
 
 {% block title %}
-    <span data-translate="waste_items">Waste Items</span> - {{ waste_report.waste_number }} - Vessel Sales System
+    <span data-translate="waste_items">Waste Items</span> - {{ waste_report.report_number }} - Vessel Sales System
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid">
+{% csrf_token %}
     <!-- Page Header -->
     <div class="row mb-4">
         <div class="col-12">
@@ -14,16 +15,22 @@
                 <div>
                     <h2 class="mb-0">
                         <i class="bi bi-trash me-2" style="color: var(--danger-red);"></i>
-                        <span data-translate="waste_items">Waste Items</span> - {{ waste_report.waste_number }}
+                        <span data-translate="waste_items">Waste Items</span> - {{ waste_report.report_number }}
                     </h2>
                     <p class="text-muted mb-0">
-                        {{ waste_report.vessel.name }} • {{ waste_report.waste_date|date:"d/m/Y" }}
+                        {{ waste_report.vessel.name }} • {{ waste_report.report_date|date:"d/m/Y" }}
                         {% if not can_edit %}
                         • <span class="badge bg-success ms-1"><span data-translate="completed">Completed</span></span>
                         {% endif %}
                     </p>
                 </div>
                 <div>
+                    {% if can_edit %}
+                    <button type="button" class="btn btn-outline-danger me-2" onclick="cancelWasteReport()">
+                        <i class="bi bi-x-circle me-2"></i>
+                        <span data-translate="cancel_waste">Cancel Waste</span>
+                    </button>
+                    {% endif %}
                     <a href="{% url 'frontend:waste_entry' %}" class="btn btn-outline-secondary">
                         <i class="bi bi-arrow-left me-2"></i>
                         <span data-translate="back_to_waste_entry">Back to Waste Entry</span>
@@ -37,36 +44,36 @@
     <div class="row mb-4">
         <div class="col-md-3 col-sm-6 mb-3">
             <div class="stats-card" style="background: linear-gradient(135deg, var(--danger-red) 0%, #e74c3c 100%); color: white;">
-                <div class="stats-number" id="wasteRevenueDisplay">0.000 JOD</div>
-                <div class="stats-label text-white"><span data-translate="total_waste_cost">Total Waste Cost</span></div>
+                <div class="stats-number" id="wasteTotalCost">0.000</div>
+                <div class="stats-label text-white"><span data-translate="total_waste_cost">Total Waste Cost</span> (JOD)</div>
             </div>
         </div>
         <div class="col-md-3 col-sm-6 mb-3">
             <div class="stats-card" style="background: linear-gradient(135deg, var(--warning-orange) 0%, #f39c12 100%); color: white;">
-                <div class="stats-number" id="wasteItemsDisplay">0</div>
+                <div class="stats-number" id="wasteItemCount">0</div>
                 <div class="stats-label text-white"><span data-translate="items_to_waste">Items to Waste</span></div>
             </div>
         </div>
         <div class="col-md-3 col-sm-6 mb-3">
-            <div class="stats-card" style="background: linear-gradient(135deg, var(--secondary-blue) 0%, var(--primary-blue) 100%); color: white;">
+            <div class="stats-card" style="background: linear-gradient(135deg, var(--primary-blue) 0%, #3498db 100%); color: white;">
                 <div class="stats-number">{{ waste_report.vessel.name }}</div>
                 <div class="stats-label text-white"><span data-translate="vessel">Vessel</span></div>
             </div>
         </div>
         <div class="col-md-3 col-sm-6 mb-3">
-            <div class="stats-card" style="background: linear-gradient(135deg, var(--dark-gray) 0%, #7f8c8d 100%); color: white;">
-                <div class="stats-number">{{ waste_report.waste_date|date:"d/m" }}</div>
+            <div class="stats-card" style="background: linear-gradient(135deg, var(--purple) 0%, #9b59b6 100%); color: white;">
+                <div class="stats-number">{{ waste_report.report_date|date:"d/m" }}</div>
                 <div class="stats-label text-white"><span data-translate="waste_date">Waste Date</span></div>
             </div>
         </div>
     </div>
 
-    <!-- Main Content -->
+    <!-- Main Content Row -->
     <div class="row">
-        <!-- Add Waste Items Form -->
         {% if can_edit %}
+        <!-- Add Waste Item Form -->
         <div class="col-lg-6 mb-4">
-            <div class="card form-panel">
+            <div class="card">
                 <div class="card-header">
                     <h5 class="mb-0">
                         <i class="bi bi-plus-circle me-2"></i>
@@ -82,13 +89,13 @@
                                 <span data-translate="search_products">Search Products</span>
                             </label>
                             <input type="text" id="productSearch" class="form-control" 
-                                   placeholder="Enter product name or ID..."
-                                   data-placeholder-en="Enter product name or ID..."
-                                   data-placeholder-ar="أدخل اسم المنتج أو المعرف...">
+                                   placeholder="Search by name, ID, or barcode..."
+                                   data-placeholder-en="Search by name, ID, or barcode..."
+                                   data-placeholder-ar="البحث بالاسم أو الرقم أو الباركود...">
                         </div>
 
-                        <!-- Selected Product Display -->
-                        <div id="selectedProductInfo" class="mb-3" style="display: none;">
+                        <!-- Selected Product Info -->
+                        <div id="selectedProductInfo" style="display: none;" class="mb-3">
                             <div class="alert alert-info">
                                 <strong id="selectedProductName"></strong>
                                 <small class="d-block" id="selectedProductDetails"></small>
@@ -102,7 +109,7 @@
                                     <span data-translate="quantity">Quantity</span>
                                 </label>
                                 <input type="number" id="wasteQuantity" class="form-control" 
-                                       min="1" step="1" placeholder="0">
+                                       min="1" step="1" placeholder="0" onchange="updateWasteCost()">
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-bold">
@@ -110,11 +117,9 @@
                                 </label>
                                 <select id="damageReason" class="form-select" required>
                                     <option value="" data-translate="select_damage_reason">Select damage reason...</option>
-                                    <option value="DAMAGED" data-translate="damaged">Physical Damage</option>
-                                    <option value="EXPIRED" data-translate="expired">Expired Product</option>
-                                    <option value="CONTAMINATED" data-translate="contaminated">Contaminated</option>
-                                    <option value="RECALL" data-translate="recall">Product Recall</option>
-                                    <option value="OTHER" data-translate="other_reason">Other (Specify in Notes)</option>
+                                    {% for value, label in damage_reasons %}
+                                    <option value="{{ value }}">{{ label }}</option>
+                                    {% endfor %}
                                 </select>
                             </div>
                         </div>
@@ -126,10 +131,10 @@
                             </label>
                             <div class="input-group">
                                 <input type="number" id="wasteCost" class="form-control" 
-                                       step="0.001" min="0" readonly>
-                                <span class="input-group-text">JOD</span>
+                                           step="0.001" min="0" readonly>
+                                    <span class="input-group-text">JOD</span>
+                                </div>
                             </div>
-                        </div>
 
                         <!-- Notes -->
                         <div class="mb-3">
@@ -144,7 +149,7 @@
 
                         <!-- Action Buttons -->
                         <div class="d-grid gap-2">
-                            <button type="button" id="addToWasteBtn" class="btn btn-danger" disabled>
+                            <button type="button" id="addToWasteBtn" class="btn btn-danger" disabled onclick="addToWasteCart()">
                                 <i class="bi bi-plus-circle me-2"></i>
                                 <span data-translate="add_to_waste">Add to Waste</span>
                             </button>
@@ -153,23 +158,21 @@
                 </div>
             </div>
         </div>
-        {% endif %}
 
         <!-- Product Search Results -->
-        {% if can_edit %}
         <div class="col-lg-6 mb-4">
             <div class="card catalog-panel">
                 <div class="card-header">
                     <h5 class="mb-0">
-                        <i class="bi bi-boxes me-2"></i>
-                        <span data-translate="available_products">Available Products</span>
+                        <i class="bi bi-boxes"></i> <span data-translate="available_products_for">Available products for</span> 
+                        <span class="vessel-name" data-en="{{ waste_report.vessel.name }}" data-ar="{{ waste_report.vessel.name_ar }}">{{ waste_report.vessel.name }}</span>
                     </h5>
                 </div>
                 <div class="card-body">
                     <div id="productResults" class="scrollable-panel">
                         <div class="text-center text-muted py-4">
-                            <i class="bi bi-search display-4"></i>
-                            <p class="mt-2" data-translate="search_products_to_waste">Search for products to add to waste</p>
+                            <i class="bi bi-hourglass-split display-4"></i>
+                            <p class="mt-2" data-translate="loading_products">Loading available products...</p>
                         </div>
                     </div>
                 </div>
@@ -203,8 +206,8 @@
                 <div class="card-body">
                     {% if can_edit %}
                     <!-- Editable Cart -->
-                    <div id="wasteCartContainer">
-                        <div class="text-center text-muted py-4" id="emptyWasteCart">
+                    <div id="wasteCartItems">
+                        <div class="text-center text-muted py-4">
                             <i class="bi bi-cart display-4"></i>
                             <p class="mt-2" data-translate="no_items_in_waste_cart">No items in waste cart</p>
                             <small data-translate="use_form_waste">Use the form above to add waste items</small>
@@ -235,7 +238,7 @@
 {
     "wasteReport": {
         "id": {{ waste_report.id }},
-        "waste_number": "{{ waste_report.waste_number }}",
+        "report_number": "{{ waste_report.report_number }}",
         "vessel_id": {{ waste_report.vessel.id }},
         "can_edit": {{ can_edit|yesno:"true,false" }}
     },
@@ -246,6 +249,7 @@
 {% endblock %}
 
 {% block extra_js %}
+<!-- Include the fixed JavaScript from previous artifact -->
 <script>
 // Global waste cart state
 let wasteItemsCart = [];
@@ -266,6 +270,9 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Initialize search functionality
         initializeProductSearch();
+        
+        // Load available products on page load (like sales does)
+        loadAvailableProducts();
     } else {
         // Display completed items
         displayCompletedWasteItems(wasteData.completedWasteItems || []);
@@ -273,6 +280,36 @@ document.addEventListener('DOMContentLoaded', function() {
     
     updateWasteTotals();
 });
+
+// Load all available products on page load
+function loadAvailableProducts() {
+    const wasteData = JSON.parse(document.getElementById('wasteData').textContent);
+    
+    fetch('{% url "frontend:waste_available_products" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken()
+        },
+        body: JSON.stringify({
+            vessel_id: wasteData.wasteReport.vessel_id
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            displayProductResults(data.products);
+            availableProducts = data.products;
+        } else {
+            console.error('Error loading available products:', data.error);
+            clearProductResults();
+        }
+    })
+    .catch(error => {
+        console.error('Error loading available products:', error);
+        clearProductResults();
+    });
+}
 
 function initializeProductSearch() {
     const searchInput = document.getElementById('productSearch');
@@ -286,7 +323,8 @@ function initializeProductSearch() {
         if (searchTerm.length >= 2) {
             searchTimeout = setTimeout(() => searchProducts(searchTerm), 300);
         } else {
-            clearProductResults();
+            // When search is cleared, reload all available products
+            loadAvailableProducts();
         }
     });
 }
@@ -386,113 +424,116 @@ function updateWasteCost() {
     }
 }
 
-// Event listeners
-document.getElementById('wasteQuantity').addEventListener('input', updateWasteCost);
-
-document.getElementById('addToWasteBtn').addEventListener('click', function() {
+function addToWasteCart() {
+    if (!selectedProduct) {
+        showError('Please select a product first');
+        return;
+    }
+    
     const quantity = parseInt(document.getElementById('wasteQuantity').value);
     const damageReason = document.getElementById('damageReason').value;
     const notes = document.getElementById('wasteNotes').value.trim();
     
-    if (!selectedProduct || quantity <= 0 || !damageReason) {
-        showError('Please select product, quantity, and damage reason');
+    // Validation
+    if (!quantity || quantity <= 0) {
+        showError('Please enter a valid quantity');
         return;
     }
     
     if (quantity > selectedProduct.available_quantity) {
-        showError(`Only ${selectedProduct.available_quantity} units available`);
+        showError(`Quantity cannot exceed available stock (${selectedProduct.available_quantity})`);
         return;
     }
     
-    // Add to cart
-    const wasteItem = {
-        product_id: selectedProduct.id,
-        product_name: selectedProduct.name,
-        product_item_id: selectedProduct.item_id,
-        quantity: quantity,
-        unit_price: selectedProduct.current_cost,
-        total_amount: quantity * selectedProduct.current_cost,
-        damage_reason: damageReason,
-        damage_reason_display: document.getElementById('damageReason').selectedOptions[0].text,
-        notes: notes,
-        available_quantity: selectedProduct.available_quantity
-    };
+    if (!damageReason) {
+        showError('Please select a damage reason');
+        return;
+    }
     
-    wasteItemsCart.push(wasteItem);
+    // Check if product already in cart
+    const existingIndex = wasteItemsCart.findIndex(item => item.product_id === selectedProduct.id);
+    
+    if (existingIndex !== -1) {
+        // Update existing item
+        wasteItemsCart[existingIndex].quantity = quantity;
+        wasteItemsCart[existingIndex].damage_reason = damageReason;
+        wasteItemsCart[existingIndex].notes = notes;
+        wasteItemsCart[existingIndex].total_cost = quantity * selectedProduct.current_cost;
+    } else {
+        // Add new item
+        wasteItemsCart.push({
+            product_id: selectedProduct.id,
+            product_name: selectedProduct.name,
+            product_item_id: selectedProduct.item_id,
+            quantity: quantity,
+            unit_cost: selectedProduct.current_cost,
+            total_cost: quantity * selectedProduct.current_cost,
+            damage_reason: damageReason,
+            notes: notes
+        });
+    }
+    
     updateWasteCartDisplay();
     updateWasteTotals();
-    
-    // Reset form
     clearForm();
-    
-    showSuccess('Item added to waste cart');
-});
-
-function updateWasteCartDisplay() {
-    const container = document.getElementById('wasteCartContainer');
-    const emptyCart = document.getElementById('emptyWasteCart');
-    
-    if (wasteItemsCart.length === 0) {
-        emptyCart.style.display = 'block';
-        document.getElementById('completeWasteBtn').disabled = true;
-        return;
-    }
-    
-    emptyCart.style.display = 'none';
-    document.getElementById('completeWasteBtn').disabled = false;
-    
-    const cartHtml = `
-        <div class="table-responsive">
-            <table class="table table-sm">
-                <thead class="table-light">
-                    <tr>
-                        <th>Product</th>
-                        <th>Quantity</th>
-                        <th>Cost</th>
-                        <th>Reason</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${wasteItemsCart.map((item, index) => `
-                        <tr>
-                            <td>
-                                <strong>${item.product_name}</strong>
-                                <small class="d-block text-muted">ID: ${item.product_item_id}</small>
-                            </td>
-                            <td>${item.quantity}</td>
-                            <td>${item.total_amount.toFixed(3)} JOD</td>
-                            <td>
-                                <span class="badge bg-warning">${item.damage_reason_display}</span>
-                                ${item.notes ? `<small class="d-block text-muted">${item.notes}</small>` : ''}
-                            </td>
-                            <td>
-                                <button class="btn btn-sm btn-outline-danger" onclick="removeFromWasteCart(${index})">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        </div>
-    `;
-    
-    container.innerHTML = cartHtml;
+    showSuccess('Item added to waste cart successfully!');
 }
 
 function removeFromWasteCart(index) {
     wasteItemsCart.splice(index, 1);
     updateWasteCartDisplay();
     updateWasteTotals();
+    showSuccess('Item removed from waste cart');
+}
+
+function updateWasteCartDisplay() {
+    const cartContainer = document.getElementById('wasteCartItems');
+    
+    if (wasteItemsCart.length === 0) {
+        cartContainer.innerHTML = `
+            <div class="text-center text-muted py-4">
+                <i class="bi bi-cart display-4"></i>
+                <p class="mt-2" data-translate="no_items_in_waste_cart">No items in waste cart</p>
+                <small data-translate="use_form_waste">Use the form above to add waste items</small>
+            </div>
+        `;
+        return;
+    }
+    
+    const cartHtml = wasteItemsCart.map((item, index) => `
+        <div class="border rounded p-3 mb-2">
+            <div class="d-flex justify-content-between align-items-start">
+                <div class="flex-grow-1">
+                    <h6 class="mb-1">${item.product_name}</h6>
+                    <small class="text-muted">ID: ${item.product_item_id}</small>
+                    <div class="mt-2">
+                        <span class="badge bg-warning">${item.damage_reason}</span>
+                        <span class="ms-2">${item.quantity} × ${item.unit_cost.toFixed(3)} = ${item.total_cost.toFixed(3)} JOD</span>
+                    </div>
+                    ${item.notes ? `<small class="text-muted d-block mt-1">Notes: ${item.notes}</small>` : ''}
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeFromWasteCart(${index})">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        </div>
+    `).join('');
+    
+    cartContainer.innerHTML = cartHtml;
 }
 
 function updateWasteTotals() {
-    const totalCost = wasteItemsCart.reduce((sum, item) => sum + item.total_amount, 0);
-    const itemCount = wasteItemsCart.length;
+    const totalItems = wasteItemsCart.length;
+    const totalCost = wasteItemsCart.reduce((sum, item) => sum + item.total_cost, 0);
     
-    document.getElementById('wasteRevenueDisplay').textContent = totalCost.toFixed(3) + ' JOD';
-    document.getElementById('wasteItemsDisplay').textContent = itemCount;
+    document.getElementById('wasteItemCount').textContent = totalItems;
+    document.getElementById('wasteTotalCost').textContent = totalCost.toFixed(3);
+    
+    // Enable/disable complete button
+    const completeBtn = document.getElementById('completeWasteBtn');
+    if (completeBtn) {
+        completeBtn.disabled = totalItems === 0;
+    }
 }
 
 function completeWasteReport() {
@@ -501,9 +542,9 @@ function completeWasteReport() {
         return;
     }
     
-    const totalCost = wasteItemsCart.reduce((sum, item) => sum + item.total_amount, 0);
+    const totalCost = wasteItemsCart.reduce((sum, item) => sum + item.total_cost, 0);
     
-    if (!confirm(`Complete waste report with ${wasteItemsCart.length} items?\n\nTotal Waste Cost: ${totalCost.toFixed(3)} JOD\n\nThis action cannot be undone and will remove items from inventory.`)) {
+    if (!confirm(`Complete waste report with ${wasteItemsCart.length} items?\n\nTotal Waste Value: ${totalCost.toFixed(3)} JOD\n\nThis will permanently remove items from inventory.`)) {
         return;
     }
     
@@ -517,7 +558,7 @@ function completeWasteReport() {
         },
         body: JSON.stringify({
             waste_id: wasteData.wasteReport.id,
-            waste_items: wasteItemsCart
+            items: wasteItemsCart
         })
     })
     .then(response => response.json())
@@ -534,6 +575,42 @@ function completeWasteReport() {
     .catch(error => {
         console.error('Error completing waste report:', error);
         showError('Error completing waste report');
+    });
+}
+
+function cancelWasteReport() {
+    if (!confirm('Cancel this waste report?\n\nThis will remove the report and clear your cart. Any unsaved items will be lost.')) {
+        return;
+    }
+    
+    const wasteData = JSON.parse(document.getElementById('wasteData').textContent);
+    
+    fetch('{% url "frontend:waste_cancel" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken()
+        },
+        body: JSON.stringify({
+            waste_id: wasteData.wasteReport.id
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showSuccess(data.message);
+            if (data.redirect_url) {
+                setTimeout(() => {
+                    window.location.href = data.redirect_url;
+                }, 1500);
+            }
+        } else {
+            showError(data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error canceling waste report:', error);
+        showError('Error canceling waste report');
     });
 }
 
@@ -557,74 +634,46 @@ function displayCompletedWasteItems(items) {
     const container = document.getElementById('completedWasteItems');
     
     if (items.length === 0) {
-        container.innerHTML = '<p class="text-muted">No items in this waste report.</p>';
+        container.innerHTML = `
+            <div class="text-center text-muted py-4">
+                <i class="bi bi-inbox display-4"></i>
+                <p class="mt-2">No completed waste items found</p>
+            </div>
+        `;
         return;
     }
     
-    const totalCost = items.reduce((sum, item) => sum + item.total_amount, 0);
-    
-    document.getElementById('wasteRevenueDisplay').textContent = totalCost.toFixed(3) + ' JOD';
-    document.getElementById('wasteItemsDisplay').textContent = items.length;
-    
-    const itemsHtml = `
-        <div class="table-responsive">
-            <table class="table">
-                <thead class="table-light">
-                    <tr>
-                        <th>Product</th>
-                        <th>Quantity</th>
-                        <th>Unit Cost</th>
-                        <th>Total Cost</th>
-                        <th>Damage Reason</th>
-                        <th>Time</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${items.map(item => `
-                        <tr>
-                            <td>
-                                <strong>${item.product_name}</strong>
-                                <small class="d-block text-muted">ID: ${item.product_item_id}</small>
-                            </td>
-                            <td>${item.quantity}</td>
-                            <td>${item.unit_price.toFixed(3)} JOD</td>
-                            <td>${item.total_amount.toFixed(3)} JOD</td>
-                            <td>
-                                <span class="badge bg-warning">${item.damage_reason_display}</span>
-                                ${item.notes ? `<small class="d-block text-muted">${item.notes}</small>` : ''}
-                            </td>
-                            <td><small class="text-muted">${item.created_at}</small></td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
+    const itemsHtml = items.map(item => `
+        <div class="border rounded p-3 mb-2">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <h6 class="mb-1">${item.product_name}</h6>
+                    <small class="text-muted">ID: ${item.product_item_id}</small>
+                    <div class="mt-2">
+                        <span class="badge bg-warning">${item.damage_reason}</span>
+                        <span class="ms-2">${item.quantity} × ${item.unit_price.toFixed(3)} = ${item.total_amount.toFixed(3)} JOD</span>
+                    </div>
+                    ${item.notes ? `<small class="text-muted d-block mt-1">Notes: ${item.notes}</small>` : ''}
+                </div>
+                <small class="text-muted">${item.created_at}</small>
+            </div>
         </div>
-    `;
+    `).join('');
     
     container.innerHTML = itemsHtml;
 }
 
-// Utility functions (from base_scripts.js)
+// Utility functions
 function getCsrfToken() {
     return document.querySelector('[name=csrfmiddlewaretoken]').value;
 }
 
 function showSuccess(message) {
-    // Use existing success notification system
-    if (window.showNotification) {
-        window.showNotification(message, 'success');
-    } else {
-        alert(message);
-    }
+    alert('✅ ' + message);
 }
 
 function showError(message) {
-    // Use existing error notification system  
-    if (window.showNotification) {
-        window.showNotification(message, 'error');
-    } else {
-        alert(message);
-    }
+    alert('❌ ' + message);
 }
 </script>
 {% endblock %}

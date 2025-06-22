@@ -71,6 +71,10 @@ class BilingualMessages:
             # Transfer messages
             'transfer_session_created': 'Transfer session created successfully!',
             
+            # Waste messages
+            'waste_report_created': 'Waste report created successfully!',
+            'waste_report_number_exists': 'Waste report number "{report_number}" already exists. Please use a different number.',
+            
             # General messages
             'invalid_request_method': 'Invalid request method.',
             'back_to_inventory': 'Back to Inventory',
@@ -147,6 +151,10 @@ class BilingualMessages:
             
             # Transfer messages (Arabic)
             'transfer_session_created': 'تمإنشاء جلسة تحويل بنجاح. الآن قم بإضافة عناصر التحويل.',
+            
+            # Waste messages (Arabic)
+            'waste_report_created': 'تمإنشاء تقرير النفايات بنجاح. الآن قم بإضافة عناصر التقرير.',
+            'waste_report_number_exists': 'رقم تقرير النفايات "{waste_report_number}" موجود بالفعل. يرجى استخدام رقم مختلف.',
             # General messages (Arabic)
             'invalid_request_method': 'طريقة طلب غير صالحة.',
             'back_to_inventory': 'العودة للمخزون',

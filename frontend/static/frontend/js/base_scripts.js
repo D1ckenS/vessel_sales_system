@@ -585,7 +585,7 @@ window.updatePageTranslations = function() {
     });
 
     // 🔧 Handle date translations (trips, POs, transfers)
-    ['trip', 'po', 'transfer'].forEach(type => {
+    ['trip', 'po', 'transfer', 'waste'].forEach(type => {
         document.querySelectorAll(`[data-${type}-date]`).forEach(element => {
             const originalDate = element.getAttribute('data-original') || element.textContent.trim();
             if (!element.getAttribute('data-original')) {

@@ -92,15 +92,38 @@ def waste_items(request, waste_id):
         return redirect('frontend:waste_entry')
     
     # Get existing waste items
-    existing_waste = []
-    if not waste_report.is_completed:
+    existing_waste_items = []
+    completed_waste_items = []
+    
+    if waste_report.is_completed:
+        # For completed reports, show all items as completed
         waste_transactions = Transaction.objects.filter(
-            waste_report=waste_report,  # Need to add this field
+            waste_report=waste_report,
             transaction_type='WASTE'
         ).select_related('product').order_by('created_at')
         
         for waste in waste_transactions:
-            existing_waste.append({
+            completed_waste_items.append({
+                'id': waste.id,
+                'product_id': waste.product.id,
+                'product_name': waste.product.name,
+                'product_item_id': waste.product.item_id,
+                'quantity': int(waste.quantity),
+                'unit_price': float(waste.unit_price),
+                'total_amount': float(waste.total_amount),
+                'damage_reason': waste.damage_reason,
+                'notes': waste.notes or '',
+                'created_at': waste.created_at.strftime('%H:%M')
+            })
+    else:
+        # For active reports, show items as existing/editable
+        waste_transactions = Transaction.objects.filter(
+            waste_report=waste_report,
+            transaction_type='WASTE'
+        ).select_related('product').order_by('created_at')
+        
+        for waste in waste_transactions:
+            existing_waste_items.append({
                 'id': waste.id,
                 'product_id': waste.product.id,
                 'product_name': waste.product.name,
@@ -113,11 +136,14 @@ def waste_items(request, waste_id):
                 'created_at': waste.created_at.strftime('%H:%M')
             })
     
-    existing_waste_json = json.dumps(existing_waste)
+    # Convert to JSON for JavaScript
+    existing_waste_items_json = json.dumps(existing_waste_items)
+    completed_waste_items_json = json.dumps(completed_waste_items)
     
     context = {
         'waste_report': waste_report,
-        'existing_waste_json': existing_waste_json,
+        'existing_waste_items_json': existing_waste_items_json,
+        'completed_waste_items_json': completed_waste_items_json,
         'can_edit': not waste_report.is_completed,
         'damage_reasons': Transaction.DAMAGE_REASONS,
     }
@@ -178,7 +204,7 @@ def waste_search_products(request):
                 'item_id': summary['product__item_id'],
                 'barcode': summary['product__barcode'] or '',
                 'is_duty_free': summary['product__is_duty_free'],
-                'total_quantity': summary['total_quantity'],
+                'available_quantity': summary['total_quantity'],  # ← Fixed field name
                 'current_cost': float(current_cost),
             })
         
@@ -258,7 +284,7 @@ def waste_available_products(request):
                 'barcode': summary['product__barcode'] or '',
                 'category': summary['product__category__name'],
                 'is_duty_free': summary['product__is_duty_free'],
-                'total_quantity': summary['total_quantity'],
+                'available_quantity': summary['total_quantity'],  # ← Fixed field name
                 'current_cost': float(current_cost),
                 'lots': lots_data
             })
@@ -283,7 +309,7 @@ def waste_bulk_complete(request):
     try:
         data = json.loads(request.body)
         waste_id = data.get('waste_id')
-        items = data.get('items', [])
+        items = data.get('items', [])  # ← Changed from 'waste_items' to 'items'
         
         if not waste_id or not items:
             return JsonResponse({'success': False, 'error': 'Waste ID and items required'})
@@ -329,7 +355,7 @@ def waste_bulk_complete(request):
                     quantity=quantity,
                     unit_price=unit_cost,
                     transaction_date=waste_report.report_date,
-                    waste_report=waste_report,  # Need to add this field
+                    waste_report=waste_report,
                     damage_reason=damage_reason,
                     notes=f"Waste Report: {waste_report.report_number}. Reason: {damage_reason}. {notes}",
                     created_by=request.user

@@ -61,20 +61,20 @@
                                 </select>
                             </div>
                             <div class="col-md-6">
-                                <label for="waste_date" class="form-label fw-bold">
-                                    <i class="bi bi-calendar me-1"></i> <span data-translate="waste_date">Waste Date</span>
+                                <label for="report_date" class="form-label fw-bold">
+                                    <i class="bi bi-calendar me-1"></i> <span data-translate="report_date">Waste Date</span>
                                 </label>
-                                <input type="date" class="form-control" name="waste_date" value="{{ today }}" required>
+                                <input type="date" class="form-control" name="report_date" value="{{ today }}" required>
                             </div>
                         </div>
 
                         <!-- Waste Report Number -->
                         <div class="row mb-3">
                             <div class="col-md-6">
-                                <label for="waste_number" class="form-label fw-bold">
+                                <label for="report_number" class="form-label fw-bold">
                                     <i class="bi bi-hash me-1"></i> <span data-translate="waste_report_number">Waste Report Number</span>
                                 </label>
-                                <input type="text" class="form-control" name="waste_number" 
+                                <input type="text" class="form-control" name="report_number" 
                                        placeholder="e.g., WR-001, WASTE-2025-001" required>
                                 <div class="form-text">
                                     <span data-translate="unique_identifier_help">Must be unique across all waste reports</span>
@@ -128,17 +128,17 @@
                                 <tr>
                                     <th><i class="bi bi-hash"></i> <span data-translate="waste_report_number">Report #</span></th>
                                     <th><i class="bi bi-ship"></i> <span data-translate="vessel">Vessel</span></th>
-                                    <th><i class="bi bi-calendar"></i> <span data-translate="waste_date">Date</span></th>
+                                    <th><i class="bi bi-calendar"></i> <span data-translate="report_date">Date</span></th>
                                     <th><i class="bi bi-currency-dollar"></i> <span data-translate="waste_cost">Cost</span></th>
                                     <th><i class="bi bi-check-circle"></i> <span data-translate="status">Status</span></th>
                                     <th><i class="bi bi-gear"></i> <span data-translate="actions">Actions</span></th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for waste_report in recent_waste_reports %}
+                                 {% for waste_report in recent_reports %}
                                 <tr>
                                     <td>
-                                        <strong>{{ waste_report.waste_number }}</strong>
+                                        <strong>{{ waste_report.report_number }}</strong>
                                     </td>
                                     <td>
                                         <span class="badge {% if waste_report.vessel.name|lower == 'amman' %}bg-primary{% elif waste_report.vessel.name|lower == 'aylah' %}bg-danger{% elif waste_report.vessel.name|lower == 'sinaa' %}bg-success{% elif waste_report.vessel.name|lower == 'nefertiti' %}bg-secondary{% elif waste_report.vessel.name|lower == 'babel' %}bg-warning{% elif waste_report.vessel.name|lower == 'dahab' %}bg-info{% else %}bg-primary{% endif %}">
@@ -146,36 +146,37 @@
                                         </span>
                                     </td>
                                     <td>
-                                        {{ waste_report.waste_date|date:"d/m/Y" }}
+                                        {{ waste_report.report_date|date:"d/m/Y" }}
                                     </td>
                                     <td>
-                                        <span class="fw-bold text-danger">{{ waste_report.total_cost|floatformat:3 }} JOD</span>
-                                        <small class="text-muted d-block">{{ waste_report.transaction_count }} <span data-translate="items">items</span></small>
+                                        <span class="text-danger fw-bold">{{ waste_report.total_cost|floatformat:3 }} JOD</span>
                                     </td>
                                     <td>
                                         {% if waste_report.is_completed %}
-                                            <span class="badge bg-success">
-                                                <i class="bi bi-check-circle me-1"></i>
-                                                <span data-translate="completed">Completed</span>
-                                            </span>
+                                        <span class="badge bg-success">
+                                            <i class="bi bi-check-circle me-1"></i>
+                                            <span data-translate="completed">Completed</span>
+                                        </span>
                                         {% else %}
-                                            <span class="badge bg-warning">
-                                                <i class="bi bi-clock me-1"></i>
-                                                <span data-translate="in_progress">In Progress</span>
-                                            </span>
+                                        <span class="badge bg-warning">
+                                            <i class="bi bi-clock me-1"></i>
+                                            <span data-translate="in_progress">In Progress</span>
+                                        </span>
                                         {% endif %}
                                     </td>
                                     <td>
                                         {% if not waste_report.is_completed %}
-                                            <a href="{% url 'frontend:waste_items' waste_id=waste_report.id %}" class="btn btn-sm btn-outline-primary">
-                                                <i class="bi bi-plus-circle me-1"></i>
-                                                <span data-translate="add_items">Add Items</span>
-                                            </a>
+                                        <a href="{% url 'frontend:waste_items' waste_id=waste_report.id %}" 
+                                           class="btn btn-sm btn-primary">
+                                            <i class="bi bi-pencil me-1"></i>
+                                            <span data-translate="continue">Continue</span>
+                                        </a>
                                         {% else %}
-                                            <a href="{% url 'frontend:waste_items' waste_id=waste_report.id %}" class="btn btn-sm btn-outline-secondary">
-                                                <i class="bi bi-eye me-1"></i>
-                                                <span data-translate="view">View</span>
-                                            </a>
+                                        <a href="{% url 'frontend:waste_items' waste_id=waste_report.id %}" 
+                                           class="btn btn-sm btn-outline-secondary">
+                                            <i class="bi bi-eye me-1"></i>
+                                            <span data-translate="view_details">View</span>
+                                        </a>
                                         {% endif %}
                                     </td>
                                 </tr>
@@ -204,12 +205,12 @@ function clearForm() {
     document.getElementById('wasteForm').reset();
 }
 
-// Form validation
+// Form validation with correct field names
 document.getElementById('wasteForm').addEventListener('submit', function(e) {
-    const wasteNumber = document.querySelector('[name="waste_number"]').value.trim();
+    const reportNumber = document.querySelector('[name="report_number"]').value.trim();
     const vessel = document.querySelector('[name="vessel"]').value;
     
-    if (!wasteNumber) {
+    if (!reportNumber) {
         e.preventDefault();
         alertTranslated('enter_waste_number');
         return;
