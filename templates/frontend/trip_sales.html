@@ -2,7 +2,7 @@
 
 {% block title %}Trip Sales - {{ trip.trip_number }} - Vessel Sales System{% endblock %}
 
-{% block extra_css%}
+{% block extra_css %}
 <style>
 /* Cart summary styling - matching PO Supply */
 .cart-summary-section {
@@ -41,7 +41,7 @@
             <div>
                 <h2>
                     <i class="bi bi-cart-plus text-success"></i> 
-                    <span data-translate="trip_sales">Trip Sales</span>: <span class="trip-number" data-original="{{ trip.trip_number }}">{{ trip.trip_number }}</span>
+                    <span data-translate="trip_sales">Trip Sales</span>: <span data-number data-original="{{ trip.trip_number }}">{{ trip.trip_number }}</span>
                 </h2>
                 <p class="text-muted mb-0">
                     <i class="bi bi-ship"></i> <span class="vessel-name" data-en="{{ trip.vessel.name }}" data-ar="{{ trip.vessel.name_ar }}">{{ trip.vessel.name }}</span> •
@@ -324,15 +324,15 @@
                         </tbody>
                     </table>
                 </div>
-                {% if can_edit %}
+                
                 <!-- Empty State -->
                 <div id="emptySalesState" class="text-center py-5" style="display: none;">
                     <i class="bi bi-cart-x text-muted" style="font-size: 3rem;"></i>
                     <h5 class="text-muted mt-3"><span data-translate="no_items_in_cart">No items in cart</span></h5>
-                    <p class="text-muted"><span data-translate="use_form_trip">Use the form above to add sales items to this trip</span></p>
+                    <p class="text-muted"><span data-translate="use_form_sales">Use the form above to add sales items to this trip</span></p>
                 </div>
-
-                <!-- Cart Summary Footer -->
+                {% if can_edit %}
+                <!-- Cart Summary Footer (like PO Supply) -->
                 <div class="card-footer bg-light cart-summary-section">
                     <div class="row">
                         <div class="col-md-8">
@@ -340,12 +340,9 @@
                                 <i class="bi bi-cart-check text-success me-2" style="font-size: 1.2rem;"></i>
                                 <strong><span data-translate="cart_summary">Cart Summary:</span></strong>
                                 <span class="ms-2">
-                                    <span id="cartSummaryItems" data-number>0</span> <span data-translate="items">items</span>
+                                    <span id="cartSummaryItems" data-number>0</span> <span data-translate="total_items">total items</span>
                                     • 
-                                    <strong><span id="cartSummaryRevenue" data-number>0.000</span> <span data-currency-symbol>JOD</span></strong>
-                                    {% if user_permissions.can_view_financials %}
-                                    • <span data-translate="profit">Profit:</span> <span id="cartSummaryProfit" data-number>0.000</span> <span data-currency-symbol>JOD</span>
-                                    {% endif %}
+                                    <span id="cartSummaryRevenue" data-number>0.000</span> <span data-currency-symbol>JOD</span> <span data-translate="revenue">revenue</span>
                                 </span>
                             </div>
                         </div>
@@ -419,6 +416,9 @@ document.addEventListener('DOMContentLoaded', function() {
             'choose_export_format': 'Choose Export Format',
             'exporting': 'Exporting...',
             'item_revenue': 'Item Revenue',
+            'cart_summary': 'Cart Summary:',
+            'total_items': 'total items',
+            'revenue': 'revenue',
         },
         ar: {
             'total_cogs': 'إجمالي تكلفة البضاعة المباعة',
@@ -460,6 +460,9 @@ document.addEventListener('DOMContentLoaded', function() {
             'choose_export_format': 'حدد نوع التصدير',
             'exporting': 'جاري التصدير...',
             'item_revenue': 'ايرادات العنصر',
+            'cart_summary': 'ملخص السلة:',
+            'total_items': 'إجمالي العناصر',
+            'revenue': 'الإيرادات',
         }
     };
     
@@ -1060,13 +1063,6 @@ async function cancelEdit() {
             showAlert(_('error_canceling_trip'), 'danger');
         });
     }
-}
-
-function exitEditMode() {
-    editingIndex = -1;
-    document.getElementById('formTitle').innerHTML = '<i class="bi bi-plus-circle"></i> ' + _('add_sales_item');
-    document.getElementById('addBtnText').textContent = _('add_to_trip');
-    clearForm();
 }
 
 function updateCartDisplay() {
