@@ -90,6 +90,16 @@
                     </li>
                     {% endif %}
                     
+                    <!-- 🆕 WASTE - Inventory Staff, Managers, Administrators (NOT Vessel Operators) -->
+                    {% if user_permissions.can_access_inventory or user_permissions.can_access_reports %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if 'waste' in request.resolver_match.url_name %}active{% endif %}" 
+                        href="{% url 'frontend:waste_entry' %}">
+                            <i class="bi bi-trash"></i> <span data-translate="waste">Waste</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    
                     <!-- Reports - Administrators, Managers & Inventory Staff -->
                     {% if user_permissions.can_access_reports %}
                     <li class="nav-item">

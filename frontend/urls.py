@@ -2,7 +2,7 @@ from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.urls import path
 from . import (views, auth_views, reports_views, export_views,
-               product_views, category_views, supply_views, transfer_views,
+               product_views, category_views, supply_views, transfer_views, waste_views,
                sales_views, inventory_views, pricing_views, vessel_views, user_views,
                group_views, trip_views, po_views)
 
@@ -130,6 +130,16 @@ urlpatterns = [
     path('transfer/search-products/', transfer_views.transfer_search_products, name='transfer_search_products'),
     path('transfer/execute/', transfer_views.transfer_execute, name='transfer_execute'),
     path('transfer/available-products/', transfer_views.transfer_available_products, name='transfer_available_products'),
+    
+    # Waste - Two-step workflow
+    path('waste/', waste_views.waste_entry, name='waste_entry'),  # Step 1: Create waste report
+    path('waste/report/<int:waste_id>/', waste_views.waste_items, name='waste_items'),  # Step 2: Add items
+    path('waste/bulk-complete/', waste_views.waste_bulk_complete, name='waste_bulk_complete'),
+    path('waste/cancel/', waste_views.waste_cancel, name='waste_cancel'),
+
+    # Waste API endpoints
+    path('waste/search-products/', waste_views.waste_search_products, name='waste_search_products'),
+    path('waste/available-products/', waste_views.waste_available_products, name='waste_available_products'),
     
     # =============================================================================
     # ADMIN MANAGEMENT

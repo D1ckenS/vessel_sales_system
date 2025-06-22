@@ -4,7 +4,7 @@ from django.utils.html import format_html
 from django.db.models import Sum, Count
 from django.urls import reverse
 from django.utils.safestring import mark_safe
-from .models import InventoryLot, Transaction, Trip, PurchaseOrder
+from .models import InventoryLot, Transaction, Trip, PurchaseOrder, WasteReport
 
 @admin.register(Trip)
 class TripAdmin(admin.ModelAdmin):
@@ -38,6 +38,22 @@ class TripAdmin(admin.ModelAdmin):
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
 
+@admin.register(WasteReport)
+class WasteReportAdmin(admin.ModelAdmin):
+    list_display = ['report_number', 'vessel', 'report_date', 'is_completed', 'transaction_count', 'total_cost']
+    list_filter = ['vessel', 'report_date', 'is_completed']
+    search_fields = ['report_number', 'vessel__name']
+    ordering = ['-report_date', '-created_at']
+    readonly_fields = ['created_at', 'updated_at', 'transaction_count', 'total_cost']
+    
+    def transaction_count(self, obj):
+        return obj.transaction_count
+    transaction_count.short_description = 'Items'
+    
+    def total_cost(self, obj):
+        return f"{obj.total_cost:.3f} JOD"
+    total_cost.short_description = 'Total Cost'
+    
 @admin.register(PurchaseOrder)
 class PurchaseOrderAdmin(admin.ModelAdmin):
     list_display = ('po_number', 'vessel', 'po_date', 'is_completed', 'total_cost', 'transaction_count', 'created_by', 'created_at')

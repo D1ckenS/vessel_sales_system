@@ -154,6 +154,17 @@
                     </a>
                 </div>
                 {% endif %}
+
+                <!-- 🆕 WASTE REPORTING - Inventory Staff, Managers, Administrators (NOT Vessel Operators) -->
+                {% if user_permissions.can_access_inventory or user_permissions.can_access_reports %}
+                <div class="quick-action-wrapper">
+                    <a href="{% url 'frontend:waste_entry' %}" class="quick-action">
+                        <i class="bi bi-trash text-danger"></i>
+                        <h6 data-translate="report_waste">Report Waste</h6>
+                        <p class="text-muted small mb-0" data-translate="record_damaged_desc">Record damaged/expired items</p>
+                    </a>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>

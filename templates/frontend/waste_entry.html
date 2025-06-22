@@ -1,0 +1,242 @@
+<!-- CREATE: templates/frontend/waste_entry.html -->
+{% extends 'frontend/base.html' %}
+
+{% block title %}
+    <span data-translate="waste_entry">Waste Entry</span> - Vessel Sales System
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-0">
+                        <i class="bi bi-trash me-2" style="color: var(--danger-red);"></i>
+                        <span data-translate="waste_entry">Waste Entry</span>
+                    </h2>
+                    <p class="text-muted mb-0" data-translate="record_damaged_desc">
+                        Record damaged/expired items
+                    </p>
+                </div>
+                <div>
+                    <a href="{% url 'frontend:dashboard' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left me-2"></i>
+                        <span data-translate="back_to_dashboard">Back to Dashboard</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Waste Report Form -->
+    <div class="row mb-4">
+        <div class="col-lg-8 col-md-10 mx-auto">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-plus-circle me-2"></i>
+                        <span data-translate="create_waste_report">Create Waste Report</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" id="wasteForm">
+                        {% csrf_token %}
+                        
+                        <!-- Vessel Selection -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="vessel" class="form-label fw-bold">
+                                    <i class="bi bi-ship me-1"></i> <span data-translate="select_vessel">Select Vessel</span>
+                                </label>
+                                <select class="form-select" name="vessel" required>
+                                    <option value="" data-translate="choose_vessel">Choose vessel...</option>
+                                    {% for vessel in vessels %}
+                                    <option value="{{ vessel.id }}" data-name="{{ vessel.name }}" data-duty-free="{{ vessel.has_duty_free }}">
+                                        <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
+                                        {% if vessel.has_duty_free %} (<span class="text-success" data-translate="duty_free">Duty-Free</span>){% endif %}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="waste_date" class="form-label fw-bold">
+                                    <i class="bi bi-calendar me-1"></i> <span data-translate="waste_date">Waste Date</span>
+                                </label>
+                                <input type="date" class="form-control" name="waste_date" value="{{ today }}" required>
+                            </div>
+                        </div>
+
+                        <!-- Waste Report Number -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="waste_number" class="form-label fw-bold">
+                                    <i class="bi bi-hash me-1"></i> <span data-translate="waste_report_number">Waste Report Number</span>
+                                </label>
+                                <input type="text" class="form-control" name="waste_number" 
+                                       placeholder="e.g., WR-001, WASTE-2025-001" required>
+                                <div class="form-text">
+                                    <span data-translate="unique_identifier_help">Must be unique across all waste reports</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Notes -->
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <label for="notes" class="form-label fw-bold">
+                                    <i class="bi bi-chat-left-text me-1"></i> <span data-translate="waste_notes">Waste Notes (Optional)</span>
+                                </label>
+                                <textarea class="form-control" name="notes" rows="3" 
+                                          placeholder="Additional notes about this waste report..."
+                                          data-placeholder-en="Additional notes about this waste report..."
+                                          data-placeholder-ar="ملاحظات إضافية حول تقرير المهدر...">
+                                </textarea>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="button" class="btn btn-outline-secondary btn-lg me-md-2" onclick="clearForm()">
+                                <i class="bi bi-x-circle"></i> <span data-translate="clear_form">Clear Form</span>
+                            </button>
+                            <button type="submit" class="btn btn-danger btn-lg">
+                                <i class="bi bi-arrow-right"></i> <span data-translate="create_waste_add_items">Create Waste Report & Add Items</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Waste Reports -->
+    <div class="row mt-5">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-clock-history"></i> 
+                        <span data-translate="recent_waste_reports">Recent Waste Reports</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th><i class="bi bi-hash"></i> <span data-translate="waste_report_number">Report #</span></th>
+                                    <th><i class="bi bi-ship"></i> <span data-translate="vessel">Vessel</span></th>
+                                    <th><i class="bi bi-calendar"></i> <span data-translate="waste_date">Date</span></th>
+                                    <th><i class="bi bi-currency-dollar"></i> <span data-translate="waste_cost">Cost</span></th>
+                                    <th><i class="bi bi-check-circle"></i> <span data-translate="status">Status</span></th>
+                                    <th><i class="bi bi-gear"></i> <span data-translate="actions">Actions</span></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for waste_report in recent_waste_reports %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ waste_report.waste_number }}</strong>
+                                    </td>
+                                    <td>
+                                        <span class="badge {% if waste_report.vessel.name|lower == 'amman' %}bg-primary{% elif waste_report.vessel.name|lower == 'aylah' %}bg-danger{% elif waste_report.vessel.name|lower == 'sinaa' %}bg-success{% elif waste_report.vessel.name|lower == 'nefertiti' %}bg-secondary{% elif waste_report.vessel.name|lower == 'babel' %}bg-warning{% elif waste_report.vessel.name|lower == 'dahab' %}bg-info{% else %}bg-primary{% endif %}">
+                                            <span class="vessel-name" data-en="{{ waste_report.vessel.name }}" data-ar="{{ waste_report.vessel.name_ar }}">{{ waste_report.vessel.name }}</span>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {{ waste_report.waste_date|date:"d/m/Y" }}
+                                    </td>
+                                    <td>
+                                        <span class="fw-bold text-danger">{{ waste_report.total_cost|floatformat:3 }} JOD</span>
+                                        <small class="text-muted d-block">{{ waste_report.transaction_count }} <span data-translate="items">items</span></small>
+                                    </td>
+                                    <td>
+                                        {% if waste_report.is_completed %}
+                                            <span class="badge bg-success">
+                                                <i class="bi bi-check-circle me-1"></i>
+                                                <span data-translate="completed">Completed</span>
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-warning">
+                                                <i class="bi bi-clock me-1"></i>
+                                                <span data-translate="in_progress">In Progress</span>
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if not waste_report.is_completed %}
+                                            <a href="{% url 'frontend:waste_items' waste_id=waste_report.id %}" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-plus-circle me-1"></i>
+                                                <span data-translate="add_items">Add Items</span>
+                                            </a>
+                                        {% else %}
+                                            <a href="{% url 'frontend:waste_items' waste_id=waste_report.id %}" class="btn btn-sm btn-outline-secondary">
+                                                <i class="bi bi-eye me-1"></i>
+                                                <span data-translate="view">View</span>
+                                            </a>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted">
+                                        <i class="bi bi-inbox display-4 d-block mb-2"></i>
+                                        <p class="mt-2 mb-0"><span data-translate="no_waste_reports_yet">No Waste Reports Yet</span></p>
+                                        <small><span data-translate="create_first_waste_report">Create your first waste report using the form above</span></small>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function clearForm() {
+    document.getElementById('wasteForm').reset();
+}
+
+// Form validation
+document.getElementById('wasteForm').addEventListener('submit', function(e) {
+    const wasteNumber = document.querySelector('[name="waste_number"]').value.trim();
+    const vessel = document.querySelector('[name="vessel"]').value;
+    
+    if (!wasteNumber) {
+        e.preventDefault();
+        alertTranslated('enter_waste_number');
+        return;
+    }
+    
+    if (!vessel) {
+        e.preventDefault();
+        alertTranslated('select_vessel');
+        return;
+    }
+});
+
+// Enhanced translation for waste entry
+document.addEventListener('DOMContentLoaded', function() {
+    window.registerPageTitle('waste_entry', 'Waste Entry');
+    
+    // Update vessel names with proper translation
+    document.querySelectorAll('.vessel-name').forEach(element => {
+        const enName = element.getAttribute('data-en');
+        const arName = element.getAttribute('data-ar');
+        
+        if (window.translator && window.translator.currentLanguage === 'ar' && arName) {
+            element.textContent = arName;
+        } else {
+            element.textContent = enName;
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -203,6 +203,73 @@ class PurchaseOrder(models.Model):
             return self.supply_transactions.aggregate(
                 total=Sum('quantity')
             )['total'] or 0
+            
+class WasteReport(models.Model):
+    """Tracks waste reports for grouping waste transactions"""
+    report_number = models.CharField(
+        max_length=50, 
+        unique=True,
+        help_text="Unique waste report identifier (e.g., WR-AM-001-2024)"
+    )
+    vessel = models.ForeignKey(Vessel, on_delete=models.PROTECT, related_name='waste_reports')
+    report_date = models.DateField()
+    is_completed = models.BooleanField(default=False)
+    notes = models.TextField(blank=True)
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    class Meta:
+        ordering = ['-report_date', '-created_at']
+        verbose_name = 'Waste Report'
+        verbose_name_plural = 'Waste Reports'
+        indexes = [
+            models.Index(fields=['vessel'], name='wastereport_vessel_idx'),
+            models.Index(fields=['report_date'], name='wastereport_date_idx'),
+            models.Index(fields=['is_completed'], name='wastereport_completed_idx'),
+            models.Index(fields=['vessel', 'is_completed'], name='wastereport_vessel_status_idx'),
+        ]
+    
+    def __str__(self):
+        return f"{self.report_number} - {self.vessel.name} ({self.report_date})"
+    
+    @property
+    def total_cost(self):
+        """Calculate total cost from waste transactions using FIFO"""
+        if hasattr(self, '_prefetched_objects_cache') and 'waste_transactions' in self._prefetched_objects_cache:
+            return sum(
+                tx.unit_price * tx.quantity 
+                for tx in self._prefetched_objects_cache['waste_transactions']
+            )
+        else:
+            return self.waste_transactions.aggregate(
+                total=Sum(F('unit_price') * F('quantity'))
+            )['total'] or 0
+    
+    @property
+    def transaction_count(self):
+        """Count of waste transactions in this report"""
+        if hasattr(self, '_prefetched_objects_cache') and 'waste_transactions' in self._prefetched_objects_cache:
+            return len(self._prefetched_objects_cache['waste_transactions'])
+        else:
+            return self.waste_transactions.count()
+    
+    @property
+    def unique_products_count(self):
+        """Count of unique products wasted in this report"""
+        if hasattr(self, '_prefetched_objects_cache') and 'waste_transactions' in self._prefetched_objects_cache:
+            return len(set(
+                tx.product_id 
+                for tx in self._prefetched_objects_cache['waste_transactions']
+            ))
+        else:
+            return self.waste_transactions.values('product').distinct().count()
+    
+    @property
+    def waste_transactions(self):
+        return self.transactions.filter(transaction_type='WASTE')
 
 class Transaction(models.Model):
     """Records all inventory movements with proper transaction types"""
@@ -212,6 +279,15 @@ class Transaction(models.Model):
         ('SALE', 'Sale (Sold to Customers)'),
         ('TRANSFER_OUT', 'Transfer Out (Sent to Another Vessel)'),
         ('TRANSFER_IN', 'Transfer In (Received from Another Vessel)'),
+        ('WASTE', 'Waste (Items Removed from Inventory)'),
+    ]
+    
+    DAMAGE_REASONS = [
+        ('DAMAGED', 'Physical Damage'),
+        ('EXPIRED', 'Expired Product'),
+        ('CONTAMINATED', 'Contaminated'),
+        ('RECALL', 'Product Recall'),
+        ('OTHER', 'Other (Specify in Notes)'),
     ]
     
     # Core Information
@@ -266,6 +342,22 @@ class Transaction(models.Model):
         help_text="Links TRANSFER_OUT with corresponding TRANSFER_IN"
     )
     
+    damage_reason = models.CharField(
+        max_length=20, 
+        choices=DAMAGE_REASONS, 
+        blank=True,
+        help_text="Reason for waste (only for WASTE transactions)"
+    )
+    
+    waste_report = models.ForeignKey(
+        'WasteReport', 
+        on_delete=models.CASCADE, 
+        null=True, 
+        blank=True, 
+        related_name='waste_transactions',
+        help_text="Waste report this transaction belongs to (for WASTE transactions only)"
+    )
+
     # Foreign keys for grouping
     trip = models.ForeignKey(Trip, on_delete=models.CASCADE, related_name='sales_transactions', null=True, blank=True)
     purchase_order = models.ForeignKey(PurchaseOrder, on_delete=models.CASCADE, related_name='supply_transactions', null=True, blank=True)
@@ -346,6 +438,8 @@ class Transaction(models.Model):
                 self._validate_and_consume_inventory()
             elif self.transaction_type == 'TRANSFER_OUT':
                 self._validate_and_consume_for_transfer()
+            elif self.transaction_type == 'WASTE':
+                self._validate_and_consume_for_waste()
             
             # Save transaction only after successful inventory operations
             super().save(*args, **kwargs)
@@ -454,6 +548,60 @@ class Transaction(models.Model):
             })
             
             remaining_to_consume -= consume_from_lot
+
+    def _validate_and_consume_for_waste(self):
+        """
+        🔥 ATOMIC: Validate and consume inventory for waste with database locking
+        Uses same FIFO logic as sales
+        """
+        # Use the same atomic validation and consumption as sales
+        inventory_lots = InventoryLot.objects.filter(
+            vessel=self.vessel,
+            product=self.product,
+            remaining_quantity__gt=0
+        ).select_for_update().order_by('purchase_date', 'created_at')
+        
+        total_available = sum(lot.remaining_quantity for lot in inventory_lots)
+        
+        if self.quantity > total_available:
+            raise ValidationError(
+                f"Insufficient inventory for waste of {self.product.name} on {self.vessel.name}. "
+                f"Available: {total_available}, Requested: {self.quantity}"
+            )
+        
+        # Consume inventory using FIFO within the lock
+        remaining_to_consume = int(self.quantity)
+        consumption_details = []
+        
+        for lot in inventory_lots:
+            if remaining_to_consume <= 0:
+                break
+                
+            # How much can we consume from this lot?
+            consume_from_lot = min(remaining_to_consume, lot.remaining_quantity)
+            
+            # Update the lot
+            lot.remaining_quantity -= consume_from_lot
+            lot.save()
+            
+            # Track consumption details
+            consumption_details.append({
+                'lot': lot,
+                'consumed_quantity': consume_from_lot,
+                'unit_cost': lot.purchase_price
+            })
+            
+            remaining_to_consume -= consume_from_lot
+        
+        # Add FIFO consumption details to notes if empty
+        if not self.notes and consumption_details:
+            cost_breakdown = []
+            for detail in consumption_details:
+                cost_breakdown.append(
+                    f"{detail['consumed_quantity']} units @ {detail['unit_cost']} JOD"
+                )
+            damage_reason_text = self.get_damage_reason_display() if self.damage_reason else 'Unspecified'
+            self.notes = f"Waste - {damage_reason_text}. FIFO consumption: {'; '.join(cost_breakdown)}"
     
     def _handle_supply(self):
         """Create new inventory lot for supply transactions"""
