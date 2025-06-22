@@ -387,6 +387,178 @@ class TripCacheHelper:
         print(f"🔥 RECENT TRIPS VERSION BUMP: {recent_trips_version} → {recent_trips_version + 1}")
         return True
 
+# 🚀 PO CACHE HELPER - Following TripCacheHelper patterns
+class POCacheHelper:
+    """Cache management for Purchase Order operations with version control"""
+    
+    # Cache timeouts (in seconds) 
+    COMPLETED_PO_CACHE_TIMEOUT = 86400      # 24 hours (completed POs never change)
+    RECENT_POS_CACHE_TIMEOUT = 3600         # 1 hour (recent POs change frequently)
+    PO_FINANCIAL_CACHE_TIMEOUT = 43200      # 12 hours (financial calculations)
+    
+    CACHE_KEY_PREFIX = 'po_mgmt'
+    
+    # PO-related cache keys
+    PO_CACHE_KEYS = [
+        'po_financial_summary',
+        'recent_pos_with_cost',
+        'completed_po_data',
+        'po_cost_calculations',
+    ]
+    
+    # 🚀 GLOBAL CACHE VERSION: Following TripCacheHelper pattern
+    @classmethod
+    def _get_cache_version(cls):
+        """Get current cache version for PO lists"""
+        return cache.get('po_cache_version', 1)
+    
+    @classmethod
+    def _increment_cache_version(cls):
+        """Increment cache version to invalidate ALL PO cache"""
+        current_version = cls._get_cache_version()
+        new_version = current_version + 1
+        cache.set('po_cache_version', new_version, None)  # Never expires
+        print(f"🔥 PO CACHE VERSION BUMPED: {current_version} → {new_version}")
+        return new_version
+    
+    @classmethod
+    def get_completed_po_cache_key(cls, po_id):
+        """Generate cache key for completed PO data (never changes)"""
+        return f"completed_po_{po_id}_financial_data"
+    
+    @classmethod
+    def get_recent_pos_cache_key(cls):
+        """Generate cache key for recent POs with cost data"""
+        cache_version = cls._get_cache_version()
+        return f"recent_pos_v{cache_version}_all"
+    
+    @classmethod
+    def get_po_financial_cache_key(cls, po_id):
+        """Generate cache key for PO financial calculations"""
+        cache_version = cls._get_cache_version()
+        return f"po_financial_v{cache_version}_{po_id}"
+    
+    # 🚀 COMPLETED PO CACHING (never changes, can cache forever)
+    @classmethod
+    def get_completed_po_data(cls, po_id):
+        """Get cached completed PO data"""
+        cache_key = cls.get_completed_po_cache_key(po_id)
+        return cache.get(cache_key)
+    
+    @classmethod
+    def cache_completed_po_data(cls, po_id, context_data):
+        """Cache completed PO data (24 hour timeout)"""
+        cache_key = cls.get_completed_po_cache_key(po_id)
+        cache.set(cache_key, context_data, cls.COMPLETED_PO_CACHE_TIMEOUT)
+        print(f"🚀 CACHED COMPLETED PO: {po_id}")
+        return True
+    
+    # 🚀 RECENT POS CACHING (for supply_entry page)
+    @classmethod
+    def get_recent_pos_with_cost(cls):
+        """Get cached recent POs with cost calculations"""
+        cache_key = cls.get_recent_pos_cache_key()
+        return cache.get(cache_key)
+    
+    @classmethod
+    def cache_recent_pos_with_cost(cls, pos_data):
+        """Cache recent POs with cost data (1 hour timeout)"""
+        cache_key = cls.get_recent_pos_cache_key()
+        cache.set(cache_key, pos_data, cls.RECENT_POS_CACHE_TIMEOUT)
+        print(f"🚀 CACHED RECENT POS: {len(pos_data)} POs")
+        return True
+    
+    # 🚀 FINANCIAL CALCULATIONS CACHING
+    @classmethod
+    def get_po_financial_data(cls, po_id):
+        """Get cached PO financial calculations"""
+        cache_key = cls.get_po_financial_cache_key(po_id)
+        return cache.get(cache_key)
+    
+    @classmethod
+    def cache_po_financial_data(cls, po_id, financial_data):
+        """Cache PO financial calculations"""
+        cache_key = cls.get_po_financial_cache_key(po_id)
+        cache.set(cache_key, financial_data, cls.PO_FINANCIAL_CACHE_TIMEOUT)
+        return True
+    
+    # 🚀 CACHE MANAGEMENT (following TripCacheHelper patterns)
+    @classmethod
+    def clear_all_po_cache(cls):
+        """🚀 NUCLEAR OPTION: Clear ALL PO-related cache instantly"""
+        cleared_keys = []
+        
+        try:
+            # Method 1: Version bump (always works, instant)
+            cls._increment_cache_version()
+            cleared_keys.append('po_cache_version_bumped')
+            
+            # Method 2: Clear static keys
+            for cache_key in cls.PO_CACHE_KEYS:
+                if cache.delete(cache_key):
+                    cleared_keys.append(cache_key)
+            
+            print(f"🚀 PO CACHE CLEARED: {len(cleared_keys)} operations")
+            return True, len(cleared_keys)
+            
+        except Exception as e:
+            print(f"❌ PO CACHE CLEAR FAILED: {e}")
+            return False, 0
+    
+    @classmethod
+    def clear_cache_after_po_update(cls, po_id=None):
+        """Clear PO cache after PO modifications"""
+        cleared_keys = []
+        
+        # Version bump clears all versioned cache
+        cls._increment_cache_version()
+        cleared_keys.append('version_bumped')
+        
+        # Clear specific completed PO if provided
+        if po_id:
+            completed_cache_key = cls.get_completed_po_cache_key(po_id)
+            if cache.delete(completed_cache_key):
+                cleared_keys.append(f'completed_po_{po_id}')
+        
+        print(f"🚀 PO CACHE UPDATED: {len(cleared_keys)} operations")
+        return True, len(cleared_keys)
+    
+    @classmethod
+    def clear_cache_after_po_create(cls):
+        """Clear cache after PO creation"""
+        return cls.clear_cache_after_po_update()
+    
+    @classmethod
+    def clear_cache_after_po_delete(cls, po_id):
+        """Clear cache after PO deletion"""
+        return cls.clear_cache_after_po_update(po_id)
+    
+    @classmethod
+    def clear_cache_after_po_complete(cls, po_id):
+        """Clear cache after PO completion (important for recent POs)"""
+        return cls.clear_cache_after_po_update(po_id)
+    
+    # 🚀 CONVENIENCE METHODS
+    @classmethod
+    def debug_po_cache_status(cls):
+        """🔍 DEBUG: Check PO cache status"""
+        cache_status = {}
+        
+        # Check static keys
+        for key in cls.PO_CACHE_KEYS:
+            cache_status[key] = cache.get(key) is not None
+        
+        # Add version info
+        cache_status['po_cache_version'] = cls._get_cache_version()
+        
+        # Count active cache entries
+        active_count = sum(1 for exists in cache_status.values() if isinstance(exists, bool) and exists)
+        
+        print(f"🔍 PO CACHE STATUS: {active_count}/{len(cls.PO_CACHE_KEYS)} static keys active")
+        print(f"🔍 PO Cache Version: {cache_status['po_cache_version']}")
+        
+        return cache_status
+
 # 🚀 PERFECT PAGINATION - Full template compatibility
 class PerfectPagination:
     def __init__(self, products, page_num, total_count, page_size):

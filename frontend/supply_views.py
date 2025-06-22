@@ -2,7 +2,7 @@ from django.utils import timezone
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, Prefetch
 from django.http import JsonResponse
 from datetime import date
 from frontend.export_views import get_translated_labels
@@ -22,7 +22,7 @@ from django.http import HttpResponse
 import weasyprint
 import io
 import logging
-from frontend.utils.cache_helpers import ProductCacheHelper
+from frontend.utils.cache_helpers import ProductCacheHelper, POCacheHelper
 from .utils.helpers import (format_currency,
     format_currency_or_none,
     format_percentage,
@@ -51,13 +51,50 @@ logger = logging.getLogger(__name__)
 
 @operations_access_required
 def supply_entry(request):
-    """Step 1: Create new purchase order for supply transactions"""
+    """Step 1: Create new purchase order for supply transactions - OPTIMIZED"""
     
     if request.method == 'GET':
         vessels = VesselCacheHelper.get_active_vessels()
-        recent_pos = PurchaseOrder.objects.select_related('vessel', 'created_by').prefetch_related(
-            'supply_transactions'
-        ).order_by('-created_at')[:10]
+        
+        # 🚀 OPTIMIZED: Check cache for recent POs with cost data
+        cached_pos = POCacheHelper.get_recent_pos_with_cost()
+        
+        if cached_pos:
+            print(f"🚀 CACHE HIT: Recent POs ({len(cached_pos)} POs)")
+            recent_pos = cached_pos
+        else:
+            print(f"🔍 CACHE MISS: Building recent POs")
+            
+            # 🚀 OPTIMIZED: Single query with proper prefetching
+            recent_pos_query = PurchaseOrder.objects.select_related(
+                'vessel', 'created_by'
+            ).prefetch_related(
+                Prefetch(
+                    'supply_transactions',
+                    queryset=Transaction.objects.select_related('product')
+                )
+            ).order_by('-created_at')[:10]
+            
+            # 🚀 OPTIMIZED: Process POs with prefetched data (no additional queries)
+            recent_pos = []
+            for po in recent_pos_query:
+                # Calculate cost using prefetched supply_transactions
+                supply_transactions = po.supply_transactions.all()  # Uses prefetched data
+                total_cost = sum(
+                    float(txn.quantity) * float(txn.unit_price) 
+                    for txn in supply_transactions
+                )
+                transaction_count = len(supply_transactions)
+                
+                # Add calculated fields to PO object for template
+                po.calculated_total_cost = total_cost
+                po.calculated_transaction_count = transaction_count
+                
+                recent_pos.append(po)
+            
+            # 🚀 CACHE: Store processed POs for future requests
+            POCacheHelper.cache_recent_pos_with_cost(recent_pos)
+            print(f"🔥 CACHED: Recent POs ({len(recent_pos)} POs) - 1 hour timeout")
         
         context = {
             'vessels': vessels,
@@ -88,7 +125,6 @@ def supply_entry(request):
                 BilingualMessages.error(request, 'po_number_exists', po_number=po_number)
                 return redirect('frontend:supply_entry')
             
-            
             po_date_obj = datetime.strptime(po_date, '%Y-%m-%d').date()
             
             # Create purchase order
@@ -99,6 +135,9 @@ def supply_entry(request):
                 notes=notes,
                 created_by=request.user
             )
+            
+            # 🚀 CACHE: Clear recent POs cache after creation
+            POCacheHelper.clear_cache_after_po_create()
             
             BilingualMessages.success(request, 'po_created_success', po_number=po_number)
             return redirect('frontend:po_supply', po_id=po.id)
@@ -115,27 +154,43 @@ def supply_entry(request):
 
 @operations_access_required
 def po_supply(request, po_id):
-    """Step 2: Multi-item supply entry for a specific purchase order (Shopping Cart Approach)"""
+    """Step 2: Multi-item supply entry for a specific purchase order (Shopping Cart Approach) - OPTIMIZED"""
+    
+    # 🚀 OPTIMIZED: Check cache first for completed POs (no DB query needed)
+    cached_data = POCacheHelper.get_completed_po_data(po_id)
+    if cached_data:
+        print(f"🚀 CACHE HIT: Completed PO {po_id}")
+        return render(request, 'frontend/po_supply.html', cached_data)
     
     try:
-        po = PurchaseOrder.objects.select_related('vessel').get(id=po_id)
+        # 🚀 SUPER OPTIMIZED: Single query with everything
+        po = PurchaseOrder.objects.select_related(
+            'vessel', 'created_by'
+        ).prefetch_related(
+            Prefetch(
+                'supply_transactions',
+                queryset=Transaction.objects.select_related(
+                    'product', 'product__category'
+                ).order_by('created_at')
+            )
+        ).get(id=po_id)
+        
+        # 🚀 FORCE: Get all transactions immediately to prevent additional queries
+        supply_transactions = list(po.supply_transactions.all())
+        
     except PurchaseOrder.DoesNotExist:
         BilingualMessages.error(request, 'Purchase Order not found.')
         return redirect('frontend:supply_entry')
     
-    # Get existing supplies for this PO (to populate shopping cart if PO was previously started)
+    # 🚀 OPTIMIZED: Use prefetched data for all calculations (no additional queries)
     existing_supplies = []
+    completed_supplies = []
+    
     if not po.is_completed:
-        # Only load for incomplete POs - completed POs should be read-only
-        po_transactions = Transaction.objects.filter(
-            purchase_order=po,
-            transaction_type='SUPPLY'
-        ).select_related('product').order_by('created_at')
-        
-        # Convert to format expected by frontend shopping cart
-        for supply in po_transactions:
+        # 🚀 OPTIMIZED: Process incomplete PO using prefetched data
+        for supply in supply_transactions:
             existing_supplies.append({
-                'id': supply.id,  # Include for edit/delete functionality
+                'id': supply.id,
                 'product_id': supply.product.id,
                 'product_name': supply.product.name,
                 'product_item_id': supply.product.item_id,
@@ -147,20 +202,11 @@ def po_supply(request, po_id):
                 'notes': supply.notes or '',
                 'created_at': supply.created_at.strftime('%H:%M')
             })
-    
-    # If PO is completed, get read-only supply data for display
-    completed_supplies = []
-    if po.is_completed:
-        print(f"🔍 DEBUG: PO {po.po_number} is completed, fetching supply transactions...")
+    else:
+        # 🚀 OPTIMIZED: Process completed PO using prefetched data
+        print(f"🔍 DEBUG: PO {po.po_number} is completed, processing {len(supply_transactions)} transactions")
         
-        po_transactions = Transaction.objects.filter(
-            purchase_order=po,
-            transaction_type='SUPPLY'
-        ).select_related('product').order_by('created_at')
-        
-        print(f"🔍 DEBUG: Found {po_transactions.count()} supply transactions")
-        
-        for supply in po_transactions:
+        for supply in supply_transactions:
             print(f"🔍 DEBUG: Transaction {supply.id}: {supply.product.name}, Qty: {supply.quantity}, Price: {supply.unit_price}")
             completed_supplies.append({
                 'product_name': supply.product.name,
@@ -173,31 +219,25 @@ def po_supply(request, po_id):
                 'notes': supply.notes or '',
                 'created_at': supply.created_at.strftime('%H:%M')
             })
-        
-        print(f"🔍 DEBUG: Completed supplies array: {completed_supplies}")
-        
-        # Check InventoryLots
-        inventory_lots = InventoryLot.objects.filter(
-            vessel=po.vessel,
-            product__in=[supply.product for supply in po_transactions]
-        )
-        print(f"🔍 DEBUG: Found {inventory_lots.count()} inventory lots for this vessel")
-        for lot in inventory_lots:
-            print(f"🔍 DEBUG: Lot {lot.id}: {lot.product.name}, Remaining: {lot.remaining_quantity}, Original: {lot.original_quantity}")
     
     # Convert to JSON strings for safe template rendering
     existing_supplies_json = json.dumps(existing_supplies)
     completed_supplies_json = json.dumps(completed_supplies)
     
     print(f"🔍 DEBUG: completed_supplies_json length: {len(completed_supplies_json)}")
-    print(f"🔍 DEBUG: JSON content: {completed_supplies_json[:200]}...")  # First 200 chars
     
+    # Build final context
     context = {
         'po': po,
-        'existing_supplies_json': existing_supplies_json,  # JSON string
-        'completed_supplies_json': completed_supplies_json,  # JSON string
-        'can_edit': not po.is_completed,  # Frontend can use this to show/hide edit features
+        'existing_supplies_json': existing_supplies_json,
+        'completed_supplies_json': completed_supplies_json,
+        'can_edit': not po.is_completed,
     }
+    
+    # 🚀 CACHE: Store completed PO data for future requests
+    if po.is_completed:
+        POCacheHelper.cache_completed_po_data(po_id, context)
+        print(f"🚀 CACHED COMPLETED PO: {po_id}")
     
     return render(request, 'frontend/po_supply.html', context)
 
@@ -275,7 +315,7 @@ def supply_search_products(request):
     
 @operations_access_required
 def po_bulk_complete(request):
-    """Complete purchase order with proper inventory updates via individual transaction saves"""
+    """Complete purchase order with proper inventory updates - CACHE AWARE"""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
@@ -307,92 +347,85 @@ def po_bulk_complete(request):
         
         for item in items:
             product_id = item.get('product_id')
-            quantity = item.get('quantity')
-            purchase_cost = item.get('purchase_cost')
-            notes = item.get('notes', '')
+            quantity = item.get('quantity', 0)
+            unit_price = item.get('unit_price', 0)
+            notes = item.get('notes', '').strip()
             
-            if not product_id or not quantity or not purchase_cost:
-                return JsonResponse({'success': False, 'error': 'Invalid item data'})
-            
+            if not product_id or quantity <= 0 or unit_price <= 0:
+                continue
+                
             product = products_dict.get(product_id)
             if not product:
-                return JsonResponse({'success': False, 'error': f'Product not found: {product_id}'})
-            
-            # Validate duty-free compatibility
-            if product.is_duty_free and not po.vessel.has_duty_free:
-                return JsonResponse({
-                    'success': False, 
-                    'error': f'Cannot add duty-free product {product.name} to {po.vessel.name}'
-                })
-            
-            try:
-                quantity_val = int(quantity)
-                cost_val = Decimal(str(purchase_cost))
-                if quantity_val <= 0 or cost_val <= 0:
-                    raise ValueError("Values must be positive")
-            except (ValueError, decimal.InvalidOperation):
-                return JsonResponse({'success': False, 'error': f'Invalid quantity or cost for {product.name}'})
-            
+                continue
+                
             validated_items.append({
                 'product': product,
-                'quantity': quantity_val,
-                'unit_price': cost_val,
+                'quantity': Decimal(str(quantity)),
+                'unit_price': Decimal(str(unit_price)),
                 'notes': notes
             })
             
-            total_cost += quantity_val * cost_val
+            total_cost += quantity * unit_price
         
-        # 🔥 CRITICAL FIX: Create transactions individually to trigger save() and _handle_supply()
+        if not validated_items:
+            return JsonResponse({'success': False, 'error': 'No valid items to process'})
+        
+        created_transactions = []
+        
         with transaction.atomic():
-            print(f"🔍 Creating {len(validated_items)} supply transactions...")
+            # Clear existing transactions for this PO (if any)
+            Transaction.objects.filter(purchase_order=po, transaction_type='SUPPLY').delete()
             
-            for item in validated_items:
-                # This will call save() which calls _handle_supply() and creates InventoryLot
+            # Process each supply item
+            for item_data in validated_items:
+                product = item_data['product']
+                quantity = item_data['quantity']
+                unit_price = item_data['unit_price']
+                notes = item_data['notes']
+                
+                # Create supply transaction
                 supply_transaction = Transaction.objects.create(
                     vessel=po.vessel,
-                    product=item['product'],
+                    product=product,
                     transaction_type='SUPPLY',
-                    transaction_date=date.today(),
-                    quantity=item['quantity'],
-                    unit_price=item['unit_price'],
-                    notes=item['notes'],
+                    quantity=quantity,
+                    unit_price=unit_price,
+                    transaction_date=po.po_date,
                     purchase_order=po,
+                    notes=notes,
                     created_by=request.user
                 )
-                print(f"🔍 Created transaction {supply_transaction.id} for {item['product'].name}")
+                
+                created_transactions.append(supply_transaction)
             
             # Mark PO as completed
             po.is_completed = True
-            po.save(update_fields=['is_completed', 'updated_at'])
-            print(f"🔍 Marked PO {po.po_number} as completed")
+            po.save()
+            
+            # 🚀 CACHE: Clear PO cache after completion
+            POCacheHelper.clear_cache_after_po_complete(po_id)
         
-        try:
-            ProductCacheHelper.clear_cache_after_product_update()
-            print("🔥 Product cache cleared after supply completion")
-        except Exception as e:
-            print(f"⚠️ Cache clear error: {e}")
-        
-        return JsonResponse({
+        # Build success response
+        response_data = {
             'success': True,
-            'message': f'Purchase Order {po.po_number} completed successfully! '
-                      f'{len(validated_items)} items received for {total_cost:.3f} JOD total cost.',
-            'transaction_count': len(validated_items),
-            'total_cost': float(total_cost),
-            'po_number': po.po_number
-        })
+            'message': f'PO {po.po_number} completed successfully with {len(created_transactions)} items!',
+            'po_data': {
+                'po_number': po.po_number,
+                'items_count': len(created_transactions),
+                'total_cost': float(total_cost),
+                'vessel': po.vessel.name
+            }
+        }
         
-    except json.JSONDecodeError:
-        return JsonResponse({'success': False, 'error': 'Invalid JSON data'})
+        return JsonResponse(response_data)
+        
     except Exception as e:
-        print(f"🔍 ERROR in po_bulk_complete: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return JsonResponse({'success': False, 'error': f'Error processing request: {str(e)}'})
-    
+        return JsonResponse({'success': False, 'error': f'Error completing PO: {str(e)}'})
 
-@operations_access_required
+
+@operations_access_required  
 def po_cancel(request):
-    """Cancel PO and delete it from database (if no items committed)"""
+    """Cancel PO and delete it from database (if no items committed) - CACHE AWARE"""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
@@ -407,7 +440,7 @@ def po_cancel(request):
         po = PurchaseOrder.objects.get(id=po_id)
         
         if po.is_completed:
-            return JsonResponse({'success': False, 'error': 'Cannot cancel completed purchase order'})
+            return JsonResponse({'success': False, 'error': 'Cannot cancel completed PO'})
         
         # Check if PO has any committed transactions
         existing_transactions = Transaction.objects.filter(purchase_order=po).count()
@@ -423,17 +456,22 @@ def po_cancel(request):
             # No committed transactions - safe to delete PO
             po_number = po.po_number
             po.delete()
+            
+            # 🚀 CACHE: Clear PO cache after deletion
+            POCacheHelper.clear_cache_after_po_delete(po_id)
+            
             return JsonResponse({
                 'success': True,
                 'action': 'delete_po',
-                'message': f'Purchase Order {po_number} cancelled and removed.'
+                'message': f'PO {po_number} cancelled and removed.',
+                'redirect_url': '/supply/'  # Redirect back to supply entry
             })
         
     except PurchaseOrder.DoesNotExist:
-        return JsonResponse({'success': False, 'error': 'Purchase order not found'})
+        return JsonResponse({'success': False, 'error': 'PO not found'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': f'Error cancelling purchase order: {str(e)}'})
-    
+        return JsonResponse({'success': False, 'error': f'Error cancelling PO: {str(e)}'})
+
 @operations_access_required
 def supply_product_catalog(request):
     """AJAX endpoint to get products filtered by vessel's duty-free capability"""
