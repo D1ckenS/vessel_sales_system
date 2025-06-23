@@ -17,20 +17,23 @@ html[dir="rtl"] .d-flex.justify-content-between.align-items-center > div:first-c
 
 [dir="rtl"] #userNavItems,
 html[dir="rtl"] #userNavItems {
-    margin-right: auto !important;
-    margin-left: 0 !important;
+    margin-left: auto !important;
+    margin-right: 0 !important;
+    /* Keep user items on the right side always */
 }
 
 [dir="rtl"] #mainNavItems,
 html[dir="rtl"] #mainNavItems {
-    margin-left: auto !important;
+    justify-content: center !important;
+    margin-left: 0 !important;
     margin-right: 0 !important;
+    /* Keep main nav centered always */
 }
 
 [dir="rtl"] #languageToggle,
 html[dir="rtl"] #languageToggle {
     margin-left: 0 !important;
-    margin-right: 1rem !important;
+    margin-right: 0.75rem !important;
 }
 
 [dir="rtl"] .navbar .dropdown-menu,
@@ -118,4 +121,3 @@ html[dir="rtl"] .card-body .d-grid.gap-2.d-md-flex.justify-content-md-end {
 [dir="rtl"] .fw-bold[data-number] {
     font-family: 'Arabic-Indic', 'Tahoma', sans-serif;
 }
-

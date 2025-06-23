@@ -1,26 +1,37 @@
 /* =============================================================================
-   Navigation Styles
+   Navigation Styles - Single Row Optimized
    ============================================================================= */
 
 .navbar {
     background: linear-gradient(135deg, var(--primary-blue) 0%, var(--secondary-blue) 100%);
     box-shadow: 0 2px 20px rgba(15, 76, 117, 0.3);
-    padding: 1rem 0;
+    padding: 0.75rem 0; /* Slightly reduced padding */
 }
 
 .navbar-brand {
     font-weight: bold;
-    font-size: 1.5rem;
+    font-size: 1.3rem; /* Reduced from 1.5rem */
     color: white !important;
+    margin-right: 1rem; /* Add some spacing */
+}
+
+.navbar-brand i {
+    font-size: 1.2rem; /* Slightly smaller icon */
 }
 
 .nav-link {
     color: rgba(255, 255, 255, 0.9) !important;
     font-weight: 500;
-    padding: 0.75rem 1rem !important;
-    border-radius: 8px;
-    margin: 0 0.25rem;
+    padding: 0.5rem 0.75rem !important; /* Reduced padding */
+    border-radius: 6px; /* Slightly smaller border radius */
+    margin: 0 0.1rem; /* Reduced margin */
     transition: all 0.3s ease;
+    font-size: 0.9rem; /* Slightly smaller font */
+}
+
+.nav-link i {
+    font-size: 1rem; /* Smaller icons */
+    margin-right: 0.4rem;
 }
 
 .nav-link:hover {
@@ -36,9 +47,11 @@
 
 /* Language Toggle Button Styling */
 #languageToggle {
-    border-radius: 20px;
+    border-radius: 16px; /* Smaller border radius */
     transition: all 0.3s ease;
     font-weight: 500;
+    padding: 0.4rem 0.8rem; /* Smaller padding */
+    font-size: 0.85rem; /* Smaller font */
 }
 
 #languageToggle:hover {
@@ -49,5 +62,120 @@
 
 #currentLangText {
     font-weight: bold;
-    letter-spacing: 1px;
+    letter-spacing: 0.5px; /* Reduced letter spacing */
+}
+
+/* User dropdown adjustments */
+.navbar .dropdown-toggle {
+    font-size: 0.9rem;
+    padding: 0.5rem 0.75rem !important;
+}
+
+/* Center the main navigation layout */
+.navbar .container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* Space between brand and nav items */
+}
+
+.navbar-collapse {
+    display: flex !important;
+    justify-content: center;
+    flex: 1; /* Take remaining space between brand and user items */
+}
+
+/* Container adjustments for better fit */
+.navbar .container {
+    max-width: 100%; /* Use full width */
+    padding-left: 1rem;
+    padding-right: 1rem;
+    display: flex;
+    justify-content: center; /* Center the entire navbar content */
+    align-items: center;
+}
+
+/* Center the navigation items */
+.navbar-collapse {
+    justify-content: center;
+}
+
+.navbar-nav {
+    gap: 0.1rem; /* Small gap between items */
+    margin: 0 auto; /* Center the nav items */
+}
+
+/* Keep brand and user items on sides if needed */
+.navbar-brand {
+    position: absolute;
+    left: 1rem;
+}
+
+/* Position user nav items on the right */
+#userNavItems {
+    position: absolute;
+    right: 1rem;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 1200px) {
+    .navbar-brand {
+        font-size: 1.2rem;
+    }
+    
+    .nav-link {
+        font-size: 0.85rem;
+        padding: 0.4rem 0.6rem !important;
+    }
+    
+    .nav-link i {
+        font-size: 0.9rem;
+    }
+}
+
+@media (max-width: 992px) {
+    .navbar-brand {
+        font-size: 1.1rem;
+    }
+    
+    .nav-link {
+        font-size: 0.8rem;
+        padding: 0.4rem 0.5rem !important;
+        margin: 0 0.05rem;
+    }
+    
+    #languageToggle {
+        font-size: 0.8rem;
+        padding: 0.3rem 0.6rem;
+    }
+}
+
+/* For very small screens, keep the collapse behavior */
+@media (max-width: 768px) {
+    .navbar-brand {
+        font-size: 1.2rem;
+    }
+    
+    .nav-link {
+        font-size: 0.9rem;
+        padding: 0.75rem 1rem !important;
+        margin: 0.1rem 0;
+    }
+    
+    /* Reset layout on mobile for proper stacking */
+    .navbar-collapse {
+        flex-direction: column;
+        justify-content: flex-start;
+    }
+    
+    #mainNavItems {
+        justify-content: flex-start;
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    #userNavItems {
+        margin-left: 0;
+        margin-top: 0.5rem;
+        justify-content: flex-start;
+    }
 }
