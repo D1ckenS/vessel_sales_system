@@ -702,13 +702,29 @@ function updateCompletedTripTotals(completedSales) {
     const canViewFinancials = {{ user_permissions.can_view_financials|yesno:"true,false" }};
     
     // Calculate totals from completed sales data
+    let totalRevenue = 0;
     let totalCOGS = 0;
     let totalProfit = 0;
+    let itemCount = completedSales.length;
     
     completedSales.forEach(item => {
+        totalRevenue += item.total_amount;
         totalCOGS += item.total_cogs || 0;
         totalProfit += item.total_profit || 0;
     });
+    
+    // Update revenue display for completed trips
+    const revenueElement = document.getElementById('tripRevenue');
+    if (revenueElement) {
+        revenueElement.setAttribute('data-original', totalRevenue.toFixed(3));
+        revenueElement.innerHTML = `<span data-number data-original="${totalRevenue.toFixed(3)}">${translateNumber(totalRevenue.toFixed(3))}</span> <span data-currency-symbol>JOD</span>`;
+    }
+    
+    // Update item count for completed trips
+    const itemCountElement = document.getElementById('itemCount');
+    if (itemCountElement) {
+        updateNumberElement('itemCount', itemCount);
+    }
     
     // Only update COGS and profit elements if user has financial permissions
     if (canViewFinancials) {
@@ -725,10 +741,21 @@ function updateCompletedTripTotals(completedSales) {
         }
     }
     
-    // Apply translations to the updated elements
-    setTimeout(() => {
-        updatePageTranslations();
-    }, 0);
+    // Update special completed trip elements (trip-revenue-display, trip-items-count)
+    const revenueDisplay = document.getElementById('trip-revenue-display');
+    if (revenueDisplay) {
+        revenueDisplay.textContent = totalRevenue.toFixed(3) + ' JOD';
+    }
+    
+    const itemsDisplay = document.getElementById('trip-items-count');
+    if (itemsDisplay) {
+        itemsDisplay.textContent = itemCount;
+    }
+    
+    const profitDisplay = document.getElementById('trip-profit-display');
+    if (profitDisplay) {
+        profitDisplay.textContent = totalProfit.toFixed(3) + ' JOD';
+    }
 }
 
 function selectProductFromList(product) {
@@ -1257,6 +1284,7 @@ async function completeTripSales() {
     const itemsToSend = tripSalesCart.map(item => ({
         product_id: item.product_id,
         quantity: item.quantity,
+        unit_price: item.unit_price,
         notes: item.notes || ''
     }));
     
@@ -1273,7 +1301,7 @@ async function completeTripSales() {
         },
         body: JSON.stringify({
             trip_id: document.getElementById('tripId').value,
-            items: itemsToSend
+            sales_items: itemsToSend
         })
     })
     .then(response => response.json())
@@ -1626,14 +1654,21 @@ function updateTripTotals() {
         });
     }
 
-    // Update DOM elements
-    document.getElementById('trip-revenue-display').textContent = totalRevenue.toFixed(3) + ' JOD';
-    document.getElementById('trip-items-count').textContent = itemCount;
-    
-    // Update other financial displays
-    const totalProfit = totalRevenue - totalCogs;
-    if (document.getElementById('trip-profit-display')) {
-        document.getElementById('trip-profit-display').textContent = totalProfit.toFixed(3) + ' JOD';
+    // Update DOM elements - CHECK IF ELEMENTS EXIST FIRST
+    const revenueDisplay = document.getElementById('trip-revenue-display');
+    if (revenueDisplay) {
+        revenueDisplay.textContent = totalRevenue.toFixed(3) + ' JOD';
+    }
+
+    const itemsDisplay = document.getElementById('trip-items-count');
+    if (itemsDisplay) {
+        itemsDisplay.textContent = itemCount;
+    }
+
+    const profitDisplay = document.getElementById('trip-profit-display');
+    if (profitDisplay) {
+        const totalProfit = totalRevenue - totalCogs;
+        profitDisplay.textContent = totalProfit.toFixed(3) + ' JOD';
     }
 }
 

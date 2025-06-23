@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db import transaction, models
 from django.db.models import Sum, F, Count, Prefetch
 from django.db.models.functions import Round
-from frontend.utils.cache_helpers import VesselCacheHelper
+from frontend.utils.cache_helpers import TripCacheHelper, VesselCacheHelper
 from transactions.models import Transaction, Trip
 from vessels.models import Vessel
 from django.views.decorators.http import require_http_methods
@@ -215,6 +215,9 @@ def edit_trip(request, trip_id):
             
             trip.save()
             
+            TripCacheHelper.clear_cache_after_trip_delete(trip_id)
+            TripCacheHelper.clear_recent_trips_cache_only_when_needed()
+            
             return JsonResponseHelper.success(
                 message=f'Trip {trip.trip_number} updated successfully'
             )
@@ -278,12 +281,19 @@ def delete_trip(request, trip_id):
                 trip.sales_transactions.all().delete()
                 trip.delete()
             
+            TripCacheHelper.clear_cache_after_trip_delete(trip_id)
+            TripCacheHelper.clear_recent_trips_cache_only_when_needed()
+            
             return JsonResponseHelper.success(
                 message=f'Trip {trip_number} and all {transaction_count} transactions deleted successfully. Inventory restored.'
             )
         else:
             # No transactions, safe to delete
             trip.delete()
+            
+            TripCacheHelper.clear_cache_after_trip_delete(trip_id)
+            TripCacheHelper.clear_recent_trips_cache_only_when_needed()
+            
             return JsonResponseHelper.success(
                 message=f'Trip {trip_number} deleted successfully'
             )
@@ -300,6 +310,9 @@ def toggle_trip_status(request, trip_id):
     trip, error = CRUDHelper.safe_get_object(Trip, trip_id, 'Trip')
     if error:
         return error
+    
+    TripCacheHelper.clear_cache_after_trip_delete(trip_id)
+    TripCacheHelper.clear_recent_trips_cache_only_when_needed()
     
     # Toggle status with standardized response
     return CRUDHelper.toggle_boolean_field(trip, 'is_completed', 'Trip')

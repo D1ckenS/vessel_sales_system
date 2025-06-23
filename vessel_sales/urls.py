@@ -24,7 +24,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('frontend.urls')),
 ]
-
+    
 # if settings.DEBUG:
 #     import debug_toolbar
 #     urlpatterns = [
@@ -32,4 +32,4 @@ urlpatterns = [
 #     ] + urlpatterns
 
 # if not settings.DEBUG:
-urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+# urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

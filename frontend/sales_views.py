@@ -515,9 +515,10 @@ def trip_bulk_complete(request):
             # Mark trip as completed
             trip.is_completed = True
             trip.save()
-            
+    
             # 🚀 CACHE: Clear trip cache after completion
             TripCacheHelper.clear_cache_after_trip_complete(trip_id)
+            TripCacheHelper.clear_recent_trips_cache_only_when_needed()
         
         # Build success response
         response_data = {

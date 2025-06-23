@@ -29,7 +29,7 @@ SECRET_KEY = os.environ.get(
 )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 # APPEND_SLASH = False
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
@@ -260,12 +260,12 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # MEDIA FILES CONFIGURATION
 # =============================================================================
 
-if DEBUG:
-    INSTALLED_APPS += ['debug_toolbar']
+# if DEBUG:
+#     INSTALLED_APPS += ['debug_toolbar']
     
-    MIDDLEWARE += ['debug_toolbar.middleware.DebugToolbarMiddleware']
+#     MIDDLEWARE += ['debug_toolbar.middleware.DebugToolbarMiddleware']
     
-    INTERNAL_IPS = ['127.0.0.1']
+#     INTERNAL_IPS = ['127.0.0.1']
 
 # =============================================================================
 # SESSION CONFIGURATION
