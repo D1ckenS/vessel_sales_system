@@ -27,8 +27,8 @@ class Product(models.Model):
     
     # Pricing Information
     purchase_price = models.DecimalField(
-        max_digits=10, 
-        decimal_places=3, 
+        max_digits=20, 
+        decimal_places=6, 
         validators=[MinValueValidator(Decimal('0.001'))],
         help_text="Cost price in JOD"
     )

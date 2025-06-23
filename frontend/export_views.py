@@ -464,9 +464,7 @@ def export_inventory(request):
         low_stock_only = data.get('low_stock_only', False)
         
         # OPTIMIZED: Single query with all aggregations and relations
-        inventory_query = InventoryLot.objects.filter(
-            remaining_quantity__gt=0  # Only active inventory
-        ).select_related(
+        inventory_query = InventoryLot.objects.select_related(
             'product', 'product__category', 'vessel'
         )
         
@@ -490,7 +488,7 @@ def export_inventory(request):
             fifo_cost=Min('purchase_price'),  # FIFO: oldest (cheapest) cost
             latest_update=Max('created_at'),
             total_value=Sum(F('remaining_quantity') * F('purchase_price'), output_field=models.DecimalField())
-        ).order_by('product__name', 'vessel__name')
+        ).order_by('-total_quantity', 'product__id')
         
         # OPTIMIZED: Calculate summary statistics in the database
         summary_stats = inventory_aggregated.aggregate(

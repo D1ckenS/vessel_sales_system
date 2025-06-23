@@ -6,6 +6,11 @@
     background: linear-gradient(135deg, var(--primary-blue) 0%, var(--secondary-blue) 100%);
     box-shadow: 0 2px 20px rgba(15, 76, 117, 0.3);
     padding: 1rem 0;
+    align-items: center;
+}
+
+.navbar .navbar-collapse {
+  flex-grow: 0 !important;
 }
 
 .navbar-brand {
@@ -39,6 +44,8 @@
     border-radius: 20px;
     transition: all 0.3s ease;
     font-weight: 500;
+    margin-top: 0.5rem;
+    margin-left: 0.25rem;
 }
 
 #languageToggle:hover {

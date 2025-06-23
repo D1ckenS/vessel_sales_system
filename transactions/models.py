@@ -16,8 +16,8 @@ class InventoryLot(models.Model):
     product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='inventory_lots')
     purchase_date = models.DateField()
     purchase_price = models.DecimalField(
-        max_digits=10,
-        decimal_places=3,
+        max_digits=20,
+        decimal_places=6,
         validators=[MinValueValidator(Decimal('0.001'))],
         help_text="Cost price per unit when purchased (JOD)"
     )
@@ -304,8 +304,8 @@ class Transaction(models.Model):
         help_text="Quantity involved in this transaction"
     )
     unit_price = models.DecimalField(
-        max_digits=10,
-        decimal_places=3,
+        max_digits=20,
+        decimal_places=6,
         validators=[MinValueValidator(Decimal('0.001'))],
         blank=True,
         help_text="Price per unit for this transaction (JOD)"

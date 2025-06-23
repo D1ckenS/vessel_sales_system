@@ -213,7 +213,7 @@ def product_list_view(request):
             'item_id': product.item_id,
             'barcode': product.barcode,
             'selling_price': product.selling_price,
-            'purchase_price': product.purchase_price,
+            'purchase_price': round(product.purchase_price, 3),
             'active': product.active,
             'is_duty_free': product.is_duty_free,
             'created_at': product.created_at,
