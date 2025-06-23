@@ -37,11 +37,14 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # Production hosts configuration
 ALLOWED_HOSTS = [
+    'xt3gfh5v-8000.euw.devtunnels.ms/',
     'localhost',
-    '127.0.0.1',
-    '88b4-176-29-162-31.ngrok-free.app'
+    '127.0.0.1'
 ]
-
+CSRF_TRUSTED_ORIGINS = [
+    'https://xt3gfh5v-8000.euw.devtunnels.ms/',
+    'http://localhost:8000',
+]
 # =============================================================================
 # APPLICATION DEFINITION
 # =============================================================================
@@ -302,4 +305,4 @@ WSGI_APPLICATION = 'vessel_sales.wsgi.application'
 # Create logs directory if it doesn't exist
 os.makedirs(BASE_DIR / 'logs', exist_ok=True)
 
-print("DEBUG:", DEBUG)
+# print("DEBUG:", DEBUG)
