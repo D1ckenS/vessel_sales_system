@@ -56,6 +56,7 @@ window.VesselSalesTranslations = {
         'legacy_admin': 'Legacy Admin',
         'stock_available': 'Stock Available',
         'cost': 'Cost',
+        'per_unit': '/Unit',
         
         // User Management translations
         'add_user': 'Add User',
@@ -390,6 +391,7 @@ window.VesselSalesTranslations = {
         'waste_date': 'Waste Date',
         'enter_valid_quantity': 'Please enter a valid quantity',
         'insufficient_stock': 'Insufficient stock',
+        'reason': 'Reason',
 
         // Comprehensive Reports
         '': 'Comprehensive Report',
@@ -486,7 +488,7 @@ window.VesselSalesTranslations = {
         'no_inventory_changes': 'No inventory changes on this date',
         'alerts': 'Alerts',
         'low_stock_alert': 'Low Stock Alert',
-        'units': 'units',
+        'units': 'Units',
         'unusual_activity': 'Unusual Activity',
         'vs_avg': 'vs avg',
         'no_alerts': 'No alerts for this date',
@@ -1011,6 +1013,7 @@ window.VesselSalesTranslations = {
         'legacy_admin_desc': 'ادارة المستخدمين والادوار والصلاحيات',
         'stock_available': 'الموجود في المخزون',
         'cost': 'التكلفة',
+        'per_unit': '/للوحدة',
         
         // User Management translations
         'user_management_desc': 'ادارة المستخدمين والادوار والصلاحيات',
@@ -1165,6 +1168,7 @@ window.VesselSalesTranslations = {
         'cancel_waste': 'الغاء الاتلاف',
         'back_to_waste_entry': 'العودة لتسجيل الاهدار',
         'waste_date': 'تاريخ الاتلاف',
+        'reason': 'السبب',
         
         // Transactions page translations
         'all_transactions': 'جميع الحركات',

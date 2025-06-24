@@ -617,7 +617,7 @@ function displayAvailableProducts() {
         return aId - bId;
     });
     
-    tbody.innerHTML = sor.map(product => `
+    tbody.innerHTML = sortedProducts.map(product => `
         <tr class="cursor-pointer" onclick="selectProductFromList(${JSON.stringify(product).replace(/"/g, '&quot;')})">
             <td>
                 <div>
@@ -628,15 +628,13 @@ function displayAvailableProducts() {
             <td><code data-number data-original="${product.item_id}">${translateNumber(product.item_id)}</code></td>
             <td class="text-end">
                 <span class="fw-bold text-success" data-number data-original="${product.total_quantity}">${translateNumber(product.total_quantity.toString())}</span>
-                <small class="text-muted d-block">${_('units')}</small>
+                <small class="text-muted d-block"><span data-translate="units">units</span></small>
             </td>
         </tr>
     `).join('');
     
     // Apply translations after DOM update
-    setTimeout(() => {
-        updatePageTranslations();
-    }, 0);
+    updatePageTranslations();
 }
 
 function displayCompletedSales(completedSales) {
@@ -1697,6 +1695,7 @@ function updateTripTotals() {
 
 // Call this function when page loads and when cart changes
 document.addEventListener('DOMContentLoaded', function() {
+    updatePageTranslations();
     updateTripTotals();
 });
 </script>

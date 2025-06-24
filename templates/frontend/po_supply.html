@@ -315,8 +315,11 @@
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
                     <i class="bi bi-list"></i> 
-                    {% if can_edit %}<span data-translate="supply_cart">Supply Cart</span>{% else %}<span data-translate="supply_items">Supply Items</span>{% endif %} 
-                    (<span dir="ltr" id="suppliesListCount">0</span>)
+                    {% if can_edit %}
+                    <span data-translate="supply_cart">Supply Cart</span>
+                    {% else %}
+                        <span data-translate="supply_items">Supply Items</span>{% endif %} 
+                        (<span dir="ltr" id="suppliesListCount">0</span>)
                 </h5>
                 <div class="d-flex gap-2">
                     {% if not can_edit %}
@@ -631,6 +634,8 @@ function displayCompletedSupplies(completedSupplies) {
     
     const suppliesList = document.getElementById('suppliesList');
     const emptyState = document.getElementById('emptySuppliesState');
+    
+    updateNumberElement('suppliesListCount', completedSupplies.length);
     
     if (!suppliesList) {
         console.error('🔍 suppliesList element not found!');
@@ -1070,7 +1075,13 @@ function exitEditMode() {
 function updateCartDisplay() {
     const suppliesList = document.getElementById('suppliesList');
     const emptyState = document.getElementById('emptySuppliesState');
+    const suppliesListCount = document.getElementById('suppliesListCount');
     const completePOBtn = document.getElementById('completePOBtn');
+    const itemCount = document.getElementById('itemCount');
+
+    const count = poSuppliesCart.length;
+    updateNumberElement('suppliesListCount', count);
+    updateNumberElement('itemCount', count);
     
     if (poSuppliesCart.length === 0) {
         suppliesList.innerHTML = '';

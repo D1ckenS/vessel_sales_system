@@ -438,7 +438,7 @@ function updateAvailableProductsList() {
             </td>
             <td class="text-end">
                 <span class="fw-bold text-danger" data-number data-original="${product.available_quantity}">${translateNumber(product.available_quantity.toString())}</span>
-                <br><small class="text-muted">${product.current_cost.toFixed(3)} JOD/unit</small>
+                <br><small class="text-muted"><span data-number data-original="${product.current_cost.toFixed(3)}">${translateNumber(product.current_cost.toFixed(3))}</span> <span data-currency-symbol>JOD</span> <span data-translate="per_unit">/unit</span></small>
             </td>
         </tr>
     `).join('');
@@ -692,11 +692,11 @@ function updateCartDisplay() {
             <table class="table table-sm table-hover">
                 <thead class="table-light">
                     <tr>
-                        <th>Product</th>
-                        <th>Quantity</th>
-                        <th>Cost</th>
-                        <th>Reason</th>
-                        <th>Actions</th>
+                        <th><span data-translate="product">Product</span></th>
+                        <th><span data-translate="quantity">Quantity</span></th>
+                        <th><span data-translate="total_cost">Total Cost</span></th>
+                        <th><span data-translate="reason">Reason</span></th>
+                        <th><span data-translate="actions">Actions</span></th>
                     </tr>
                 </thead>
                 <tbody>
