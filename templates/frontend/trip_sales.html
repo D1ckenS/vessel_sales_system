@@ -570,7 +570,7 @@ function loadAvailableProducts() {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            'X-CSRFToken': window.getCsrfToken()
         },
         body: JSON.stringify({
             vessel_id: {{ trip.vessel.id }}
@@ -888,7 +888,7 @@ function updateCOGSDisplay() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                'X-CSRFToken': window.getCsrfToken()
             },
             body: JSON.stringify({
                 vessel_id: {{ trip.vessel.id }},
@@ -1088,7 +1088,7 @@ async function cancelEdit() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                'X-CSRFToken': window.getCsrfToken()
             },
             body: JSON.stringify({
                 trip_id: tripId
@@ -1323,7 +1323,7 @@ async function completeTripSales() {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            'X-CSRFToken': window.getCsrfToken()
         },
         body: JSON.stringify({
             trip_id: document.getElementById('tripId').value,

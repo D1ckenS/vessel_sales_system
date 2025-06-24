@@ -372,7 +372,7 @@ function loadAvailableProducts() {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            'X-CSRFToken': window.getCsrfToken(),
         },
         body: JSON.stringify({
             vessel_id: fromVesselId
@@ -819,7 +819,7 @@ async function completeTransfer() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                'X-CSRFToken': window.getCsrfToken()
             },
             body: JSON.stringify(transferData)
         });

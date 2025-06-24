@@ -212,13 +212,13 @@ document.getElementById('wasteForm').addEventListener('submit', function(e) {
     
     if (!reportNumber) {
         e.preventDefault();
-        alertTranslated('enter_waste_number');
+        window.alertTranslated('enter_waste_number') || window.showAlert('Please enter waste report number', 'warning');
         return;
     }
     
     if (!vessel) {
         e.preventDefault();
-        alertTranslated('select_vessel');
+        window.alertTranslated('select_vessel') || window.showAlert('Please select a vessel', 'warning');
         return;
     }
 });

@@ -419,6 +419,7 @@ function updatePrice(input) {
     // Visual indicator for unsaved changes
     input.style.border = '2px solid #ffc107';
 }
+window.getCookie()
 
 function saveAllChanges() {
     if (pendingChanges.size === 0) {
@@ -432,7 +433,7 @@ function saveAllChanges() {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': getCookie('csrftoken')
+            'X-CSRFToken': window.getCsrfToken(),
         },
         body: JSON.stringify({ updates: updates })
     })
@@ -474,7 +475,8 @@ function copyPricing() {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': getCookie('csrftoken')
+            'X-CSRFToken': window.getCsrfToken(),
+
         },
         body: JSON.stringify({
             source_vessel_id: sourceVessel,
@@ -497,22 +499,6 @@ function copyPricing() {
     .catch(error => {
         alertTranslated('error_copying_pricing', { error: error.message });
     });
-}
-
-// Helper function to get CSRF token
-function getCookie(name) {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-            const cookie = cookies[i].trim();
-            if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                break;
-            }
-        }
-    }
-    return cookieValue;
 }
 </script>
 {% endblock %}

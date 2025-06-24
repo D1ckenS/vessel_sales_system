@@ -352,21 +352,6 @@
 
 {% block extra_js %}
 <script>
-function getCookie(name) {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-            const cookie = cookies[i].trim();
-            if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                break;
-            }
-        }
-    }
-    return cookieValue;
-}
-
 // Global state
 let currentVessel = null;
 let currentInventoryData = [];
@@ -707,6 +692,8 @@ function updateVesselNameDisplay(elementId, enName, arName) {
     }
 }
 
+window.getCookie()
+
 function loadInventoryData() {
     if (!currentVessel) {
         alertTranslated('please_select_vessel');
@@ -732,7 +719,7 @@ function loadInventoryData() {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || getCookie('csrftoken'),
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || window.getCsrfToken(),
         },
         body: JSON.stringify({
             vessel_id: currentVessel.id,

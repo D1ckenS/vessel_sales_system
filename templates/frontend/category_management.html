@@ -285,7 +285,7 @@ function deleteCategory(id, name) {
             form.method = 'POST';
             form.action = `/categories/${id}/delete/`;
             
-            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            const csrfToken = window.getCsrfToken();
             const csrfInput = document.createElement('input');
             csrfInput.type = 'hidden';
             csrfInput.name = 'csrfmiddlewaretoken';

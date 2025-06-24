@@ -415,7 +415,7 @@ function createGroup() {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': getCsrfToken()
+            'X-CSRFToken': window.getCsrfToken()
         },
         body: JSON.stringify(data)
     })
@@ -453,7 +453,7 @@ function saveGroup() {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': getCsrfToken()
+            'X-CSRFToken': window.getCsrfToken()
         },
         body: JSON.stringify(data)
     })
@@ -478,7 +478,7 @@ function deleteGroup(groupId, groupName) {
     fetch(`/groups/${groupId}/delete/`, {
         method: 'DELETE',
         headers: {
-            'X-CSRFToken': getCsrfToken()
+            'X-CSRFToken': window.getCsrfToken()
         }
     })
     .then(response => response.json())
@@ -507,7 +507,7 @@ function confirmDeleteGroupWithUsers(groupId, groupName, data) {
             fetch(`/groups/${groupId}/delete/`, {
                 method: 'DELETE',
                 headers: {
-                    'X-CSRFToken': getCsrfToken(),
+                    'X-CSRFToken': window.getCsrfToken(),
                     'X-Force-Delete': 'true'
                 }
             })
@@ -607,7 +607,7 @@ function setupGroups() {
             fetch('/setup-groups/', {
                 method: 'POST',
                 headers: {
-                    'X-CSRFToken': getCsrfToken(),
+                    'X-CSRFToken': window.getCsrfToken(),
                     'Content-Type': 'application/json',
                 },
             })
@@ -639,7 +639,5 @@ function setupGroups() {
         }
     });
 }
-
-window.getCsrfToken();
 </script>
 {% endblock %}

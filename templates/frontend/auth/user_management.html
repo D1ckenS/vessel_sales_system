@@ -682,7 +682,7 @@ function setupGroups() {
             fetch('{% url "frontend:setup_groups" %}', {
                 method: 'POST',
                 headers: {
-                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'X-CSRFToken': window.getCsrfToken(),
                     'Content-Type': 'application/json',
                 },
             })
@@ -783,7 +783,7 @@ function resetPassword(userId, username) {
             fetch(`/users/${userId}/reset-password/`, {
                 method: 'POST',
                 headers: {
-                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'X-CSRFToken': window.getCsrfToken(),
                     'Content-Type': 'application/json',
                 },
             })
@@ -812,7 +812,7 @@ function toggleUserStatus(userId, username, isActive) {
             fetch(`/users/${userId}/toggle-status/`, {
                 method: 'POST',
                 headers: {
-                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'X-CSRFToken': window.getCsrfToken(),
                     'Content-Type': 'application/json',
                 },
             })

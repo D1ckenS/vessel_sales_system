@@ -612,14 +612,12 @@ function getFilterData() {
     };
 }
 
-window.getCsrfToken();
-
 function editPO(poId) {
     // FIXED: Remove /manage/ from URL
     fetch(`/purchase-orders/${poId}/edit/`, {  // ← WAS: `/purchase-orders/manage/${poId}/edit/`
         method: 'GET',
         headers: {
-            'X-CSRFToken': getCsrfToken()
+            'X-CSRFToken': window.getCsrfToken()
         }
     })
     .then(response => response.json())
@@ -653,7 +651,7 @@ function savePO() {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': getCsrfToken()
+            'X-CSRFToken': window.getCsrfToken()
         },
         body: JSON.stringify(formData)
     })
@@ -678,7 +676,7 @@ function deletePO(poId) {
     fetch(`/purchase-orders/${poId}/delete/`, {  // ← WAS: `/purchase-orders/manage/${poId}/delete/`
         method: 'DELETE',
         headers: {
-            'X-CSRFToken': getCsrfToken()
+            'X-CSRFToken': window.getCsrfToken()
         }
     })
     .then(response => response.json())
@@ -801,7 +799,7 @@ function confirmForceDelete(type, id) {
     fetch(url, {
         method: 'DELETE',
         headers: {
-            'X-CSRFToken': getCsrfToken(),
+            'X-CSRFToken': window.getCsrfToken(),
             'X-Force-Delete': 'true'
         }
     })
@@ -825,7 +823,7 @@ function togglePOStatus(poId) {
     fetch(`/purchase-orders/manage/${poId}/toggle-status/`, {
         method: 'POST',
         headers: {
-            'X-CSRFToken': getCsrfToken()
+            'X-CSRFToken': window.getCsrfToken()
         }
     })
     .then(response => response.json())

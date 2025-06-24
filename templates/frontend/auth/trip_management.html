@@ -631,14 +631,12 @@ function getFilterData() {
     };
 }
 
-window.getCsrfToken();
-
 function editTrip(tripId) {
     // FIXED: Remove /manage/ from URL
     fetch(`/trips/${tripId}/edit/`, {  // ← WAS: `/trips/manage/${tripId}/edit/`
         method: 'GET',
         headers: {
-            'X-CSRFToken': getCsrfToken()
+            'X-CSRFToken': window.getCsrfToken()
         }
     })
     .then(response => response.json())
@@ -674,7 +672,7 @@ function saveTrip() {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': getCsrfToken()
+            'X-CSRFToken': window.getCsrfToken()
         },
         body: JSON.stringify(formData)
     })
@@ -698,7 +696,7 @@ function deleteTrip(tripId) {
     fetch(`/trips/${tripId}/delete/`, {
         method: 'DELETE',
         headers: {
-            'X-CSRFToken': getCsrfToken()
+            'X-CSRFToken': window.getCsrfToken()
         }
     })
     .then(response => response.json())
@@ -821,7 +819,7 @@ function confirmForceDelete(type, id) {
     fetch(url, {
         method: 'DELETE',
         headers: {
-            'X-CSRFToken': getCsrfToken(),
+            'X-CSRFToken': window.getCsrfToken(),
             'X-Force-Delete': 'true'
         }
     })
@@ -845,7 +843,7 @@ function toggleTripStatus(tripId) {
     fetch(`/trips/manage/${tripId}/toggle-status/`, {
         method: 'POST',
         headers: {
-            'X-CSRFToken': getCsrfToken()
+            'X-CSRFToken': window.getCsrfToken()
         }
     })
     .then(response => response.json())
