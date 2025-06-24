@@ -434,10 +434,10 @@ function updateAvailableProductsList() {
                 ${product.is_duty_free ? '<span class="badge bg-warning text-dark ms-1">Duty-Free</span>' : ''}
             </td>
             <td>
-                <span class="badge bg-light text-dark">${product.item_id}</span>
+                <code data-number data-original="${product.item_id}">${translateNumber(product.item_id)}</code>
             </td>
             <td class="text-end">
-                <span class="badge bg-primary">${product.available_quantity}</span>
+                <span class="fw-bold text-danger" data-number data-original="${product.available_quantity}">${translateNumber(product.available_quantity.toString())}</span>
                 <br><small class="text-muted">${product.current_cost.toFixed(3)} JOD/unit</small>
             </td>
         </tr>
@@ -543,10 +543,14 @@ function setupEventListeners() {
         
         const totalCost = wasteItemsCart.reduce((sum, item) => sum + item.total_cost, 0);
         
+        const confirmed = await confirmTranslated('confirm_waste_report', {
+            count: wasteItemsCart.length,
+            cost: totalCost.toFixed(3)
+        });
         // FIXED: Use proper confirmation dialog
         const message = `Complete waste report with ${wasteItemsCart.length} items?\n\nTotal Waste Value: ${totalCost.toFixed(3)} JOD\n\nThis will permanently remove items from inventory.`;
         
-        if (confirm(message)) {
+        if (confirmed) {
             const wasteData = JSON.parse(document.getElementById('wasteData').textContent);
             
             try {

@@ -611,7 +611,13 @@ function displayAvailableProducts() {
         return;
     }
     
-    tbody.innerHTML = availableProducts.map(product => `
+    const sortedProducts = [...availableProducts].sort((a, b) => {
+        const aId = parseInt(a.item_id) || 0;
+        const bId = parseInt(b.item_id) || 0;
+        return aId - bId;
+    });
+    
+    tbody.innerHTML = sor.map(product => `
         <tr class="cursor-pointer" onclick="selectProductFromList(${JSON.stringify(product).replace(/"/g, '&quot;')})">
             <td>
                 <div>
@@ -793,7 +799,7 @@ function selectProductFromList(product) {
 }
 
 function setupEventListeners() {
-    // Product search functionality
+    // FIXED: Product search functionality - prioritize ID matching and first 2 chars
     let searchTimeout;
     document.getElementById('productSearch').addEventListener('input', function() {
         const searchTerm = this.value.trim().toLowerCase();
@@ -802,21 +808,38 @@ function setupEventListeners() {
         
         if (searchTerm.length >= 2) {
             searchTimeout = setTimeout(() => {
-                // Filter available products
-                const filteredProducts = availableProducts.filter(product => 
-                    product.name.toLowerCase().includes(searchTerm) ||
-                    product.item_id.toLowerCase().includes(searchTerm)
-                );
+                // FIXED: Enhanced filtering - prioritize ID matches and first 2 chars
+                const filteredProducts = availableProducts.filter(product => {
+                    const name = product.name.toLowerCase();
+                    const itemId = product.item_id.toLowerCase();
+                    
+                    // Exact ID match or starts with search term (first 2+ chars)
+                    return itemId === searchTerm || 
+                           itemId.startsWith(searchTerm) ||
+                           name.includes(searchTerm);
+                }).sort((a, b) => {
+                    // FIXED: Numeric sorting for item_id
+                    const aId = parseInt(a.item_id) || 0;
+                    const bId = parseInt(b.item_id) || 0;
+                    return aId - bId;
+                });
                 
                 if (filteredProducts.length === 1) {
                     selectProductFromList(filteredProducts[0]);
                 } else if (filteredProducts.length === 0) {
                     clearProductSelection();
                     showAlert(_('no_products_found'), 'warning');
+                } else {
+                    // Update the available products list with filtered results
+                    const tempProducts = availableProducts;
+                    availableProducts = filteredProducts;
+                    displayAvailableProducts();
+                    availableProducts = tempProducts; // Restore original for next search
                 }
-            }, 500);
-        } else {
-            clearProductSelection();
+            }, 300);
+        } else if (searchTerm.length === 0) {
+            // Reset to show all products
+            displayAvailableProducts();
         }
     });
 

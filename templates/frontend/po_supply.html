@@ -583,10 +583,11 @@ function loadProductCatalog() {
     });
 }
 
-function displayProductCatalog() {
+function displayProductCatalog(products = null) {
+    const productsToShow = products || productCatalog;
     const tbody = document.getElementById('availableProductsList');
     
-    if (productCatalog.length === 0) {
+    if (productsToShow.length === 0) {
         tbody.innerHTML = `
             <tr>
                 <td colspan="3" class="text-center text-muted py-4">
@@ -597,8 +598,14 @@ function displayProductCatalog() {
         `;
         return;
     }
+
+    const sortedProducts = [...productsToShow].sort((a, b) => {
+        const aId = parseInt(a.item_id) || 0;
+        const bId = parseInt(b.item_id) || 0;
+        return aId - bId;
+    });
     
-    tbody.innerHTML = productCatalog.map(product => `
+    tbody.innerHTML = sortedProducts.map(product => `
         <tr class="cursor-pointer" onclick="selectProductFromCatalog(${JSON.stringify(product).replace(/"/g, '&quot;')})">
             <td>
                 <div>
@@ -753,20 +760,57 @@ function setupEventListeners() {
         
         if (searchTerm.length >= 2) {
             searchTimeout = setTimeout(() => {
-                const filteredProducts = productCatalog.filter(product => 
-                    product.name.toLowerCase().includes(searchTerm) ||
-                    product.item_id.toLowerCase().includes(searchTerm)
-                );
-                
-                if (filteredProducts.length === 1) {
-                    selectProductFromCatalog(filteredProducts[0]);
-                } else if (filteredProducts.length === 0) {
-                    clearProductSelection();
-                    showAlert(_('no_products_found'), 'warning');
-                }
-            }, 500);
-        } else {
-            clearProductSelection();
+                // AJAX search to backend with enhanced filtering
+                fetch('/supply/search-products/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: JSON.stringify({
+                        search: searchTerm
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // FIXED: Sort results numerically and prioritize ID matches
+                        const products = data.products.sort((a, b) => {
+                            const aId = parseInt(a.item_id) || 0;
+                            const bId = parseInt(b.item_id) || 0;
+                            
+                            // Prioritize exact matches and starts-with matches
+                            const aExact = a.item_id.toLowerCase() === searchTerm;
+                            const bExact = b.item_id.toLowerCase() === searchTerm;
+                            const aStarts = a.item_id.toLowerCase().startsWith(searchTerm);
+                            const bStarts = b.item_id.toLowerCase().startsWith(searchTerm);
+                            
+                            if (aExact && !bExact) return -1;
+                            if (bExact && !aExact) return 1;
+                            if (aStarts && !bStarts) return -1;
+                            if (bStarts && !aStarts) return 1;
+                            
+                            // Then sort numerically
+                            return aId - bId;
+                        });
+                        
+                        displayProductCatalog(products);
+                        
+                        if (products.length === 1) {
+                            selectProductFromCatalog(products[0]);
+                        }
+                    } else {
+                        showAlert(data.error, 'danger');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error searching products:', error);
+                    showAlert(_('error_searching'), 'danger');
+                });
+            }, 300);
+        } else if (searchTerm.length === 0) {
+            // Reset to show all products from catalog
+            loadProductCatalog();
         }
     });
 
