@@ -559,6 +559,121 @@ class POCacheHelper:
         
         return cache_status
 
+class TransferCacheHelper:
+    """Cache helper for transfer operations - mirrors TripCacheHelper and POCacheHelper patterns"""
+    
+    @staticmethod
+    def get_completed_transfer_data(transfer_id):
+        """Get cached completed transfer data - returns None if not cached or not completed"""
+        try:
+            cache_key = f'completed_transfer_{transfer_id}'
+            cached_data = cache.get(cache_key)
+            
+            if cached_data:
+                print(f"🚀 CACHE HIT: Completed transfer {transfer_id}")
+                return cached_data
+            else:
+                print(f"🔍 CACHE MISS: Transfer {transfer_id} not in cache")
+                return None
+        except Exception as e:
+            print(f"❌ CACHE ERROR: {e}")
+            return None
+    
+    @staticmethod
+    def cache_completed_transfer_data(transfer_id, context_data):
+        """Cache completed transfer data for future requests"""
+        try:
+            cache_key = f'completed_transfer_{transfer_id}'
+            # Cache for 24 hours (completed transfers don't change)
+            cache.set(cache_key, context_data, timeout=86400)
+            print(f"✅ CACHED: Completed transfer {transfer_id}")
+        except Exception as e:
+            print(f"❌ CACHE SAVE ERROR: {e}")
+    
+    @staticmethod
+    def clear_cache_after_transfer_complete(transfer_id):
+        """Clear specific transfer cache after completion"""
+        try:
+            cache_key = f'completed_transfer_{transfer_id}'
+            cache.delete(cache_key)
+            print(f"🗑️ CLEARED: Transfer {transfer_id} cache")
+        except Exception as e:
+            print(f"❌ CACHE CLEAR ERROR: {e}")
+    
+    @staticmethod
+    def clear_cache_after_transfer_delete(transfer_id):
+        """Clear cache after transfer deletion"""
+        try:
+            cache_key = f'completed_transfer_{transfer_id}'
+            cache.delete(cache_key)
+            
+            # Also clear recent transfers cache
+            TransferCacheHelper.clear_recent_transfers_cache()
+            print(f"🗑️ CLEARED: Transfer {transfer_id} deleted, cache cleared")
+        except Exception as e:
+            print(f"❌ CACHE DELETE ERROR: {e}")
+    
+    @staticmethod
+    def clear_recent_transfers_cache():
+        """Clear recent transfers cache"""
+        try:
+            cache.delete('recent_transfers_list')
+            print(f"🗑️ CLEARED: Recent transfers cache")
+        except Exception as e:
+            print(f"❌ RECENT TRANSFERS CACHE ERROR: {e}")
+    
+    @staticmethod
+    def get_recent_transfers():
+        """Get cached recent transfers"""
+        try:
+            cache_key = 'recent_transfers_list'
+            cached_transfers = cache.get(cache_key)
+            
+            if cached_transfers:
+                print(f"🚀 CACHE HIT: Recent transfers")
+                return cached_transfers
+            
+            # Not cached, fetch from DB
+            from transactions.models import Transfer
+            recent_transfers = Transfer.objects.select_related(
+                'from_vessel', 'to_vessel', 'created_by'
+            ).prefetch_related(
+                'transfer_transactions'
+            ).order_by('-created_at')[:10]
+            
+            # Convert to list to cache
+            transfers_list = list(recent_transfers)
+            
+            # Cache for 5 minutes
+            cache.set(cache_key, transfers_list, timeout=300)
+            print(f"✅ CACHED: Recent transfers")
+            
+            return transfers_list
+            
+        except Exception as e:
+            print(f"❌ RECENT TRANSFERS ERROR: {e}")
+            return []
+    
+    @staticmethod
+    def clear_cache_after_transfer_create():
+        """Clear cache after new transfer creation"""
+        try:
+            TransferCacheHelper.clear_recent_transfers_cache()
+            print(f"🗑️ CLEARED: Cache after transfer creation")
+        except Exception as e:
+            print(f"❌ CACHE CLEAR ERROR: {e}")
+    
+    @staticmethod
+    def clear_all_transfer_cache():
+        """Clear all transfer-related cache - for admin use"""
+        try:
+            # Clear all completed transfer caches (we'd need to track them)
+            # For now, just clear the recent transfers
+            TransferCacheHelper.clear_recent_transfers_cache()
+            print(f"🗑️ CLEARED: All transfer cache")
+        except Exception as e:
+            print(f"❌ CACHE CLEAR ALL ERROR: {e}")
+
 # 🚀 PERFECT PAGINATION - Full template compatibility
 class PerfectPagination:
     def __init__(self, products, page_num, total_count, page_size):

@@ -1,0 +1,435 @@
+{% extends 'frontend/base.html' %}
+{% load static %}
+
+{% block title %}<span data-translate="transfer_reports">Transfer Reports</span> - <span data-translate="vessel_sales_system">Vessel Sales System</span>{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>
+                    <i class="bi bi-bar-chart text-warning"></i> 
+                    <span data-translate="transfer_reports">Transfer Reports</span>
+                </h2>
+                <p class="text-muted mb-0" data-translate="transfer_reports_desc">Analyze transfer operations and performance</p>
+            </div>
+            <div class="d-flex gap-2">
+                <a href="{% url 'frontend:transfer_entry' %}" class="btn btn-warning">
+                    <i class="bi bi-plus-circle"></i> <span data-translate="new_transfer">New Transfer</span>
+                </a>
+                <a href="{% url 'frontend:transfer_management' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-gear"></i> <span data-translate="manage_transfers">Manage Transfers</span>
+                </a>
+                <button class="btn btn-outline-success" onclick="window.templateUtils.showExportComingSoon()">
+                    <i class="bi bi-download"></i> <span data-translate="export_report">Export Report</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Summary Statistics -->
+<div class="row mb-4">
+    <div class="col-md-2">
+        <div class="card bg-primary text-white h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-arrow-left-right display-6 mb-2"></i>
+                <h4 class="mb-1"><span data-number data-original="{{ summary.total_transfers }}">{{ summary.total_transfers }}</span></h4>
+                <p class="mb-0 small"><span data-translate="total_transfers">Total Transfers</span></p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card bg-success text-white h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-check-circle display-6 mb-2"></i>
+                <h4 class="mb-1"><span data-number data-original="{{ summary.completed_transfers }}">{{ summary.completed_transfers }}</span></h4>
+                <p class="mb-0 small"><span data-translate="completed">Completed</span></p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card bg-warning text-white h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-clock display-6 mb-2"></i>
+                <h4 class="mb-1"><span data-number data-original="{{ summary.in_progress_transfers }}">{{ summary.in_progress_transfers }}</span></h4>
+                <p class="mb-0 small"><span data-translate="in_progress">In Progress</span></p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card bg-info text-white h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-currency-dollar display-6 mb-2"></i>
+                <h4 class="mb-1"><span data-number data-original="{{ summary.total_cost|floatformat:2 }}">{{ summary.total_cost|floatformat:2 }}</span></h4>
+                <p class="mb-0 small"><span data-translate="total_cost">Total Cost</span> (JOD)</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card bg-secondary text-white h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-box display-6 mb-2"></i>
+                <h4 class="mb-1"><span data-number data-original="{{ summary.total_items_transferred }}">{{ summary.total_items_transferred }}</span></h4>
+                <p class="mb-0 small"><span data-translate="items_transferred">Items Transferred</span></p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card bg-dark text-white h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-calculator display-6 mb-2"></i>
+                <h4 class="mb-1"><span data-number data-original="{{ summary.avg_cost_per_transfer|floatformat:2 }}">{{ summary.avg_cost_per_transfer|floatformat:2 }}</span></h4>
+                <p class="mb-0 small"><span data-translate="avg_cost_transfer">Avg Cost/Transfer</span></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-funnel"></i> <span data-translate="filters">Filters</span>
+                </h6>
+            </div>
+            <div class="card-body">
+                <form method="get" id="filterForm">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label for="vesselFilter" class="form-label"><span data-translate="vessel">Vessel</span></label>
+                            <select class="form-select" id="vesselFilter" name="vessel">
+                                <option value=""><span data-translate="all_vessels">All Vessels</span></option>
+                                {% for vessel in vessels %}
+                                <option value="{{ vessel.id }}" {% if current_filters.vessel == vessel.id|stringformat:"s" %}selected{% endif %}>
+                                    <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="statusFilter" class="form-label"><span data-translate="status">Status</span></label>
+                            <select class="form-select" id="statusFilter" name="status">
+                                <option value=""><span data-translate="all_statuses">All Statuses</span></option>
+                                <option value="completed" {% if current_filters.status == "completed" %}selected{% endif %}><span data-translate="completed">Completed</span></option>
+                                <option value="in_progress" {% if current_filters.status == "in_progress" %}selected{% endif %}><span data-translate="in_progress">In Progress</span></option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="dateFromFilter" class="form-label"><span data-translate="date_from">Date From</span></label>
+                            <input type="date" class="form-control" id="dateFromFilter" name="date_from" value="{{ current_filters.date_from }}">
+                        </div>
+                        <div class="col-md-2">
+                            <label for="dateToFilter" class="form-label"><span data-translate="date_to">Date To</span></label>
+                            <input type="date" class="form-control" id="dateToFilter" name="date_to" value="{{ current_filters.date_to }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">&nbsp;</label>
+                            <div class="d-flex gap-2">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-search"></i> <span data-translate="apply_filters">Apply Filters</span>
+                                </button>
+                                <a href="{% url 'frontend:transfer_reports' %}" class="btn btn-outline-secondary">
+                                    <i class="bi bi-x-circle"></i> <span data-translate="clear_filters">Clear</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Transfers Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        <i class="bi bi-table"></i> <span data-translate="transfer_history">Transfer History</span>
+                    </h6>
+                    <div class="d-flex gap-2">
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-secondary" onclick="toggleColumn('notes')" title="Toggle Notes Column">
+                                <i class="bi bi-journal-text"></i>
+                            </button>
+                            <button class="btn btn-outline-secondary" onclick="toggleColumn('created-by')" title="Toggle Created By Column">
+                                <i class="bi bi-person"></i>
+                            </button>
+                        </div>
+                        <button class="btn btn-outline-info btn-sm" onclick="window.templateUtils.showExportComingSoon()">
+                            <i class="bi bi-download"></i> <span data-translate="export">Export</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th><i class="bi bi-hash"></i> <span data-translate="transfer_number">Transfer #</span></th>
+                                <th><i class="bi bi-calendar"></i> <span data-translate="date">Date</span></th>
+                                <th><i class="bi bi-ship"></i> <span data-translate="route">Route</span></th>
+                                <th><i class="bi bi-box"></i> <span data-translate="items">Items</span></th>
+                                <th><i class="bi bi-currency-dollar"></i> <span data-translate="cost">Cost (JOD)</span></th>
+                                <th><i class="bi bi-calculator"></i> <span data-translate="avg_cost_item">Avg Cost/Item</span></th>
+                                <th><i class="bi bi-badge-check"></i> <span data-translate="status">Status</span></th>
+                                <th class="notes-column"><i class="bi bi-journal-text"></i> <span data-translate="notes">Notes</span></th>
+                                <th class="created-by-column"><i class="bi bi-person"></i> <span data-translate="created_by">Created By</span></th>
+                                <th><i class="bi bi-gear"></i> <span data-translate="actions">Actions</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for transfer in transfers %}
+                            <tr>
+                                <td>
+                                    <strong class="text-primary">{{ transfer.transfer_number }}</strong>
+                                </td>
+                                <td>
+                                    <span data-transfer-date data-original="{{ transfer.transfer_date|date:'d/m/Y' }}">{{ transfer.transfer_date|date:"d/m/Y" }}</span>
+                                    <small class="text-muted d-block">{{ transfer.created_at|date:"H:i" }}</small>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <span class="badge bg-danger me-1 small">
+                                            <span class="vessel-name" data-en="{{ transfer.from_vessel.name }}" data-ar="{{ transfer.from_vessel.name_ar }}">{{ transfer.from_vessel.name }}</span>
+                                        </span>
+                                        <i class="bi bi-arrow-right mx-1"></i>
+                                        <span class="badge bg-success ms-1 small">
+                                            <span class="vessel-name" data-en="{{ transfer.to_vessel.name }}" data-ar="{{ transfer.to_vessel.name_ar }}">{{ transfer.to_vessel.name }}</span>
+                                        </span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge bg-primary">
+                                        <span data-number data-original="{{ transfer.transaction_count }}">{{ transfer.transaction_count }}</span>
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if transfer.is_completed %}
+                                        <strong class="text-success">
+                                            <span data-number data-original="{{ transfer.total_cost|floatformat:3 }}">{{ transfer.total_cost|floatformat:3 }}</span>
+                                        </strong>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if transfer.is_completed and transfer.transaction_count > 0 %}
+                                        <small class="text-muted">
+                                            {% widthratio transfer.total_cost transfer.transaction_count 1 as avg_cost %}
+                                            <span data-number data-original="{{ avg_cost|floatformat:3 }}">{{ avg_cost|floatformat:3 }}</span>
+                                        </small>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if transfer.is_completed %}
+                                        <span class="badge bg-success">
+                                            <i class="bi bi-check-circle"></i> <span data-translate="completed">Completed</span>
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-warning">
+                                            <i class="bi bi-clock"></i> <span data-translate="in_progress">In Progress</span>
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td class="notes-column">
+                                    {% if transfer.notes %}
+                                        <small class="text-muted" title="{{ transfer.notes }}">
+                                            {{ transfer.notes|truncatewords:5 }}
+                                        </small>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td class="created-by-column">
+                                    <small>{{ transfer.created_by.username|default:"System" }}</small>
+                                    <small class="text-muted d-block">{{ transfer.created_at|date:"d/m/Y" }}</small>
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{% url 'frontend:transfer_items' transfer.id %}" class="btn btn-outline-primary" title="View Transfer">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        <button class="btn btn-outline-success" onclick="window.templateUtils.showExportComingSoon()" title="Export Transfer">
+                                            <i class="bi bi-download"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="10" class="text-center text-muted py-5">
+                                    <i class="bi bi-bar-chart display-4 d-block mb-3"></i>
+                                    <h5><span data-translate="no_transfer_data">No Transfer Data</span></h5>
+                                    <p class="mb-0"><span data-translate="no_transfers_match_criteria">No transfers match your selected criteria</span></p>
+                                    <small><span data-translate="try_adjusting_filters">Try adjusting your filters or create a new transfer</span></small>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            {% if transfers %}
+            <div class="card-footer bg-light">
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <strong class="text-primary"><span data-translate="total_showing">Showing</span>: {{ transfers|length }}</strong>
+                    </div>
+                    <div class="col-md-3">
+                        <strong class="text-success">
+                            <span data-translate="completed">Completed</span>: 
+                            {% for transfer in transfers %}{% if transfer.is_completed %}{% endif %}{% endfor %}
+                        </strong>
+                    </div>
+                    <div class="col-md-3">
+                        <strong class="text-warning">
+                            <span data-translate="in_progress">In Progress</span>: 
+                            {% for transfer in transfers %}{% if not transfer.is_completed %}{% endif %}{% endfor %}
+                        </strong>
+                    </div>
+                    <div class="col-md-3">
+                        <strong class="text-info">
+                            <span data-translate="total_value">Total Value</span>: 
+                            {% for transfer in transfers %}
+                                {% if transfer.is_completed %}{% endif %}
+                            {% endfor %} JOD
+                        </strong>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.table-hover tbody tr:hover {
+    background: linear-gradient(135deg, rgba(255, 193, 7, 0.05) 0%, rgba(255, 193, 7, 0.1) 100%) !important;
+    border-left: 3px solid var(--bs-warning) !important;
+}
+
+.btn-group .btn {
+    border-radius: 0.375rem !important;
+    margin-right: 2px;
+}
+
+.badge {
+    font-size: 0.65rem;
+}
+
+.vessel-name {
+    font-weight: 500;
+}
+
+.card-body {
+    transition: all 0.3s ease;
+}
+
+.small {
+    font-size: 0.65rem !important;
+}
+
+/* Column toggle functionality */
+.notes-column,
+.created-by-column {
+    transition: all 0.3s ease;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Add translations for transfer reports
+    const pageTranslations = {
+        en: {
+            'transfer_reports': 'Transfer Reports',
+            'transfer_reports_desc': 'Analyze transfer operations and performance',
+            'new_transfer': 'New Transfer',
+            'manage_transfers': 'Manage Transfers',
+            'export_report': 'Export Report',
+            'items_transferred': 'Items Transferred',
+            'avg_cost_transfer': 'Avg Cost/Transfer',
+            'transfer_history': 'Transfer History',
+            'route': 'Route',
+            'avg_cost_item': 'Avg Cost/Item',
+            'no_transfer_data': 'No Transfer Data',
+            'no_transfers_match_criteria': 'No transfers match your selected criteria',
+            'try_adjusting_filters': 'Try adjusting your filters or create a new transfer',
+            'total_showing': 'Showing',
+            'total_value': 'Total Value',
+            'vessel_sales_system': 'Vessel Sales System'
+        },
+        ar: {
+            'transfer_reports': 'تقارير التحويلات',
+            'transfer_reports_desc': 'تحليل عمليات التحويل والأداء',
+            'new_transfer': 'تحويل جديد',
+            'manage_transfers': 'إدارة التحويلات',
+            'export_report': 'تصدير التقرير',
+            'items_transferred': 'العناصر المحولة',
+            'avg_cost_transfer': 'متوسط التكلفة/التحويل',
+            'transfer_history': 'تاريخ التحويلات',
+            'route': 'المسار',
+            'avg_cost_item': 'متوسط التكلفة/العنصر',
+            'no_transfer_data': 'لا توجد بيانات تحويل',
+            'no_transfers_match_criteria': 'لا توجد تحويلات تطابق المعايير المحددة',
+            'try_adjusting_filters': 'جرب تعديل المرشحات أو إنشاء تحويل جديد',
+            'total_showing': 'عرض',
+            'total_value': 'القيمة الإجمالية',
+            'vessel_sales_system': 'نظام مبيعات السفن'
+        }
+    };
+
+    window.initializePage({
+        titleKey: 'transfer_reports',
+        fallbackTitle: 'Transfer Reports',
+        pageTranslations: pageTranslations
+    });
+    
+    // Update page translations
+    updatePageTranslations();
+});
+
+function toggleColumn(columnClass) {
+    const columns = document.querySelectorAll(`.${columnClass}-column`);
+    const isVisible = columns[0].style.display !== 'none';
+    
+    columns.forEach(col => {
+        col.style.display = isVisible ? 'none' : '';
+    });
+}
+
+// Auto-update numbers based on language
+function updateNumbers() {
+    document.querySelectorAll('[data-number]').forEach(element => {
+        const originalValue = element.getAttribute('data-original');
+        if (window.translator && window.translator.currentLanguage === 'ar') {
+            element.textContent = window.translateNumber(originalValue);
+        } else {
+            element.textContent = originalValue;
+        }
+    });
+}
+
+// Update numbers when language changes
+window.addEventListener('languageChanged', updateNumbers);
+
+// Initial number update
+updateNumbers();
+</script>
+{% endblock %}
