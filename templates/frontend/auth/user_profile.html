@@ -319,7 +319,10 @@
 {% block extra_js %}
 <script>
 document.addEventListener("DOMContentLoaded", function() {
-    window.registerPageTitle('user_profile', 'User Profile');
+    window.initializePage({
+        titleKey: 'user_profile',
+        fallbackTitle: 'User Profile'
+    })
 });
 </script>
 {% endblock %}

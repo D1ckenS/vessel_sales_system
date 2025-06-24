@@ -724,6 +724,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
+    window.initializePage({
+        titleKey: 'vessel_management',
+        fallbackTitle: 'Vessel Management',
+        pageTranslations: pageTranslations
+    })
+
     // Merge with global translations - OPTIMIZED: Single merge operation
     const currentTranslations = window.translator.translations;
     Object.keys(pageTranslations).forEach(lang => {
@@ -734,7 +740,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Apply translations
     window.updatePageTranslations();
-    updatePageTitle();
     
     // Date picker functionality - OPTIMIZED
     const datePicker = document.getElementById('referenceDatePicker');
@@ -1025,7 +1030,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // OPTIMIZED: Language change listener
     window.addEventListener('languageChanged', function() {
         updateVesselSpecificTranslations();
-        updatePageTitle();
     });
     
     // Initial call
@@ -1045,17 +1049,6 @@ function updateVesselSpecificTranslations() {
             }
         }
     });
-}
-
-function updatePageTitle() {
-    if (!window.translator || !window.translator._) {
-        return;
-    }
-    
-    const vesselManagement = window.translator._('vessel_management');
-    const vesselSalesSystem = window.translator._('vessel_sales_system');
-    
-    document.title = `${vesselManagement} - ${vesselSalesSystem}`;
 }
 </script>
 {% endblock %}

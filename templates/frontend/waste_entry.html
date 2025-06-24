@@ -225,7 +225,10 @@ document.getElementById('wasteForm').addEventListener('submit', function(e) {
 
 // Enhanced translation for waste entry
 document.addEventListener('DOMContentLoaded', function() {
-    window.registerPageTitle('waste_entry', 'Waste Entry');
+    window.initializePage({
+        titleKey: 'waste_entry',
+        fallbackTitle: 'Waste Entry'
+    })
     
     // Update vessel names with proper translation
     document.querySelectorAll('.vessel-name').forEach(element => {

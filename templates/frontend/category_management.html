@@ -228,14 +228,15 @@ document.addEventListener('DOMContentLoaded', function() {
             'vessel_sales_system': 'نظام مبيعات السفن'
         }
     };
-    
-    // Merge with existing translations
-    Object.assign(window.translator.translations.en, pageTranslations.en);
-    Object.assign(window.translator.translations.ar, pageTranslations.ar);
+
+    window.initializePage({
+        titleKey: 'category_management',
+        fallbackTitle: 'Category Management',
+        pageTranslations: pageTranslations
+    })
     
     // Update page translations
     updatePageTranslations();
-    updatePageTitle();
 });
 
 function showCreateCategoryModal() {
@@ -296,19 +297,5 @@ function deleteCategory(id, name) {
         }
     });
 }
-
-function updatePageTitle() {
-    if (!window.translator || !window.translator._) {
-        return;
-    }
-    
-    const categoryManagement = window.translator._('category_management');
-    const vesselSalesSystem = window.translator._('vessel_sales_system');
-    
-    document.title = `${categoryManagement} - ${vesselSalesSystem}`;
-}
-
-// 🔥 **Listen for Language Toggle Event**
-window.addEventListener("languageChanged", updatePageTitle);
 </script>
 {% endblock %}

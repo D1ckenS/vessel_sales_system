@@ -427,6 +427,12 @@
         
         // Initialize language on page load
         document.addEventListener('DOMContentLoaded', function() {
+
+            window.initializePage({
+                titleKey: 'login',
+                fallbackTitle: 'Login'
+            });
+
             updateLanguageDisplay();
             
             // Focus on username field

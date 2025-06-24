@@ -200,11 +200,15 @@ function viewPODetails(poId) {
 
 // Enhanced translation for supply entry
 document.addEventListener('DOMContentLoaded', function() {
+
+    window.initializePage({
+        titleKey: 'receive_stock',
+        fallbackTitle: 'Receive Stock'
+    });
     // Update on language change
     window.addEventListener('languageChanged', function() {
         updateSupplyPageTranslations();
         updateTooltips();
-        updatePageTitle();
     });
     
     function updateSupplyPageTranslations() {
@@ -284,7 +288,6 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(() => {
         updateSupplyPageTranslations();
         updateTooltips();
-        updatePageTitle();
     }, 0);
 });
 
@@ -311,16 +314,5 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
-
-function updatePageTitle() {
-    if (!window.translator || !window.translator._) {
-        return;
-    }
-    
-    const receiveStock = window.translator._('receive_stock');
-    const vesselSalesSystem = window.translator._('vessel_sales_system');
-    
-    document.title = `${receiveStock} - ${vesselSalesSystem}`;
-}
 </script>
 {% endblock %}

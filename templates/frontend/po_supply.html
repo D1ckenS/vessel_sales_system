@@ -323,7 +323,7 @@
                 </h5>
                 <div class="d-flex gap-2">
                     {% if not can_edit %}
-                    <button class="btn btn-outline-success btn-sm" onclick="showPOExportModal({{ po.id }})">
+                    <button class="btn btn-outline-success btn-sm" onclick="window.showPOExportModal({{ po.id }})">
                         <i class="bi bi-download"></i> <span data-translate="export">Export</span>
                     </button>
                     {% endif %}
@@ -401,7 +401,6 @@ let productCatalog = [];
 
 // Enhanced PO Supply translations
 document.addEventListener('DOMContentLoaded', function() {
-    window.registerPageTitle('po_supply', 'PO Supply');
     const poSupplyTranslations = {
         en: {
             'product_catalog': 'Product Catalog',
@@ -463,6 +462,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
+    window.initializePage({
+        titleKey: 'po_supply',
+        fallbackTitle: 'PO Supply',
+        pageTranslations: poSupplyTranslations
+    })
+
     
     // Merge with global translations
     const currentTranslations = window.translator.translations;
@@ -512,7 +517,7 @@ document.addEventListener('DOMContentLoaded', function() {
         setupEventListeners();
     } catch (error) {
         console.error('Error initializing PO cart:', error);
-        showAlert(_('error_loading_cart'), 'warning');
+        window.window.showAlert(_('error_loading_cart'), 'warning');
         poSuppliesCart = [];
         updateCartDisplay();
     }
@@ -805,12 +810,12 @@ function setupEventListeners() {
                             selectProductFromCatalog(products[0]);
                         }
                     } else {
-                        showAlert(data.error, 'danger');
+                        window.window.showAlert(data.error, 'danger');
                     }
                 })
                 .catch(error => {
                     console.error('Error searching products:', error);
-                    showAlert(_('error_searching'), 'danger');
+                    window.window.showAlert(_('error_searching'), 'danger');
                 });
             }, 300);
         } else if (searchTerm.length === 0) {
@@ -936,7 +941,7 @@ function addToCart() {
     saveCartToStorage();
     updateCartDisplay();
     clearForm();
-    showAlert(_('item_added_success'), 'success');
+    window.window.showAlert(_('item_added_success'), 'success');
     
     // Focus back to search field for next item
     document.getElementById('productSearch').focus();
@@ -948,13 +953,13 @@ async function removeFromCart(index) {
         poSuppliesCart.splice(index, 1);
         saveCartToStorage();
         updateCartDisplay();
-        showAlert(_('item_removed'), 'info');
+        window.window.showAlert(_('item_removed'), 'info');
     }
 }
 
 function editCartItem(index) {
     if (index < 0 || index >= poSuppliesCart.length) {
-        showAlert(_('invalid_item_edit'), 'error');
+        window.window.showAlert(_('invalid_item_edit'), 'error');
         return;
     }
     
@@ -1050,17 +1055,17 @@ async function cancelEdit() {
                 const storageKey = `po_supplies_${poId}`;
                 localStorage.removeItem(storageKey);
                 
-                showAlert(data.message, 'success');
+                window.window.showAlert(data.message, 'success');
                 setTimeout(() => {
                     window.location.href = "{% url 'frontend:supply_entry' %}";
                 }, 1500);
             } else {
-                showAlert(data.error, 'danger');
+                window.window.showAlert(data.error, 'danger');
             }
         })
         .catch(error => {
             console.error('Error canceling PO:', error);
-            showAlert(_('error_canceling_po'), 'danger');
+            window.window.showAlert(_('error_canceling_po'), 'danger');
         });
     }
 }
@@ -1204,7 +1209,7 @@ function updateNumberElement(elementId, value) {
 
 async function completePOSupplies() {
     if (poSuppliesCart.length === 0) {
-        showAlert(_('add_one_item_first'), 'warning');
+        window.window.showAlert(_('add_one_item_first'), 'warning');
         return;
     }
     
@@ -1254,7 +1259,7 @@ async function completePOSupplies() {
         
         if (data.success) {
             // Show success message
-            showAlert(data.message, 'success');
+            window.window.showAlert(data.message, 'success');
             
             // AUTO-EXPORT: Export cart with box breakdown before redirect
             console.log('🚀 Auto-exporting cart verification report...');
@@ -1270,194 +1275,16 @@ async function completePOSupplies() {
                 window.location.href = "{% url 'frontend:supply_entry' %}";
             }, 2000);
         } else {
-            showAlert(data.error || _('error_completing_po'), 'danger');
+            window.window.showAlert(data.error || _('error_completing_po'), 'danger');
             completePOBtn.innerHTML = originalText;
             completePOBtn.disabled = false;
         }
     } catch (error) {
         console.error('Error completing PO:', error);
-        showAlert(_('error_completing_po'), 'danger');
+        window.window.showAlert(_('error_completing_po'), 'danger');
         completePOBtn.innerHTML = originalText;
         completePOBtn.disabled = false;
     }
-}
-
-function printPOSupplies() {
-    alertTranslated('print_coming_soon');
-}
-
-function showAlert(message, type) {
-    const container = document.querySelector('.container') || document.querySelector('body');
-    const firstRow = container.querySelector('.row');
-    
-    const alertDiv = document.createElement('div');
-    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
-    alertDiv.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-    
-    if (firstRow) {
-        container.insertBefore(alertDiv, firstRow);
-    } else {
-        container.appendChild(alertDiv);
-    }
-    
-    setTimeout(() => {
-        if (alertDiv && alertDiv.parentNode) {
-            alertDiv.remove();
-        }
-    }, 5000);
-}
-
-function showPOExportModal(poId) {
-    const modalHtml = `
-    <div class="modal fade" id="poExportModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">
-                        <i class="bi bi-download"></i> <span data-translate="export_po_data">Export PO Data</span>
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <p><span data-translate="choose_export_format">Choose your preferred export format:</span></p>
-                    <div class="d-grid gap-2">
-                        <button class="btn btn-success" onclick="exportSinglePO(${poId}, 'excel'); bootstrap.Modal.getInstance(document.getElementById('poExportModal')).hide();">
-                            <i class="bi bi-file-earmark-excel"></i> <span data-translate="export_to_excel">Export to Excel (.xlsx)</span>
-                        </button>
-                        <button class="btn btn-danger" onclick="exportSinglePO(${poId}, 'pdf'); bootstrap.Modal.getInstance(document.getElementById('poExportModal')).hide();">
-                            <i class="bi bi-file-earmark-pdf"></i> <span data-translate="export_to_pdf">Export to PDF</span>
-                        </button>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                        <span data-translate="cancel">Cancel</span>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>`;
-    
-    // Remove existing modal if present
-    const existingModal = document.getElementById('poExportModal');
-    if (existingModal) {
-        existingModal.remove();
-    }
-    
-    // Add modal to page
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-    
-    // Apply translations using the global translation system
-    if (window.updatePageTranslations) {
-        window.updatePageTranslations();
-    }
-    
-    // Show modal
-    const modal = new bootstrap.Modal(document.getElementById('poExportModal'));
-    modal.show();
-    
-    // Clean up when modal is hidden
-    document.getElementById('poExportModal').addEventListener('hidden.bs.modal', function() {
-        this.remove();
-    });
-}
-
-function exportSinglePO(poId, format) {
-    // Show loading state
-    const loadingHtml = '<span class="spinner-border spinner-border-sm"></span> <span data-translate="exporting">Exporting</span>...';
-    const buttons = document.querySelectorAll('button[onclick*="exportSinglePO"]');
-    const originalHtml = {};
-    
-    buttons.forEach(btn => {
-        originalHtml[btn.innerHTML] = btn.innerHTML;
-        btn.innerHTML = loadingHtml;
-        btn.disabled = true;
-    });
-    
-    // Use the global CSRF token function from base_scripts.js
-    const csrfToken = window.getCookie ? window.getCookie('csrftoken') : 
-                      document.querySelector('[name=csrfmiddlewaretoken]')?.value;
-    
-    // Get current language
-    const currentLanguage = window.translator ? window.translator.currentLanguage : 
-                           localStorage.getItem('preferred_language') || 'en';
-                      
-    // Make request to export endpoint
-    fetch(`/export/po/${poId}/`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': csrfToken,
-        },
-        body: JSON.stringify({
-            format: format,
-            language: currentLanguage
-        })
-    })
-    .then(response => {
-        if (response.ok) {
-            // Handle file download
-            const contentDisposition = response.headers.get('Content-Disposition');
-            const filename = contentDisposition ? 
-                contentDisposition.split('filename=')[1].replace(/"/g, '') : 
-                `po_${poId}_export.${format === 'excel' ? 'xlsx' : 'pdf'}`;
-            
-            return response.blob().then(blob => {
-                // Create download link
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = filename;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                window.URL.revokeObjectURL(url);
-                
-                // Show success message using global translation system
-                if (window.alertTranslated) {
-                    window.alertTranslated('export_completed_successfully');
-                } else if (window.translator && window.translator._) {
-                    alert(window.translator._('export_completed_successfully'));
-                } else {
-                    alert('Export completed successfully!');
-                }
-            });
-        } else {
-            return response.json().then(data => {
-                throw new Error(data.error || 'Export failed');
-            });
-        }
-    })
-    .catch(error => {
-        console.error('Export error:', error);
-        // Show error message using global translation system
-        if (window.alertTranslated) {
-            window.alertTranslated('export_failed', {error: error.message});
-        } else {
-            alert('Export failed: ' + error.message);
-        }
-    })
-    .finally(() => {
-        // Restore button states
-        buttons.forEach(btn => {
-            if (originalHtml[btn.innerHTML]) {
-                btn.innerHTML = originalHtml[btn.innerHTML];
-            } else {
-                // Fallback: restore based on format
-                if (btn.innerHTML.includes('spinner-border')) {
-                    if (format === 'excel') {
-                        btn.innerHTML = '<i class="bi bi-file-earmark-excel"></i> Export to Excel';
-                    } else {
-                        btn.innerHTML = '<i class="bi bi-file-earmark-pdf"></i> Export to PDF';
-                    }
-                }
-            }
-            btn.disabled = false;
-        });
-    });
 }
 
 async function exportCartVerification() {
@@ -1519,17 +1346,17 @@ async function exportCartVerification() {
             console.log('✅ Cart verification export successful:', filename);
             
             // Show brief notification
-            showAlert(`📄 Verification report downloaded: ${filename}`, 'info');
+            window.showAlert(`📄 Verification report downloaded: ${filename}`, 'info');
             
         } else {
             const errorData = await response.json();
             console.error('Export failed:', errorData);
-            showAlert('Export failed: ' + (errorData.error || 'Unknown error'), 'warning');
+            window.showAlert('Export failed: ' + (errorData.error || 'Unknown error'), 'warning');
         }
         
     } catch (error) {
         console.error('Error during cart export:', error);
-        showAlert('Export error: ' + error.message, 'warning');
+        window.showAlert('Export error: ' + error.message, 'warning');
     }
 }
 </script>

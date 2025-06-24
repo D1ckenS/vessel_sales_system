@@ -375,8 +375,6 @@ let searchTimeout = null;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
-    window.registerPageTitle('inventory_management', 'Inventory Check');
-    // Add page-specific translations
     const pageTranslations = {
         en: {
             'monitor_stock_levels': 'Monitor stock levels by vessel',
@@ -555,6 +553,12 @@ document.addEventListener('DOMContentLoaded', function() {
             'out_of_stock_status': 'نفد المخزون'
         }
     };
+
+    window.initializePage({
+        titleKey: 'inventory_management',
+        fallbackTitle: 'Inventory Management',
+        pageTranslations: pageTranslations
+    })
 
     // Merge with global translations
     const currentTranslations = window.translator.translations;

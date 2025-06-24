@@ -314,6 +314,7 @@ window.VesselSalesTranslations = {
         'limited_access_desc': 'Contact your administrator for additional permissions.',
         
         // Transfer-specific translations
+        'transfer_entry': 'Transfer Entry',
         'transfer_entry_desc': 'Create new transfer and move inventory between vessels',
         'create_new_transfer': 'Create New Transfer',
         'from_vessel_source': 'From Vessel (Source)',
@@ -1093,6 +1094,7 @@ window.VesselSalesTranslations = {
         'limited_access_desc': 'اتصل بالمدير للحصول على صلاحيات إضافية.',
 
         // Transfer-specific translations
+        'transfer_entry': 'حركة نقل',
         'transfer_entry_desc': 'انشاء حركة جديدة ونقل المخزون بين السفن',
         'create_new_transfer': 'انشاء حركة جديدة',
         'from_vessel_source': 'من سفن (مصدر)',

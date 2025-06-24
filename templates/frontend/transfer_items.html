@@ -177,10 +177,10 @@
                     (<span dir="ltr" id="transferListCount">0</span>)
                 </h5>
                 <div class="d-flex gap-2">
-                    <button class="btn btn-outline-success btn-sm" onclick="exportTransferItems()">
+                    <button class="btn btn-outline-success btn-sm" onclick="window.templateUtils.showExportComingSoon()">
                         <i class="bi bi-file-earmark-excel"></i> <span data-translate="export">Export</span>
                     </button>
-                    <button class="btn btn-outline-primary btn-sm" onclick="printTransferItems()">
+                    <button class="btn btn-outline-primary btn-sm" onclick="window.templateUtils.showPrintComingSoon()">
                         <i class="bi bi-printer"></i> <span data-translate="print">Print</span>
                     </button>
                 </div>
@@ -225,7 +225,6 @@ let availableProducts = [];
 
 // Page-specific translations
 document.addEventListener('DOMContentLoaded', function() {
-    window.registerPageTitle('transfer_items', 'Transfer Items');
     const transferTranslations = {
         en: {
             'transfer_items': 'Transfer Items',
@@ -312,6 +311,12 @@ document.addEventListener('DOMContentLoaded', function() {
             'remove_item': 'إزالة العنصر'
         }
     };
+
+    window.initializePage({
+        titleKey: 'transfer_items',
+        fallbackTitle: 'Transfer Items',
+        pageTranslations: transferTranslations
+    })
     
     // Merge with global translations
     const currentTranslations = window.translator.translations;
@@ -522,7 +527,7 @@ function setupEventListeners() {
                     selectProductFromList(filteredProducts[0]);
                 } else if (filteredProducts.length === 0) {
                     clearProductSelection();
-                    showAlert(_('no_products_found'), 'warning');
+                    window.showAlert(_('no_products_found'), 'warning');
                 }
             }, 500);
         } else {
@@ -612,7 +617,7 @@ function addToCart() {
     saveCartToStorage();
     updateCartDisplay();
     clearForm();
-    showAlert(_('item_added_success'), 'success');
+    window.showAlert(_('item_added_success'), 'success');
     
     // Focus back to search field
     document.getElementById('productSearch').focus();
@@ -624,13 +629,13 @@ async function removeFromCart(index) {
         transferCart.splice(index, 1);
         saveCartToStorage();
         updateCartDisplay();
-        showAlert(_('item_removed'), 'info');
+        window.showAlert(_('item_removed'), 'info');
     }
 }
 
 function editCartItem(index) {
     if (index < 0 || index >= transferCart.length) {
-        showAlert(_('invalid_item_edit'), 'error');
+        window.showAlert(_('invalid_item_edit'), 'error');
         return;
     }
     
@@ -706,7 +711,7 @@ async function cancelEdit() {
         const storageKey = `transfer_session_${transferSessionId}`;
         localStorage.removeItem(storageKey);
         
-        showAlert(_('transfer_canceled'), 'info');
+        window.showAlert(_('transfer_canceled'), 'info');
         setTimeout(() => {
             window.location.href = "{% url 'frontend:transfer_entry' %}";
         }, 1500);
@@ -780,7 +785,7 @@ function updateCartDisplay() {
 
 async function completeTransfer() {
     if (transferCart.length === 0) {
-        showAlert(_('add_one_item_first'), 'warning');
+        window.showAlert(_('add_one_item_first'), 'warning');
         return;
     }
 
@@ -826,66 +831,24 @@ async function completeTransfer() {
             const storageKey = `transfer_session_${transferSessionId}`;
             localStorage.removeItem(storageKey);
 
-            showAlert(_('transfer_completed'), 'success');
+            window.showAlert(_('transfer_completed'), 'success');
             setTimeout(() => {
                 window.location.href = "{% url 'frontend:transfer_entry' %}";
             }, 2000);
         } else {
-            showAlert(data.error || _('error_completing_transfer'), 'danger');
+            window.showAlert(data.error || _('error_completing_transfer'), 'danger');
             completeTransferBtn.innerHTML = originalText;
             completeTransferBtn.disabled = false;
         }
     } catch (error) {
         console.error('Error completing transfer:', error);
-        showAlert(_('error_completing_transfer'), 'danger');
+        window.showAlert(_('error_completing_transfer'), 'danger');
         completeTransferBtn.innerHTML = originalText;
         completeTransferBtn.disabled = false;
     }
 }
 
-function exportTransferItems() {
-    alertTranslated('export_coming_soon');
-}
-
-function printTransferItems() {
-    alertTranslated('print_coming_soon');
-}
-
-function showAlert(message, type) {
-    const container = document.querySelector('.container') || document.querySelector('body');
-    const firstRow = container.querySelector('.row');
-
-    // Create alert div
-    const alertDiv = document.createElement('div');
-    alertDiv.classList.add('alert', `alert-${type}`, 'alert-dismissible', 'fade', 'show');
-    
-    // Create message span
-    const messageSpan = document.createElement('span');
-    messageSpan.textContent = message;
-    
-    // Create close button
-    const closeBtn = document.createElement('button');
-    closeBtn.type = 'button';
-    closeBtn.className = 'btn-close';
-    closeBtn.setAttribute('data-bs-dismiss', 'alert');
-    
-    // Append elements to alert
-    alertDiv.appendChild(messageSpan);
-    alertDiv.appendChild(closeBtn);
-    
-    // Insert into DOM
-    if (firstRow) {
-        container.insertBefore(alertDiv, firstRow);
-    } else {
-        container.appendChild(alertDiv);
-    }
-
-    // Auto-remove after 5 seconds
-    setTimeout(() => {
-        if (alertDiv && alertDiv.parentNode) {
-            alertDiv.remove();
-        }
-    }, 5000);
-}
+window.exportTransferItems = () => window.templateUtils.showExportComingSoon();
+window.printTransferItems = () => window.templateUtils.showPrintComingSoon();
 </script>
 {% endblock %}

@@ -562,10 +562,13 @@
 <script>
 // Enhanced translation for daily report
 document.addEventListener('DOMContentLoaded', function() {
+    window.initializePage({
+        titleKey: 'daily_report',
+        fallbackTitle: 'Daily Report'
+    })
     // Update on language change
     window.addEventListener('languageChanged', function() {
         updateDailyReportTranslations();
-        updatePageTitle();
     });
     
     function updateDailyReportTranslations() {
@@ -643,7 +646,6 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(() => {
         updateDailyReportTranslations();
         updatePageTranslations(); // Call global translation update
-        updatePageTitle();
     }, 0);
 
 });
@@ -658,18 +660,7 @@ function exportDailyReport() {
 }
 
 function printDailyReport() {
-    alertTranslated('print_feature_coming_soon');
-}
-
-function updatePageTitle() {
-    if (!window.translator || !window.translator._) {
-        return;
-    }
-    
-    const dailyReport = window.translator._('daily_operations_report');
-    const vesselSalesSystem = window.translator._('vessel_sales_system');
-    
-    document.title = `${dailyReport} - ${vesselSalesSystem}`;
+    window.templateUtils.showPrintComingSoon()
 }
 </script>
 {% endblock %}

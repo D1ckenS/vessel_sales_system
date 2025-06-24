@@ -444,20 +444,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // --- Styled AJAX Alert ---
-    function showAlert(message, type = 'info') {
-        const alertEl = document.getElementById('ajaxAlert');
-        if (!alertEl) return;
-
-        alertEl.className = `alert alert-${type}`;
-        alertEl.textContent = message;
-        alertEl.classList.remove('d-none');
-
-        setTimeout(() => {
-            alertEl.classList.add('d-none');
-        }, 5000);
-    }
-
     function updateVesselAvailability() {
         const dutyFreeSwitch = document.getElementById('dutyFreeSwitch');
         const isDutyFree = dutyFreeSwitch.checked;
@@ -594,16 +580,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const itemIdInput = document.querySelector('input[name="item_id"]');
     const ajaxAlert = document.getElementById('ajaxAlert');
     
-    function showAlert(message, type = 'warning') {
-        ajaxAlert.className = `alert alert-${type}`;
-        ajaxAlert.textContent = message;
-        ajaxAlert.classList.remove('d-none');
-        
-        setTimeout(() => {
-            ajaxAlert.classList.add('d-none');
-        }, 3000);
-    }
-    
     function checkUniqueness(field, value) {
         if (value.trim() === '') return;
         
@@ -691,6 +667,11 @@ style.textContent = `
         box-shadow: 0 0 0 0.2rem rgba(25, 135, 84, 0.25) !important;
     }
 `;
+
+function showAlert(message, type = 'warning') {
+    window.showAlert(message, type);
+}
+
 document.head.appendChild(style);
 </script>
 {% endblock %}

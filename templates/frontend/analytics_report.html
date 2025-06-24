@@ -466,7 +466,10 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    window.registerPageTitle('analytics_dashboard', 'Analytics Dashboard');
+    window.initializePage({
+        titleKey: 'analytics_report',
+        fallbackTitle: 'Analytics Report'
+    })
     
     function updateAnalyticsPageTranslations() {
         // Keep only the unique analytics translation logic (efficiency score, growth rate, etc.)

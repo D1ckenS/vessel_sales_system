@@ -333,7 +333,11 @@ let editingIndex = -1;
 
 // Initialize page - following trip_sales pattern
 document.addEventListener('DOMContentLoaded', function() {
-    window.registerPageTitle('waste_items', 'Waste Items');
+    window.initializePage({
+        titleKey: 'waste_items',
+        fallbackTitle: 'Waste Items',
+        PageTranslations: updateWasteTranslations
+    })
     
     const wasteData = JSON.parse(document.getElementById('wasteData').textContent);
     
@@ -960,7 +964,6 @@ function _(key) {
     return window.translator ? window.translator._(key) : key;
 }
 
-// FIXED: Use existing showAlert function properly
 function showAlert(message, type) {
     // Use the global window.showAlert if available, otherwise fallback to alert
     if (typeof window.showAlert === 'function' && window.showAlert !== showAlert) {
@@ -970,7 +973,7 @@ function showAlert(message, type) {
         const toastHtml = `<div class="toast" role="alert"><div class="toast-body">${message}</div></div>`;
         document.querySelector('.toast-container').insertAdjacentHTML('beforeend', toastHtml);
     } else {
-        alert(message);
+        window.showAlert(message, type);
     }
 }
 </script>

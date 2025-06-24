@@ -170,10 +170,8 @@
 <script>
 // Add page-specific translations
 document.addEventListener('DOMContentLoaded', function() {
-    window.registerPageTitle('transfer_entry', 'Transfer Entry');
     const pageTranslations = {
         en: {
-            'transfer_entry': 'Transfer Entry',
             'vessel_sales_system': 'Vessel Sales System',
             'transfer_entry_desc': 'Create new transfer and move inventory between vessels',
             'back_to_dashboard': 'Back to Dashboard',
@@ -203,7 +201,6 @@ document.addEventListener('DOMContentLoaded', function() {
             'no_duty_free': 'No Duty-Free'
         },
         ar: {
-            'transfer_entry': 'إدخال التحويل',
             'vessel_sales_system': 'نظام مبيعات السفن',
             'transfer_entry_desc': 'إنشاء تحويل جديد ونقل المخزون بين السفن',
             'back_to_dashboard': 'الرجوع للوحة التحكم',
@@ -233,6 +230,12 @@ document.addEventListener('DOMContentLoaded', function() {
             'no_duty_free': 'لا سوق حرة'
         }
     };
+
+    window.initializePage({
+        titleKey: 'transfer_entry',
+        fallbackTitle: 'Transfer Entry',
+        pageTranslations: pageTranslations
+    })
     
     // Merge with global translations
     const currentTranslations = window.translator.translations;
@@ -294,8 +297,7 @@ function clearForm() {
 }
 
 function viewTransferDetails(transferId) {
-    // Implementation for viewing transfer details
-    alertTranslated('feature_coming_soon');
+    window.templateUtils.showComingSoonAlert();
 }
 </script>
 {% endblock %}

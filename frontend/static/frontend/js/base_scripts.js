@@ -56,17 +56,6 @@ class TranslationBridge {
             element.textContent = this._(key, parsedParams);
         });
     }
-
-    // Confirmation dialogs with translation support
-    confirm(messageKey, params = {}) {
-        const message = this._(messageKey, params);
-        return confirm(message);
-    }
-
-    alert(messageKey, params = {}) {
-        const message = this._(messageKey, params);
-        alert(message);
-    }
 }
 
 /**
@@ -284,6 +273,48 @@ window.confirmTranslated = function(key, params) {
     });
 };
 
+// Universal alert function - replaces all template showAlert() implementations
+window.showAlert = function(message, type = 'info', duration = 5000) {
+    const container = document.querySelector('.container') || document.querySelector('body');
+    const firstRow = container.querySelector('.row');
+    
+    // Create alert div
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.style.zIndex = '1055'; // Ensure it appears above other content
+    
+    // Create message content
+    const messageSpan = document.createElement('span');
+    messageSpan.textContent = message;
+    
+    // Create close button
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'btn-close';
+    closeBtn.setAttribute('data-bs-dismiss', 'alert');
+    closeBtn.setAttribute('aria-label', 'Close');
+    
+    // Append elements
+    alertDiv.appendChild(messageSpan);
+    alertDiv.appendChild(closeBtn);
+    
+    // Insert into DOM
+    if (firstRow) {
+        container.insertBefore(alertDiv, firstRow);
+    } else {
+        container.appendChild(alertDiv);
+    }
+    
+    // Auto-remove after duration
+    setTimeout(() => {
+        if (alertDiv && alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, duration);
+    
+    return alertDiv; // Return for potential manual control
+};
+
 // Custom styled alert dialog
 window.alertTranslated = function(key, params) {
     return new Promise((resolve) => {
@@ -310,6 +341,24 @@ window.alertTranslated = function(key, params) {
         
         modal.show();
     });
+};
+
+// Universal CSRF token function - replaces all template getCsrfToken() implementations
+window.getCsrfToken = function() {
+    // Try meta tag first (most reliable)
+    const metaToken = document.querySelector('meta[name="csrf-token"]');
+    if (metaToken) {
+        return metaToken.getAttribute('content');
+    }
+    
+    // Try form input (Django default)
+    const inputToken = document.querySelector('[name=csrfmiddlewaretoken]');
+    if (inputToken) {
+        return inputToken.value;
+    }
+    
+    // Try cookie as fallback
+    return window.getCookie('csrftoken');
 };
 
 // Backward compatibility - update existing confirm/alert calls
@@ -515,8 +564,11 @@ function manualTranslationUpdate(newLang) {
 
 // Update page translations function
 window.updatePageTranslations = function() {
-    console.log('🔄 updatePageTranslations called - Current language:', window.translator.currentLanguage);
-    
+    if (!window.translator || !window.translator.translations) {
+        console.warn('Translator not initialized');
+        return;
+    }
+
     // Update elements with data-translate attribute
     document.querySelectorAll('[data-translate]').forEach(element => {
         const key = element.getAttribute('data-translate');
@@ -524,11 +576,6 @@ window.updatePageTranslations = function() {
         const parsedParams = params ? JSON.parse(params) : {};
         const translation = window.translator._(key, parsedParams);
         element.textContent = translation;
-        
-        // Debug specific badges
-        if (key === 'active' || key === 'inactive') {
-            console.log(`🔧 Updated ${key}: "${translation}"`);
-        }
     });
     
     // Update vessel names based on current language
@@ -573,14 +620,11 @@ window.updatePageTranslations = function() {
             element.setAttribute('data-original', originalValue);
         }
         
-        // Clean the original value to extract just the number
-        const numberMatch = originalValue.match(/[\d,]+\.?\d*/);
-        if (numberMatch) {
-            const translatedNumber = translateNumber(numberMatch[0].replace(/,/g, ''));
-            element.textContent = originalValue.replace(numberMatch[0], translatedNumber);
+       if (window.translator.currentLanguage === 'ar') {
+            const translatedNumber = window.translateNumber(originalValue);
+            element.textContent = translatedNumber;
         } else {
-            // For simple numbers without additional text
-            element.textContent = translateNumber(originalValue);
+            element.textContent = originalValue;
         }
     });
 
@@ -726,59 +770,25 @@ window.exportData = function(exportType, format, additionalData = {}) {
     // Show loading state
     const btn = event.target.closest('button');
     const originalHtml = btn.innerHTML;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> ' + _('exporting');
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> ' + window._('exporting');
     btn.disabled = true;
     
     // Get current language
-    const currentLanguage = window.translator ? window.translator.currentLanguage : 
-                           localStorage.getItem('preferred_language') || 'en';
-    
-    // Determine endpoint based on export type
-    let endpoint;
-    switch(exportType) {
-        case 'inventory':
-            endpoint = '/export/inventory/';
-            break;
-        case 'transactions':
-            endpoint = '/export/transactions/';
-            break;
-        case 'trips':
-            endpoint = '/export/trips/';
-            break;
-        case 'purchase_orders':
-            endpoint = '/export/purchase-orders/';
-            break;
-        case 'monthly_report':
-            endpoint = '/export/monthly-report/';
-            break;
-        case 'daily_report':
-            endpoint = '/export/daily-report/';
-            break;
-        case 'analytics_report':
-            endpoint = '/export/analytics/';
-            break;
-        default:
-            alertTranslated('export_type_not_supported');
-            btn.innerHTML = originalHtml;
-            btn.disabled = false;
-            return;
-    }
-    
-    // Prepare request data with language support
-    const requestData = {
-        format: format, // 'excel' or 'pdf'
-        language: currentLanguage,  // ADD THIS LINE
-        ...additionalData
-    };
+    const currentLanguage = window.translator ? window.translator.currentLanguage : 'en';
     
     // Make request
     fetch(endpoint, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || getCookie('csrftoken'),
+            'X-CSRFToken': window.getCsrfToken()
         },
-        body: JSON.stringify(requestData)
+        body: JSON.stringify({
+            type: exportType,
+            format: format,
+            language: currentLanguage,
+            ...additionalData
+        })
     })
     .then(response => {
         if (response.ok) {
@@ -787,6 +797,75 @@ window.exportData = function(exportType, format, additionalData = {}) {
             const filename = contentDisposition ? 
                 contentDisposition.split('filename=')[1].replace(/"/g, '') : 
                 `export_${Date.now()}.${format === 'excel' ? 'xlsx' : 'pdf'}`;
+            
+            return response.blob().then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                window.alertTranslated('export_successful', { filename: filename });
+            });
+        } else {
+            return response.json().then(data => {
+                throw new Error(data.error || 'Export failed');
+            });
+        }
+    })
+    .catch(error => {
+        console.error('Export error:', error);
+        window.alertTranslated('export_failed', { error: error.message });
+    })
+    .finally(() => {
+        btn.innerHTML = originalHtml;
+        btn.disabled = false;
+    });
+};
+
+// Export modal function
+
+// Universal single entity export - replaces exportSingleTrip, exportSinglePO, etc.
+window.exportSingleEntity = function(entityType, entityId, format, endpoint) {
+    // Show loading state
+    const loadingHtml = '<span class="spinner-border spinner-border-sm"></span> <span data-translate="exporting">Exporting</span>...';
+    const buttons = document.querySelectorAll(`button[onclick*="exportSingle${entityType.charAt(0).toUpperCase() + entityType.slice(1)}"], button[onclick*="exportSingleEntity"]`);
+    const originalHtml = {};
+    
+    buttons.forEach(btn => {
+        originalHtml[btn.innerHTML] = btn.innerHTML;
+        btn.innerHTML = loadingHtml;
+        btn.disabled = true;
+    });
+    
+    // Get CSRF token and language
+    const csrfToken = window.getCsrfToken();
+    const currentLanguage = window.translator ? window.translator.currentLanguage : 
+                           localStorage.getItem('preferred_language') || 'en';
+    
+    // Make request to export endpoint
+    fetch(endpoint, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken,
+        },
+        body: JSON.stringify({
+            format: format,
+            language: currentLanguage
+        })
+    })
+    .then(response => {
+        if (response.ok) {
+            // Handle file download
+            const contentDisposition = response.headers.get('Content-Disposition');
+            const filename = contentDisposition ? 
+                contentDisposition.split('filename=')[1].replace(/"/g, '') : 
+                `${entityType}_${entityId}_export.${format === 'excel' ? 'xlsx' : 'pdf'}`;
             
             return response.blob().then(blob => {
                 // Create download link
@@ -800,7 +879,12 @@ window.exportData = function(exportType, format, additionalData = {}) {
                 window.URL.revokeObjectURL(url);
                 document.body.removeChild(a);
                 
-                alertTranslated('export_successful', { filename: filename });
+                // Show success message
+                if (window.alertTranslated) {
+                    window.alertTranslated('export_completed_successfully');
+                } else {
+                    window.showAlert('Export completed successfully!', 'success');
+                }
             });
         } else {
             return response.json().then(data => {
@@ -810,17 +894,88 @@ window.exportData = function(exportType, format, additionalData = {}) {
     })
     .catch(error => {
         console.error('Export error:', error);
-        alertTranslated('export_failed', { error: error.message });
+        window.showAlert(`Export failed: ${error.message}`, 'danger');
     })
     .finally(() => {
-        btn.innerHTML = originalHtml;
-        btn.disabled = false;
+        // Restore button states
+        buttons.forEach(btn => {
+            if (originalHtml[btn.innerHTML]) {
+                btn.innerHTML = originalHtml[btn.innerHTML];
+            } else {
+                // Fallback: restore based on format
+                if (btn.innerHTML.includes('spinner-border')) {
+                    if (format === 'excel') {
+                        btn.innerHTML = '<i class="bi bi-file-earmark-excel"></i> Export to Excel';
+                    } else {
+                        btn.innerHTML = '<i class="bi bi-file-earmark-pdf"></i> Export to PDF';
+                    }
+                }
+            }
+            btn.disabled = false;
+        });
     });
 };
 
-// Export modal function
+// Universal export modal - replaces showTripExportModal, showPOExportModal, etc.
+window.showUniversalExportModal = function(entityType, entityId, exportEndpoint) {
+    const modalId = `${entityType}ExportModal`;
+    const modalTitle = window.translator._(`export_${entityType}_data`) || `Export ${entityType.toUpperCase()} Data`;
+    
+    const modalHtml = `
+    <div class="modal fade" id="${modalId}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-download"></i> <span data-translate="export_${entityType}_data">${modalTitle}</span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p><span data-translate="choose_export_format">Choose your preferred export format:</span></p>
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-success" onclick="window.exportSingleEntity('${entityType}', ${entityId}, 'excel', '${exportEndpoint}'); bootstrap.Modal.getInstance(document.getElementById('${modalId}')).hide();">
+                            <i class="bi bi-file-earmark-excel"></i> <span data-translate="export_to_excel">Export to Excel (.xlsx)</span>
+                        </button>
+                        <button class="btn btn-danger" onclick="window.exportSingleEntity('${entityType}', ${entityId}, 'pdf', '${exportEndpoint}'); bootstrap.Modal.getInstance(document.getElementById('${modalId}')).hide();">
+                            <i class="bi bi-file-earmark-pdf"></i> <span data-translate="export_to_pdf">Export to PDF</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <span data-translate="cancel">Cancel</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>`;
+    
+    // Remove existing modal if present
+    const existingModal = document.getElementById(modalId);
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // Add modal to page
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Apply translations
+    if (window.updatePageTranslations) {
+        window.updatePageTranslations();
+    }
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById(modalId));
+    modal.show();
+    
+    // Clean up when modal is hidden
+    document.getElementById(modalId).addEventListener('hidden.bs.modal', function() {
+        this.remove();
+    });
+};
+
 window.showExportModal = function(exportType, additionalData = {}) {
-    // Avoid conflicts with trip/po specific modals
     if (exportType === 'single_trip' || exportType === 'single_po') {
         console.warn('Use showTripExportModal or showPOExportModal for single exports');
         return;
@@ -854,32 +1009,34 @@ window.showExportModal = function(exportType, additionalData = {}) {
                 </div>
             </div>
         </div>
-    </div>
-    `;
+    </div>`;
     
-    // Remove existing modal if present
     const existingModal = document.getElementById('exportModal');
     if (existingModal) {
         existingModal.remove();
     }
     
-    // Add modal to page
     document.body.insertAdjacentHTML('beforeend', modalHtml);
     
-    // Apply translations
     if (window.updatePageTranslations) {
         window.updatePageTranslations();
     }
     
-    // Show modal
     const modal = new bootstrap.Modal(document.getElementById('exportModal'));
     modal.show();
     
-    // Clean up when modal is hidden
     document.getElementById('exportModal').addEventListener('hidden.bs.modal', function() {
         this.remove();
     });
 };
+
+// Convenient wrapper functions for common patterns
+window.showTripExportModal = (tripId) => window.showUniversalExportModal('trip', tripId, `/export/trip/${tripId}/`);
+window.showPOExportModal = (poId) => window.showUniversalExportModal('po', poId, `/export/po/${poId}/`);
+
+// Common coming soon functions
+window.printTransferItems = () => window.templateUtils.showPrintComingSoon();
+window.exportTransferItems = () => window.templateUtils.showExportComingSoon();
 
 /* =============================================================================
    Coming Soon Functions
@@ -910,13 +1067,11 @@ document.addEventListener('DOMContentLoaded', function() {
     
     console.log('🚀 Initializing language system with:', savedLang);
     
-    // Fix Issue 2: Show target language (opposite of current)
     if (langButton) {
         const targetLang = savedLang === 'en' ? 'AR' : 'EN';
         langButton.textContent = targetLang;
     }
     
-    // Apply RTL for Arabic
     if (savedLang === 'ar') {
         document.body.classList.add('rtl-layout');
         document.documentElement.dir = 'rtl';
@@ -927,7 +1082,6 @@ document.addEventListener('DOMContentLoaded', function() {
         document.documentElement.lang = 'en';
     }
     
-    // ✅ USE EXTERNAL TRANSLATIONS FILE
     if (window.VesselSalesTranslations) {
         window.translator.setTranslations(window.VesselSalesTranslations);
         console.log('✅ External translations loaded successfully');
@@ -936,10 +1090,8 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
     
-    // Set current language
     window.translator.currentLanguage = savedLang;
     
-    // Apply translations after page load
     setTimeout(() => {
         updatePageTranslations();
     }, 0);
@@ -976,7 +1128,7 @@ window.setPageTitle = function(titleKey, fallbackTitle = 'Page') {
     }
     
     const pageTitle = window.translator._(titleKey) || fallbackTitle;
-    const vesselSalesSystem = window.translator._('vessel_sales_system');
+    const vesselSalesSystem = window.translator._('vessel_sales_system') || 'Vessel Sales System';
     
     document.title = `${pageTitle} - ${vesselSalesSystem}`;
 };
@@ -987,16 +1139,16 @@ window.registerPageTitle = function(titleKey, fallbackTitle = 'Page') {
     window.setPageTitle(titleKey, fallbackTitle);
     
     // Auto-update on language change
-    window.addEventListener("languageChanged", function() {
-        window.setPageTitle(titleKey, fallbackTitle);
-    });
+    const updateHandler = () => window.setPageTitle(titleKey, fallbackTitle);
+    window.removeEventListener("languageChanged", updateHandler); // Prevent duplicates
+    window.addEventListener("languageChanged", updateHandler);
 };
 
 /* =============================================================================
    🎯 IMPROVEMENT 2: Universal Translation Merger (Eliminates 8+ duplicate patterns)
    ============================================================================= */
 
-// ✅ ADD: Universal translation merger
+// Universal translation merger
 window.addPageTranslations = function(pageTranslations) {
     if (!window.translator || !window.translator.translations) {
         console.warn('Global translator not ready for page translations');
@@ -1111,7 +1263,8 @@ window.templateUtils = {
     
     // Standard print function
     showPrintComingSoon: () => {
-        window.alertTranslated('print_feature_coming_soon');
+        window.alertTranslated('print_feature_coming_soon') || 
+        window.showAlert('Print feature coming soon!', 'info');
     },
     
     // Date formatting
@@ -1119,5 +1272,27 @@ window.templateUtils = {
         const currentLang = window.translator?.currentLanguage || 'en';
         const formatted = date.toLocaleDateString();
         return currentLang === 'ar' ? window.translateNumber(formatted) : formatted;
+    },
+
+    // Export coming soon - replaces scattered export placeholders
+    showExportComingSoon: () => {
+        window.alertTranslated('export_coming_soon') || 
+        window.showAlert('Export feature coming soon!', 'info');
+    },
+
+     // Form loading state helper
+    setFormLoading: (button, loading = true) => {
+        if (loading) {
+            if (!button.dataset.originalText) {
+                button.dataset.originalText = button.innerHTML;
+            }
+            button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>' + 
+                              (window.translator._('saving') || 'Saving...');
+            button.disabled = true;
+        } else {
+            button.innerHTML = button.dataset.originalText || button.innerHTML;
+            button.disabled = false;
+            delete button.dataset.originalText;
+        }
     }
 };

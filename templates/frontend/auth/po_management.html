@@ -583,16 +583,15 @@ document.addEventListener('DOMContentLoaded', function() {
             'vessel_sales_system': 'نظام مبيعات السفن'
         }
     };
-    
-    // Merge with existing translations
-    Object.assign(window.translator.translations.en, pageTranslations.en);
-    Object.assign(window.translator.translations.ar, pageTranslations.ar);
+
+    window.initializePage({
+        titleKey: 'po_management',
+        fallbackTitle: 'PO Management',
+        pageTranslations: pageTranslations
+    })
     
     // Update page translations
     updatePageTranslations();
-    
-    // Update page title
-    updatePageTitle();
 });
 
 function toggleColumn(columnClass) {
@@ -613,21 +612,7 @@ function getFilterData() {
     };
 }
 
-// Helper function to get CSRF token
-function getCsrfToken() {
-    return document.querySelector('[name=csrfmiddlewaretoken]').value;
-}
-
-function showAlert(message, type) {
-    const alertDiv = document.createElement('div');
-    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
-    alertDiv.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-    document.body.insertBefore(alertDiv, document.body.firstChild);
-    setTimeout(() => alertDiv.remove(), 5000);
-}
+window.getCsrfToken();
 
 function editPO(poId) {
     // FIXED: Remove /manage/ from URL
@@ -647,12 +632,12 @@ function editPO(poId) {
             
             new bootstrap.Modal(document.getElementById('editPOModal')).show();
         } else {
-            showAlert(data.error, 'danger');
+            window.showAlert(data.error, 'danger');
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        showAlert('Error loading PO data', 'danger');
+        window.showAlert('Error loading PO data', 'danger');
     });
 }
 
@@ -675,16 +660,16 @@ function savePO() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            showAlert(data.message, 'success');
+            window.showAlert(data.message, 'success');
             bootstrap.Modal.getInstance(document.getElementById('editPOModal')).hide();
             location.reload();
         } else {
-            showAlert(data.error, 'danger');
+            window.showAlert(data.error, 'danger');
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        showAlert('Error saving PO', 'danger');
+        window.showAlert('Error saving PO', 'danger');
     });
 }
 
@@ -699,17 +684,17 @@ function deletePO(poId) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            showAlert(data.message, 'success');
+            window.showAlert(data.message, 'success');
             location.reload();
         } else if (data.requires_confirmation) {
             showTransactionConfirmationModal('po', poId, data);
         } else {
-            showAlert(data.error, 'danger');
+            window.showAlert(data.error, 'danger');
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        showAlert('Error deleting PO', 'danger');
+        window.showAlert('Error deleting PO', 'danger');
     });
 }
 
@@ -824,15 +809,15 @@ function confirmForceDelete(type, id) {
     .then(data => {
         if (data.success) {
             bootstrap.Modal.getInstance(document.getElementById('deleteConfirmationModal')).hide();
-            showAlert(data.message, 'success');
+            window.showAlert(data.message, 'success');
             location.reload();
         } else {
-            showAlert(data.error, 'danger');
+            window.showAlert(data.error, 'danger');
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        showAlert(`Error deleting ${type}`, 'danger');
+        window.showAlert(`Error deleting ${type}`, 'danger');
     });
 }
 
@@ -846,30 +831,16 @@ function togglePOStatus(poId) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            showAlert(data.message, 'success');
+            window.showAlert(data.message, 'success');
             location.reload();
         } else {
-            showAlert(data.error, 'danger');
+            window.showAlert(data.error, 'danger');
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        showAlert('Error updating PO status', 'danger');
+        window.showAlert('Error updating PO status', 'danger');
     });
 }
-
-function updatePageTitle() {
-    if (!window.translator || !window.translator._) {
-        return;
-    }
-    
-    const poManagement = window.translator._('po_management');
-    const vesselSalesSystem = window.translator._('vessel_sales_system');
-    
-    document.title = `${poManagement} - ${vesselSalesSystem}`;
-}
-
-// 🔥 **Listen for Language Toggle Event**
-window.addEventListener("languageChanged", updatePageTitle);
 </script>
 {% endblock %}

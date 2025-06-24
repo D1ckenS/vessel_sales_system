@@ -356,21 +356,11 @@ function exportTripReports() {
 }
 
 function printTrips() {
-    alertTranslated('print_feature_coming_soon');
+    window.templateUtils.showPrintComingSoon();
 }
 
 function viewTripAnalytics(tripId) {
-    alertTranslated('feature_coming_soon');
-}
-function updatePageTitle() {
-    if (!window.translator || !window.translator._) {
-        return;
-    }
-    
-    const tripReports = window.translator._('trip_reports');
-    const vesselSalesSystem = window.translator._('vessel_sales_system');
-    
-    document.title = `${tripReports} - ${vesselSalesSystem}`;
+    window.templateUtils.showComingSoonAlert();
 }
 </script>
 {% endblock %}

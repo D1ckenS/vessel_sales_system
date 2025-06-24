@@ -209,6 +209,11 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+
+    window.initializePage({
+        titleKey: 'reports_dashboard',
+        fallbackTitle: 'Reports Dashboard'
+    })
     // Update time display
     const now = new Date();
     const timeString = now.toLocaleTimeString();

@@ -243,8 +243,10 @@ document.getElementById('tripForm').addEventListener('submit', function(e) {
 
 // ✅ CLEAN EVENT-DRIVEN TRANSLATION SYSTEM - NO FUNCTION OVERRIDES
 document.addEventListener('DOMContentLoaded', function() {
-    
-    window.registerPageTitle('sales_entry', 'Sales Entry');
+    window.initializePage({
+        titleKey: 'sales_entry',
+        fallbackTitle: 'Sales Entry'
+    })
 
     console.log('📝 Sales Entry: Initializing event-driven translation system');
     

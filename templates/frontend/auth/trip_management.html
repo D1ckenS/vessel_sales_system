@@ -601,16 +601,15 @@ document.addEventListener('DOMContentLoaded', function() {
             'vessel_sales_system': 'نظام مبيعات السفن'
         }
     };
-    
-    // Merge with existing translations
-    Object.assign(window.translator.translations.en, pageTranslations.en);
-    Object.assign(window.translator.translations.ar, pageTranslations.ar);
+
+    window.initializePage({
+        titleKey: 'trip_management',
+        fallbackTitle: 'Trip Management',
+        pageTranslations: pageTranslations
+    })
     
     // Update page translations
     updatePageTranslations();
-    
-    // Update page title
-    updatePageTitle();
 });
 
 function toggleColumn(columnClass) {
@@ -632,21 +631,7 @@ function getFilterData() {
     };
 }
 
-// Helper function to get CSRF token
-function getCsrfToken() {
-    return document.querySelector('[name=csrfmiddlewaretoken]').value;
-}
-
-function showAlert(message, type) {
-    const alertDiv = document.createElement('div');
-    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
-    alertDiv.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-    document.body.insertBefore(alertDiv, document.body.firstChild);
-    setTimeout(() => alertDiv.remove(), 5000);
-}
+window.getCsrfToken();
 
 function editTrip(tripId) {
     // FIXED: Remove /manage/ from URL
@@ -667,12 +652,12 @@ function editTrip(tripId) {
             
             new bootstrap.Modal(document.getElementById('editTripModal')).show();
         } else {
-            showAlert(data.error, 'danger');
+            window.showAlert(data.error, 'danger');
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        showAlert('Error loading trip data', 'danger');
+        window.showAlert('Error loading trip data', 'danger');
     });
 }
 
@@ -696,16 +681,16 @@ function saveTrip() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            showAlert(data.message, 'success');
+            window.showAlert(data.message, 'success');
             bootstrap.Modal.getInstance(document.getElementById('editTripModal')).hide();
             location.reload();
         } else {
-            showAlert(data.error, 'danger');
+            window.showAlert(data.error, 'danger');
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        showAlert('Error saving trip', 'danger');
+        window.showAlert('Error saving trip', 'danger');
     });
 }
 
@@ -719,17 +704,17 @@ function deleteTrip(tripId) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            showAlert(data.message, 'success');
+            window.showAlert(data.message, 'success');
             location.reload();
         } else if (data.requires_confirmation) {
             showTransactionConfirmationModal('trip', tripId, data);
         } else {
-            showAlert(data.error, 'danger');
+            window.showAlert(data.error, 'danger');
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        showAlert('Error deleting trip', 'danger');
+        window.showAlert('Error deleting trip', 'danger');
     });
 }
 
@@ -844,15 +829,15 @@ function confirmForceDelete(type, id) {
     .then(data => {
         if (data.success) {
             bootstrap.Modal.getInstance(document.getElementById('deleteConfirmationModal')).hide();
-            showAlert(data.message, 'success');
+            window.showAlert(data.message, 'success');
             location.reload();
         } else {
-            showAlert(data.error, 'danger');
+            window.showAlert(data.error, 'danger');
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        showAlert(`Error deleting ${type}`, 'danger');
+        window.showAlert(`Error deleting ${type}`, 'danger');
     });
 }
 
@@ -866,30 +851,16 @@ function toggleTripStatus(tripId) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            showAlert(data.message, 'success');
+            window.showAlert(data.message, 'success');
             location.reload();
         } else {
-            showAlert(data.error, 'danger');
+            window.showAlert(data.error, 'danger');
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        showAlert('Error updating trip status', 'danger');
+        window.showAlert('Error updating trip status', 'danger');
     });
 }
-
-function updatePageTitle() {
-    if (!window.translator || !window.translator._) {
-        return;
-    }
-    
-    const tripManagement = window.translator._('trip_management');
-    const vesselSalesSystem = window.translator._('vessel_sales_system');
-    
-    document.title = `${tripManagement} - ${vesselSalesSystem}`;
-}
-
-// 🔥 **Listen for Language Toggle Event**
-window.addEventListener("languageChanged", updatePageTitle);
 </script>
 {% endblock %}

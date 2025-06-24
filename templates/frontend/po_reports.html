@@ -219,10 +219,14 @@
 <script>
 // Enhanced translation for PO reports
 document.addEventListener('DOMContentLoaded', function() {
+
+    window.initializePage({
+        titleKey: 'po_reports',
+        fallbackTitle: 'PO Reports'
+    })
     // Update on language change
     window.addEventListener('languageChanged', function() {
         updatePOPageTranslations();
-        updatePageTitle();
     });
     
     function updatePOPageTranslations() {
@@ -296,7 +300,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initial call
     setTimeout(() => {
         updatePOPageTranslations();
-        updatePageTitle();
+        window.initializePage();
     }, 0);
  
 });
@@ -316,22 +320,11 @@ function exportPOReports() {
 }
 
 function printPOs() {
-    alertTranslated('print_feature_coming_soon');
+    window.templateUtils.showPrintComingSoon()
 }
 
 function viewPOAnalytics(poId) {
-    alertTranslated('feature_coming_soon');
-}
-
-function updatePageTitle() {
-    if (!window.translator || !window.translator._) {
-        return;
-    }
-    
-    const poReports = window.translator._('purchase_order_reports');
-    const vesselSalesSystem = window.translator._('vessel_sales_system');
-    
-    document.title = `${poReports} - ${vesselSalesSystem}`;
+    window.templateUtils.showComingSoonAlert()
 }
 </script>
 {% endblock %}

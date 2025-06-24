@@ -491,6 +491,10 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+    window.initializePage({
+        titleKey: 'product_list',
+        fallbackTitle: 'Product List'
+    })
     // --- Product Deletion ---
     function deleteProduct(productId, productName) {
         confirmTranslated('confirm_delete_product', { name: productName }).then(confirmed => {
@@ -569,19 +573,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (pageJumpInput) {
         pageJumpInput.addEventListener('keydown', handlePageJump);
     }
-
-    // --- Dynamic title update on language change ---
-    function updatePageTitle() {
-        if (!window.translator || !window.translator._) return;
-
-        const translatedTitle = window.translator._('product_management');
-        const vesselSalesSystem = window.translator._('vessel_sales_system');
-        document.title = `${translatedTitle} - ${vesselSalesSystem}`;
-    }
-
-    window.addEventListener('languageChanged', updatePageTitle);
-    updatePageTitle();
-
     // --- Extra UI Translations ---
     if (typeof translations !== 'undefined') {
         Object.assign(translations, {

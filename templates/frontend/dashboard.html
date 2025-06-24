@@ -442,10 +442,10 @@ setTimeout(function() {
 
 // Add permission-specific translations
 document.addEventListener('DOMContentLoaded', function() {
-    window.registerPageTitle('dashboard', 'Dashboard');
-    
-    // Update page translations
-    window.updatePageTranslations();
+    window.initializePage({
+        titleKey: 'dashboard',
+        fallbackTitle: 'Dashboard'
+    });
 });
 </script>
 {% endblock %}

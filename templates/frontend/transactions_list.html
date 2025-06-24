@@ -235,7 +235,10 @@
 <script>
 // Enhanced translation for transactions list
 document.addEventListener('DOMContentLoaded', function() {
-    window.registerPageTitle('all_transactions', 'All Transactions');
+    window.initializePage({
+        titleKey: 'transactions_list',
+        fallbackTitle: 'Transactions List'
+    })
     // Update on language change
     window.addEventListener('languageChanged', function() {
         updateTransactionsPageTranslations();

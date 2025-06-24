@@ -364,14 +364,15 @@ document.addEventListener('DOMContentLoaded', function() {
             'error_copying_pricing': 'خطأ في نسخ التسعير: {error}',
         }
     };
-    
-    // Merge with existing translations
-    Object.assign(window.translator.translations.en, bulkPricingTranslations.en);
-    Object.assign(window.translator.translations.ar, bulkPricingTranslations.ar);
+
+    window.initializePage({
+        titleKey: 'bulk_pricing_management',
+        fallbackTitle: 'Bulk Pricing Management',
+        pageTranslations: bulkPricingTranslations
+    })
     
     // Update page translations
     updatePageTranslations();
-    updatePageTitle()
 });
 
 function updatePrice(input) {
@@ -513,19 +514,5 @@ function getCookie(name) {
     }
     return cookieValue;
 }
-
-function updatePageTitle() {
-    if (!window.translator || !window.translator._) {
-        return;
-    }
-    
-    const bulkPricingManagement = window.translator._('bulk_pricing_management');
-    const vesselSalesSystem = window.translator._('vessel_sales_system');
-    
-    document.title = `${bulkPri} - ${vesselSalesSystem}`;
-}
-
-// 🔥 **Listen for Language Toggle Event**
-window.addEventListener("languageChanged", updatePageTitle);
 </script>
 {% endblock %}
