@@ -90,6 +90,7 @@
                 </h2>
                 <p class="text-muted mb-0"><span data-translate="monitor_stock_levels">Monitor stock levels by vessel</span></p>
             </div>
+            {% if user_permissions.can_add_products %}
             <div class="d-flex gap-2">
                 <a href="{% url 'frontend:add_product_form' %}" class="btn btn-success">
                     <i class="bi bi-plus-circle"></i> <span data-translate="add_new_product">Add New Product</span>
@@ -98,6 +99,7 @@
                     <i class="bi bi-arrow-left"></i> <span data-translate="back_to_dashboard">Back to Dashboard</span>
                 </a>
             </div>
+            {% endif %}
         </div>
     </div>
 </div>

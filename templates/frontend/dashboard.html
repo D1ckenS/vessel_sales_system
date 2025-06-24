@@ -157,7 +157,7 @@
                 {% endif %}
 
                 <!-- 🆕 WASTE REPORTING - Inventory Staff, Managers, Administrators (NOT Vessel Operators) -->
-                {% if user_permissions.can_access_inventory or user_permissions.can_access_reports %}
+                {% if user_permissions.can_add_products %}
                 <div class="quick-action-wrapper">
                     <a href="{% url 'frontend:waste_entry' %}" class="quick-action">
                         <i class="bi bi-trash text-danger"></i>
