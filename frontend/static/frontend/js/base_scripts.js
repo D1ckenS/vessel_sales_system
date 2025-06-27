@@ -868,20 +868,35 @@ window.exportData = function(exportType, format, additionalData = {}) {
 // Universal single entity export - replaces exportSingleTrip, exportSinglePO, etc.
 window.exportSingleEntity = function(entityType, entityId, format) {
     // Show loading state
+    const capitalized = entityType.charAt(0).toUpperCase() + entityType.slice(1);
+    const buttons = document.querySelectorAll(
+        `button[onclick*="exportSingle${capitalized}"], button[onclick*="exportSingleEntity"]`
+    );
+    
     const loadingHtml = '<span class="spinner-border spinner-border-sm"></span> <span data-translate="exporting">Exporting</span>...';
-    const buttons = document.querySelectorAll(`button[onclick*="exportSingle${entityType.charAt(0).toUpperCase() + entityType.slice(1)}"], button[onclick*="exportSingleEntity"]`);
-    const originalHtml = {};
+    const originalHtml = new Map();
     
     buttons.forEach(btn => {
-        originalHtml[btn.innerHTML] = btn.innerHTML;
+        originalHtml.set(btn, btn.innerHTML);
         btn.innerHTML = loadingHtml;
         btn.disabled = true;
     });
     
     // Get CSRF token and language
     const csrfToken = window.getCsrfToken();
-    const currentLanguage = window.translator ? window.translator.currentLanguage : 
+    const currentLanguage = window.translator ?.currentLanguage || 
                            localStorage.getItem('preferred_language') || 'en';
+    
+    const entityData = {};
+    if (entityType === 'single_trip') entityData.trip_id = entityId;
+    else if (entityType === 'single_po') entityData.po_id = entityId;
+
+    const payload = {
+        type: entityType,
+        format,
+        language: currentLanguage,
+        ...entityData
+    };
     
     // Make request to export endpoint
     fetch('/export/', {
@@ -890,46 +905,35 @@ window.exportSingleEntity = function(entityType, entityId, format) {
             'Content-Type': 'application/json',
             'X-CSRFToken': csrfToken,
         },
-        body: JSON.stringify({
-            type: entityType,
-            format: format,
-            language: currentLanguage,
-            ...(entityType === 'single_trip' ? { trip_id: entityId } :
-                entityType === 'single_po' ? { po_id: entityId } : {})
-        })
+        body: JSON.stringify(payload)
     })
     .then(response => {
-        if (response.ok) {
-            // Handle file download
-            const contentDisposition = response.headers.get('Content-Disposition');
-            const filename = contentDisposition ? 
-                contentDisposition.split('filename=')[1].replace(/"/g, '') : 
-                `${entityType}_${entityId}_export.${format === 'excel' ? 'xlsx' : 'pdf'}`;
-            
-            return response.blob().then(blob => {
-                // Create download link
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.style.display = 'none';
-                a.href = url;
-                a.download = filename;
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                document.body.removeChild(a);
-                
-                // Show success message
-                if (window.alertTranslated) {
-                    window.alertTranslated('export_completed_successfully');
-                } else {
-                    window.showAlert('Export completed successfully!', 'success');
-                }
-            });
-        } else {
-            return response.json().then(data => {
-                throw new Error(data.error || 'Export failed');
-            });
-        }
+        if (!response.ok) return response.json().then(data => {
+            throw new Error(data.error || 'Export failed');
+        });
+
+        const contentDisposition = response.headers.get('Content-Disposition');
+        const fallbackName = `${entityType}_${entityId}_export.${format === 'excel' ? 'xlsx' : 'pdf'}`;
+        const filename = contentDisposition?.split('filename=')?.[1]?.replace(/[";]/g, '').trim() || fallbackName;
+
+        return response.blob().then(blob => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+
+            // Feedback
+            if (window.alertTranslated) {
+                window.alertTranslated('export_completed_successfully');
+            } else {
+                window.showAlert('Export completed successfully!', 'success');
+            }
+        });
     })
     .catch(error => {
         console.error('Export error:', error);
@@ -938,17 +942,14 @@ window.exportSingleEntity = function(entityType, entityId, format) {
     .finally(() => {
         // Restore button states
         buttons.forEach(btn => {
-            if (originalHtml[btn.innerHTML]) {
-                btn.innerHTML = originalHtml[btn.innerHTML];
+             const original = originalHtml.get(btn);
+            if (original) {
+                btn.innerHTML = original;
             } else {
                 // Fallback: restore based on format
-                if (btn.innerHTML.includes('spinner-border')) {
-                    if (format === 'excel') {
-                        btn.innerHTML = '<i class="bi bi-file-earmark-excel"></i> Export to Excel';
-                    } else {
-                        btn.innerHTML = '<i class="bi bi-file-earmark-pdf"></i> Export to PDF';
-                    }
-                }
+                btn.innerHTML = format === 'excel'
+                    ? '<i class="bi bi-file-earmark-excel"></i> Export to Excel'
+                    : '<i class="bi bi-file-earmark-pdf"></i> Export to PDF';
             }
             btn.disabled = false;
         });

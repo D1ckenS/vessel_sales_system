@@ -112,7 +112,7 @@
                            href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-graph-up"></i> <span data-translate="reports">Reports</span>
                         </a>
-                        <ul class="dropdown-menu">
+                        <ul class="dropdown-menu dropdown-menu-end">
                         <li><a class="dropdown-item" href="{% url 'frontend:reports_dashboard' %}">
                             <i class="bi bi-speedometer2"></i> <span data-translate="reports_dashboard">Reports Dashboard</span>
                         </a></li>
@@ -152,7 +152,7 @@
                         <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
                             <i class="bi bi-person-circle"></i> {{ user.username }}
                         </a>
-                        <ul class="dropdown-menu">
+                        <ul class="dropdown-menu dropdown-menu-end">
                             <!-- User Profile (everyone) -->
                             <li><a class="dropdown-item" href="{% url 'frontend:user_profile' %}"><i class="bi bi-person"></i> <span data-translate="user_profile">My Profile</span></a></li>
                             <li><a class="dropdown-item" href="{% url 'frontend:change_password' %}"><i class="bi bi-key"></i> <span data-translate="change_password">Change Password</span></a></li>
