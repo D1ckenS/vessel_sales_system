@@ -83,7 +83,7 @@
                     <i class="bi bi-table"></i> <span data-translate="recent_transactions">Recent Transactions</span> (<span dir="ltr" data-translate="latest_200">Latest 200</span>)
                 </h5>
                 <div class="d-flex gap-2">
-                    <button class="btn btn-outline-success btn-sm" onclick="exportTransactions()">
+                    <button class="btn btn-outline-success btn-sm" onclick="exportTransactions(this)">
                         <i class="bi bi-file-earmark-excel"></i> <span data-translate="export">Export</span>
                     </button>
                     <a href="?{% if filters.type %}type={{ filters.type }}&{% endif %}{% if filters.vessel %}vessel={{ filters.vessel }}&{% endif %}{% if filters.date_from %}date_from={{ filters.date_from }}&{% endif %}{% if filters.date_to %}date_to={{ filters.date_to }}&{% endif %}" class="btn btn-outline-secondary btn-sm">
@@ -123,7 +123,7 @@
                                         <span class="vessel-name" data-en="{{ transaction.vessel.name }}" data-ar="{{ transaction.vessel.name_ar }}">{{ transaction.vessel.name }}</span>
                                     </span>
                                 </td>
-                                <td>
+                                <td data-product-id="{{ transaction.product.item_id }}">
                                     <div>
                                         <strong>{{ transaction.product.name }}</strong>
                                         <small class="text-muted d-block"><span data-translate="id_label">ID</span>: {{ transaction.product.item_id }}</small>
@@ -395,15 +395,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
 });
 
-function exportTransactions() {
+//document.querySelector('[name="date_to"]')?.value || '',
+function exportTransactions(btn) {
+    const urlParams = new URLSearchParams(window.location.search);
+    const productId = btn.closest('td[data-product-id]')?.dataset.productId;
     const additionalData = {
-        type_filter: document.querySelector('[name="type"]')?.value || '',
-        vessel_filter: document.querySelector('[name="vessel"]')?.value || '',
-        date_from: document.querySelector('[name="date_from"]')?.value || '',
-        date_to: document.querySelector('[name="date_to"]')?.value || ''
+        transaction_type: urlParams.get('transaction_type') || '',
+        vessel_id: urlParams.get('vessel') || '',
+        product_id: productId,
+        start_date: urlParams.get('date_from') || '',
+        end_date: urlParams.get('date_to') || ''
     };
-    
-    window.showExportModal('transactions', additionalData);
+    console.log('additionalData', additionalData);
+    window.showUnifiedExportModal('transactions', additionalData);
 }
 </script>
 {% endblock %}

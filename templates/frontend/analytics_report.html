@@ -21,10 +21,10 @@
                 <a href="{% url 'frontend:reports_dashboard' %}" class="btn btn-outline-secondary">
                     <i class="bi bi-arrow-left"></i> <span data-translate="back_to_reports">Back to Reports</span>
                 </a>
-                <button class="btn btn-outline-success btn-sm" onclick="exportAnalytics()">
+                <button class="btn btn-outline-success btn-sm" onclick="window.quickExport.analytics()">
                     <i class="bi bi-file-earmark-excel"></i> <span data-translate="export">Export</span>
                 </button>
-                <button class="btn btn-outline-primary btn-sm" onclick="printAnalytics()">
+                <button class="btn btn-outline-primary btn-sm" onclick="window.templateUtils.showPrintComingSoon()">
                     <i class="bi bi-printer"></i> <span data-translate="print">Print</span>
                 </button>
             </div>
@@ -514,9 +514,5 @@ document.addEventListener('DOMContentLoaded', function() {
         updateAnalyticsPageTranslations();
     }, 0);
 });
-
-// One-liner functions
-const exportAnalytics = () => window.quickExport.analytics();
-const printAnalytics = () => window.templateUtils.showPrintComingSoon();
 </script>
 {% endblock %}

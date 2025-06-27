@@ -323,7 +323,7 @@
                 </h5>
                 <div class="d-flex gap-2">
                     {% if not can_edit %}
-                    <button class="btn btn-outline-success btn-sm" onclick="window.showPOExportModal({{ po.id }})">
+                    <button class="btn btn-outline-success btn-sm" onclick="window.showUnifiedExportModal('single_po',{ po_id: {{ po.id }} })">
                         <i class="bi bi-download"></i> <span data-translate="export">Export</span>
                     </button>
                     {% endif %}

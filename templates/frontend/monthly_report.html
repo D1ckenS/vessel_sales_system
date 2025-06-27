@@ -25,7 +25,7 @@
                 <button class="btn btn-outline-success btn-sm" onclick="exportMonthlyReport()">
                     <i class="bi bi-file-earmark-excel"></i> <span data-translate="export">Export</span>
                 </button>
-                <button class="btn btn-outline-primary btn-sm" onclick="printMonthlyReport()">
+                <button class="btn btn-outline-primary btn-sm" onclick="window.templateUtils.showPrintComingSoon()">
                     <i class="bi bi-printer"></i> <span data-translate="print">Print</span>
                 </button>
             </div>
@@ -602,11 +602,17 @@ document.addEventListener('DOMContentLoaded', function() {
         updateMonthlyReportTranslations();
         updatePageTranslations(); // Call global translation update
     }, 100);
-    
 });
 
-// Export and Print functions
-const exportMonthlyReport = () => window.quickExport.monthly();
-const printMonthlyReport = () => window.templateUtils.showPrintComingSoon();
+function exportMonthlyReport() {
+    const urlParams = new URLSearchParams(window.location.search);
+
+    const additionalData = {
+        month: urlParams.get('month'),
+        year: urlParams.get('year'),
+    };
+
+    window.showUnifiedExportModal('monthly_report', additionalData);
+};
 </script>
 {% endblock %}

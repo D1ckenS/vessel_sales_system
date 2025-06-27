@@ -169,7 +169,7 @@ def calculate_product_level_summary(transactions):
         
         # Set product info
         product_data['name'] = transaction.product.name
-        product_data['product_id'] = getattr(transaction.product, 'product_id', 'N/A')
+        product_data['product_id'] = getattr(transaction.product, 'item_id', 'N/A')
         
         # Calculate quantities and amounts
         quantity = safe_float(transaction.quantity)

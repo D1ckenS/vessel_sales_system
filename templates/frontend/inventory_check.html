@@ -352,6 +352,7 @@
 
 {% block extra_js %}
 <script>
+window.getCsrfToken();
 // Global state
 let currentVessel = null;
 let currentInventoryData = [];
@@ -691,8 +692,6 @@ function updateVesselNameDisplay(elementId, enName, arName) {
         vesselSpan.textContent = enName;
     }
 }
-
-window.getCookie()
 
 function loadInventoryData() {
     if (!currentVessel) {

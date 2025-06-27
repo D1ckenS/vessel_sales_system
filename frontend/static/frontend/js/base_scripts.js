@@ -765,19 +765,56 @@ window.getCookie = function(name) {
     return cookieValue;
 };
 
+// Quick export functions (one-liner exports)
+window.quickExport = {
+    analytics: () => window.universalExport('analytics'),
+    daily: () => window.universalExport('daily'),
+    monthly: () => window.universalExport('monthly'),
+    inventory: () => window.universalExport('inventory'),
+    transactions: () => window.universalExport('comprehensive'),
+    trips: () => window.universalExport('trips'),
+    pos: () => window.universalExport('pos')
+};
+
+window.universalExport = function(exportType, additionalData = {}, customEndpoint = null) {
+    // Handle different export type patterns
+    const exportMap = {
+        'analytics': 'analytics_report',
+        'daily': 'daily_report', 
+        'monthly': 'monthly_report',
+        'comprehensive': 'transactions',
+        'inventory': 'inventory',
+        'trips': 'trips',
+        'pos': 'purchase_orders'
+    };
+    
+    const finalExportType = exportMap[exportType] || exportType;
+    
+    if (customEndpoint) {
+        // Custom endpoint logic for special cases
+        window.exportToCustomEndpoint(customEndpoint, additionalData);
+    } else {
+        // Use standard export modal
+        window.showUnifiedExportModal(finalExportType, additionalData);
+    }
+};
+
 // Global export function
 window.exportData = function(exportType, format, additionalData = {}) {
-    // Show loading state
     const btn = event.target.closest('button');
     const originalHtml = btn.innerHTML;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> ' + window._('exporting');
     btn.disabled = true;
     
-    // Get current language
     const currentLanguage = window.translator ? window.translator.currentLanguage : 'en';
+    console.log('🧾 Export additionalData:', {
+        type: exportType,
+        format: format,
+        language: currentLanguage,
+        ...additionalData
+    });
     
-    // Make request
-    fetch(endpoint, {
+    fetch('/export/', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -792,7 +829,6 @@ window.exportData = function(exportType, format, additionalData = {}) {
     })
     .then(response => {
         if (response.ok) {
-            // Handle file download
             const contentDisposition = response.headers.get('Content-Disposition');
             const filename = contentDisposition ? 
                 contentDisposition.split('filename=')[1].replace(/"/g, '') : 
@@ -830,7 +866,7 @@ window.exportData = function(exportType, format, additionalData = {}) {
 // Export modal function
 
 // Universal single entity export - replaces exportSingleTrip, exportSinglePO, etc.
-window.exportSingleEntity = function(entityType, entityId, format, endpoint) {
+window.exportSingleEntity = function(entityType, entityId, format) {
     // Show loading state
     const loadingHtml = '<span class="spinner-border spinner-border-sm"></span> <span data-translate="exporting">Exporting</span>...';
     const buttons = document.querySelectorAll(`button[onclick*="exportSingle${entityType.charAt(0).toUpperCase() + entityType.slice(1)}"], button[onclick*="exportSingleEntity"]`);
@@ -848,15 +884,18 @@ window.exportSingleEntity = function(entityType, entityId, format, endpoint) {
                            localStorage.getItem('preferred_language') || 'en';
     
     // Make request to export endpoint
-    fetch(endpoint, {
+    fetch('/export/', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'X-CSRFToken': csrfToken,
         },
         body: JSON.stringify({
+            type: entityType,
             format: format,
-            language: currentLanguage
+            language: currentLanguage,
+            ...(entityType === 'single_trip' ? { trip_id: entityId } :
+                entityType === 'single_po' ? { po_id: entityId } : {})
         })
     })
     .then(response => {
@@ -916,28 +955,42 @@ window.exportSingleEntity = function(entityType, entityId, format, endpoint) {
     });
 };
 
-// Universal export modal - replaces showTripExportModal, showPOExportModal, etc.
-window.showUniversalExportModal = function(entityType, entityId, exportEndpoint) {
-    const modalId = `${entityType}ExportModal`;
-    const modalTitle = window.translator._(`export_${entityType}_data`) || `Export ${entityType.toUpperCase()} Data`;
-    
+window.showUnifiedExportModal = function(exportType, payload = {}) {
+    if (!payload.language) {
+        payload.language = window.translator?.currentLanguage || 
+                            localStorage.getItem('preferred_language') || 'en';
+    }
+    const isSingle = exportType.startsWith('single_');
+    const modalId = `${exportType}_export_modal`;
+
+    const modalTitleKey = isSingle ? `export_${exportType}_data` : 'export_data';
+    const modalTitle = window.translator?._(modalTitleKey) || 'Export Data';
+
+    const payloadString = JSON.stringify(payload).replace(/"/g, '&quot;');
+
     const modalHtml = `
     <div class="modal fade" id="${modalId}" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">
-                        <i class="bi bi-download"></i> <span data-translate="export_${entityType}_data">${modalTitle}</span>
+                        <i class="bi bi-download"></i> <span data-translate="${modalTitleKey}">${modalTitle}</span>
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <p><span data-translate="choose_export_format">Choose your preferred export format:</span></p>
                     <div class="d-grid gap-2">
-                        <button class="btn btn-success" onclick="window.exportSingleEntity('${entityType}', ${entityId}, 'excel', '${exportEndpoint}'); bootstrap.Modal.getInstance(document.getElementById('${modalId}')).hide();">
+                        <button class="btn btn-success" onclick="${isSingle 
+                            ? `exportSingleEntity('${exportType}', ${payload.trip_id || payload.po_id}, 'excel')` 
+                            : `exportData('${exportType}', 'excel', ${payloadString})`
+                        }; bootstrap.Modal.getInstance(document.getElementById('${modalId}')).hide();">
                             <i class="bi bi-file-earmark-excel"></i> <span data-translate="export_to_excel">Export to Excel (.xlsx)</span>
                         </button>
-                        <button class="btn btn-danger" onclick="window.exportSingleEntity('${entityType}', ${entityId}, 'pdf', '${exportEndpoint}'); bootstrap.Modal.getInstance(document.getElementById('${modalId}')).hide();">
+                        <button class="btn btn-danger" onclick="${isSingle 
+                            ? `exportSingleEntity('${exportType}', ${payload.trip_id || payload.po_id}, 'pdf')` 
+                            : `exportData('${exportType}', 'pdf', ${payloadString})`
+                        }; bootstrap.Modal.getInstance(document.getElementById('${modalId}')).hide();">
                             <i class="bi bi-file-earmark-pdf"></i> <span data-translate="export_to_pdf">Export to PDF</span>
                         </button>
                     </div>
@@ -950,89 +1003,21 @@ window.showUniversalExportModal = function(entityType, entityId, exportEndpoint)
             </div>
         </div>
     </div>`;
-    
-    // Remove existing modal if present
+
     const existingModal = document.getElementById(modalId);
-    if (existingModal) {
-        existingModal.remove();
-    }
-    
-    // Add modal to page
+    if (existingModal) existingModal.remove();
+
     document.body.insertAdjacentHTML('beforeend', modalHtml);
-    
-    // Apply translations
-    if (window.updatePageTranslations) {
-        window.updatePageTranslations();
-    }
-    
-    // Show modal
+
+    if (window.updatePageTranslations) window.updatePageTranslations();
+
     const modal = new bootstrap.Modal(document.getElementById(modalId));
     modal.show();
-    
-    // Clean up when modal is hidden
+
     document.getElementById(modalId).addEventListener('hidden.bs.modal', function() {
         this.remove();
     });
 };
-
-window.showExportModal = function(exportType, additionalData = {}) {
-    if (exportType === 'single_trip' || exportType === 'single_po') {
-        console.warn('Use showTripExportModal or showPOExportModal for single exports');
-        return;
-    }
-    
-    const modalHtml = `
-    <div class="modal fade" id="exportModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">
-                        <i class="bi bi-download"></i> <span data-translate="export_data">Export Data</span>
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <p><span data-translate="choose_export_format">Choose your preferred export format:</span></p>
-                    <div class="d-grid gap-2">
-                        <button class="btn btn-success" onclick="exportData('${exportType}', 'excel', ${JSON.stringify(additionalData).replace(/"/g, '&quot;')}); bootstrap.Modal.getInstance(document.getElementById('exportModal')).hide();">
-                            <i class="bi bi-file-earmark-excel"></i> <span data-translate="export_to_excel">Export to Excel (.xlsx)</span>
-                        </button>
-                        <button class="btn btn-danger" onclick="exportData('${exportType}', 'pdf', ${JSON.stringify(additionalData).replace(/"/g, '&quot;')}); bootstrap.Modal.getInstance(document.getElementById('exportModal')).hide();">
-                            <i class="bi bi-file-earmark-pdf"></i> <span data-translate="export_to_pdf">Export to PDF</span>
-                        </button>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                        <span data-translate="cancel">Cancel</span>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>`;
-    
-    const existingModal = document.getElementById('exportModal');
-    if (existingModal) {
-        existingModal.remove();
-    }
-    
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-    
-    if (window.updatePageTranslations) {
-        window.updatePageTranslations();
-    }
-    
-    const modal = new bootstrap.Modal(document.getElementById('exportModal'));
-    modal.show();
-    
-    document.getElementById('exportModal').addEventListener('hidden.bs.modal', function() {
-        this.remove();
-    });
-};
-
-// Convenient wrapper functions for common patterns
-window.showTripExportModal = (tripId) => window.showUniversalExportModal('trip', tripId, `/export/trip/${tripId}/`);
-window.showPOExportModal = (poId) => window.showUniversalExportModal('po', poId, `/export/po/${poId}/`);
 
 // Common coming soon functions
 window.printTransferItems = () => window.templateUtils.showPrintComingSoon();
@@ -1171,34 +1156,6 @@ window.addPageTranslations = function(pageTranslations) {
 };
 
 /* =============================================================================
-   🎯 IMPROVEMENT 3: Unified Export Function (Standardizes all exports)
-   ============================================================================= */
-
-// ✅ ENHANCE: Make showExportModal more universal
-window.universalExport = function(exportType, additionalData = {}, customEndpoint = null) {
-    // Handle different export type patterns
-    const exportMap = {
-        'analytics': 'analytics_report',
-        'daily': 'daily_report', 
-        'monthly': 'monthly_report',
-        'comprehensive': 'transactions',
-        'inventory': 'inventory',
-        'trips': 'trips',
-        'pos': 'purchase_orders'
-    };
-    
-    const finalExportType = exportMap[exportType] || exportType;
-    
-    if (customEndpoint) {
-        // Custom endpoint logic for special cases
-        window.exportToCustomEndpoint(customEndpoint, additionalData);
-    } else {
-        // Use standard export modal
-        window.showExportModal(finalExportType, additionalData);
-    }
-};
-
-/* =============================================================================
    🎯 IMPROVEMENT 4: Enhanced DOMContentLoaded Handler (Reduces template code)
    ============================================================================= */
 
@@ -1231,22 +1188,6 @@ window.initializePage = function(config = {}) {
         updatePageTranslations();
     }
 };
-
-/* =============================================================================
-   🎯 IMPROVEMENT 6: Export System Enhancements
-   ============================================================================= */
-
-// ✅ ADD: Quick export functions (one-liner exports)
-window.quickExport = {
-    analytics: () => window.universalExport('analytics'),
-    daily: () => window.universalExport('daily'),
-    monthly: () => window.universalExport('monthly'),
-    inventory: () => window.universalExport('inventory'),
-    transactions: () => window.universalExport('comprehensive'),
-    trips: () => window.universalExport('trips'),
-    pos: () => window.universalExport('pos')
-};
-
 /* =============================================================================
    🎯 IMPROVEMENT 7: Common Template Functions
    ============================================================================= */

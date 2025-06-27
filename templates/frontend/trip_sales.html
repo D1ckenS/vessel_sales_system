@@ -289,7 +289,7 @@
                 </h5>
                 <div class="d-flex gap-2">
                     {% if not can_edit %}
-                    <button class="btn btn-outline-success btn-sm" onclick="window.showTripExportModal({{ trip.id }})">
+                    <button class="btn btn-outline-success btn-sm" onclick="window.showUnifiedExportModal('single_trip',{ trip_id: {{ trip.id }} })">
                         <i class="bi bi-download"></i> <span data-translate="export">Export</span>
                     </button>
                     {% endif %}

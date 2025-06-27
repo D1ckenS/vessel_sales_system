@@ -104,7 +104,7 @@
                     <i class="bi bi-table"></i> <span data-translate="purchase_order_details">Purchase Order Details</span> (<span dir="ltr" data-number data-original="{{ purchase_orders|length }}">{{ purchase_orders|length }}</span>)
                 </h5>
                 <div class="d-flex gap-2">
-                    <button class="btn btn-outline-success btn-sm" onclick="exportPOReports()">
+                    <button class="btn btn-outline-success btn-sm" onclick="window.showUnifiedExportModal()">
                         <i class="bi bi-file-earmark-excel"></i> <span data-translate="export">Export</span>
                     </button>
                     <button class="btn btn-outline-primary btn-sm" onclick="printPOs()">
@@ -304,20 +304,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 0);
  
 });
-
-function exportPOReports() {
-    const additionalData = {
-        vessel_filter: document.querySelector('[name="vessel"]')?.value || '',
-        date_from: document.querySelector('[name="date_from"]')?.value || '',
-        date_to: document.querySelector('[name="date_to"]')?.value || '',
-        status_filter: document.querySelector('[name="status"]')?.value || '',
-        // Add language support
-        language: window.translator ? window.translator.currentLanguage : 
-                 localStorage.getItem('preferred_language') || 'en'
-    };
-    
-    showExportModal('purchase_orders', additionalData);
-}
 
 function printPOs() {
     window.templateUtils.showPrintComingSoon()

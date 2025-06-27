@@ -440,20 +440,51 @@ def get_translated_labels(request, data=None):
     labels['language'] = user_language  # Add language info
     return labels
 
+@login_required
+@require_http_methods(["POST"])
+def export_all_types(request):
+    """Universal export handler for all report types"""
+    try:
+        data = json.loads(request.body)
+        export_type = data.get('type')
+        export_format = data.get('format', 'excel')  # Default to Excel if not provided
 
+        if not export_type:
+            return JsonResponse({'success': False, 'error': 'Missing export type'})
+
+        # Map export_type to handler functions
+        export_map = {
+            'inventory': export_inventory_logic,
+            'transactions': export_transactions_logic,
+            'trips': export_trips_logic,
+            'purchase_orders': export_purchase_orders_logic,
+            'monthly_report': export_monthly_report_logic,
+            'daily_report': export_daily_report_logic,
+            'analytics_report': export_analytics_logic,
+            'single_trip': lambda req, data, fmt: export_single_trip_logic(req, data, data.get('trip_id'), fmt),
+            'single_po': lambda req, data, fmt: export_single_po_logic(req, data, data.get('po_id'), fmt),
+
+        }
+
+        export_func = export_map.get(export_type)
+        if not export_func:
+            return JsonResponse({'success': False, 'error': f'Unsupported export type: {export_type}'})
+
+        return export_func(request, data, export_format)
+
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON data'})
+    except Exception as e:
+        logger.exception(f"Universal export error: {e}")
+        return JsonResponse({'success': False, 'error': f'Export failed: {str(e)}'})
 
 # ===============================================================================
 # INVENTORY EXPORT
 # ===============================================================================
 
-@login_required
-@require_http_methods(["POST"])
-def export_inventory(request):
+def export_inventory_logic(request, data, export_format):
     """OPTIMIZED: Export current inventory status with database aggregations"""
     try:
-        data = json.loads(request.body)
-        export_format = data.get('format', 'excel')
-        
         # Get translated labels with language from request
         labels = get_translated_labels(request, data)
         language = labels['language']
@@ -657,14 +688,9 @@ def export_inventory(request):
 # TRANSACTION EXPORTS
 # ===============================================================================
 
-@login_required
-@require_http_methods(["POST"])
-def export_transactions(request):
+def export_transactions_logic(request, data, export_format):
     """Export transactions to Excel or PDF with comprehensive filtering"""
     try:
-        data = json.loads(request.body)
-        export_format = data.get('format', 'excel')
-        
         # Get filters
         start_date, end_date = get_date_range_from_request(data)
         if not start_date or not end_date:
@@ -858,14 +884,9 @@ def export_transactions(request):
 # TRIP EXPORTS (LIST AND INDIVIDUAL)
 # ===============================================================================
 
-@login_required
-@require_http_methods(["POST"])
-def export_trips(request):
+def export_trips_logic(request, data, export_format):
     """Export trips list to Excel or PDF - Fixed with RTL support following individual export pattern"""
     try:
-        data = json.loads(request.body)
-        export_format = data.get('format', 'excel')
-        
         # Get translated labels with language from request (for RTL support)
         labels = get_translated_labels(request, data)
         language = labels['language']
@@ -875,8 +896,8 @@ def export_trips(request):
         if not start_date or not end_date:
             return JsonResponse({'success': False, 'error': 'Invalid date range'})
             
-        vessel_id = data.get('vessel_id')
-        status = data.get('status')
+        vessel_id = data.get('vessel_filter')
+        status = data.get('status_filter')
         
         # Build query
         trips = Trip.objects.select_related(
@@ -890,7 +911,11 @@ def export_trips(request):
         if vessel_id:
             trips = trips.filter(vessel_id=vessel_id)
         if status:
-            trips = trips.filter(status=status)
+            if status == 'completed':
+                trips = trips.filter(is_completed=True)
+            elif status == 'in_progress':
+                trips = trips.filter(is_completed=False)
+
             
         # Prepare data
         table_data = []
@@ -940,13 +965,10 @@ def export_trips(request):
         metadata = {
             labels['export_date']: format_datetime_for_language(datetime.now(), language),
             labels['period']: f"{format_date_for_language(start_date, language)} - {format_date_for_language(end_date, language)}",
-            labels['total_trips']: translate_numbers_to_arabic(str(len(table_data)), language),
-            labels['total_revenue_jod']: translate_numbers_to_arabic(format_currency(total_revenue, 3), language),
             labels['currency']: labels['jod'],  # Apply new currency pattern
-            labels['average_per_trip']: translate_numbers_to_arabic(format_currency((total_revenue / len(table_data)) if table_data else 0, 3), language),
             labels['generated_by']: request.user.username
         }
-        
+    
         # Headers with translation
         headers = [
             labels['trip_number'],
@@ -1038,14 +1060,9 @@ def export_trips(request):
         logger.error(f"Trips export error: {e}")
         return JsonResponse({'success': False, 'error': f'Export failed: {str(e)}'})
 
-@login_required
-@require_http_methods(["POST"])
-def export_single_trip(request, trip_id):
+def export_single_trip_logic(request, data, trip_id, export_format):
     """Export individual trip details - Enhanced RTL support for metadata and summary sections"""
     try:
-        data = json.loads(request.body)
-        export_format = data.get('format', 'excel')
-        
         # Get translated labels with language from request
         labels = get_translated_labels(request, data)
         language = labels['language']
@@ -1112,8 +1129,6 @@ def export_single_trip(request, trip_id):
             labels['status']: trip_status,
             labels['passengers']: translate_numbers_to_arabic(str(safe_int(getattr(trip, 'passenger_count', 0))), language),
             labels['currency']: labels['jod'],
-            labels['total_revenue_jod']: translate_numbers_to_arabic(f"{round(total_revenue, 3)}", language),
-            labels['total_cogs_jod']: translate_numbers_to_arabic(f"{round(total_cogs, 3)}", language),
             labels['generated_by']: request.user.username
             # labels['total_profit_jod']: translate_numbers_to_arabic(f"{round(total_profit, 3)}", language),
             # labels['profit_margin']: translate_numbers_to_arabic(f"{round((total_profit/total_revenue*100) if total_revenue > 0 else 0, 0)}%", language),
@@ -1137,7 +1152,6 @@ def export_single_trip(request, trip_id):
             labels['total_items_sold']: translate_numbers_to_arabic(str(len(transaction_data)), language),
             labels['total_revenue_jod']: translate_numbers_to_arabic(f"{round(total_revenue, 3)}", language),
             labels['total_cogs_jod']: translate_numbers_to_arabic(f"{round(total_cogs, 3)}", language),
-            labels['total_profit_jod']: translate_numbers_to_arabic(f"{round(total_profit, 3)}", language),
             # labels['profit_margin']: translate_numbers_to_arabic(f"{round((total_profit/total_revenue*100) if total_revenue > 0 else 0, 0)}%", language)
         }
         
@@ -1217,14 +1231,9 @@ def export_single_trip(request, trip_id):
 # PURCHASE ORDER EXPORTS (LIST AND INDIVIDUAL)
 # ===============================================================================
 
-@login_required
-@require_http_methods(["POST"])
-def export_purchase_orders(request):
+def export_purchase_orders_logic(request, data, export_format):
     """Export purchase orders list to Excel or PDF - Fixed with RTL support following individual export pattern"""
     try:
-        data = json.loads(request.body)
-        export_format = data.get('format', 'excel')
-        
         # Get translated labels with language from request (for RTL support)
         labels = get_translated_labels(request, data)
         language = labels['language']
@@ -1402,14 +1411,9 @@ def export_purchase_orders(request):
         logger.error(f"PO export error: {e}")
         return JsonResponse({'success': False, 'error': f'Export failed: {str(e)}'})
 
-@login_required
-@require_http_methods(["POST"])
-def export_single_po(request, po_id):
+def export_single_po_logic(request, data, po_id, export_format):
     """Export individual purchase order with enhanced financial verification features"""
     try:
-        data = json.loads(request.body)
-        export_format = data.get('format', 'excel')
-        
         # Get translated labels with language from request
         labels = get_translated_labels(request, data)
         language = labels['language']
@@ -1636,14 +1640,9 @@ def export_single_po(request, po_id):
 # MONTHLY REPORT EXPORTS
 # ===============================================================================
 
-@login_required
-@require_http_methods(["POST"])
-def export_monthly_report(request):
+def export_monthly_report_logic(request, data, export_format):
     """Export monthly performance report with transfer tracking - FIXED VERSION"""
     try:
-        data = json.loads(request.body)
-        export_format = data.get('format', 'excel')
-        
         # Get month and year
         selected_month = safe_int(data.get('month'), datetime.now().month)
         selected_year = safe_int(data.get('year'), datetime.now().year)
@@ -1808,14 +1807,9 @@ def export_monthly_report(request):
 # DAILY REPORT EXPORTS
 # ===============================================================================
 
-@login_required
-@require_http_methods(["POST"])
-def export_daily_report(request):
+def export_daily_report_logic(request, data, export_format):
     """Export daily performance report - FIXED VERSION"""
     try:
-        data = json.loads(request.body)
-        export_format = data.get('format', 'excel')
-        
         # Get date
         selected_date = data.get('date')
         if selected_date:
@@ -1938,14 +1932,9 @@ def export_daily_report(request):
 # ANALYTICS EXPORT
 # ===============================================================================
 
-@login_required
-@require_http_methods(["POST"])
-def export_analytics(request):
+def export_analytics_logic(request, data, export_format):
     """Export analytics report with performance metrics and charts"""
     try:
-        data = json.loads(request.body)
-        export_format = data.get('format', 'excel')
-        
         # Get date range (default to last 30 days)
         end_date = timezone.now().date()
         start_date = end_date - timedelta(days=30)

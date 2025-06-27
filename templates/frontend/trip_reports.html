@@ -234,11 +234,15 @@
 <script>
 // Enhanced translation for trip reports
 document.addEventListener('DOMContentLoaded', function() {
+
+    window.initializePage({
+        titleKey: 'trip_reports',
+        fallbackTitle: 'Trip Reports'
+    });
     // Update on language change
     window.addEventListener('languageChanged', function() {
         updateTripPageTranslations();
         calculateRevenuePerPassenger();
-        updatePageTitle();
     });
     
     function updateTripPageTranslations() {
@@ -336,23 +340,21 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(() => {
         updateTripPageTranslations();
         calculateRevenuePerPassenger();
-        updatePageTitle();
     }, 0);
 
 });
 
 function exportTripReports() {
+    const urlParams = new URLSearchParams(window.location.search);  
+
     const additionalData = {
-        vessel_filter: document.querySelector('[name="vessel"]')?.value || '',
-        date_from: document.querySelector('[name="date_from"]')?.value || '',
-        date_to: document.querySelector('[name="date_to"]')?.value || '',
-        status_filter: document.querySelector('[name="status"]')?.value || '',
-        // Add language support
-        language: window.translator ? window.translator.currentLanguage : 
-                 localStorage.getItem('preferred_language') || 'en'
+        vessel_filter: urlParams.get('vessel') || '',
+        start_date: urlParams.get('date_from') || '',
+        end_date: urlParams.get('date_to') || '',
+        status_filter: urlParams.get('status') || ''
     };
     
-    showExportModal('trips', additionalData);
+    window.showUnifiedExportModal('trips', additionalData);
 }
 
 function printTrips() {

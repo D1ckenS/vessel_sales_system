@@ -177,22 +177,9 @@ urlpatterns = [
     # EXPORTS
     # =============================================================================
     
-    # Main export endpoints (List reports)
-    path('export/inventory/', export_views.export_inventory, name='export_inventory'),
-    path('export/transactions/', export_views.export_transactions, name='export_transactions'),
-    path('export/trips/', export_views.export_trips, name='export_trips'),
-    path('export/purchase-orders/', export_views.export_purchase_orders, name='export_purchase_orders'),
-
     # Individual export endpoints (Detail reports)
-    path('export/trip/<int:trip_id>/', export_views.export_single_trip, name='export_single_trip'),
-    path('export/po/<int:po_id>/', export_views.export_single_po, name='export_single_po'),
     path('export/po-cart/', supply_views.export_po_cart, name='export_po_cart'),
-
-    # Report exports
-    path('export/monthly-report/', export_views.export_monthly_report, name='export_monthly_report'),
-    path('export/daily-report/', export_views.export_daily_report, name='export_daily_report'),
-    path('export/analytics/', export_views.export_analytics, name='export_analytics'),
-    
+    path('export/', export_views.export_all_types, name='export_all_types'),
     # =============================================================================
     # UTILITY
     # =============================================================================

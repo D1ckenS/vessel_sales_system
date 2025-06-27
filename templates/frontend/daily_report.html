@@ -654,7 +654,7 @@ document.addEventListener('DOMContentLoaded', function() {
 function exportDailyReport() {
     const selectedDate = document.querySelector('[name="date"]')?.value || new Date().toISOString().split('T')[0];
     
-    showExportModal('daily_report', {
+    showUnifiedExportModal('daily_report', {
         date: selectedDate
     });
 }

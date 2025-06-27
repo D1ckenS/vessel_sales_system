@@ -9,6 +9,11 @@
     align-items: center;
 }
 
+.navbar-nav {
+    padding-left: 0rem;
+    padding-right: 0rem;
+    
+}
 .navbar .navbar-collapse {
   flex-grow: 0 !important;
 }
@@ -22,16 +27,20 @@
 .nav-link {
     color: rgba(255, 255, 255, 0.9) !important;
     font-weight: 500;
-    padding: 0.75rem 1rem !important;
+    margin: 0 0.5rem;
     border-radius: 8px;
-    margin: 1 0.5rem;
     transition: all 0.3s ease;
 }
 
-.nav-link:hover {
+.nav-link:not(dropdown-toggle):hover {
     background: rgba(255, 255, 255, 0.1);
     color: white !important;
     transform: translateY(10px);
+}
+
+.nav-link.dropdown-toggle:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white !important;
 }
 
 .nav-link.active {
@@ -44,8 +53,7 @@
     border-radius: 20px;
     transition: all 0.3s ease;
     font-weight: 500;
-    margin-top: 0.5rem;
-    margin-left: 0.25rem;
+    margin-top: 0.3rem;
 }
 
 #languageToggle:hover {
@@ -57,4 +65,99 @@
 #currentLangText {
     font-weight: bold;
     letter-spacing: 1px;
+}
+
+/* =============================================================================
+   Dropdown Styles
+   ============================================================================= */
+
+.dropdown-menu {
+    background: white;
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 8px 25px rgba(15, 76, 117, 0.15);
+    margin-top: 0.5rem;
+    padding: 0.5rem 0;
+    min-width: 220px;
+}
+
+.dropdown-item {
+    padding: 0.75rem 1.25rem;
+    color: var(--primary-blue);
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.dropdown-item:hover {
+    background: linear-gradient(135deg, rgba(15, 76, 117, 0.05) 0%, rgba(50, 130, 184, 0.05) 100%);
+    color: var(--primary-blue);
+    padding-left: 1.5rem;
+}
+
+.dropdown-item i {
+    width: 20px;
+    text-align: center;
+    margin-right: 0.5rem;
+}
+
+.dropdown-divider {
+    border-color: rgba(15, 76, 117, 0.1);
+    margin: 0.5rem 0;
+}
+
+/* Desktop - normal dropdown behavior */
+@media (min-width: 992px) {
+    .navbar-nav .show .dropdown-menu {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        z-index: 1000;
+        display: none;
+        float: left;
+        min-width: 10rem;
+        list-style: none;
+        background-color: white;
+        background-clip: padding-box;
+        border: 1px solid rgba(0, 0, 0, 0.15);
+        border-radius: 0.375rem;
+    }
+    
+    .navbar-nav .dropdown:hover .dropdown-menu {
+        display: block;
+    }
+}
+
+/* =============================================================================
+   Accessibility Improvements
+   ============================================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+    .nav-link,
+    .dropdown-item,
+    #languageToggle {
+        transition: none;
+    }
+    
+    .nav-link:hover {
+        transform: none;
+    }
+}
+
+/* Focus states for keyboard navigation */
+.nav-link:focus,
+.dropdown-item:focus {
+    outline: 2px solid rgba(255, 255, 255, 0.5);
+    outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .dropdown-menu {
+        border: 2px solid var(--primary-blue);
+    }
+    
+    .dropdown-item:hover {
+        background: var(--primary-blue);
+        color: white;
+    }
 }
