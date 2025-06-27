@@ -333,6 +333,7 @@ window.VesselSalesTranslations = {
         'choose_destination_vessel': 'Choose destination vessel...',
         'duty_free_supported': 'Duty-Free Supported',
         'feature_coming_soon': 'This feature is coming soon!',
+
         // Transfer System Translations
         'transfer_created_success': 'Transfer {transfer_number} created successfully!',
         'transfer_completed': 'Transfer Completed',
@@ -399,6 +400,7 @@ window.VesselSalesTranslations = {
         'export_transfer_data': 'Export Transfer Data',
         'this_action_cannot_be_undone': 'This action cannot be undone',
         'warning': 'Warning',
+        'num_of_items': '# of Items',
 
         // Waste Translations
         'waste_management': 'Waste',
@@ -1183,6 +1185,7 @@ window.VesselSalesTranslations = {
         'choose_destination_vessel': 'اختر سفن المقصد...',
         'duty_free_supported': 'دعم سوق حرة',
         'feature_coming_soon': 'الميزة قادمة قريبا',
+
         // Transfer System Translations (Arabic)
         'transfer_created_success': 'تم إنشاء التحويل {transfer_number} بنجاح!',
         'transfer_completed': 'تم إكمال التحويل',
@@ -1249,6 +1252,7 @@ window.VesselSalesTranslations = {
         'export_transfer_data': 'تصدير بيانات التحويل',
         'this_action_cannot_be_undone': 'لا يمكن التراجع عن هذا الإجراء',
         'warning': 'تحذير',
+        'num_of_items': 'عدد العناصر',
 
         // Waste Translations
         'waste_management': 'إدارة المهدر',

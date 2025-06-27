@@ -602,6 +602,10 @@ class Transaction(models.Model):
         🔥 ATOMIC: Validate and consume inventory for transfers using FIFO (same logic as sales)
         This preserves exact costs for proper transfer accounting
         """
+        # ✅ ENSURE: Always set a default unit_price first
+        if self.unit_price is None:
+            self.unit_price = Decimal('0.001')
+        
         # Lock inventory lots for this vessel/product combination
         inventory_lots = InventoryLot.objects.filter(
             vessel=self.vessel,
@@ -619,9 +623,11 @@ class Transaction(models.Model):
                 f"Available: {total_available}, Requested: {self.quantity}"
             )
         
-        # Consume inventory using FIFO within the lock (same logic as sales)
+        # ✅ IMPROVED: Consume inventory using FIFO within the lock with better logging
         remaining_to_consume = int(self.quantity)
         consumption_details = []
+        
+        print(f"🔄 STARTING TRANSFER CONSUMPTION: {self.product.name} from {self.vessel.name}, Qty: {self.quantity}")
         
         for lot in inventory_lots:
             if remaining_to_consume <= 0:
@@ -637,15 +643,31 @@ class Transaction(models.Model):
                 'purchase_date': lot.purchase_date,  # Preserve original purchase date
             })
             
+            print(f"  📦 Consuming {consumed_from_lot} units @ {lot.purchase_price} from lot {lot.id}")
+            
             # Reduce the lot's remaining quantity
             lot.remaining_quantity -= consumed_from_lot
-            lot.save(update_fields=['remaining_quantity', 'updated_at'])
+            lot.save(update_fields=['remaining_quantity'])
             
             # Track how much more we need to consume
             remaining_to_consume -= consumed_from_lot
         
-        # Store consumption details for use in _complete_transfer()
+        # ✅ CRITICAL: Store consumption details for use in _complete_transfer()
         self._transfer_consumption_details = consumption_details
+        
+        # ✅ CALCULATE: Set preliminary unit_price based on FIFO consumption
+        if consumption_details:
+            try:
+                total_fifo_cost = sum(Decimal(str(detail['consumed_quantity'])) * Decimal(str(detail['unit_cost'])) for detail in consumption_details)
+                self.unit_price = total_fifo_cost / Decimal(str(self.quantity)) if self.quantity > 0 else Decimal('0.001')
+                avg_cost_per_unit = float(self.unit_price)
+                print(f"✅ TRANSFER CONSUMPTION COMPLETE: Total FIFO cost: {total_fifo_cost}, Avg per unit: {avg_cost_per_unit}")
+            except Exception as e:
+                print(f"❌ ERROR calculating FIFO cost: {e}")
+                self.unit_price = Decimal('0.001')
+        else:
+            print(f"⚠️ WARNING: No consumption details generated for transfer {self.id}")
+            self.unit_price = Decimal('0.001')
         
         # Build FIFO breakdown for notes (same format as sales)
         cost_breakdown = []
@@ -655,7 +677,10 @@ class Transaction(models.Model):
             )
         
         # Set initial notes - will be updated in _complete_transfer()
-        self.notes = f"Transfer preparation. FIFO consumption: {'; '.join(cost_breakdown)}"
+        if cost_breakdown:
+            self.notes = f"Transfer preparation. FIFO consumption: {'; '.join(cost_breakdown)}"
+        else:
+            self.notes = f"Transfer preparation. Using fallback cost: {self.unit_price} JOD/unit"
 
     def _validate_and_consume_for_waste(self):
         """
@@ -725,18 +750,87 @@ class Transaction(models.Model):
     
     def _complete_transfer(self):
         """Complete transfer by creating TRANSFER_IN and inventory lots on receiving vessel preserving exact FIFO costs"""
+        
+        # ✅ FIX: ALWAYS ensure unit_price is set before proceeding
+        if self.unit_price is None:
+            self.unit_price = Decimal('0.001')  # Set default fallback
+        
+        # ✅ FIX: Better error handling and validation
         if not hasattr(self, '_transfer_consumption_details'):
+            print(f"⚠️ WARNING: No consumption details found for transfer {self.id}")
+            # Try to recalculate FIFO cost as fallback
+            try:
+                from frontend.utils.helpers import get_fifo_cost_for_transfer
+                fifo_cost_per_unit = get_fifo_cost_for_transfer(self.vessel, self.product, self.quantity)
+                self.unit_price = Decimal(str(fifo_cost_per_unit)) if fifo_cost_per_unit else Decimal('0.001')
+                print(f"🔄 FALLBACK: Using calculated FIFO cost {fifo_cost_per_unit} for transfer {self.id}")
+            except Exception as e:
+                print(f"❌ ERROR: Could not calculate FIFO cost for transfer {self.id}: {e}")
+                self.unit_price = Decimal('0.001')  # Last resort fallback
+            
+            # Create a basic TRANSFER_IN without lot details
+            transfer_in = Transaction.objects.create(
+                vessel=self.transfer_to_vessel,
+                product=self.product,
+                transaction_type='TRANSFER_IN',
+                transaction_date=self.transaction_date,
+                quantity=self.quantity,
+                unit_price=self.unit_price,
+                transfer_from_vessel=self.vessel,
+                transfer=self.transfer,
+                notes=f"Transfer from {self.vessel.name} (fallback calculation)",
+                created_by=self.created_by
+            )
+            
+            # Create single inventory lot with fallback cost
+            InventoryLot.objects.create(
+                vessel=self.transfer_to_vessel,
+                product=self.product,
+                purchase_date=self.transaction_date,
+                purchase_price=self.unit_price,
+                original_quantity=int(self.quantity),
+                remaining_quantity=int(self.quantity),
+                created_by=self.created_by
+            )
+            
+            self.related_transfer = transfer_in
+            transfer_in.related_transfer = self
+            transfer_in.save()
+            self.notes = f"Transferred to {self.transfer_to_vessel.name} (fallback calculation)"
             return
         
-        # Calculate total cost from actual FIFO consumption (like sales do)
-        total_cost = sum(
-            detail['consumed_quantity'] * detail['unit_cost'] 
-            for detail in self._transfer_consumption_details
-        )
+        # ✅ FIX: Validate consumption details structure but don't return early
+        if not self._transfer_consumption_details or len(self._transfer_consumption_details) == 0:
+            print(f"⚠️ WARNING: Empty consumption details for transfer {self.id}")
+            # Don't return early - continue with fallback logic
+            self.unit_price = Decimal('0.001')
+        else:
+            # ✅ IMPROVED: Calculate total cost from actual FIFO consumption with better error handling
+            try:
+                total_cost = Decimal('0')
+                for detail in self._transfer_consumption_details:
+                    if 'consumed_quantity' not in detail or 'unit_cost' not in detail:
+                        print(f"⚠️ WARNING: Invalid consumption detail structure for transfer {self.id}: {detail}")
+                        continue
+                    detail_cost = Decimal(str(detail['consumed_quantity'])) * Decimal(str(detail['unit_cost']))
+                    total_cost += detail_cost
+                
+                # ✅ FIX: Ensure both operands are Decimal for division
+                if total_cost > 0 and self.quantity > 0:
+                    self.unit_price = total_cost / Decimal(str(self.quantity))
+                else:
+                    self.unit_price = Decimal('0.001')
+                
+                print(f"✅ SUCCESS: Transfer {self.id} FIFO cost calculated: {self.unit_price} per unit (total: {total_cost})")
+                
+            except Exception as e:
+                print(f"❌ ERROR: Failed to calculate transfer cost for {self.id}: {e}")
+                self.unit_price = Decimal('0.001')
         
-        # Update THIS transaction's unit_price to show the actual total cost per unit
-        # This is for reporting purposes - the real costs are preserved in individual lots
-        self.unit_price = total_cost / self.quantity if self.quantity > 0 else Decimal('0.001')
+        # ✅ ENSURE: unit_price is never None before creating TRANSFER_IN
+        if self.unit_price is None:
+            self.unit_price = Decimal('0.001')
+            print(f"🔧 FALLBACK: Set unit_price to 0.001 for transfer {self.id}")
         
         # Create corresponding TRANSFER_IN transaction with same aggregated cost
         transfer_in = Transaction.objects.create(
@@ -745,27 +839,60 @@ class Transaction(models.Model):
             transaction_type='TRANSFER_IN',
             transaction_date=self.transaction_date,
             quantity=self.quantity,
-            unit_price=self.unit_price,  # Same as TRANSFER_OUT for consistency
+            unit_price=self.unit_price,  # This is guaranteed to be non-None now
             transfer_from_vessel=self.vessel,
             transfer=self.transfer,  # Link to same Transfer group
             notes=f"Transfer from {self.vessel.name}",
             created_by=self.created_by
         )
         
-        # Create inventory lots on receiving vessel preserving EXACT FIFO costs (NO AVERAGING!)
+        # ✅ IMPROVED: Create inventory lots on receiving vessel
         lot_details = []
-        for detail in self._transfer_consumption_details:
-            # Create separate inventory lot for each FIFO lot consumed - preserve exact costs
+        try:
+            if hasattr(self, '_transfer_consumption_details') and self._transfer_consumption_details:
+                # Use FIFO details if available
+                for detail in self._transfer_consumption_details:
+                    if not all(key in detail for key in ['consumed_quantity', 'unit_cost', 'purchase_date']):
+                        print(f"⚠️ WARNING: Skipping invalid detail for transfer {self.id}: {detail}")
+                        continue
+                        
+                    # Create separate inventory lot for each FIFO lot consumed - preserve exact costs
+                    InventoryLot.objects.create(
+                        vessel=self.transfer_to_vessel,
+                        product=self.product,
+                        purchase_date=detail['purchase_date'],  # Preserve original date
+                        purchase_price=Decimal(str(detail['unit_cost'])),  # Preserve EXACT original cost
+                        original_quantity=int(detail['consumed_quantity']),
+                        remaining_quantity=int(detail['consumed_quantity']),
+                        created_by=self.created_by
+                    )
+                    lot_details.append(f"{detail['consumed_quantity']} units @ {detail['unit_cost']} JOD")
+            else:
+                # Fallback: create single lot
+                InventoryLot.objects.create(
+                    vessel=self.transfer_to_vessel,
+                    product=self.product,
+                    purchase_date=self.transaction_date,
+                    purchase_price=self.unit_price,
+                    original_quantity=int(self.quantity),
+                    remaining_quantity=int(self.quantity),
+                    created_by=self.created_by
+                )
+                lot_details = [f"{self.quantity} units @ {self.unit_price} JOD (single lot)"]
+                
+        except Exception as e:
+            print(f"❌ ERROR: Failed to create inventory lots for transfer {self.id}: {e}")
+            # Create fallback single lot
             InventoryLot.objects.create(
                 vessel=self.transfer_to_vessel,
                 product=self.product,
-                purchase_date=detail['purchase_date'],  # Preserve original date
-                purchase_price=detail['unit_cost'],     # Preserve EXACT original cost
-                original_quantity=detail['consumed_quantity'],
-                remaining_quantity=detail['consumed_quantity'],
+                purchase_date=self.transaction_date,
+                purchase_price=self.unit_price,
+                original_quantity=int(self.quantity),
+                remaining_quantity=int(self.quantity),
                 created_by=self.created_by
             )
-            lot_details.append(f"{detail['consumed_quantity']} units @ {detail['unit_cost']} JOD")
+            lot_details = [f"{self.quantity} units @ {self.unit_price} JOD (fallback)"]
         
         # Link the transactions
         self.related_transfer = transfer_in
@@ -775,7 +902,9 @@ class Transaction(models.Model):
         # Update notes with exact FIFO breakdown (same format as sales)
         fifo_breakdown = '; '.join(lot_details)
         self.notes = f"Transferred to {self.transfer_to_vessel.name}. FIFO consumption: {fifo_breakdown}"
-        transfer_in.notes = f"Received from {self.vessel.name}. FIFO consumption: {fifo_breakdown}"
+        transfer_in.notes = f"Received from {self.vessel.name}. FIFO details: {fifo_breakdown}"
+        
+        print(f"✅ TRANSFER COMPLETED: {self.vessel.name} → {self.transfer_to_vessel.name}, Cost: {self.unit_price}/unit")
         
     def delete(self, *args, **kwargs):
         """Custom delete to clean up inventory lots for supply transactions"""

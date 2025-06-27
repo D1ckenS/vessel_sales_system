@@ -1,12 +1,13 @@
+from django.core.exceptions import ValidationError
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q, Sum
+from django.db.models import Q, Sum, Prefetch
 from django.http import JsonResponse
 from datetime import date, datetime
-from frontend.utils.cache_helpers import VesselCacheHelper
+from frontend.utils.cache_helpers import VesselCacheHelper, TransferCacheHelper
 from vessels.models import Vessel
 from products.models import Product
-from transactions.models import Transaction, InventoryLot, get_available_inventory
+from transactions.models import Transaction, InventoryLot, Transfer, get_available_inventory
 from .utils import BilingualMessages
 from products.models import Product
 from django.db import transaction
@@ -98,14 +99,19 @@ def transfer_search_products(request):
     
 @operations_access_required
 def transfer_entry(request):
-    """Step 1: Create new transfer session"""
+    """Step 1: Create new transfer (follows sales_entry/supply_entry pattern)"""
     
     if request.method == 'GET':
         vessels = VesselCacheHelper.get_active_vessels()
-        recent_transfers = Transaction.objects.filter(
-            transaction_type='TRANSFER_OUT'
-        ).select_related(
-            'vessel', 'product', 'transfer_to_vessel', 'created_by'
+        
+        # ✅ Show Transfer model records (like sales shows Trip records, supply shows PO records)
+        recent_transfers = Transfer.objects.select_related(
+            'from_vessel', 'to_vessel', 'created_by'
+        ).prefetch_related(
+            Prefetch(
+                'transactions',
+                queryset=Transaction.objects.filter(transaction_type='TRANSFER_OUT')
+            )
         ).order_by('-created_at')[:10]
         
         context = {
@@ -140,64 +146,123 @@ def transfer_entry(request):
             
             transfer_date_obj = datetime.strptime(transfer_date, '%Y-%m-%d').date()
             
-            # Create transfer session (stored in localStorage on frontend)
+            # ✅ Create Transfer record immediately (like sales creates Trip, supply creates PO)
+            transfer = Transfer.objects.create(
+                from_vessel=from_vessel,
+                to_vessel=to_vessel,
+                transfer_date=transfer_date_obj,
+                notes=notes,
+                is_completed=False,  # Start as incomplete
+                created_by=request.user
+            )
             
-            session_id = str(uuid.uuid4())
+            # Clear transfer cache
             
-            # Store in session for backend reference
-            transfer_session = {
-                'session_id': session_id,
-                'from_vessel_id': from_vessel_id,
-                'to_vessel_id': to_vessel_id,
-                'transfer_date': transfer_date,
-                'notes': notes,
-                'created_by': request.user.id
-            }
+            TransferCacheHelper.clear_recent_transfers_cache()
             
-            request.session[f'transfer_session_{session_id}'] = transfer_session
-            
-            BilingualMessages.success(request, 'transfer_session_created')
-            return redirect('frontend:transfer_items', session_id=session_id)
+            BilingualMessages.success(request, 'transfer_created_success', transfer_number=transfer.id)
+            # ✅ Redirect to transfer_items with transfer_id (like sales/supply pattern)
+            return redirect('frontend:transfer_items', transfer_id=transfer.id)
             
         except Vessel.DoesNotExist:
             BilingualMessages.error(request, 'invalid_vessel')
             return redirect('frontend:transfer_entry')
+        except (ValueError, ValidationError) as e:
+            # Show actual error for debugging
+            BilingualMessages.error(request, f'Validation error: {str(e)}')
+            return redirect('frontend:transfer_entry')
         except Exception as e:
-            BilingualMessages.error(request, 'error_creating_transfer', error=str(e))
+            # Show actual error for debugging  
+            BilingualMessages.error(request, f'Actual error: {str(e)}')
             return redirect('frontend:transfer_entry')
 
 @operations_access_required
-def transfer_items(request, session_id):
-    """Step 2: Multi-item transfer entry for a specific transfer session"""
+def transfer_items(request, transfer_id):
+    """Step 2: Multi-item transfer entry for a specific transfer (follows trip_sales/po_supply pattern)"""
     
-    # Get transfer session from Django session
-    transfer_session_key = f'transfer_session_{session_id}'
-    transfer_session_data = request.session.get(transfer_session_key)
+    # 🚀 OPTIMIZED: Check cache first for completed transfers (no DB query needed)
+    from frontend.utils.cache_helpers import TransferCacheHelper
+    cached_data = TransferCacheHelper.get_completed_transfer_data(transfer_id)
+    if cached_data:
+        print(f"🚀 CACHE HIT: Completed transfer {transfer_id}")
+        return render(request, 'frontend/transfer_items.html', cached_data)
     
-    if not transfer_session_data:
-        BilingualMessages.error(request, 'Transfer session not found.')
-        return redirect('frontend:transfer_entry')
-    
-    # Get vessel objects
     try:
-        from_vessel = Vessel.objects.get(id=transfer_session_data['from_vessel_id'])
-        to_vessel = Vessel.objects.get(id=transfer_session_data['to_vessel_id'])
-    except Vessel.DoesNotExist:
-        BilingualMessages.error(request, 'Invalid vessels in transfer session.')
+        # 🚀 SUPER OPTIMIZED: Single query with everything (like trip_sales/po_supply)
+        transfer = Transfer.objects.select_related(
+            'from_vessel', 'to_vessel', 'created_by'
+        ).prefetch_related(
+            Prefetch(
+                'transactions',
+                queryset=Transaction.objects.select_related(
+                    'product', 'product__category'
+                ).filter(transaction_type='TRANSFER_OUT').order_by('created_at')
+            )
+        ).get(id=transfer_id)
+        
+        # 🚀 FORCE: Get all transactions immediately to prevent additional queries
+        transfer_transactions = list(transfer.transactions.all())
+        
+    except Transfer.DoesNotExist:
+        BilingualMessages.error(request, 'Transfer not found.')
         return redirect('frontend:transfer_entry')
     
-    # Create transfer session object for template
-    transfer_session = {
-        'session_id': session_id,
-        'from_vessel': from_vessel,
-        'to_vessel': to_vessel,
-        'transfer_date': datetime.strptime(transfer_session_data['transfer_date'], '%Y-%m-%d').date(),
-        'notes': transfer_session_data.get('notes', '')
+    # 🚀 OPTIMIZED: Use prefetched data for all calculations (no additional queries)
+    existing_transfers = []
+    completed_transfers = []
+    
+    if not transfer.is_completed:
+        # 🚀 OPTIMIZED: Process incomplete transfer using prefetched data (like trip_sales)
+        for txn in transfer_transactions:
+            existing_transfers.append({
+                'id': txn.id,
+                'product_id': txn.product.id,
+                'product_name': txn.product.name,
+                'product_item_id': txn.product.item_id,
+                'product_barcode': txn.product.barcode or '',
+                'is_duty_free': txn.product.is_duty_free,
+                'quantity': int(txn.quantity),
+                'unit_price': float(txn.unit_price),
+                'total_amount': float(txn.total_amount),
+                'notes': txn.notes or '',
+                'created_at': txn.created_at.strftime('%H:%M')
+            })
+    else:
+        # 🚀 OPTIMIZED: Process completed transfer using prefetched data (like po_supply)
+        print(f"🔍 DEBUG: Transfer {transfer.id} is completed, processing {len(transfer_transactions)} transactions")
+        
+        for txn in transfer_transactions:
+            print(f"🔍 DEBUG: Transaction {txn.id}: {txn.product.name}, Qty: {txn.quantity}, Price: {txn.unit_price}")
+            completed_transfers.append({
+                'product_name': txn.product.name,
+                'product_item_id': txn.product.item_id,
+                'product_barcode': txn.product.barcode or '',
+                'quantity': int(txn.quantity),
+                'unit_price': float(txn.unit_price),  # This is now the FIFO cost
+                'total_amount': float(txn.total_amount),
+                'is_duty_free': txn.product.is_duty_free,
+                'notes': txn.notes or '',
+                'created_at': txn.created_at.strftime('%H:%M')
+            })
+    
+    # Convert to JSON strings for safe template rendering (like trip_sales/po_supply)
+    existing_transfers_json = json.dumps(existing_transfers)
+    completed_transfers_json = json.dumps(completed_transfers)
+    
+    print(f"🔍 DEBUG: completed_transfers_json length: {len(completed_transfers_json)}")
+    
+    # Build final context (follows trip_sales/po_supply pattern)
+    context = {
+        'transfer': transfer,
+        'existing_transfers_json': existing_transfers_json,
+        'completed_transfers_json': completed_transfers_json,
+        'can_edit': not transfer.is_completed,  # Key flag like trip_sales/po_supply
     }
     
-    context = {
-        'transfer_session': transfer_session,
-    }
+    # 🚀 CACHE: Store completed transfer data for future requests (like trip_sales/po_supply)
+    if transfer.is_completed:
+        TransferCacheHelper.cache_completed_transfer_data(transfer_id, context)
+        print(f"🚀 CACHED COMPLETED TRANSFER: {transfer_id}")
     
     return render(request, 'frontend/transfer_items.html', context)
 
@@ -255,7 +320,7 @@ def transfer_available_products(request):
 
 @operations_access_required
 def transfer_bulk_complete(request):
-    """Complete transfer with bulk transaction creation"""
+    """Complete transfer with bulk transaction creation and Transfer record creation"""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
@@ -279,6 +344,7 @@ def transfer_bulk_complete(request):
         from_vessel = Vessel.objects.get(id=transfer_session_data['from_vessel_id'])
         to_vessel = Vessel.objects.get(id=transfer_session_data['to_vessel_id'])
         transfer_date = datetime.strptime(transfer_session_data['transfer_date'], '%Y-%m-%d').date()
+        notes = transfer_session_data.get('notes', '')
         
         # Validate all items first
         validated_items = []
@@ -286,7 +352,7 @@ def transfer_bulk_complete(request):
         for item in items:
             product_id = item.get('product_id')
             quantity = item.get('quantity')
-            notes = item.get('notes', '')
+            item_notes = item.get('notes', '')
             
             if not product_id or not quantity:
                 return JsonResponse({'success': False, 'error': 'Invalid item data'})
@@ -305,27 +371,38 @@ def transfer_bulk_complete(request):
                 })
             
             # Check inventory availability
-            available_quantity, lots = get_available_inventory(from_vessel, product)
-            
-            if quantity > available_quantity:
+            from frontend.utils.helpers import get_fifo_cost_for_transfer
+            try:
+                # This will validate availability
+                get_fifo_cost_for_transfer(from_vessel, product, quantity)
+            except Exception as e:
                 return JsonResponse({
                     'success': False, 
-                    'error': f'Insufficient inventory for {product.name}. Available: {available_quantity}, Requested: {quantity}'
+                    'error': f'Insufficient inventory for {product.name}: {str(e)}'
                 })
             
             validated_items.append({
                 'product': product,
                 'quantity': quantity,
-                'notes': notes
+                'notes': item_notes
             })
         
-        # All items validated - create transactions atomically
-        
+        # All items validated - create Transfer record and transactions atomically
         with transaction.atomic():
-            created_transfers = []
+            # ✅ NEW: Create Transfer group record first
+            transfer_record = Transfer.objects.create(
+                from_vessel=from_vessel,
+                to_vessel=to_vessel,
+                transfer_date=transfer_date,
+                notes=notes,
+                is_completed=True,  # Mark as completed immediately
+                created_by=request.user
+            )
+            
+            created_transactions = []
             
             for item in validated_items:
-                # Create TRANSFER_OUT transaction (this automatically creates TRANSFER_IN)
+                # Create TRANSFER_OUT transaction linked to Transfer record
                 transfer_out = Transaction.objects.create(
                     vessel=from_vessel,
                     product=item['product'],
@@ -333,26 +410,28 @@ def transfer_bulk_complete(request):
                     transaction_date=transfer_date,
                     quantity=item['quantity'],
                     transfer_to_vessel=to_vessel,
+                    transfer=transfer_record,  # ✅ Link to Transfer group
                     notes=item['notes'] or f'Transfer to {to_vessel.name}',
                     created_by=request.user
                 )
-                created_transfers.append(transfer_out)
+                created_transactions.append(transfer_out)
             
             # Clean up session
             del request.session[transfer_session_key]
+            
+            # Clear transfer cache
+            from frontend.utils.cache_helpers import TransferCacheHelper
+            TransferCacheHelper.clear_recent_transfers_cache()
         
         return JsonResponse({
             'success': True,
-            'message': f'Transfer completed successfully! {len(created_transfers)} items transferred from {from_vessel.name} to {to_vessel.name}.',
-            'transfer_data': {
-                'from_vessel': from_vessel.name,
-                'to_vessel': to_vessel.name,
-                'items_count': len(created_transfers),
-            }
+            'message': f'Transfer completed successfully! {len(created_transactions)} items transferred from {from_vessel.name} to {to_vessel.name}.',
+            'transfer_id': transfer_record.id,
+            'total_items': len(created_transactions)
         })
         
     except Exception as e:
-        return JsonResponse({'success': False, 'error': f'Error completing transfer: {str(e)}'})
+        return JsonResponse({'success': False, 'error': f'Transfer failed: {str(e)}'})
     
 @operations_access_required
 def transfer_execute(request):

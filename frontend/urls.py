@@ -123,7 +123,7 @@ urlpatterns = [
     
     # Transfer workflows
     path('transfer/', transfer_views.transfer_entry, name='transfer_entry'),  # Step 1: Create transfer
-    path('transfer/items/<str:session_id>/', transfer_views.transfer_items, name='transfer_items'),  # Step 2: Add items
+    path('transfer/<int:transfer_id>/', transfer_views.transfer_items, name='transfer_items'),
     path('transfer/bulk-complete/', transfer_views.transfer_bulk_complete, name='transfer_bulk_complete'),
     
     # Transfer API endpoints
