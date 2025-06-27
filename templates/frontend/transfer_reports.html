@@ -413,23 +413,5 @@ function toggleColumn(columnClass) {
         col.style.display = isVisible ? 'none' : '';
     });
 }
-
-// Auto-update numbers based on language
-function updateNumbers() {
-    document.querySelectorAll('[data-number]').forEach(element => {
-        const originalValue = element.getAttribute('data-original');
-        if (window.translator && window.translator.currentLanguage === 'ar') {
-            element.textContent = window.translateNumber(originalValue);
-        } else {
-            element.textContent = originalValue;
-        }
-    });
-}
-
-// Update numbers when language changes
-window.addEventListener('languageChanged', updateNumbers);
-
-// Initial number update
-updateNumbers();
 </script>
 {% endblock %}

@@ -57,6 +57,7 @@ window.VesselSalesTranslations = {
         'stock_available': 'Stock Available',
         'cost': 'Cost',
         'per_unit': '/Unit',
+        'export_single_po_data': 'Export Single PO Data',
         
         // User Management translations
         'add_user': 'Add User',
@@ -695,6 +696,8 @@ window.VesselSalesTranslations = {
         'streamline_operations': 'Streamline daily operations to improve efficiency',
         'monitor_inventory': 'Monitor inventory turnover for slow-moving items',
         'focus_top_products': 'Focus marketing on top-performing products',
+        'sales': 'Sales',
+        'supplies': 'Supplies',
 
         // Transactions List
         'complete_transaction_history': 'Complete transaction history across all vessels',
@@ -1082,6 +1085,7 @@ window.VesselSalesTranslations = {
         'stock_available': 'الموجود في المخزون',
         'cost': 'التكلفة',
         'per_unit': '/للوحدة',
+        'export_single_po_data': 'تصدير بيانات امر شراء واحد',
         
         // User Management translations
         'user_management_desc': 'ادارة المستخدمين والادوار والصلاحيات',
@@ -1719,6 +1723,8 @@ window.VesselSalesTranslations = {
         'streamline_operations': 'بسط العمليات اليومية لتحسين الكفاءة',
         'monitor_inventory': 'راقب دوران المخزون للعناصر بطيئة الحركة',
         'focus_top_products': 'ركز التسويق على المنتجات عالية الأداء',
+        'sales': 'المبيعات',
+        'supplies': 'المشتريات',
 
         // Transactions List
         'all_transactions': 'جميع الحركات',

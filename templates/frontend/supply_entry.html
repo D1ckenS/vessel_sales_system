@@ -241,36 +241,6 @@ document.addEventListener('DOMContentLoaded', function() {
             const translatedNumber = window.translateNumber(originalValue);
             element.textContent = translatedNumber;
         });
-        
-        // Fix timesince displays
-        document.querySelectorAll('.po-time-ago').forEach(element => {
-            const originalTime = element.getAttribute('data-time');
-            const currentLang = window.translator.currentLanguage;
-            
-            if (currentLang === 'ar') {
-                let arabicTime = originalTime
-                    .replace(/(\d+)\s*days?/g, (match, num) => window.translateNumber(num) + ' يوم')
-                    .replace(/(\d+)\s*hours?/g, (match, num) => window.translateNumber(num) + ' ساعة') 
-                    .replace(/(\d+)\s*minutes?/g, (match, num) => window.translateNumber(num) + ' دقيقة')
-                    .replace(/(\d+)\s*weeks?/g, (match, num) => window.translateNumber(num) + ' أسبوع')
-                    .replace(/(\d+)\s*months?/g, (match, num) => window.translateNumber(num) + ' شهر')
-                    .replace(/(\d+)\s*years?/g, (match, num) => window.translateNumber(num) + ' سنة')
-                    .replace(/,\s*/g, '، ')
-                    .replace(/\s+/g, ' ')
-                    .trim();
-                
-                // Remove "ago" and add "مضت"
-                arabicTime = arabicTime.replace(/\s*ago\s*/, '');
-                if (!arabicTime.includes('مضت')) {
-                    arabicTime += ' مضت';
-                }
-                
-                element.textContent = arabicTime;
-            } else {
-                const timeWithoutAgo = originalTime.replace(' ago', '');
-                element.textContent = timeWithoutAgo + ' ago';
-            }
-        });
     }
     
     function updateTooltips() {

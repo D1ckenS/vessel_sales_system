@@ -188,7 +188,10 @@
                         </div>
                         <div class="flex-grow-1 ms-2">
                             <strong>{{ product.product__name }}</strong>
-                            <small class="text-muted d-block">{{ product.product__item_id }}</small>
+                            <small class="text-muted d-block">
+                                <span data-number data-original="{{ product.product__item_id }}">{{ product.product__item_id }}
+                                </span>
+                                </small>
                             <small class="text-info">{{ product.product__category__name }}</small>
                         </div>
                         <div class="text-end">
@@ -228,7 +231,10 @@
                     <div class="d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
                         <div>
                             <strong>{{ item.product.name }}</strong>
-                            <small class="text-muted d-block">{{ item.product.item_id }}</small>
+                            <small class="text-muted d-block">
+                                <span data-number data-original="{{ item.product.item_id }}">{{ item.product.item_id }}
+                                </span>
+                            </small>
                             <div class="mt-1">
                                 {% if item.turnover_rate > 50 %}
                                     <span class="badge bg-success badge-sm">
@@ -504,11 +510,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         });
+
+        if (window.monthTranslator && window.monthTranslator.translateAllMonthYearElements) {
+            window.monthTranslator.translateAllMonthYearElements();
+        }
         
         if (window.updatePageTranslations) {
             window.updatePageTranslations();
         }
     }
+
+    window.addEventListener('languageChanged', function() {
+        updateAnalyticsPageTranslations();
+    });
     
     setTimeout(() => {
         updateAnalyticsPageTranslations();
