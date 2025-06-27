@@ -4,7 +4,7 @@ from django.utils.html import format_html
 from django.db.models import Sum, Count
 from django.urls import reverse
 from django.utils.safestring import mark_safe
-from .models import InventoryLot, Transaction, Trip, PurchaseOrder, WasteReport
+from .models import InventoryLot, Transaction, Trip, PurchaseOrder, WasteReport, Transfer
 
 @admin.register(Trip)
 class TripAdmin(admin.ModelAdmin):
@@ -143,6 +143,91 @@ class InventoryLotAdmin(admin.ModelAdmin):
         return "0%"
     consumption_percentage.short_description = 'Consumed %'
 
+@admin.register(Transfer)
+class TransferAdmin(admin.ModelAdmin):
+    """Admin interface for transfers between vessels"""
+    
+    list_display = [
+        'id', 
+        'from_vessel', 
+        'to_vessel', 
+        'transfer_date', 
+        'transaction_count', 
+        'total_cost', 
+        'is_completed', 
+        'created_by', 
+        'created_at'
+    ]
+    
+    list_filter = [
+        'is_completed',
+        'transfer_date',
+        'from_vessel',
+        'to_vessel',
+        'created_at',
+    ]
+    
+    search_fields = [
+        'from_vessel__name',
+        'to_vessel__name', 
+        'notes',
+        'created_by__username'
+    ]
+    
+    readonly_fields = [
+        'created_at', 
+        'updated_at', 
+        'transaction_count', 
+        'total_cost',
+        'unique_products_count'
+    ]
+    
+    fieldsets = [
+        ('Transfer Information', {
+            'fields': ('from_vessel', 'to_vessel', 'transfer_date', 'is_completed'),
+            'description': 'Basic transfer details and completion status.'
+        }),
+        ('Additional Information', {
+            'fields': ('notes',),
+            'description': 'Optional notes about this transfer.'
+        }),
+        ('Statistics (Read-only)', {
+            'fields': ('transaction_count', 'total_cost', 'unique_products_count'),
+            'classes': ('collapse',),
+            'description': 'Calculated statistics from related transfer transactions.'
+        }),
+        ('Administrative Details', {
+            'fields': ('created_by', ('created_at', 'updated_at')),
+            'classes': ('collapse',),
+            'description': 'System-generated tracking information.'
+        }),
+    ]
+    
+    def get_queryset(self, request):
+        """Optimize queryset with related objects"""
+        return super().get_queryset(request).select_related(
+            'from_vessel', 'to_vessel', 'created_by'
+        ).prefetch_related('transactions')
+    
+    def total_cost(self, obj):
+        """Display total cost with currency"""
+        cost = obj.total_cost
+        return f"{cost:.3f} JOD" if cost > 0 else "0.000 JOD"
+    total_cost.short_description = 'Total Cost'
+    total_cost.admin_order_field = 'total_cost'
+    
+    def transaction_count(self, obj):
+        """Display count of transfer items"""
+        count = obj.transaction_count
+        return f"{count} items" if count != 1 else "1 item"
+    transaction_count.short_description = 'Items'
+    transaction_count.admin_order_field = 'transaction_count'
+    
+    def save_model(self, request, obj, form, change):
+        if not change:  # If creating new object
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+
 @admin.register(Transaction)
 class TransactionAdmin(admin.ModelAdmin):
     change_form_template = 'admin/transactions/transaction_change_form.html'
@@ -152,11 +237,12 @@ class TransactionAdmin(admin.ModelAdmin):
     ]
     list_filter = [
         'transaction_type', 'vessel', 'product__category', 
-        'transaction_date', 'product__is_duty_free', 'trip', 'purchase_order'
+        'transaction_date', 'product__is_duty_free', 'trip', 'purchase_order', 'transfer'
     ]
     search_fields = [
         'product__name', 'product__item_id', 'vessel__name', 
-        'transfer_to_vessel__name', 'notes', 'trip__trip_number', 'purchase_order__po_number'
+        'transfer_to_vessel__name', 'notes', 'trip__trip_number', 'purchase_order__po_number',
+        'transfer__id'
     ]
     ordering = ['-transaction_date', '-created_at']
     
@@ -184,13 +270,33 @@ class TransactionAdmin(admin.ModelAdmin):
             }),
         ]
         
-        # Add Trip/PO association fieldset
-        trip_po_fieldset = ('Trip/Purchase Order Association', {
-            'fields': ('trip', 'purchase_order'),
-            'description': 'Associate this transaction with a trip (for sales) or purchase order (for supplies).',
-            'classes': ('collapse',)
-        })
-        basic_fieldsets.append(trip_po_fieldset)
+        # Add association fieldsets based on context
+        if not obj:  # For new transactions, show relevant fields based on context
+            association_fieldset = ('Association (if applicable)', {
+                'fields': ('trip', 'purchase_order', 'transfer'),
+                'description': 'Associate with trip (sales), purchase order (supplies), or transfer (transfers).',
+                'classes': ('collapse',)
+            })
+            basic_fieldsets.append(association_fieldset)
+        else:  # For existing transactions, show only relevant association
+            if obj.transaction_type == 'SALE' and obj.trip:
+                association_fieldset = ('Trip Association', {
+                    'fields': ('trip',),
+                    'description': 'This sales transaction is associated with a trip.'
+                })
+                basic_fieldsets.append(association_fieldset)
+            elif obj.transaction_type == 'SUPPLY' and obj.purchase_order:
+                association_fieldset = ('Purchase Order Association', {
+                    'fields': ('purchase_order',),
+                    'description': 'This supply transaction is associated with a purchase order.'
+                })
+                basic_fieldsets.append(association_fieldset)
+            elif obj.transaction_type in ['TRANSFER_OUT', 'TRANSFER_IN'] and obj.transfer:
+                association_fieldset = ('Transfer Association', {
+                    'fields': ('transfer',),
+                    'description': 'This transfer transaction is associated with a transfer group.'
+                })
+                basic_fieldsets.append(association_fieldset)
         
         # Add transfer fields for transfer transactions
         if obj and obj.transaction_type == 'TRANSFER_OUT':
@@ -212,6 +318,21 @@ class TransactionAdmin(admin.ModelAdmin):
                 'classes': ('collapse',)
             })
             basic_fieldsets.append(transfer_fieldset)
+        
+        # Add waste-specific fields if it's a waste transaction
+        if obj and obj.transaction_type == 'WASTE':
+            waste_fieldset = ('Waste Details', {
+                'fields': ('damage_reason', 'waste_report'),
+                'description': 'Waste-specific information and damage reason.'
+            })
+            basic_fieldsets.append(waste_fieldset)
+        elif not obj:  # For new transactions, show waste fields collapsed
+            waste_fieldset = ('Waste Details (if applicable)', {
+                'fields': ('damage_reason', 'waste_report'),
+                'description': 'Required only for waste transactions.',
+                'classes': ('collapse',)
+            })
+            basic_fieldsets.append(waste_fieldset)
         
         # Add notes and administrative details
         basic_fieldsets.extend([
@@ -263,8 +384,15 @@ class TransactionAdmin(admin.ModelAdmin):
                 obj.purchase_order.po_number,
                 obj.purchase_order.po_date.strftime('%d/%m/%Y')
             )
+        elif obj.transfer:
+            return format_html(
+                '<span style="color: orange; font-weight: bold;">🔄 Transfer #{}</span><br><small>{} → {}</small>',
+                obj.transfer.id,
+                obj.transfer.from_vessel.name,
+                obj.transfer.to_vessel.name
+            )
         return format_html('<span style="color: gray;">-</span>')
-    trip_po_display.short_description = 'Trip/PO'
+    trip_po_display.short_description = 'Trip/PO/Transfer'
     trip_po_display.allow_tags = True
     
     def transfer_info(self, obj):
@@ -319,5 +447,5 @@ class TransactionAdmin(admin.ModelAdmin):
         """Optimize queries by selecting related objects"""
         return super().get_queryset(request).select_related(
             'vessel', 'product', 'product__category', 'created_by',
-            'trip', 'purchase_order', 'transfer_to_vessel', 'transfer_from_vessel'
+            'trip', 'purchase_order', 'transfer', 'transfer_to_vessel', 'transfer_from_vessel'
         )
