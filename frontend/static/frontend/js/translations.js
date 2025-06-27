@@ -401,6 +401,10 @@ window.VesselSalesTranslations = {
         'this_action_cannot_be_undone': 'This action cannot be undone',
         'warning': 'Warning',
         'num_of_items': '# of Items',
+        'transfer_notes_optional': 'Transfer Notes (Optional)',
+        'quantity_to_transfer': 'Quantity to Transfer',
+        'total_items': 'Total Items',
+        'items_to_transfer': 'Items to Transfer',
 
         // Waste Translations
         'waste_management': 'Waste',
@@ -1253,6 +1257,10 @@ window.VesselSalesTranslations = {
         'this_action_cannot_be_undone': 'لا يمكن التراجع عن هذا الإجراء',
         'warning': 'تحذير',
         'num_of_items': 'عدد العناصر',
+        'transfer_notes_optional': 'ملاحظات التحويل (اختياري)',
+        'quantity_to_transfer': 'كمية التحويل',
+        'total_items': 'عدد العناصر',
+        'items_to_transfer': 'العناصر المحولة',
 
         // Waste Translations
         'waste_management': 'إدارة المهدر',

@@ -107,7 +107,7 @@ urlpatterns = [
     # OPERATIONS - SUPPLY
     # =============================================================================
     
-    # Supply - Two-step workflow  
+    # Supply - Two-step workflow
     path('supply/', supply_views.supply_entry, name='supply_entry'),  # Step 1: Create PO
     path('supply/po/<int:po_id>/', supply_views.po_supply, name='po_supply'),  # Step 2: Add items
     path('supply/po/bulk-complete/', supply_views.po_bulk_complete, name='po_bulk_complete'),
@@ -125,6 +125,7 @@ urlpatterns = [
     path('transfer/', transfer_views.transfer_entry, name='transfer_entry'),  # Step 1: Create transfer
     path('transfer/<int:transfer_id>/', transfer_views.transfer_items, name='transfer_items'),
     path('transfer/bulk-complete/', transfer_views.transfer_bulk_complete, name='transfer_bulk_complete'),
+    path('transfer/calculate-fifo-cost/', transfer_views.transfer_calculate_fifo_cost, name='transfer_calculate_fifo_cost'),
     
     # Transfer API endpoints
     path('transfer/search-products/', transfer_views.transfer_search_products, name='transfer_search_products'),

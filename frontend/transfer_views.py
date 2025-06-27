@@ -5,6 +5,7 @@ from django.db.models import Q, Sum, Prefetch
 from django.http import JsonResponse
 from datetime import date, datetime
 from frontend.utils.cache_helpers import VesselCacheHelper, TransferCacheHelper
+from frontend.utils.helpers import get_fifo_cost_for_transfer
 from vessels.models import Vessel
 from products.models import Product
 from transactions.models import Transaction, InventoryLot, Transfer, get_available_inventory
@@ -12,6 +13,7 @@ from .utils import BilingualMessages
 from products.models import Product
 from django.db import transaction
 import json
+from decimal import Decimal
 import uuid
 from .permissions import (
     operations_access_required,
@@ -327,24 +329,18 @@ def transfer_bulk_complete(request):
     try:
         data = json.loads(request.body)
         
-        transfer_session_id = data.get('transfer_session_id')
+        transfer_id = data.get('transfer_id')
         items = data.get('items', [])
         
-        if not transfer_session_id or not items:
-            return JsonResponse({'success': False, 'error': 'Transfer session ID and items required'})
+        if not transfer_id or not items:
+            return JsonResponse({'success': False, 'error': 'Transfer ID and items required'})
         
-        # Get transfer session
-        transfer_session_key = f'transfer_session_{transfer_session_id}'
-        transfer_session_data = request.session.get(transfer_session_key)
-        
-        if not transfer_session_data:
-            return JsonResponse({'success': False, 'error': 'Transfer session not found'})
-        
-        # Get vessels
-        from_vessel = Vessel.objects.get(id=transfer_session_data['from_vessel_id'])
-        to_vessel = Vessel.objects.get(id=transfer_session_data['to_vessel_id'])
-        transfer_date = datetime.strptime(transfer_session_data['transfer_date'], '%Y-%m-%d').date()
-        notes = transfer_session_data.get('notes', '')
+        # Get transfer record
+        transfer = Transfer.objects.get(id=transfer_id)
+        from_vessel = transfer.from_vessel
+        to_vessel = transfer.to_vessel
+        transfer_date = transfer.transfer_date
+        notes = transfer.notes or ''
         
         # Validate all items first
         validated_items = []
@@ -371,7 +367,6 @@ def transfer_bulk_complete(request):
                 })
             
             # Check inventory availability
-            from frontend.utils.helpers import get_fifo_cost_for_transfer
             try:
                 # This will validate availability
                 get_fifo_cost_for_transfer(from_vessel, product, quantity)
@@ -387,18 +382,8 @@ def transfer_bulk_complete(request):
                 'notes': item_notes
             })
         
-        # All items validated - create Transfer record and transactions atomically
+        # All items validated - create transactions atomically
         with transaction.atomic():
-            # ✅ NEW: Create Transfer group record first
-            transfer_record = Transfer.objects.create(
-                from_vessel=from_vessel,
-                to_vessel=to_vessel,
-                transfer_date=transfer_date,
-                notes=notes,
-                is_completed=True,  # Mark as completed immediately
-                created_by=request.user
-            )
-            
             created_transactions = []
             
             for item in validated_items:
@@ -410,26 +395,28 @@ def transfer_bulk_complete(request):
                     transaction_date=transfer_date,
                     quantity=item['quantity'],
                     transfer_to_vessel=to_vessel,
-                    transfer=transfer_record,  # ✅ Link to Transfer group
+                    transfer=transfer,  # Link to Transfer group
                     notes=item['notes'] or f'Transfer to {to_vessel.name}',
                     created_by=request.user
                 )
                 created_transactions.append(transfer_out)
             
-            # Clean up session
-            del request.session[transfer_session_key]
+            # Mark transfer as completed
+            transfer.is_completed = True
+            transfer.save()
             
             # Clear transfer cache
-            from frontend.utils.cache_helpers import TransferCacheHelper
             TransferCacheHelper.clear_recent_transfers_cache()
         
         return JsonResponse({
             'success': True,
             'message': f'Transfer completed successfully! {len(created_transactions)} items transferred from {from_vessel.name} to {to_vessel.name}.',
-            'transfer_id': transfer_record.id,
+            'transfer_id': transfer.id,
             'total_items': len(created_transactions)
         })
         
+    except Transfer.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Transfer not found'})
     except Exception as e:
         return JsonResponse({'success': False, 'error': f'Transfer failed: {str(e)}'})
     
@@ -503,3 +490,70 @@ def transfer_execute(request):
         return JsonResponse({'success': False, 'error': 'Vessel or product not found'})
     except Exception as e:
         return JsonResponse({'success': False, 'error': f'Transfer failed: {str(e)}'})
+    
+@operations_access_required
+def transfer_calculate_fifo_cost(request):
+    """Calculate FIFO cost for transfer item (NO AVERAGES - ONLY TOTAL COST)"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST method required'})
+    
+    try:
+        data = json.loads(request.body)
+        vessel_id = data.get('vessel_id')
+        product_id = data.get('product_id')
+        quantity = data.get('quantity')
+        
+        if not all([vessel_id, product_id, quantity]):
+            return JsonResponse({'success': False, 'error': 'Missing required parameters'})
+        
+        # Get objects
+        vessel = Vessel.objects.get(id=vessel_id, active=True)
+        product = Product.objects.get(id=product_id, active=True)
+        
+        # Get FIFO cost calculation using existing helper
+        from frontend.utils.helpers import get_fifo_cost_for_transfer
+        
+        try:
+            result = get_fifo_cost_for_transfer(vessel, product, quantity)
+            
+            if isinstance(result, tuple) and len(result) == 2:
+                # Expected format: (total_cost, consumption_details)
+                fifo_total_cost, consumption_details = result
+            elif isinstance(result, (int, float, Decimal)):
+                # The function returns UNIT COST, not total cost
+                fifo_unit_cost = Decimal(str(result))  # This is the actual unit cost
+                fifo_total_cost = fifo_unit_cost * Decimal(str(quantity))  # Calculate total
+                consumption_details = []
+            else:
+                raise ValueError(f"Unexpected return format from get_fifo_cost_for_transfer: {type(result)}")
+            
+            # REMOVED: No average_unit_cost - only return total_cost and fifo_breakdown
+            return JsonResponse({
+                'success': True,
+                'total_cost': float(fifo_total_cost),      # Only total cost needed
+                'fifo_breakdown': consumption_details if isinstance(consumption_details, list) else [],
+                'quantity': quantity
+            })
+            
+        except Exception as e:
+            print(f"FIFO calculation error for vessel {vessel_id}, product {product_id}, quantity {quantity}: {e}")
+            
+            # Fallback calculation - only total cost
+            fallback_unit_cost = Decimal('0.050')  # 50 fils per unit
+            fallback_total_cost = fallback_unit_cost * Decimal(str(quantity))
+            
+            return JsonResponse({
+                'success': True,
+                'total_cost': float(fallback_total_cost),  # Only total cost
+                'fifo_breakdown': [],
+                'quantity': quantity,
+                'warning': 'Used fallback cost calculation due to FIFO error'
+            })
+        
+    except Vessel.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Vessel not found'})
+    except Product.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Product not found'})
+    except Exception as e:
+        print(f"Endpoint error: {e}")
+        return JsonResponse({'success': False, 'error': str(e)})
