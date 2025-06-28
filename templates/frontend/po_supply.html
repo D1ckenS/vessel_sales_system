@@ -242,11 +242,14 @@
                     
                     <!-- Action Buttons -->
                     <div class="d-grid gap-2">
-                        <button type="button" class="btn btn-outline-secondary" onclick="cancelEdit()">
-                            <i class="bi bi-x-circle"></i> <span data-translate="cancel">Cancel</span>
-                        </button>
                         <button type="submit" class="btn btn-primary" id="addSupplyBtn" disabled>
                             <i class="bi bi-plus"></i> <span id="addBtnText" data-translate="add_to_po">Add to PO</span>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="clearForm()">
+                            <i class="bi bi-x-circle"></i> <span data-translate="clear_form">Clear Form</span>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="cancelEdit()">
+                            <i class="bi bi-x-circle"></i> <span data-translate="cancel">Cancel</span>
                         </button>
                     </div>
                 </form>
@@ -670,25 +673,24 @@ function displayCompletedSupplies(completedSupplies) {
                 <td><small>${item.created_at}</small></td>
                 <td>
                     <div class="fw-bold">${item.product_name}</div>
-                    <small class="text-muted">${item.product_item_id}</small>
-                    ${item.product_barcode ? `<br><small class="text-muted">📊 ${item.product_barcode}</small>` : ''}
-                    ${item.is_duty_free ? '<br><span class="badge bg-warning">Duty Free</span>' : ''}
+                    <small class="text-muted d-block">${_('id_label')}: <span data-number data-original="${item.product_item_id}">${translateNumber(item.product_item_id)}</span></small>
+                    ${item.is_duty_free ? '<span class="badge bg-warning text-dark">' + _('duty_free') + '</span>' : ''}
                 </td>
                 <td class="text-center quantity-breakdown">
                     <div class="total-units fw-bold text-primary">
-                        ${item.quantity}
+                        <span class="fw-bold" data-number data-original="${item.quantity}">${translateNumber(item.quantity.toString())}</span>
                     </div>
-                    <small class="text-muted">units total</small>
+                    <small class="text-muted"><span data-translate="total_units">total units</span></small>
                 </td>
                 <td class="text-end unit-cost-calculated">
                     <div class="main-cost">
-                        ${item.unit_price.toFixed(3)} <span data-currency-symbol>JOD</span>
+                        <span class="fw-bold" data-number data-original="${item.unit_price.toFixed(3)}">${translateNumber(item.unit_price.toFixed(3))}</span> <span data-currency-symbol>JOD</span>
                     </div>
-                    <small class="calculation-note">per unit</small>
+                    <small class="calculation-note"><span data-translate="per_unit">per unit</span></small>
                 </td>
                 <td class="text-end">
                     <div class="fw-bold text-success">
-                        ${item.total_amount.toFixed(3)} <span data-currency-symbol>JOD</span>
+                        <span class="fw-bold text-success" data-number data-original="${item.total_amount.toFixed(3)}">${translateNumber(item.total_amount.toFixed(3))}</span> <span data-currency-symbol>JOD</span>
                     </div>
                 </td>
                 <td>
@@ -1111,19 +1113,18 @@ function updateCartDisplay() {
                 <div class="box-info text-primary fw-bold">
                     ${item.num_boxes} boxes × ${item.items_per_box} = ${item.quantity}
                 </div>
-                <small class="text-muted">units total</small>
+                <small class="text-muted"><span data-translate="total_units">total units</span></small>
               `
             : `
                 <div class="total-units fw-bold text-primary">${item.quantity}</div>
-                <small class="text-muted">units total</small>
+                <small class="text-muted"><span data-translate="total_units">total units</span></small>
               `;
         
         return `
             <tr>
                 <td>
                     <div class="fw-bold">${item.product_name}</div>
-                    <small class="text-muted">${item.product_item_id}</small>
-                    ${item.product_barcode ? `<br><small class="text-muted">📊 ${item.product_barcode}</small>` : ''}
+                    <small class="text-muted d-block">${_('id_label')}: <span data-number data-original="${item.product_item_id}">${translateNumber(item.product_item_id)}</span></small>
                     ${item.is_duty_free ? '<br><span class="badge bg-warning">Duty Free</span>' : ''}
                 </td>
                 <td class="text-center quantity-breakdown">
@@ -1134,7 +1135,7 @@ function updateCartDisplay() {
                         <span data-number data-original="${item.unit_price.toFixed(3)}">${translateNumber(item.unit_price.toFixed(3))}</span>
                         <span data-currency-symbol>JOD</span>
                     </div>
-                    <small class="calculation-note">per unit</small>
+                    <small class="calculation-note"><span data-translate="per_unit">per unit</span></small>
                 </td>
                 <td class="text-end">
                     <div class="fw-bold text-success">
@@ -1193,7 +1194,7 @@ function updateCartDisplay() {
     // Update complete button text with current stats
     if (completeBtnText) {
         completeBtnText.innerHTML = 
-            `<i class="bi bi-check-circle"></i> Complete PO (${poSuppliesCart.length} items, ${totalPOCost.toFixed(3)} JOD)`;
+            `<i class="bi bi-check-circle"></i> ${_('complete_po')} (${poSuppliesCart.length} items, ${totalPOCost.toFixed(3)} JOD)`;
     }
 }
 

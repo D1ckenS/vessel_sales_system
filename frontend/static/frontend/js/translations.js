@@ -58,6 +58,7 @@ window.VesselSalesTranslations = {
         'cost': 'Cost',
         'per_unit': '/Unit',
         'export_single_po_data': 'Export Single PO Data',
+        'already_in_cart': 'Already in Cart',
         
         // User Management translations
         'add_user': 'Add User',
@@ -1094,6 +1095,7 @@ window.VesselSalesTranslations = {
         'cost': 'التكلفة',
         'per_unit': '/للوحدة',
         'export_single_po_data': 'تصدير بيانات امر شراء واحد',
+        'already_in_cart': 'موجود في السلة',
         
         // User Management translations
         'user_management_desc': 'ادارة المستخدمين والادوار والصلاحيات',

@@ -188,11 +188,14 @@
                     
                     <!-- Action Buttons -->
                     <div class="d-grid gap-2">
-                        <button type="button" class="btn btn-outline-secondary" onclick="cancelEdit()">
-                            <i class="bi bi-x-circle"></i> <span data-translate="cancel">Cancel</span>
-                        </button>
                         <button type="submit" class="btn btn-warning" id="addTransferBtn" disabled>
                             <i class="bi bi-plus"></i> <span id="addBtnText" data-translate="add_to_transfer">Add to Transfer</span>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="clearForm()">
+                            <i class="bi bi-x-circle"></i> <span data-translate="clear_form">Clear Form</span>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="cancelEdit()">
+                            <i class="bi bi-x-circle"></i> <span data-translate="cancel">Cancel</span>
                         </button>
                     </div>
                 </form>
@@ -215,7 +218,7 @@
                         <thead class="table-light sticky-top">
                             <tr>
                                 <th><span data-translate="product_name">Product Name</span></th>
-                                <th><span data-translate="product_id">Product ID</span></th>
+                                <th class="text-center"><span data-translate="product_id">Product ID</span></th>
                                 <th class="text-end"><span data-translate="stock_available">Stock Available</span></th>
                             </tr>
                         </thead>
@@ -342,7 +345,7 @@
                                 <th><span data-translate="product">Product</span></th>
                                 <th class="text-center"><span data-translate="quantity">Quantity</span></th>
                                 <th class="text-end"><span data-translate="cost">Cost</span></th>
-                                <th><span data-translate="notes">Notes</span></th>
+                                <th class="text-end"><span data-translate="notes">Notes</span></th>
                             </tr>
                         </thead>
                         <tbody id="completedTransfersList">
@@ -509,12 +512,11 @@ function displayAvailableProducts(products) {
                 <td>
                     <div>
                         <strong>${productName}</strong>
-                        ${product.barcode ? `<br><small class="text-muted">📊 ${product.barcode}</small>` : ''}
                         ${dutyFreeBadge}
                         ${isInCart ? '<br><span class="badge bg-info">In Cart</span>' : ''}
                     </div>
                 </td>
-                <td>
+                <td class="text-center">
                     <code data-number data-original="${productId}">${window.translateNumber ? window.translateNumber(productId) : productId}</code>
                 </td>
                 <td class="text-end">
@@ -1209,7 +1211,7 @@ function displayCompletedTransfers(completedTransfers) {
                         <span data-number data-original="${item.total_amount.toFixed(3)}">${window.translateNumber ? window.translateNumber(item.total_amount.toFixed(3)) : item.total_amount.toFixed(3)}</span> <span data-currency-symbol>JOD</span>
                     </span>
                 </td>
-                <td>
+                <td class="text-end">
                     <small class="text-muted">${item.notes || '-'}</small>
                 </td>
             </tr>

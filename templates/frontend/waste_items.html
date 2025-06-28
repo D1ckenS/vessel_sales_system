@@ -228,7 +228,7 @@
                         <thead class="table-light sticky-top">
                             <tr>
                                 <th><span data-translate="product_name">Product Name</span></th>
-                                <th><span data-translate="product_id">Product ID</span></th>
+                                <th class="text-center"><span data-translate="product_id">Product ID</span></th>
                                 <th class="text-end"><span data-translate="stock_available">Stock Available</span></th>
                             </tr>
                         </thead>
@@ -336,7 +336,6 @@ document.addEventListener('DOMContentLoaded', function() {
     window.initializePage({
         titleKey: 'waste_items',
         fallbackTitle: 'Waste Items',
-        customInit: updateWasteTranslations
     })
     
     const wasteData = JSON.parse(document.getElementById('wasteData').textContent);
@@ -434,10 +433,9 @@ function updateAvailableProductsList() {
         <tr class="cursor-pointer" onclick="selectProductFromList(${JSON.stringify(product).replace(/"/g, '&quot;')})">
             <td>
                 <strong>${product.name}</strong>
-                ${product.barcode ? `<br><small class="text-muted">Barcode: ${product.barcode}</small>` : ''}
-                ${product.is_duty_free ? '<span class="badge bg-warning text-dark ms-1">Duty-Free</span>' : ''}
+                ${product.is_duty_free ? '<br><span class="badge bg-warning text-dark ms-1">Duty-Free</span></br>' : ''}
             </td>
-            <td>
+            <td class="text-center">
                 <code data-number data-original="${product.item_id}">${translateNumber(product.item_id)}</code>
             </td>
             <td class="text-end">
@@ -640,6 +638,7 @@ function validateWasteForm() {
     
     let isValid = true;
     let buttonText = _('add_to_waste');
+    const existingIndex = wasteItemsCart.findIndex(item => item.product_id === selectedProduct.id);
     
     if (!selectedProduct) {
         isValid = false;
@@ -655,7 +654,6 @@ function validateWasteForm() {
         buttonText = _('select_damage_reason');
     } else {
         // Check if product already in cart
-        const existingIndex = wasteItemsCart.findIndex(item => item.product_id === selectedProduct.id);
         if (existingIndex !== -1 && editingIndex === -1) {
             buttonText = _('already_in_cart');
         }
@@ -708,11 +706,14 @@ function updateCartDisplay() {
                         <tr class="cursor-pointer" onclick="editWasteItem(${index})">
                             <td>
                                 <strong>${item.product_name}</strong>
-                                <small class="d-block text-muted">ID: ${item.product_item_id}</small>
+                                <small class="text-muted d-block">${_('id_label')}: <span data-number data-original="${item.product_item_id}">${translateNumber(item.product_item_id)}</span></small>
                                 ${item.notes ? `<small class="text-muted d-block">📝 ${item.notes}</small>` : ''}
                             </td>
-                            <td><span class="badge bg-primary">${item.quantity}</span></td>
-                            <td><span class="fw-bold text-danger">${item.total_cost.toFixed(3)} JOD</span></td>
+                            <td>
+                                <span class="fw-bold text-primary" data-number data-original="${item.quantity}">${translateNumber(item.quantity.toString())}</span>
+                                <small class="text-muted d-block">${_('units')}</small>
+                            </td>
+                            <td><span class="fw-bold text-danger" data-number data-original="${item.total_cost.toFixed(3)}">${item.total_cost.toFixed(3)} JOD</span></td>
                             <td><span class="badge bg-warning">${item.damage_reason}</span></td>
                             <td>
                                 <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); editWasteItem(${index})">
@@ -976,5 +977,9 @@ function showAlert(message, type) {
         window.showAlert(message, type);
     }
 }
+
+window.addEventListener('languageChanged', () => {
+    updateCartDisplay();
+});
 </script>
 {% endblock %}

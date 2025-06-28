@@ -212,11 +212,14 @@
                     
                     <!-- Action Buttons -->
                     <div class="d-grid gap-2">
-                        <button type="button" class="btn btn-outline-secondary" onclick="cancelEdit()">
-                            <i class="bi bi-x-circle"></i> <span data-translate="cancel">Cancel</span>
-                        </button>
                         <button type="submit" class="btn btn-success" id="addSaleBtn" disabled>
                             <i class="bi bi-plus"></i> <span id="addBtnText"><span data-translate="add_to_trip">Add to Trip</span></span>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="clearForm()">
+                            <i class="bi bi-x-circle"></i> <span data-translate="clear_form">Clear Form</span>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="cancelEdit()">
+                            <i class="bi bi-x-circle"></i> <span data-translate="cancel">Cancel</span>
                         </button>
                     </div>
                 </form>
@@ -234,12 +237,12 @@
                 </h5>
             </div>
             <div class="card-body p-0">
-                <div style="height: 400px; overflow-y: auto;">
+                <div style="scrollable-panel available-products-panel">
                     <table class="table table-hover mb-0">
                         <thead class="table-light sticky-top">
                             <tr>
                                 <th><span data-translate="product_name">Product Name</span></th>
-                                <th><span data-translate="product_id">Product ID</span></th>
+                                <th class="text-center"><span data-translate="product_id">Product ID</span></th>
                                 <th class="text-end"><span data-translate="stock_available">Stock Available</span></th>
                             </tr>
                         </thead>
@@ -395,7 +398,6 @@ document.addEventListener('DOMContentLoaded', function() {
             'add_sales_item': 'Add Sales Item',
             'update_item': 'Update Item',
             'add_to_trip': 'Add to Trip',
-            'already_in_cart': 'Already in Cart',
             'no_products_found': 'No products found with available inventory on this vessel.',
             'error_searching_products': 'Error searching products. Please try again.',
             'calculating_cogs': 'Calculating COGS...',
@@ -438,7 +440,6 @@ document.addEventListener('DOMContentLoaded', function() {
             'add_sales_item': 'أضف عنصر بيع',
             'update_item': 'تحديث العنصر',
             'add_to_trip': 'أضف للرحلة',
-            'already_in_cart': 'موجود في السلة',
             'no_products_found': 'لم يتم العثور على منتجات بمخزون متاح في هذه السفينة.',
             'error_searching_products': 'خطأ في البحث عن المنتجات. يرجى المحاولة مرة أخرى.',
             'calculating_cogs': 'جاري حساب التكلفة...',
@@ -627,10 +628,10 @@ function displayAvailableProducts() {
             <td>
                 <div>
                     <strong>${product.name}</strong>
-                    ${product.is_duty_free ? '<span class="badge bg-warning text-dark ms-1">' + _('duty_free') + '</span>' : ''}
+                    ${product.is_duty_free ? '<br><span class="badge bg-warning text-dark ms-1">' + _('duty_free') + '</span></br>' : ''}
                 </div>
             </td>
-            <td><code data-number data-original="${product.item_id}">${translateNumber(product.item_id)}</code></td>
+            <td class="text-center"><code data-number data-original="${product.item_id}">${translateNumber(product.item_id)}</code></td>
             <td class="text-end">
                 <span class="fw-bold text-success" data-number data-original="${product.total_quantity}">${translateNumber(product.total_quantity.toString())}</span>
                 <small class="text-muted d-block"><span data-translate="units">units</span></small>
@@ -1495,6 +1496,8 @@ function displayVesselPricingOverview(vesselWarnings) {
 
 window.addEventListener('languageChanged', function() {
     console.log('Language changed - re-translating pricing warnings');
+    window.updatePageTranslations();
+    updateCartDisplay();
     
     // Re-translate pricing warnings
     if (window.pendingPricingWarnings) {

@@ -64,7 +64,7 @@
                                 <label for="report_date" class="form-label fw-bold">
                                     <i class="bi bi-calendar me-1"></i> <span data-translate="report_date">Waste Date</span>
                                 </label>
-                                <input type="date" class="form-control" name="report_date" value="{{ today }}" required>
+                                <input type="date" class="form-control" name="report_date" value="{{ today|date:'Y-m-d' }}" required>
                             </div>
                         </div>
 
