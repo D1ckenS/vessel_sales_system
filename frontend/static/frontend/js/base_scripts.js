@@ -1238,3 +1238,1208 @@ window.templateUtils = {
         }
     }
 };
+
+/* =============================================================================
+   🎯 CORRECTED UNIVERSAL CART MANAGEMENT SYSTEM
+   Complete fix for all "this" issues, missing methods, and product display problems
+   ============================================================================= */
+
+class UniversalCartManager {
+    constructor(config) {
+        // Core configuration
+        this.entityType = config.entityType;
+        this.entityId = config.entityId;
+        this.storageKey = `${this.entityType}_${this.entityId}`;
+        
+        // DOM element selectors
+        this.selectors = {
+            cart: config.cartSelector || '#cartList',
+            emptyState: config.emptyStateSelector || '#emptyCart',
+            completeBtn: config.completeBtnSelector || '#completeBtn',
+            formTitle: config.formTitleSelector || '#formTitle',
+            addBtn: config.addBtnSelector || '#addBtn',
+            addBtnText: config.addBtnTextSelector || '#addBtnText',
+            productSearch: config.productSearchSelector || '#productSearch',
+            form: config.formSelector || '#addForm',
+            ...config.customSelectors
+        };
+        
+        // Business logic configuration
+        this.endpoints = {
+            loadProducts: config.endpoints?.loadProducts,
+            searchProducts: config.endpoints?.searchProducts,
+            complete: config.endpoints?.complete,
+            cancel: config.endpoints?.cancel
+        };
+        
+        // State management
+        this.cart = [];
+        this.availableProducts = [];
+        this.selectedProduct = null;
+        this.editingIndex = -1;
+        
+        // Business-specific configuration
+        this.config = config;
+        
+        // Initialize
+        this.initialize();
+    }
+
+    async initialize() {
+        try {
+            await this.loadCartFromStorage();
+            await this.loadExistingData();
+            await this.loadAvailableProducts();
+            this.setupEventListeners();
+            this.updateDisplay();
+            console.log(`✅ ${this.entityType} cart initialized successfully`);
+        } catch (error) {
+            console.error(`❌ Error initializing ${this.entityType} cart:`, error);
+            this.showAlert(this._('error_loading_cart'), 'warning');
+        }
+    }
+
+    loadCartFromStorage() {
+        try {
+            const savedCart = localStorage.getItem(this.storageKey);
+            if (savedCart) {
+                this.cart = JSON.parse(savedCart);
+                console.log(`Loaded ${this.entityType} cart from localStorage:`, this.cart);
+            }
+        } catch (error) {
+            console.error('Error loading cart from storage:', error);
+            this.cart = [];
+        }
+    }
+
+    saveCartToStorage() {
+        try {
+            localStorage.setItem(this.storageKey, JSON.stringify(this.cart));
+            console.log(`${this.entityType} cart saved to localStorage`);
+        } catch (error) {
+            console.error('Error saving cart to storage:', error);
+        }
+    }
+
+    clearStorage() {
+        try {
+            localStorage.removeItem(this.storageKey);
+            console.log(`${this.entityType} cart storage cleared`);
+        } catch (error) {
+            console.error('Error clearing cart storage:', error);
+        }
+    }
+
+    async addToCart(itemData) {
+        // Validate item using business-specific logic
+        const validationResult = this.validateCartItem(itemData);
+        if (!validationResult.isValid) {
+            this.showAlert(validationResult.message, 'warning');
+            return false;
+        }
+
+        // Process item using business-specific logic (handle async)
+        let processedItem;
+        try {
+            processedItem = await this.processCartItem(itemData);
+        } catch (error) {
+            console.error('Error processing cart item:', error);
+            this.showAlert(this._('error_processing_item'), 'danger');
+            return false;
+        }
+
+        if (this.editingIndex >= 0) {
+            // Update existing item
+            this.cart[this.editingIndex] = processedItem;
+            this.exitEditMode();
+        } else {
+            // Check for duplicates
+            const existingIndex = this.findDuplicate(processedItem);
+            if (existingIndex !== -1 && this.config.allowDuplicates === false) {
+                this.showAlert(this._('already_in_cart'), 'warning');
+                return false;
+            }
+            
+            // Add new item
+            this.cart.push(processedItem);
+        }
+
+        this.saveCartToStorage();
+        this.updateDisplay();
+        this.clearForm();
+        this.showAlert(this._('item_added_success'), 'success');
+        this.focusSearchField();
+        
+        return true;
+    }
+
+    async removeFromCart(index) {
+        if (index < 0 || index >= this.cart.length) return false;
+
+        const confirmed = await this.confirmTranslated('remove_cart_item');
+        if (confirmed) {
+            this.cart.splice(index, 1);
+            this.saveCartToStorage();
+            this.updateDisplay();
+            this.showAlert(this._('item_removed'), 'info');
+            return true;
+        }
+        return false;
+    }
+
+    editCartItem(index) {
+        if (index < 0 || index >= this.cart.length) {
+            this.showAlert(this._('invalid_item_edit'), 'error');
+            return false;
+        }
+
+        const item = this.cart[index];
+        this.editingIndex = index;
+
+        // Find product in available products
+        this.selectedProduct = this.availableProducts.find(p => p.id === item.product_id);
+        
+        if (this.selectedProduct) {
+            this.populateFormForEdit(item);
+            this.updateFormUI('edit');
+            this.scrollToForm();
+            return true;
+        } else {
+            this.showAlert(this._('product_no_longer_available'), 'warning');
+            return false;
+        }
+    }
+
+    clearCart() {
+        this.cart = [];
+        this.saveCartToStorage();
+        this.updateDisplay();
+    }
+
+    updateDisplay() {
+        this.updateCartList();
+        this.updateSummary();
+        this.updateCompleteButton();
+        this.updateFormValidation();
+        
+        // Apply translations to updated content
+        if (window.updatePageTranslations) {
+            setTimeout(() => window.updatePageTranslations(), 0);
+        }
+    }
+
+    updateCartList() {
+        const cartElement = document.querySelector(this.selectors.cart);
+        const emptyStateElement = document.querySelector(this.selectors.emptyState);
+
+        if (this.cart.length === 0) {
+            if (cartElement) cartElement.innerHTML = '';
+            if (emptyStateElement) emptyStateElement.style.display = 'block';
+            return;
+        }
+
+        if (emptyStateElement) emptyStateElement.style.display = 'none';
+        
+        if (cartElement) {
+            cartElement.innerHTML = this.renderCartItems();
+        }
+    }
+
+    updateSummary() {
+        const summary = this.calculateSummary();
+        this.updateSummaryElements(summary);
+    }
+
+    updateCompleteButton() {
+        const completeBtnElement = document.querySelector(this.selectors.completeBtn);
+        if (completeBtnElement) {
+            completeBtnElement.disabled = this.cart.length === 0;
+        }
+    }
+
+    setupEventListeners() {
+        // Form submission
+        const formElement = document.querySelector(this.selectors.form);
+        if (formElement) {
+            formElement.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.handleFormSubmit();
+            });
+        }
+
+        // Product search
+        const searchElement = document.querySelector(this.selectors.productSearch);
+        if (searchElement) {
+            let searchTimeout;
+            searchElement.addEventListener('input', (e) => {
+                clearTimeout(searchTimeout);
+                const searchTerm = e.target.value.trim();
+                
+                if (searchTerm.length >= 2) {
+                    searchTimeout = setTimeout(() => this.searchProducts(searchTerm), 300);
+                } else if (searchTerm.length === 0) {
+                    this.resetProductList();
+                }
+            });
+        }
+
+        // Setup additional business-specific listeners
+        this.setupCustomEventListeners();
+    }
+
+    clearForm() {
+        const formElement = document.querySelector(this.selectors.form);
+        if (formElement) {
+            formElement.reset();
+        }
+        
+        this.selectedProduct = null;
+        this.clearProductSelection();
+        this.updateFormValidation();
+    }
+
+    exitEditMode() {
+        this.editingIndex = -1;
+        this.updateFormUI('add');
+        this.clearForm();
+    }
+
+    updateFormUI(mode) {
+        const titleElement = document.querySelector(this.selectors.formTitle);
+        const addBtnTextElement = document.querySelector(this.selectors.addBtnText);
+
+        if (mode === 'edit') {
+            if (titleElement) {
+                titleElement.innerHTML = `<i class="bi bi-pencil"></i> ${this._('edit_item')}`;
+            }
+            if (addBtnTextElement) {
+                addBtnTextElement.textContent = this._('update_item');
+            }
+        } else {
+            if (titleElement) {
+                titleElement.innerHTML = `<i class="bi bi-plus-circle"></i> ${this._('add_item')}`;
+            }
+            if (addBtnTextElement) {
+                addBtnTextElement.textContent = this._('add_to_entity');
+            }
+        }
+    }
+
+    async loadAvailableProducts() {
+        if (!this.endpoints.loadProducts) return;
+
+        try {
+            const response = await fetch(this.endpoints.loadProducts, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': window.getCsrfToken()
+                },
+                body: JSON.stringify(this.getLoadProductsPayload())
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                this.availableProducts = data.products;
+                this.displayAvailableProducts();
+            } else {
+                console.error('Error loading products:', data.error);
+            }
+        } catch (error) {
+            console.error('Error loading products:', error);
+        }
+    }
+
+    async searchProducts(searchTerm) {
+        if (!this.endpoints.searchProducts) return;
+
+        try {
+            const response = await fetch(this.endpoints.searchProducts, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': window.getCsrfToken()
+                },
+                body: JSON.stringify({
+                    search: searchTerm,
+                    ...this.getSearchProductsPayload()
+                })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                this.availableProducts = data.products;
+                this.displayAvailableProducts();
+            }
+        } catch (error) {
+            console.error('Error searching products:', error);
+        }
+    }
+
+    async completeEntity() {
+        if (this.cart.length === 0) {
+            this.showAlert(this._('add_one_item_first'), 'warning');
+            return;
+        }
+
+        const summary = this.calculateSummary();
+        const confirmed = await this.confirmCompletion(summary);
+        if (!confirmed) return;
+
+        const completeBtnElement = document.querySelector(this.selectors.completeBtn);
+        const originalText = completeBtnElement?.innerHTML;
+        
+        if (completeBtnElement) {
+            completeBtnElement.innerHTML = `<span class="spinner-border spinner-border-sm"></span> ${this._('completing')}`;
+            completeBtnElement.disabled = true;
+        }
+
+        try {
+            const response = await fetch(this.endpoints.complete, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': window.getCsrfToken()
+                },
+                body: JSON.stringify(this.getCompletionPayload())
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                this.clearStorage();
+                this.showAlert(data.message, 'success');
+                this.handleCompletionSuccess(data);
+            } else {
+                this.showAlert(data.error || this._('error_completing'), 'danger');
+                this.restoreCompleteButton(completeBtnElement, originalText);
+            }
+        } catch (error) {
+            console.error('Error completing entity:', error);
+            this.showAlert(this._('error_completing'), 'danger');
+            this.restoreCompleteButton(completeBtnElement, originalText);
+        }
+    }
+
+    // Abstract methods - must be implemented by subclasses
+    validateCartItem(itemData) {
+        throw new Error('validateCartItem must be implemented by subclass');
+    }
+
+    processCartItem(itemData) {
+        throw new Error('processCartItem must be implemented by subclass');
+    }
+
+    calculateSummary() {
+        throw new Error('calculateSummary must be implemented by subclass');
+    }
+
+    renderCartItems() {
+        throw new Error('renderCartItems must be implemented by subclass');
+    }
+
+    populateFormForEdit(item) {
+        throw new Error('populateFormForEdit must be implemented by subclass');
+    }
+
+    getLoadProductsPayload() {
+        throw new Error('getLoadProductsPayload must be implemented by subclass');
+    }
+
+    getCompletionPayload() {
+        throw new Error('getCompletionPayload must be implemented by subclass');
+    }
+
+    // Utility methods
+    findDuplicate(item) {
+        return this.cart.findIndex(cartItem => 
+            this.isDuplicate(cartItem, item)
+        );
+    }
+
+    isDuplicate(cartItem, newItem) {
+        return cartItem.product_id === newItem.product_id;
+    }
+
+    focusSearchField() {
+        const searchElement = document.querySelector(this.selectors.productSearch);
+        if (searchElement) {
+            setTimeout(() => searchElement.focus(), 100);
+        }
+    }
+
+    scrollToForm() {
+        const formElement = document.querySelector(this.selectors.form);
+        if (formElement) {
+            formElement.scrollIntoView({ behavior: 'smooth' });
+        }
+    }
+
+    restoreCompleteButton(element, originalText) {
+        if (element && originalText) {
+            element.innerHTML = originalText;
+            element.disabled = false;
+        }
+    }
+
+    _(key, params) {
+        return window.translator ? window.translator._(key, params) : key;
+    }
+
+    showAlert(message, type = 'info', duration = 5000) {
+        if (window.showAlert) {
+            window.showAlert(message, type, duration);
+        } else {
+            alert(message);
+        }
+    }
+
+    confirmTranslated(key, params) {
+        if (window.confirmTranslated) {
+            return window.confirmTranslated(key, params);
+        } else {
+            return Promise.resolve(confirm(this._(key, params)));
+        }
+    }
+
+    // Optional methods with default implementations
+    loadExistingData() {
+        return Promise.resolve();
+    }
+
+    setupCustomEventListeners() {
+        // Override in subclasses
+    }
+
+    updateFormValidation() {
+        // Override in subclasses
+    }
+
+    clearProductSelection() {
+        // Override in subclasses
+    }
+
+    displayAvailableProducts() {
+        // Override in subclasses
+    }
+
+    resetProductList() {
+        if (this.loadAvailableProducts) {
+            this.loadAvailableProducts();
+        }
+    }
+
+    handleFormSubmit() {
+        const itemData = this.extractFormData();
+        if (itemData) {
+            this.addToCart(itemData);
+        }
+    }
+
+    extractFormData() {
+        return null; // Override in subclasses
+    }
+
+    updateSummaryElements(summary) {
+        // Override in subclasses
+    }
+
+    getSearchProductsPayload() {
+        return {};
+    }
+
+    confirmCompletion(summary) {
+        return this.confirmTranslated('confirm_completion', {
+            count: this.cart.length,
+            total: summary.total?.toFixed(3) || '0.000'
+        });
+    }
+
+    handleCompletionSuccess(data) {
+        setTimeout(() => {
+            window.location.href = this.config.successRedirectUrl || '/';
+        }, 2000);
+    }
+}
+
+/* =============================================================================
+   💰 CORRECTED TRIP SALES CART
+   ============================================================================= */
+
+class TripSalesCart extends UniversalCartManager {
+    constructor(tripId, vesselId) {
+        super({
+            entityType: 'trip_sales',
+            entityId: tripId,
+            cartSelector: '#salesList',
+            emptyStateSelector: '#emptySalesState',
+            completeBtnSelector: '#completeTripBtn',
+            formSelector: '#addSaleForm',
+            productSearchSelector: '#productSearch',
+            endpoints: {
+                loadProducts: '/sales/available-products/',
+                searchProducts: '/sales/search-products/',
+                complete: '/sales/trip/bulk-complete/',
+                cancel: '/sales/trip/cancel/'
+            },
+            allowDuplicates: false,
+            successRedirectUrl: '/sales/entry/'
+        });
+        
+        this.vesselId = vesselId;
+        this.canViewFinancials = window.userPermissions?.can_view_financials || false;
+    }
+
+    validateCartItem(itemData) {
+        const { quantity, product } = itemData;
+        
+        if (!product) {
+            return { isValid: false, message: this._('select_product_first') };
+        }
+        
+        if (!quantity || quantity <= 0) {
+            return { isValid: false, message: this._('enter_valid_quantity') };
+        }
+        
+        if (quantity > product.total_quantity) {
+            return { isValid: false, message: this._('insufficient_inventory') };
+        }
+        
+        return { isValid: true };
+    }
+
+    processCartItem(itemData) {
+        const { quantity, product, notes } = itemData;
+        
+        return {
+            product_id: product.id,
+            product_name: product.name,
+            product_item_id: product.item_id,
+            product_barcode: product.barcode || '',
+            is_duty_free: product.is_duty_free,
+            quantity: quantity,
+            unit_price: product.selling_price,
+            total_amount: quantity * product.selling_price,
+            total_cogs: product.calculated_cogs || 0,
+            total_profit: product.calculated_profit || 0,
+            notes: notes || ''
+        };
+    }
+
+    calculateSummary() {
+        let totalRevenue = 0;
+        let totalCOGS = 0;
+        let totalProfit = 0;
+        
+        this.cart.forEach(item => {
+            totalRevenue += item.total_amount;
+            totalCOGS += item.total_cogs || 0;
+            totalProfit += item.total_profit || 0;
+        });
+        
+        return {
+            count: this.cart.length,
+            revenue: totalRevenue,
+            cogs: totalCOGS,
+            profit: totalProfit,
+            total: totalRevenue
+        };
+    }
+
+    renderCartItems() {
+        return this.cart.map((item, index) => {
+            const cogsColumn = this.canViewFinancials ? 
+                `<td><span data-number data-original="${item.total_cogs.toFixed(3)}">${window.translateNumber(item.total_cogs.toFixed(3))}</span> JOD</td>` : '';
+            
+            const profitColumn = this.canViewFinancials ? 
+                `<td><span data-number data-original="${item.total_profit.toFixed(3)}">${window.translateNumber(item.total_profit.toFixed(3))}</span> JOD</td>` : '';
+            
+            return `
+                <tr onclick="editCartItem(${index})">
+                    <td>
+                        <strong>${item.product_name}</strong>
+                        <small class="text-muted d-block">${this._('id_label')}: <span data-number data-original="${item.product_item_id}">${window.translateNumber ? window.translateNumber(item.product_item_id.toString()) : item.product_item_id}</span></small>
+                        ${item.is_duty_free ? '<span class="badge bg-info">Duty Free</span>' : ''}
+                    </td>
+                    <td><span data-number data-original="${item.quantity}">${window.translateNumber ? window.translateNumber(item.quantity.toString()) : item.quantity}</span></td>
+                    <td><span data-number data-original="${item.unit_price.toFixed(3)}">${window.translateNumber ? window.translateNumber(item.unit_price.toFixed(3)) : item.unit_price.toFixed(3)}</span> JOD</td>
+                    <td><span data-number data-original="${item.total_amount.toFixed(3)}">${window.translateNumber ? window.translateNumber(item.total_amount.toFixed(3)) : item.total_amount.toFixed(3)}</span> JOD</td>
+                    ${cogsColumn}
+                    ${profitColumn}
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); editCartItem(${index})">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation(); removeFromCart(${index})">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    populateFormForEdit(item) {
+        document.getElementById('productSearch').value = item.product_name;
+        document.getElementById('saleQuantity').value = item.quantity;
+        document.getElementById('saleNotes').value = item.notes || '';
+        
+        // Update product info display
+        this.selectedProduct = this.availableProducts.find(p => p.id === item.product_id);
+        if (this.selectedProduct) {
+            this.displayProductInfo(this.selectedProduct);
+        }
+    }
+
+    getLoadProductsPayload() {
+        return { vessel_id: this.vesselId };
+    }
+
+    getCompletionPayload() {
+        return {
+            trip_id: this.entityId,
+            sales_items: this.cart.map(item => ({
+                product_id: item.product_id,
+                quantity: item.quantity,
+                unit_price: item.unit_price,
+                notes: item.notes || ''
+            }))
+        };
+    }
+
+    extractFormData() {
+        const quantity = parseInt(document.getElementById('saleQuantity')?.value) || 0;
+        const notes = document.getElementById('saleNotes')?.value.trim() || '';
+        
+        if (!this.selectedProduct || !quantity) return null;
+        
+        return {
+            quantity: quantity,
+            product: this.selectedProduct,
+            notes: notes
+        };
+    }
+
+    updateSummaryElements(summary) {
+        // Update trip revenue display
+        const revenueElement = document.getElementById('tripRevenue');
+        if (revenueElement) {
+            revenueElement.innerHTML = `<span data-number data-original="${summary.revenue.toFixed(3)}">${window.translateNumber ? window.translateNumber(summary.revenue.toFixed(3)) : summary.revenue.toFixed(3)}</span> <span data-currency-symbol>JOD</span>`;
+        }
+        
+        // Update COGS and profit if user has permissions
+        if (this.canViewFinancials) {
+            const cogsElement = document.getElementById('totalCOGS');
+            if (cogsElement) {
+                cogsElement.innerHTML = `<span data-number data-original="${summary.cogs.toFixed(3)}">${window.translateNumber ? window.translateNumber(summary.cogs.toFixed(3)) : summary.cogs.toFixed(3)}</span> <span data-currency-symbol>JOD</span>`;
+            }
+            
+            const profitElement = document.getElementById('totalProfit');
+            if (profitElement) {
+                profitElement.innerHTML = `<span data-number data-original="${summary.profit.toFixed(3)}">${window.translateNumber ? window.translateNumber(summary.profit.toFixed(3)) : summary.profit.toFixed(3)}</span> <span data-currency-symbol>JOD</span>`;
+            }
+        }
+    }
+}
+
+/* =============================================================================
+   🔄 CORRECTED TRANSFER ITEMS CART
+   ============================================================================= */
+
+class TransferItemsCart extends UniversalCartManager {
+    constructor(transferId, fromVesselId, toVesselId) {
+        super({
+            entityType: 'transfer_items',
+            entityId: transferId,
+            cartSelector: '#transferList',
+            emptyStateSelector: '#emptyTransferState',
+            completeBtnSelector: '#completeTransferBtn',
+            formSelector: '#addTransferForm',
+            endpoints: {
+                loadProducts: '/transfer/available-products/',
+                complete: '/transfer/bulk-complete/',
+                cancel: '/transfer/cancel/'
+            },
+            allowDuplicates: false,
+            successRedirectUrl: '/transfer/entry/'
+        });
+        
+        this.fromVesselId = fromVesselId;
+        this.toVesselId = toVesselId;
+    }
+
+    validateCartItem(itemData) {
+        const { quantity, product } = itemData;
+        
+        if (!product) {
+            return { isValid: false, message: this._('select_product_first') };
+        }
+        
+        if (!quantity || quantity <= 0) {
+            return { isValid: false, message: this._('enter_valid_quantity') };
+        }
+        
+        if (quantity > (product.available_stock || product.total_quantity || 0)) {
+            return { isValid: false, message: this._('insufficient_inventory') };
+        }
+        
+        return { isValid: true };
+    }
+
+    async processCartItem(itemData) {
+        const { quantity, product, notes } = itemData;
+        
+        // Calculate FIFO cost
+        const costData = await this.calculateFIFOCost(product.id, quantity);
+        
+        return {
+            product_id: product.id,
+            product_name: product.name,
+            product_item_id: product.item_id,
+            quantity: quantity,
+            total_cost: costData.total_cost,
+            fifo_breakdown: costData.fifo_breakdown,
+            notes: notes || '',
+            is_duty_free: product.is_duty_free || false
+        };
+    }
+
+    calculateSummary() {
+        let totalCost = 0;
+        let totalItems = 0;
+        
+        this.cart.forEach(item => {
+            totalCost += item.total_cost || 0;
+            totalItems += item.quantity;
+        });
+        
+        const avgCost = totalItems > 0 ? totalCost / totalItems : 0;
+        
+        return {
+            count: this.cart.length,
+            totalCost: totalCost,
+            totalItems: totalItems,
+            avgCost: avgCost,
+            total: totalCost
+        };
+    }
+
+    renderCartItems() {
+        return this.cart.map((item, index) => `
+            <tr onclick="editCartItem(${index})">
+                <td>
+                    <strong>${item.product_name}</strong>
+                    <small class="text-muted d-block">${this._('id_label')}: <span data-number data-original="${item.product_item_id}">${window.translateNumber ? window.translateNumber(item.product_item_id.toString()) : item.product_item_id}</span></small>
+                    ${item.is_duty_free ? '<span class="badge bg-info">Duty Free</span>' : ''}
+                </td>
+                <td><span data-number data-original="${item.quantity}">${window.translateNumber ? window.translateNumber(item.quantity.toString()) : item.quantity}</span></td>
+                <td><span data-number data-original="${item.total_cost.toFixed(3)}">${window.translateNumber ? window.translateNumber(item.total_cost.toFixed(3)) : item.total_cost.toFixed(3)}</span> JOD</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); editCartItem(${index})">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation(); removeFromCart(${index})">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    populateFormForEdit(item) {
+        document.getElementById('productSearch').value = item.product_name;
+        document.getElementById('transferQuantity').value = item.quantity;
+        document.getElementById('transferNotes').value = item.notes || '';
+        
+        this.selectedProduct = this.availableProducts.find(p => p.id === item.product_id);
+        if (this.selectedProduct) {
+            this.displayProductInfo(this.selectedProduct);
+        }
+    }
+
+    getLoadProductsPayload() {
+        return { vessel_id: this.fromVesselId };
+    }
+
+    getCompletionPayload() {
+        return {
+            transfer_id: this.entityId,
+            items: this.cart
+        };
+    }
+
+    extractFormData() {
+        const quantity = parseFloat(document.getElementById('transferQuantity')?.value) || 0;
+        const notes = document.getElementById('transferNotes')?.value.trim() || '';
+        
+        if (!this.selectedProduct || !quantity) return null;
+        
+        return {
+            quantity: quantity,
+            product: this.selectedProduct,
+            notes: notes
+        };
+    }
+
+    async calculateFIFOCost(productId, quantity) {
+        try {
+            const response = await fetch('/transfer/calculate-fifo-cost/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': window.getCsrfToken()
+                },
+                body: JSON.stringify({
+                    product_id: productId,
+                    quantity: quantity,
+                    vessel_id: this.fromVesselId
+                })
+            });
+            
+            return await response.json();
+        } catch (error) {
+            console.error('Error calculating FIFO cost:', error);
+            return {
+                total_cost: quantity * 0.050, // Fallback
+                fifo_breakdown: [],
+                isFallback: true
+            };
+        }
+    }
+}
+
+/* =============================================================================
+   📦 CORRECTED PO SUPPLIES CART
+   ============================================================================= */
+
+class POSuppliesCart extends UniversalCartManager {
+    constructor(poId, vesselId) {
+        super({
+            entityType: 'po_supplies',
+            entityId: poId,
+            cartSelector: '#suppliesList',
+            emptyStateSelector: '#emptySuppliesState',
+            completeBtnSelector: '#completePOBtn',
+            formSelector: '#addSupplyForm',
+            endpoints: {
+                loadProducts: '/supply/product-catalog/',
+                searchProducts: '/supply/search-products/',
+                complete: '/supply/po/bulk-complete/',
+                cancel: '/supply/po/cancel/'
+            },
+            allowDuplicates: false,
+            successRedirectUrl: '/supply/entry/'
+        });
+        
+        this.vesselId = vesselId;
+        this.vesselHasDutyFree = false;
+    }
+
+    validateCartItem(itemData) {
+        const { numBoxes, itemsPerBox, totalCost, product } = itemData;
+        
+        if (!product) {
+            return { isValid: false, message: this._('select_product_first') };
+        }
+        
+        if (!numBoxes || numBoxes <= 0) {
+            return { isValid: false, message: this._('enter_valid_boxes') };
+        }
+        
+        if (!itemsPerBox || itemsPerBox <= 0) {
+            return { isValid: false, message: this._('enter_valid_items_per_box') };
+        }
+        
+        if (!totalCost || totalCost <= 0) {
+            return { isValid: false, message: this._('enter_valid_cost') };
+        }
+        
+        if (product.is_duty_free && !this.vesselHasDutyFree) {
+            return { isValid: false, message: this._('duty_free_not_supported') };
+        }
+        
+        return { isValid: true };
+    }
+
+    processCartItem(itemData) {
+        const { numBoxes, itemsPerBox, totalCost, product, notes } = itemData;
+        
+        const quantity = numBoxes * itemsPerBox;
+        const unitPrice = totalCost / quantity;
+        
+        return {
+            product_id: product.id,
+            product_name: product.name,
+            product_item_id: product.item_id,
+            product_barcode: product.barcode || '',
+            is_duty_free: product.is_duty_free,
+            num_boxes: numBoxes,
+            items_per_box: itemsPerBox,
+            quantity: quantity,
+            unit_price: unitPrice,
+            total_amount: totalCost,
+            notes: notes || ''
+        };
+    }
+
+    calculateSummary() {
+        let totalCost = 0;
+        let totalItems = 0;
+        
+        this.cart.forEach(item => {
+            totalCost += item.total_amount;
+            totalItems += item.quantity;
+        });
+        
+        return {
+            count: this.cart.length,
+            totalCost: totalCost,
+            totalItems: totalItems,
+            total: totalCost
+        };
+    }
+
+    renderCartItems() {
+        return this.cart.map((item, index) => {
+            const quantityDisplay = item.num_boxes && item.items_per_box ? 
+                `<div class="box-info text-primary fw-bold">${item.num_boxes} boxes × ${item.items_per_box} = ${item.quantity}</div>` :
+                `<div class="total-units fw-bold text-primary">${item.quantity}</div>`;
+            
+            return `
+                <tr onclick="editCartItem(${index})">
+                    <td>
+                        <strong>${item.product_name}</strong>
+                        <small class="text-muted d-block">${this._('id_label')}: <span data-number data-original="${item.product_item_id}">${window.translateNumber ? window.translateNumber(item.product_item_id.toString()) : item.product_item_id}</span></small>
+                        ${item.is_duty_free ? '<span class="badge bg-info">Duty Free</span>' : ''}
+                    </td>
+                    <td>${quantityDisplay}</td>
+                    <td><span data-number data-original="${item.unit_price.toFixed(3)}">${window.translateNumber ? window.translateNumber(item.unit_price.toFixed(3)) : item.unit_price.toFixed(3)}</span> JOD</td>
+                    <td><span data-number data-original="${item.total_amount.toFixed(3)}">${window.translateNumber ? window.translateNumber(item.total_amount.toFixed(3)) : item.total_amount.toFixed(3)}</span> JOD</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); editCartItem(${index})">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation(); removeFromCart(${index})">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    populateFormForEdit(item) {
+        document.getElementById('productSearch').value = item.product_name;
+        document.getElementById('numBoxes').value = item.num_boxes || '';
+        document.getElementById('itemsPerBox').value = item.items_per_box || '';
+        document.getElementById('totalInvoiceCost').value = item.total_amount.toFixed(3);
+        document.getElementById('supplyNotes').value = item.notes || '';
+    }
+
+    getLoadProductsPayload() {
+        return { vessel_id: this.vesselId };
+    }
+
+    getCompletionPayload() {
+        return {
+            po_id: this.entityId,
+            items: this.cart.map(item => ({
+                product_id: item.product_id,
+                quantity: item.quantity,
+                unit_price: item.unit_price,
+                notes: item.notes || ''
+            }))
+        };
+    }
+
+    extractFormData() {
+        const numBoxes = parseInt(document.getElementById('numBoxes')?.value) || 0;
+        const itemsPerBox = parseInt(document.getElementById('itemsPerBox')?.value) || 0;
+        const totalCost = parseFloat(document.getElementById('totalInvoiceCost')?.value) || 0;
+        const notes = document.getElementById('supplyNotes')?.value.trim() || '';
+        
+        if (!this.selectedProduct || !numBoxes || !itemsPerBox || !totalCost) return null;
+        
+        return {
+            numBoxes: numBoxes,
+            itemsPerBox: itemsPerBox,
+            totalCost: totalCost,
+            product: this.selectedProduct,
+            notes: notes
+        };
+    }
+}
+
+/* =============================================================================
+   🗑️ CORRECTED WASTE ITEMS CART
+   ============================================================================= */
+
+class WasteItemsCart extends UniversalCartManager {
+    constructor(wasteId, vesselId) {
+        super({
+            entityType: 'waste_items',
+            entityId: wasteId,
+            cartSelector: '#wasteList',
+            emptyStateSelector: '#emptyWasteState',
+            completeBtnSelector: '#completeWasteBtn',
+            formSelector: '#addWasteForm',
+            endpoints: {
+                loadProducts: '/waste/available-products/',
+                searchProducts: '/waste/search-products/',
+                complete: '/waste/bulk-complete/',
+                cancel: '/waste/cancel/'
+            },
+            allowDuplicates: false,
+            successRedirectUrl: '/waste/entry/'
+        });
+        
+        this.vesselId = vesselId;
+    }
+
+    validateCartItem(itemData) {
+        const { quantity, product, damageReason } = itemData;
+        
+        if (!product) {
+            return { isValid: false, message: this._('select_product_first') };
+        }
+        
+        if (!quantity || quantity <= 0) {
+            return { isValid: false, message: this._('enter_valid_quantity') };
+        }
+        
+        if (quantity > (product.available_quantity || 0)) {
+            return { isValid: false, message: this._('insufficient_inventory') };
+        }
+        
+        if (!damageReason) {
+            return { isValid: false, message: this._('select_damage_reason') };
+        }
+        
+        return { isValid: true };
+    }
+
+    processCartItem(itemData) {
+        const { quantity, product, damageReason, notes } = itemData;
+        
+        return {
+            product_id: product.id,
+            product_name: product.name,
+            product_item_id: product.item_id,
+            quantity: quantity,
+            unit_cost: product.current_cost,
+            total_cost: quantity * product.current_cost,
+            damage_reason: damageReason,
+            notes: notes || ''
+        };
+    }
+
+    calculateSummary() {
+        let totalCost = 0;
+        let totalItems = 0;
+        
+        this.cart.forEach(item => {
+            totalCost += item.total_cost;
+            totalItems += item.quantity;
+        });
+        
+        return {
+            count: this.cart.length,
+            totalCost: totalCost,
+            totalItems: totalItems,
+            total: totalCost
+        };
+    }
+
+    renderCartItems() {
+        return this.cart.map((item, index) => `
+            <tr onclick="editCartItem(${index})">
+                <td>
+                    <strong>${item.product_name}</strong>
+                    <small class="text-muted d-block">${this._('id_label')}: <span data-number data-original="${item.product_item_id}">${window.translateNumber ? window.translateNumber(item.product_item_id.toString()) : item.product_item_id}</span></small>
+                    ${item.notes ? `<small class="text-muted d-block">📝 ${item.notes}</small>` : ''}
+                </td>
+                <td>
+                    <span class="fw-bold text-primary" data-number data-original="${item.quantity}">${window.translateNumber ? window.translateNumber(item.quantity.toString()) : item.quantity}</span>
+                    <small class="text-muted d-block">${this._('units')}</small>
+                </td>
+                <td><span class="fw-bold text-danger" data-number data-original="${item.total_cost.toFixed(3)}">${item.total_cost.toFixed(3)} JOD</span></td>
+                <td><span class="badge bg-warning">${item.damage_reason}</span></td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); editCartItem(${index})">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation(); removeFromCart(${index})">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    populateFormForEdit(item) {
+        document.getElementById('productSearch').value = item.product_name;
+        document.getElementById('wasteQuantity').value = item.quantity;
+        document.getElementById('damageReason').value = item.damage_reason;
+        document.getElementById('wasteNotes').value = item.notes || '';
+    }
+
+    getLoadProductsPayload() {
+        return { vessel_id: this.vesselId };
+    }
+
+    getCompletionPayload() {
+        return {
+            waste_id: this.entityId,
+            items: this.cart.map(item => ({
+                product_id: item.product_id,
+                quantity: item.quantity,
+                damage_reason: item.damage_reason,
+                notes: item.notes || ''
+            }))
+        };
+    }
+
+    extractFormData() {
+        const quantity = parseInt(document.getElementById('wasteQuantity')?.value) || 0;
+        const damageReason = document.getElementById('damageReason')?.value;
+        const notes = document.getElementById('wasteNotes')?.value.trim() || '';
+        
+        if (!this.selectedProduct || !quantity || !damageReason) return null;
+        
+        return {
+            quantity: quantity,
+            product: this.selectedProduct,
+            damageReason: damageReason,
+            notes: notes
+        };
+    }
+}
+
+// Global registry
+window.CartRegistry = {
+    carts: new Map(),
+    register(name, cartInstance) {
+        this.carts.set(name, cartInstance);
+        console.log(`📦 Cart '${name}' registered`);
+    },
+    get(name) {
+        return this.carts.get(name);
+    },
+    remove(name) {
+        const removed = this.carts.delete(name);
+        if (removed) {
+            console.log(`📦 Cart '${name}' removed from registry`);
+        }
+        return removed;
+    },
+    list() {
+        return Array.from(this.carts.keys());
+    }
+};
+
+// Export classes
+window.UniversalCartManager = UniversalCartManager;
+window.TripSalesCart = TripSalesCart;
+window.TransferItemsCart = TransferItemsCart;
+window.POSuppliesCart = POSuppliesCart;
+window.WasteItemsCart = WasteItemsCart;
