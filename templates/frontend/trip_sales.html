@@ -377,93 +377,6 @@ let availableProducts = [];
 
 // Add translations for COGS features
 document.addEventListener('DOMContentLoaded', function() {
-    const salesTranslations = {
-        en: {
-            'total_cogs': 'Total COGS',
-            'total_profit': 'Total Profit',
-            'cogs': 'COGS',
-            'profit': 'Profit',
-            'available_products_for': 'Available products for',
-            'product_name': 'Product Name',
-            'product_id': 'Product ID',
-            'complete_trip_confirm': 'Complete trip with {count} items?\n\nTotal Revenue: {revenue} JOD\nTotal COGS: {cogs} JOD\nTotal Profit: {profit} JOD\n\nThis action cannot be undone.',
-            'add_one_item_first': 'Please add at least one item to complete the trip.',
-            'item_added_success': 'Item added to cart successfully!',
-            'item_removed': 'Item removed from cart.',
-            'invalid_item_edit': 'Invalid item selected for editing.',
-            'error_completing_trip': 'Error completing trip. Please try again.',
-            'completing': 'Completing...',
-            'remove_cart_item': 'Remove this item from the cart?',
-            'edit_sales_item': 'Edit Sales Item',
-            'add_sales_item': 'Add Sales Item',
-            'update_item': 'Update Item',
-            'add_to_trip': 'Add to Trip',
-            'no_products_found': 'No products found with available inventory on this vessel.',
-            'error_searching_products': 'Error searching products. Please try again.',
-            'calculating_cogs': 'Calculating COGS...',
-            'edit_item': 'Edit Item',
-            'remove_item': 'Remove Item',
-            'select_from_available': 'Click on a product from the available products list',
-            'trip_completed': 'Trip Completed',
-            'trip_completed_desc': 'This trip has been completed and is now read-only. All sales have been finalized and inventory has been updated.',
-            'completion_date': 'Completed:',
-            'pricing_warnings_detected': 'Pricing Warnings Detected',
-            'manage_pricing': 'Manage Pricing',
-            'custom_price': 'Custom',
-            'default_price': 'Default',
-            'pricing_info': 'Pricing Info',
-            'export_trip_data': 'Export Trip Data',
-            'choose_export_format': 'Choose Export Format',
-            'exporting': 'Exporting...',
-            'item_revenue': 'Item Revenue',
-            'cart_summary': 'Cart Summary:',
-            'total_items': 'total items',
-            'revenue': 'revenue',
-        },
-        ar: {
-            'total_cogs': 'إجمالي تكلفة البضاعة المباعة',
-            'total_profit': 'إجمالي الربح',
-            'cogs': 'تكلفة البضاعة',
-            'profit': 'الربح',
-            'available_products_for': 'المنتجات المتوفرة لـ',
-            'product_name': 'اسم المنتج',
-            'product_id': 'رقم المنتج',
-            'complete_trip_confirm': 'إكمال الرحلة مع {count} عنصر؟\n\nإجمالي الإيرادات: {revenue} دينار\nإجمالي تكلفة البضاعة: {cogs} دينار\nإجمالي الربح: {profit} دينار\n\nلا يمكن التراجع عن هذا الإجراء.',
-            'add_one_item_first': 'يرجى إضافة عنصر واحد على الأقل لإكمال الرحلة.',
-            'item_added_success': 'تم إضافة العنصر إلى السلة بنجاح!',
-            'item_removed': 'تم إزالة العنصر من السلة.',
-            'invalid_item_edit': 'عنصر غير صالح تم اختياره للتعديل.',
-            'error_completing_trip': 'خطأ في إكمال الرحلة. يرجى المحاولة مرة أخرى.',
-            'completing': 'جاري الإكمال...',
-            'remove_cart_item': 'إزالة هذا العنصر من السلة؟',
-            'edit_sales_item': 'تحرير عنصر البيع',
-            'add_sales_item': 'أضف عنصر بيع',
-            'update_item': 'تحديث العنصر',
-            'add_to_trip': 'أضف للرحلة',
-            'no_products_found': 'لم يتم العثور على منتجات بمخزون متاح في هذه السفينة.',
-            'error_searching_products': 'خطأ في البحث عن المنتجات. يرجى المحاولة مرة أخرى.',
-            'calculating_cogs': 'جاري حساب التكلفة...',
-            'edit_item': 'تحرير العنصر',
-            'remove_item': 'حذف العنصر',
-            'select_from_available': 'انقر على منتج من قائمة المنتجات المتوفرة',
-            'trip_completed': 'تم إكمال الرحلة',
-            'trip_completed_desc': 'تم إكمال هذه الرحلة وهي الآن للقراءة فقط. تم الانتهاء من جميع المبيعات وتحديث المخزون.',
-            'completion_date': 'تاريخ الإكمال:',
-            'pricing_warnings_detected': 'تم اكتشاف تحذيرات التسعير',
-            'manage_pricing': 'إدارة التسعير',
-            'custom_price': 'مخصص',
-            'default_price': 'افتراضي',
-            'pricing_info': 'معلومات التسعير',
-            'export_trip_data': 'تصدير بيانات الرحلة',
-            'choose_export_format': 'حدد نوع التصدير',
-            'exporting': 'جاري التصدير...',
-            'item_revenue': 'ايرادات العنصر',
-            'cart_summary': 'ملخص السلة:',
-            'total_items': 'إجمالي العناصر',
-            'revenue': 'الإيرادات',
-        }
-    };
-
     window.initializePage({
         titleKey: 'trip_sales',
         fallbackTitle: 'Trip Sales',
@@ -1079,42 +992,13 @@ async function cancelEdit() {
         return;
     }
     
-    // Ask user if they want to cancel the entire trip
-    const confirmed = await confirmTranslated('cancel_trip_confirm');
-    if (confirmed) {
-        const tripId = document.getElementById('tripId').value;
-        
-        // Call backend to cancel trip
-        fetch('/sales/trip/cancel/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': window.getCsrfToken()
-            },
-            body: JSON.stringify({
-                trip_id: tripId
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Clear localStorage
-                const storageKey = `trip_sales_${tripId}`;
-                localStorage.removeItem(storageKey);
-                
-                showAlert(data.message, 'success');
-                setTimeout(() => {
-                    window.location.href = "{% url 'frontend:sales_entry' %}";
-                }, 1500);
-            } else {
-                showAlert(data.error, 'danger');
-            }
-        })
-        .catch(error => {
-            console.error('Error canceling trip:', error);
-            showAlert(_('error_canceling_trip'), 'danger');
-        });
-    }
+    const tripData = JSON.parse(document.getElementById('tripData').textContent);
+    await window.standardizeCancelOperation(
+        'trip', 
+        tripData.trip.id, 
+        '/sales/trip/cancel/', 
+        '/sales/entry/'
+    );
 }
 
 function updateCartDisplay() {

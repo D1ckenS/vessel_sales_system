@@ -358,44 +358,6 @@
     <script>
         // Translation System (simplified version matching your base.html)
         let currentLanguage = localStorage.getItem('preferred_language') || 'en';
-        
-        const translations = {
-            en: {
-                'target_language': 'عربي',
-                'vessel_sales': 'Vessel Sales',
-                'management_system': 'Management System',
-                'system_description': 'Maritime inventory and sales management platform for Jordanian vessels',
-                'feature_fleet': '9 Vessel Fleet Management',
-                'feature_fifo': 'FIFO Inventory System',
-                'feature_analytics': 'Advanced Analytics',
-                'feature_bilingual': 'Bilingual Interface',
-                'welcome_back_login': 'Welcome Back',
-                'login_instruction': 'Please sign in to access the vessel management system',
-                'username': 'Username',
-                'password': 'Password',
-                'sign_in': 'Sign In',
-                'signing_in': 'Signing In...',
-                'need_access': 'Need access? Contact your system administrator'
-            },
-            ar: {
-                'target_language': 'English',
-                'vessel_sales': 'مبيعات السفن',
-                'management_system': 'نظام الإدارة',
-                'system_description': 'منصة إدارة المخزون والمبيعات البحرية للسفن الأردنية',
-                'feature_fleet': 'إدارة أسطول ٩ سفن',
-                'feature_fifo': 'نظام مخزون الوارد أولاً صادر أولاً',
-                'feature_analytics': 'تحليلات متقدمة',
-                'feature_bilingual': 'واجهة ثنائية اللغة',
-                'welcome_back_login': 'مرحباً بعودتك',
-                'login_instruction': 'يرجى تسجيل الدخول للوصول إلى نظام إدارة السفن',
-                'username': 'اسم المستخدم',
-                'password': 'كلمة المرور',
-                'sign_in': 'تسجيل الدخول',
-                'signing_in': 'جاري تسجيل الدخول...',
-                'need_access': 'تحتاج وصول؟ اتصل بمدير النظام'
-            }
-        };
-        
         function updateLanguageDisplay() {
             // Update all translatable elements
             const elements = document.querySelectorAll('[data-translate]');

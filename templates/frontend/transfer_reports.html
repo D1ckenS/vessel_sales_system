@@ -355,46 +355,6 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Add translations for transfer reports
-    const pageTranslations = {
-        en: {
-            'transfer_reports': 'Transfer Reports',
-            'transfer_reports_desc': 'Analyze transfer operations and performance',
-            'new_transfer': 'New Transfer',
-            'manage_transfers': 'Manage Transfers',
-            'export_report': 'Export Report',
-            'items_transferred': 'Items Transferred',
-            'avg_cost_transfer': 'Avg Cost/Transfer',
-            'transfer_history': 'Transfer History',
-            'route': 'Route',
-            'avg_cost_item': 'Avg Cost/Item',
-            'no_transfer_data': 'No Transfer Data',
-            'no_transfers_match_criteria': 'No transfers match your selected criteria',
-            'try_adjusting_filters': 'Try adjusting your filters or create a new transfer',
-            'total_showing': 'Showing',
-            'total_value': 'Total Value',
-            'vessel_sales_system': 'Vessel Sales System'
-        },
-        ar: {
-            'transfer_reports': 'تقارير التحويلات',
-            'transfer_reports_desc': 'تحليل عمليات التحويل والأداء',
-            'new_transfer': 'تحويل جديد',
-            'manage_transfers': 'إدارة التحويلات',
-            'export_report': 'تصدير التقرير',
-            'items_transferred': 'العناصر المحولة',
-            'avg_cost_transfer': 'متوسط التكلفة/التحويل',
-            'transfer_history': 'تاريخ التحويلات',
-            'route': 'المسار',
-            'avg_cost_item': 'متوسط التكلفة/العنصر',
-            'no_transfer_data': 'لا توجد بيانات تحويل',
-            'no_transfers_match_criteria': 'لا توجد تحويلات تطابق المعايير المحددة',
-            'try_adjusting_filters': 'جرب تعديل المرشحات أو إنشاء تحويل جديد',
-            'total_showing': 'عرض',
-            'total_value': 'القيمة الإجمالية',
-            'vessel_sales_system': 'نظام مبيعات السفن'
-        }
-    };
-
     window.initializePage({
         titleKey: 'transfer_reports',
         fallbackTitle: 'Transfer Reports',

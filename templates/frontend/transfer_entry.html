@@ -191,81 +191,10 @@
 <script>
 // Add page-specific translations
 document.addEventListener('DOMContentLoaded', function() {
-    const pageTranslations = {
-        en: {
-            'vessel_sales_system': 'Vessel Sales System',
-            'transfer_entry_desc': 'Create new transfer and move inventory between vessels',
-            'back_to_dashboard': 'Back to Dashboard',
-            'create_new_transfer': 'Create New Transfer',
-            'from_vessel_source': 'From Vessel (Source)',
-            'choose_source_vessel': 'Choose source vessel...',
-            'duty_free_available': '(Duty-Free Available)',
-            'to_vessel_destination': 'To Vessel (Destination)',
-            'first_select_source_vessel': 'First select source vessel...',
-            'transfer_date': 'Transfer Date',
-            'transfer_notes': 'Transfer Notes (Optional)',
-            'clear_form': 'Clear Form',
-            'create_transfer_add_items': 'Create Transfer & Add Items',
-            'recent_transfers': 'Recent Transfers',
-            'date': 'Date',
-            'from_to': 'From → To',
-            'items': 'Items',
-            'by': 'By',
-            'actions': 'Actions',
-            'quantity': 'Quantity',
-            'ago': 'ago',
-            'view': 'View',
-            'no_transfers_yet': 'No transfers recorded yet',
-            'create_first_transfer': 'Create your first transfer using the form above',
-            'choose_destination_vessel': 'Choose destination vessel...',
-            'duty_free_supported': 'Duty-Free Supported',
-            'no_duty_free': 'No Duty-Free'
-        },
-        ar: {
-            'vessel_sales_system': 'نظام مبيعات السفن',
-            'transfer_entry_desc': 'إنشاء تحويل جديد ونقل المخزون بين السفن',
-            'back_to_dashboard': 'الرجوع للوحة التحكم',
-            'create_new_transfer': 'إنشاء تحويل جديد',
-            'from_vessel_source': 'من السفينة (المصدر)',
-            'choose_source_vessel': 'اختر السفينة المصدر...',
-            'duty_free_available': '(السوق الحرة متوفرة)',
-            'to_vessel_destination': 'إلى السفينة (الوجهة)',
-            'first_select_source_vessel': 'اختر السفينة المصدر أولاً...',
-            'transfer_date': 'تاريخ التحويل',
-            'transfer_notes': 'ملاحظات التحويل (اختياري)',
-            'clear_form': 'مسح النموذج',
-            'create_transfer_add_items': 'إنشاء التحويل وإضافة العناصر',
-            'recent_transfers': 'التحويلات الأخيرة',
-            'date': 'التاريخ',
-            'from_to': 'من ← إلى',
-            'items': 'العناصر',
-            'by': 'بواسطة',
-            'actions': 'الإجراءات',
-            'quantity': 'الكمية',
-            'ago': 'مضت',
-            'view': 'عرض',
-            'no_transfers_yet': 'لم يتم تسجيل تحويلات بعد',
-            'create_first_transfer': 'أنشئ أول تحويل باستخدام النموذج أعلاه',
-            'choose_destination_vessel': 'اختر السفينة المقصودة...',
-            'duty_free_supported': 'السوق الحرة مدعومة',
-            'no_duty_free': 'لا سوق حرة'
-        }
-    };
-
     window.initializePage({
         titleKey: 'transfer_entry',
         fallbackTitle: 'Transfer Entry',
-        pageTranslations: pageTranslations
-    })
-    
-    // Merge with global translations
-    const currentTranslations = window.translator.translations;
-    Object.keys(pageTranslations).forEach(lang => {
-        if (currentTranslations[lang]) {
-            Object.assign(currentTranslations[lang], pageTranslations[lang]);
-        }
-    });
-    
+    })    
     // Apply translations
     updatePageTranslations();
 });

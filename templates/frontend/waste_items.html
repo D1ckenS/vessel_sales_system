@@ -539,7 +539,7 @@ function setupEventListeners() {
     // Complete waste report button
     document.getElementById('completeWasteBtn').addEventListener('click', async function() {
         if (wasteItemsCart.length === 0) {
-            showAlert('Please add at least one item to complete the waste report', 'warning');
+            window.showAlert('Please add at least one item to complete the waste report', 'warning');
             return;
         }
         
@@ -576,16 +576,16 @@ function setupEventListeners() {
                     const storageKey = `waste_items_${wasteId}`;
                     localStorage.removeItem(storageKey);
                     
-                    showAlert(data.message, 'success');
+                    window.showAlert(data.message, 'success');
                     setTimeout(() => {
                         window.location.href = '{% url "frontend:waste_entry" %}';
                     }, 1500);
                 } else {
-                    showAlert(data.error, 'danger');
+                    window.showAlert(data.error, 'danger');
                 }
             } catch (error) {
                 console.error('Error completing waste report:', error);
-                showAlert('Error completing waste report', 'danger');
+                window.showAlert('Error completing waste report', 'danger');
             }
         }
     });
@@ -611,12 +611,12 @@ function searchProducts(searchTerm) {
             availableProducts = data.products;
             updateAvailableProductsList();
         } else {
-            showAlert(data.error, 'danger');
+            window.showAlert(data.error, 'danger');
         }
     })
     .catch(error => {
         console.error('Error searching products:', error);
-        showAlert('Error searching products', 'danger');
+        window.showAlert('Error searching products', 'danger');
     });
 }
 
@@ -629,47 +629,64 @@ function updateWasteCost() {
     }
 }
 
-// FIXED: Proper validation function like trip_sales
 function validateWasteForm() {
-    const quantity = parseInt(document.getElementById('wasteQuantity').value) || 0;
-    const damageReason = document.getElementById('damageReason').value;
+    const quantity = parseInt(document.getElementById('wasteQuantity')?.value) || 0;
+    const damageReason = document.getElementById('damageReason')?.value || '';
     const addBtn = document.getElementById('addWasteBtn');
     const addBtnText = document.getElementById('addBtnText');
     
-    let isValid = true;
-    let buttonText = _('add_to_waste');
-    const existingIndex = wasteItemsCart.findIndex(item => item.product_id === selectedProduct.id);
+    // 🔧 SAFETY: Exit early if required elements don't exist
+    if (!addBtn || !addBtnText) {
+        console.warn('validateWasteForm: Required DOM elements not found');
+        return false;
+    }
     
+    let isValid = true;
+    let buttonText = window.translator?._('add_to_waste') || 'Add to Waste';
+    
+    // 🔧 FIX: Check selectedProduct first before any operations
     if (!selectedProduct) {
         isValid = false;
-        buttonText = _('select_product_first');
+        buttonText = window.translator?._('select_product_first') || 'Select Product First';
     } else if (!quantity || quantity <= 0) {
         isValid = false;
-        buttonText = _('enter_valid_quantity');
-    } else if (quantity > selectedProduct.available_quantity) {
+        buttonText = window.translator?._('enter_valid_quantity') || 'Enter Valid Quantity';
+    } else if (selectedProduct.available_quantity && quantity > selectedProduct.available_quantity) {
         isValid = false;
         buttonText = `Max: ${selectedProduct.available_quantity}`;
     } else if (!damageReason) {
         isValid = false;
-        buttonText = _('select_damage_reason');
+        buttonText = window.translator?._('select_damage_reason') || 'Select Damage Reason';
     } else {
-        // Check if product already in cart
-        if (existingIndex !== -1 && editingIndex === -1) {
-            buttonText = _('already_in_cart');
+        // 🔧 FIX: Only check for duplicates when selectedProduct exists and editingIndex is valid
+        if (editingIndex === -1 && Array.isArray(wasteItemsCart) && wasteItemsCart.length > 0) {
+            try {
+                const existingIndex = wasteItemsCart.findIndex(item => 
+                    item && item.product_id === selectedProduct.id
+                );
+                if (existingIndex !== -1) {
+                    isValid = false;
+                    buttonText = window.translator?._('already_in_cart') || 'Already in Cart';
+                }
+            } catch (error) {
+                console.error('Error checking for duplicates:', error);
+            }
+        }
+        
+        // If still valid, use appropriate button text
+        if (isValid) {
+            buttonText = editingIndex >= 0 ? 
+                (window.translator?._('update_item') || 'Update Item') : 
+                (window.translator?._('add_to_waste') || 'Add to Waste');
         }
     }
     
+    // Update button state
     addBtn.disabled = !isValid;
     addBtnText.textContent = buttonText;
     
     // Update button styling
-    if (!isValid) {
-        addBtn.classList.add('btn-secondary');
-        addBtn.classList.remove('btn-danger');
-    } else {
-        addBtn.classList.add('btn-danger');
-        addBtn.classList.remove('btn-secondary');
-    }
+    addBtn.className = isValid ? 'btn btn-danger' : 'btn btn-secondary';
     
     return isValid;
 }
@@ -786,29 +803,132 @@ function updateWasteTotals() {
     }, 0);
 }
 
-// Edit/Remove functions - following trip_sales pattern
 function editWasteItem(index) {
+    // 🔧 FIX: Comprehensive input validation
+    if (typeof index !== 'number' || index < 0) {
+        console.error('editWasteItem: Invalid index provided:', index);
+        window.showAlert?.('Invalid item selected for editing', 'error');
+        return;
+    }
+    
+    // 🔧 FIX: Check if wasteItemsCart exists and has items
+    if (!Array.isArray(wasteItemsCart) || wasteItemsCart.length === 0) {
+        console.error('editWasteItem: Cart is empty or not initialized');
+        window.showAlert?.('No items in cart to edit', 'warning');
+        return;
+    }
+    
+    // 🔧 FIX: Check bounds
+    if (index >= wasteItemsCart.length) {
+        console.error('editWasteItem: Index out of bounds:', index, 'Cart length:', wasteItemsCart.length);
+        window.showAlert?.('Item no longer exists in cart', 'error');
+        return;
+    }
+    
     const item = wasteItemsCart[index];
-    editingIndex = index;
     
-    selectedProduct = availableProducts.find(p => p.id === item.product_id);
+    // 🔧 FIX: Verify item exists and has required properties
+    if (!item || typeof item !== 'object') {
+        console.error('editWasteItem: Invalid item at index:', index, item);
+        window.showAlert?.('Invalid item data', 'error');
+        return;
+    }
     
-    if (selectedProduct) {
-        // FIXED: Populate search field when editing
-        document.getElementById('productSearch').value = item.product_name;
-        document.getElementById('wasteQuantity').value = item.quantity;
-        document.getElementById('damageReason').value = item.damage_reason;
-        document.getElementById('wasteNotes').value = item.notes || '';
+    if (!item.product_id) {
+        console.error('editWasteItem: Item missing product_id:', item);
+        window.showAlert?.('Item data is corrupted', 'error');
+        return;
+    }
+    
+    // 🔧 FIX: Check if availableProducts exists and is populated
+    if (!Array.isArray(availableProducts) || availableProducts.length === 0) {
+        console.warn('editWasteItem: Available products not loaded, attempting to reload...');
+        window.showAlert?.('Loading product data...', 'info');
         
-        selectProductFromList(selectedProduct);
+        // Attempt to reload products
+        loadAvailableProducts().then(() => {
+            // Retry edit after products are loaded
+            setTimeout(() => editWasteItem(index), 500);
+        }).catch(error => {
+            console.error('Failed to reload products:', error);
+            window.showAlert?.('Unable to load product data', 'error');
+        });
+        return;
+    }
+    
+    // 🔧 FIX: Find product with error handling
+    let foundProduct;
+    try {
+        foundProduct = availableProducts.find(p => p && p.id === item.product_id);
+    } catch (error) {
+        console.error('Error finding product in availableProducts:', error);
+        window.showAlert?.('Error accessing product data', 'error');
+        return;
+    }
+    
+    if (!foundProduct) {
+        console.warn('editWasteItem: Product not found in available products:', item.product_id);
+        window.showAlert?.('Product no longer available for editing', 'warning');
+        return;
+    }
+    
+    // 🔧 SUCCESS: All validations passed, proceed with edit
+    try {
+        editingIndex = index;
+        selectedProduct = foundProduct;
         
-        document.getElementById('formTitle').innerHTML = '<i class="bi bi-pencil"></i> ' + _('edit_waste_item');
-        document.getElementById('addBtnText').textContent = _('update_item');
+        // 🔧 FIX: Safely populate form fields with null checks
+        const productSearchEl = document.getElementById('productSearch');
+        const quantityEl = document.getElementById('wasteQuantity');
+        const damageReasonEl = document.getElementById('damageReason');
+        const notesEl = document.getElementById('wasteNotes');
+        const formTitleEl = document.getElementById('formTitle');
+        const addBtnTextEl = document.getElementById('addBtnText');
+        
+        if (productSearchEl) productSearchEl.value = item.product_name || '';
+        if (quantityEl) {
+            quantityEl.value = item.quantity || 0;
+            quantityEl.disabled = false;
+        }
+        if (damageReasonEl) damageReasonEl.value = item.damage_reason || '';
+        if (notesEl) notesEl.value = item.notes || '';
+        
+        // Update UI to edit mode
+        if (formTitleEl) {
+            formTitleEl.innerHTML = '<i class="bi bi-pencil"></i> ' + 
+                (window.translator?._('edit_waste_item') || 'Edit Waste Item');
+        }
+        if (addBtnTextEl) {
+            addBtnTextEl.textContent = window.translator?._('update_item') || 'Update Item';
+        }
+        
+        // Show product info if function exists
+        if (typeof selectProductFromList === 'function') {
+            selectProductFromList(selectedProduct);
+        }
+        
+        // Re-validate form
+        if (typeof validateWasteForm === 'function') {
+            validateWasteForm();
+        }
         
         // Scroll to form
-        document.getElementById('addWasteForm').scrollIntoView({ behavior: 'smooth' });
+        const formEl = document.getElementById('addWasteForm');
+        if (formEl && typeof formEl.scrollIntoView === 'function') {
+            formEl.scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        console.log('✅ editWasteItem: Successfully entered edit mode for item:', item.product_name);
+        
+    } catch (error) {
+        console.error('editWasteItem: Error during edit setup:', error);
+        window.showAlert?.('Error setting up edit mode', 'error');
+        
+        // Reset state on error
+        editingIndex = -1;
+        selectedProduct = null;
     }
-}
+}   
 
 async function removeWasteItem(index) {
     const confirmed = confirm('Remove this item from the waste cart?');
@@ -835,52 +955,68 @@ async function cancelEdit() {
         return;
     }
     
-    const confirmed = confirm('Cancel this waste report?\n\nThis will remove the report and clear your cart. Any unsaved items will be lost.');
-    if (confirmed) {
-        const wasteData = JSON.parse(document.getElementById('wasteData').textContent);
-        
-        try {
-            const response = await fetch('{% url "frontend:waste_cancel" %}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': window.getCsrfToken()
-                },
-                body: JSON.stringify({
-                    waste_id: wasteData.wasteReport.id
-                })
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                // Clear localStorage
-                const wasteId = document.getElementById('wasteId').value;
-                const storageKey = `waste_items_${wasteId}`;
-                localStorage.removeItem(storageKey);
-                
-                showAlert(data.message, 'success');
-                setTimeout(() => {
-                    window.location.href = '{% url "frontend:waste_entry" %}';
-                }, 1500);
-            } else {
-                showAlert(data.error, 'danger');
-            }
-        } catch (error) {
-            console.error('Error canceling waste report:', error);
-            showAlert('Error canceling waste report', 'danger');
-        }
-    }
+    const wasteData = JSON.parse(document.getElementById('wasteData').textContent);
+    await window.standardizeCancelOperation(
+        'waste', 
+        wasteData.wasteReport.id, 
+        '/waste/cancel/', 
+        '/waste/entry/'
+    );
 }
 
-// Helper functions - following trip_sales pattern
 function clearForm() {
-    document.getElementById('addWasteForm').reset();
-    document.getElementById('productInfo').style.display = 'none';
-    document.getElementById('wasteQuantity').disabled = true;
-    document.getElementById('addWasteBtn').disabled = true;
-    selectedProduct = null;
-    validateWasteForm();
+    try {
+        // Reset form
+        const formEl = document.getElementById('addWasteForm');
+        if (formEl && typeof formEl.reset === 'function') {
+            formEl.reset();
+        }
+        
+        // Hide product info
+        const productInfoEl = document.getElementById('productInfo');
+        if (productInfoEl) {
+            productInfoEl.style.display = 'none';
+        }
+        
+        // Disable quantity input
+        const quantityEl = document.getElementById('wasteQuantity');
+        if (quantityEl) {
+            quantityEl.disabled = true;
+        }
+        
+        // Disable add button
+        const addBtnEl = document.getElementById('addWasteBtn');
+        if (addBtnEl) {
+            addBtnEl.disabled = true;
+        }
+        
+        // Clear product selection BEFORE validation
+        selectedProduct = null;
+        
+        // Reset edit mode
+        editingIndex = -1;
+        
+        // Reset form title
+        const formTitleEl = document.getElementById('formTitle');
+        if (formTitleEl) {
+            formTitleEl.innerHTML = '<i class="bi bi-plus-circle"></i> ' + 
+                (window.translator?._('add_waste_item') || 'Add Waste Item');
+        }
+        
+        // Reset button text
+        const addBtnTextEl = document.getElementById('addBtnText');
+        if (addBtnTextEl) {
+            addBtnTextEl.textContent = window.translator?._('add_to_waste') || 'Add to Waste';
+        }
+        
+        // Re-validate form safely
+        if (typeof validateWasteForm === 'function') {
+            validateWasteForm();
+        }
+        
+    } catch (error) {
+        console.error('clearForm: Error during form reset:', error);
+    }
 }
 
 // FIXED: Enhanced completed items display with full translation support
@@ -963,19 +1099,6 @@ function displayCompletedWasteItems(items) {
 // Translation helpers - using existing system
 function _(key) {
     return window.translator ? window.translator._(key) : key;
-}
-
-function showAlert(message, type) {
-    // Use the global window.showAlert if available, otherwise fallback to alert
-    if (typeof window.showAlert === 'function' && window.showAlert !== showAlert) {
-        window.showAlert(message, type);
-    } else if (typeof bootstrap !== 'undefined' && document.querySelector('.toast-container')) {
-        // Use Bootstrap toast if available
-        const toastHtml = `<div class="toast" role="alert"><div class="toast-body">${message}</div></div>`;
-        document.querySelector('.toast-container').insertAdjacentHTML('beforeend', toastHtml);
-    } else {
-        window.showAlert(message, type);
-    }
 }
 
 window.addEventListener('languageChanged', () => {
