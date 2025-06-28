@@ -221,11 +221,10 @@ def delete_po(request, po_id):
         if transaction_count > 0:
             with transaction.atomic():
                 for transaction_obj in po.supply_transactions.all():
-                    transaction_obj.delete()
+                    transaction_obj.delete()  # This can now raise ValidationError
                 po.delete()
             
             try:
-                
                 ProductCacheHelper.clear_cache_after_product_update()
                 print("🔥 Product cache cleared after PO deletion")
             except Exception as e:
@@ -239,7 +238,10 @@ def delete_po(request, po_id):
             return JsonResponseHelper.success(
                 message=f'PO {po_number} deleted successfully'
             )
-
+            
+    except ValidationError as e:
+        # 🛡️ CATCH SAFETY VALIDATION: Return proper error response
+        return JsonResponseHelper.error(str(e))
     except Exception as e:
         return JsonResponseHelper.error(str(e))
 

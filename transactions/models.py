@@ -907,25 +907,91 @@ class Transaction(models.Model):
         print(f"✅ TRANSFER COMPLETED: {self.vessel.name} → {self.transfer_to_vessel.name}, Cost: {self.unit_price}/unit")
         
     def delete(self, *args, **kwargs):
-        """Custom delete to clean up inventory lots for supply transactions"""
+        """Enhanced delete with comprehensive safety validation"""
+        
         if self.transaction_type == 'SUPPLY':
-            # Find and delete the InventoryLot created by this supply transaction
-            InventoryLot.objects.filter(
-                vessel=self.vessel,
-                product=self.product,
-                purchase_date=self.transaction_date,
-                purchase_price=self.unit_price,
-                original_quantity=int(self.quantity)
-            ).delete()
+            self._validate_and_delete_supply_inventory()
+        elif self.transaction_type in ['SALE', 'TRANSFER_OUT', 'WASTE']:
+            # TODO: Implement inventory restoration (next phase)
+            pass
         
         # Clear product cache since inventory changed
         try:
-        
             ProductCacheHelper.clear_cache_after_product_update()
         except:
             pass
         
         super().delete(*args, **kwargs)
+
+    def _validate_and_delete_supply_inventory(self):
+        """
+        🛡️ SAFE SUPPLY DELETION: Validate no consumption before deleting inventory lots
+        """
+        
+        print(f"🔍 DEBUG: Checking supply deletion for {self.product.name} on {self.vessel.name}")
+        print(f"🔍 DEBUG: Looking for lots with date={self.transaction_date}, price={self.unit_price}")
+        
+        # Find ALL inventory lots that match this supply transaction
+        matching_lots = InventoryLot.objects.filter(
+            vessel=self.vessel,
+            product=self.product,
+            purchase_date=self.transaction_date,
+            purchase_price=self.unit_price
+        )
+        
+        print(f"🔍 DEBUG: Found {matching_lots.count()} matching lots")
+        
+        # Calculate total consumption across all matching lots
+        total_supplied = 0
+        total_remaining = 0
+        consumption_details = []
+        
+        for lot in matching_lots:
+            consumed_from_lot = lot.original_quantity - lot.remaining_quantity
+            total_supplied += lot.original_quantity
+            total_remaining += lot.remaining_quantity
+            
+            print(f"🔍 DEBUG: Lot {lot.id}: original={lot.original_quantity}, remaining={lot.remaining_quantity}, consumed={consumed_from_lot}")
+            
+            if consumed_from_lot > 0:
+                consumption_details.append({
+                    'lot_id': lot.id,
+                    'consumed': consumed_from_lot,
+                    'remaining': lot.remaining_quantity,
+                    'original': lot.original_quantity
+                })
+        
+        total_consumed = total_supplied - total_remaining
+        print(f"🔍 DEBUG: Total supplied={total_supplied}, remaining={total_remaining}, consumed={total_consumed}")
+        
+        # 🚨 BLOCK DELETION: If any consumption detected
+        if total_consumed > 0:
+            print(f"❌ DEBUG: BLOCKING DELETION - {total_consumed} units consumed")
+            
+            # Build detailed error message
+            error_details = []
+            for detail in consumption_details:
+                error_details.append(
+                    f"Lot {detail['lot_id']}: {detail['consumed']} consumed "
+                    f"({detail['remaining']}/{detail['original']} remaining)"
+                )
+            
+            consumption_breakdown = "; ".join(error_details)
+            
+            raise ValidationError(
+                f"DELETION BLOCKED: Cannot delete supply transaction for "
+                f"{self.product.name} on {self.vessel.name}. "
+                f"Total Consumed: {total_consumed} units. "
+                f"Details: {consumption_breakdown}. "
+                f"Delete related sales/transfers first."
+            )
+        
+        # ✅ SAFE TO DELETE: No consumption detected
+        print(f"✅ DEBUG: SAFE TO DELETE - no consumption detected")
+        lots_deleted = matching_lots.count()
+        matching_lots.delete()
+        
+        print(f"✅ DEBUG: Deleted {lots_deleted} inventory lots")
 
 class VesselProductPrice(models.Model):
     """Custom pricing for specific vessel-product combinations (touristic vessels only)"""

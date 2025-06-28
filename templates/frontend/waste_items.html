@@ -328,16 +328,23 @@ document.addEventListener('DOMContentLoaded', function() {
         fallbackTitle: 'Waste Items',
     })
     
-    const wasteData = JSON.parse(document.getElementById('wasteData').textContent);
+    const canEdit = {{ can_edit|yesno:"true,false" }};
     
-    if (wasteData.wasteReport.can_edit) {
+    if (canEdit) {
         // FIXED: Add localStorage persistence like trip_sales
         initializeWasteCart();
         loadAvailableProducts();
         setupEventListeners();
         updateCartDisplay();
     } else {
-        displayCompletedWasteItems(wasteData.completedWasteItems || []);
+        {% if completed_waste_items_json %}
+        try {
+            const completedWasteItems = JSON.parse('{{ completed_waste_items_json|escapejs }}');
+            displayCompletedWasteItems(completedWasteItems);
+        } catch (e) {
+            console.log('Error parsing completed waste items:', e);
+        }
+        {% endif %}
     }
     
     updateWasteTotals();
@@ -361,14 +368,18 @@ function initializeWasteCart() {
     }
     
     // If no saved cart, load from existing waste items (backend data)
-    if (wasteItemsCart.length === 0) {
-        const wasteData = JSON.parse(document.getElementById('wasteData').textContent);
-        if (wasteData.existingWasteItems && wasteData.existingWasteItems.length > 0) {
-            wasteItemsCart = wasteData.existingWasteItems;
+    {% if existing_waste_items_json %}
+    try {
+        const existingWasteItems = JSON.parse('{{ existing_waste_items_json|escapejs }}');
+        if (existingWasteItems && existingWasteItems.length > 0) {
+            wasteItemsCart = existingWasteItems;
             console.log('Loaded cart from existing waste:', wasteItemsCart);
             saveCartToStorage();
         }
+    } catch (e) {
+        console.log('Error parsing existing waste items:', e);
     }
+    {% endif %}
 }
 
 function saveCartToStorage() {
@@ -384,8 +395,6 @@ function saveCartToStorage() {
 
 // Load available products - following trip_sales pattern
 function loadAvailableProducts() {
-    const wasteData = JSON.parse(document.getElementById('wasteData').textContent);
-    
     fetch('{% url "frontend:waste_available_products" %}', {
         method: 'POST',
         headers: {
@@ -393,7 +402,7 @@ function loadAvailableProducts() {
             'X-CSRFToken': window.getCsrfToken()
         },
         body: JSON.stringify({
-            vessel_id: wasteData.wasteReport.vessel_id
+            vessel_id: document.getElementById('vesselId').value
         })
     })
     .then(response => response.json())
@@ -543,8 +552,6 @@ function setupEventListeners() {
         const message = `Complete waste report with ${wasteItemsCart.length} items?\n\nTotal Waste Value: ${totalCost.toFixed(3)} JOD\n\nThis will permanently remove items from inventory.`;
         
         if (confirmed) {
-            const wasteData = JSON.parse(document.getElementById('wasteData').textContent);
-            
             try {
                 const response = await fetch('{% url "frontend:waste_bulk_complete" %}', {
                     method: 'POST',
@@ -553,7 +560,7 @@ function setupEventListeners() {
                         'X-CSRFToken': window.getCsrfToken()
                     },
                     body: JSON.stringify({
-                        waste_id: wasteData.wasteReport.id,
+                        waste_id: document.getElementById('wasteId').value,
                         items: wasteItemsCart
                     })
                 });
@@ -582,8 +589,6 @@ function setupEventListeners() {
 }
 
 function searchProducts(searchTerm) {
-    const wasteData = JSON.parse(document.getElementById('wasteData').textContent);
-    
     fetch('{% url "frontend:waste_search_products" %}', {
         method: 'POST',
         headers: {
@@ -592,7 +597,7 @@ function searchProducts(searchTerm) {
         },
         body: JSON.stringify({
             search: searchTerm,
-            vessel_id: wasteData.wasteReport.vessel_id
+            vessel_id: document.getElementById('vesselId').value
         })
     })
     .then(response => response.json())
@@ -744,12 +749,21 @@ function updateWasteTotals() {
     let totalItems = 0;
     let totalCost = 0;
     
-    const wasteData = JSON.parse(document.getElementById('wasteData').textContent);
+    const canEdit = {{ can_edit|yesno:"true,false" }};
     
     // For completed reports, calculate from completed items
-    if (!wasteData.wasteReport.can_edit && wasteData.completedWasteItems) {
-        totalItems = wasteData.completedWasteItems.length;
-        totalCost = wasteData.completedWasteItems.reduce((sum, item) => sum + item.total_amount, 0);
+    if (!canEdit) {
+        {% if completed_waste_items_json %}
+        try {
+            const completedWasteItems = JSON.parse('{{ completed_waste_items_json|escapejs }}');
+            if (completedWasteItems) {
+                totalItems = completedWasteItems.length;
+                totalCost = completedWasteItems.reduce((sum, item) => sum + item.total_amount, 0);
+            }
+        } catch (e) {
+            console.log('Error parsing completed waste items:', e);
+        }
+        {% endif %}
     } else {
         // For active reports, calculate from cart
         totalItems = wasteItemsCart.length;
@@ -921,13 +935,13 @@ function editWasteItem(index) {
 }   
 
 async function removeWasteItem(index) {
-    const confirmed = confirm('Remove this item from the waste cart?');
+    const confirmed = await confirmTranslated('remove_cart_item');
     if (confirmed) {
         wasteItemsCart.splice(index, 1);
         saveCartToStorage();
         updateCartDisplay();
         updateWasteTotals();
-        showAlert('Item removed from waste cart', 'info');
+        window.showAlert('Item removed from waste cart', 'info');
     }
 }
 
@@ -945,12 +959,11 @@ async function cancelEdit() {
         return;
     }
     
-    const wasteData = JSON.parse(document.getElementById('wasteData').textContent);
     await window.standardizeCancelOperation(
         'waste', 
-        wasteData.wasteReport.id, 
+        document.getElementById('wasteId').value,
         '/waste/cancel/', 
-        '/waste/entry/'
+        '/waste/'
     );
 }
 

@@ -964,42 +964,12 @@ async function cancelEdit() {
         return;
     }
     
-    // Ask user if they want to cancel the entire PO
-    const confirmed = await confirmTranslated('cancel_po_confirm');
-    if (confirmed) {
-        const poId = document.getElementById('poId').value;
-        
-        // Call backend to cancel PO
-        fetch('/supply/po/cancel/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': window.getCsrfToken()
-            },
-            body: JSON.stringify({
-                po_id: poId
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Clear localStorage
-                const storageKey = `po_supplies_${poId}`;
-                localStorage.removeItem(storageKey);
-                
-                window.window.showAlert(data.message, 'success');
-                setTimeout(() => {
-                    window.location.href = "{% url 'frontend:supply_entry' %}";
-                }, 1500);
-            } else {
-                window.window.showAlert(data.error, 'danger');
-            }
-        })
-        .catch(error => {
-            console.error('Error canceling PO:', error);
-            window.window.showAlert(_('error_canceling_po'), 'danger');
-        });
-    }
+    await window.standardizeCancelOperation(
+        'po', 
+        document.getElementById('poId').value,
+        '/supply/po/cancel/',
+        '/supply/'
+    );
 }
 
 function exitEditMode() {

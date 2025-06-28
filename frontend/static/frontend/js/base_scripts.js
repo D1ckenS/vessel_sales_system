@@ -1312,3 +1312,65 @@ window.standardizeCancelOperation = function(entityType, entityId, cancelEndpoin
         }
     });
 };
+
+// Universal cart storage helper
+window.standardizeCartStorage = function(entityType, entityId, cart) {
+    const storageKey = `${entityType}_${entityId}`;
+    try {
+        localStorage.setItem(storageKey, JSON.stringify(cart));
+        console.log(`💾 Cart saved: ${storageKey}`);
+    } catch (error) {
+        console.error('Storage error:', error);
+    }
+};
+
+window.loadCartFromStorage = function(entityType, entityId) {
+    const storageKey = `${entityType}_${entityId}`;
+    try {
+        const saved = localStorage.getItem(storageKey);
+        return saved ? JSON.parse(saved) : [];
+    } catch (error) {
+        console.error('Storage load error:', error);
+        return [];
+    }
+};
+
+// Universal fetch with CSRF and error handling
+window.standardizeFetchWithCSRF = function(url, data = {}, method = 'POST') {
+    return fetch(url, {
+        method: method,
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': window.getCsrfToken()
+        },
+        body: JSON.stringify(data)
+    });
+};
+
+// Universal loading state manager
+window.standardizeLoadingStates = function(buttonElement, isLoading = true, loadingText = null) {
+    if (isLoading) {
+        if (!buttonElement.dataset.originalText) {
+            buttonElement.dataset.originalText = buttonElement.innerHTML;
+        }
+        const text = loadingText || (window.translator._('saving') || 'Processing...');
+        buttonElement.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>${text}`;
+        buttonElement.disabled = true;
+    } else {
+        buttonElement.innerHTML = buttonElement.dataset.originalText || buttonElement.innerHTML;
+        buttonElement.disabled = false;
+        delete buttonElement.dataset.originalText;
+    }
+};
+
+// Universal form validation helper
+window.standardizeFormValidation = function(requiredFields) {
+    for (const fieldId of requiredFields) {
+        const field = document.getElementById(fieldId);
+        if (!field || !field.value.trim()) {
+            field?.focus();
+            return { isValid: false, fieldId };
+        }
+    }
+    return { isValid: true };
+};

@@ -376,22 +376,14 @@ let tripSalesCart = [];
 let selectedProduct = null;
 let editingIndex = -1;
 let availableProducts = [];
+let tripData = null;
 
 // Add translations for COGS features
 document.addEventListener('DOMContentLoaded', function() {
     window.initializePage({
         titleKey: 'trip_sales',
         fallbackTitle: 'Trip Sales',
-        pageTranslations: salesTranslations
     })
-    
-    // Merge with global translations
-    const currentTranslations = window.translator.translations;
-    Object.keys(salesTranslations).forEach(lang => {
-        if (currentTranslations[lang]) {
-            Object.assign(currentTranslations[lang], salesTranslations[lang]);
-        }
-    });
     
     // Check if required elements exist and if trip is editable
     const tripIdElement = document.getElementById('tripId');
@@ -420,6 +412,12 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
     
+    tripData = {
+        id: document.getElementById('tripId').value,
+        vesselId: document.getElementById('vesselId').value,
+        vesselHasDutyFree: document.getElementById('vesselHasDutyFree').value === 'true',
+        canEdit: {{ can_edit|yesno:"true,false" }}
+    };
     // Initialize for editable trips
     try {
         initializeTripCart();
@@ -980,6 +978,24 @@ function clearProductSelection() {
     document.getElementById('addBtnText').textContent = _('add_to_trip');
 }
 
+function exitEditMode() {
+    editingIndex = -1;
+    
+    // Reset form title
+    const formTitle = document.getElementById('formTitle');
+    if (formTitle) {
+        formTitle.innerHTML = '<i class="bi bi-plus-circle"></i> ' + (window._ ? window._('add_sales_item') : 'Add Sales Item');
+    }
+    
+    // Reset button text
+    const addBtnText = document.getElementById('addBtnText');
+    if (addBtnText) {
+        addBtnText.textContent = window._ ? window._('add_to_trip') : 'Add to Trip';
+    }
+    
+    clearForm();
+}
+
 function clearForm() {
     document.getElementById('addSaleForm').reset();
     document.getElementById('productSearch').value = '';
@@ -994,12 +1010,11 @@ async function cancelEdit() {
         return;
     }
     
-    const tripData = JSON.parse(document.getElementById('tripData').textContent);
     await window.standardizeCancelOperation(
         'trip', 
-        tripData.trip.id, 
+        tripData.id, 
         '/sales/trip/cancel/', 
-        '/sales/entry/'
+        '/sales/'
     );
 }
 

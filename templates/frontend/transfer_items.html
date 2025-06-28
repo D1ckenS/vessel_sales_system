@@ -1358,42 +1358,12 @@ async function cancelEdit() {
         return;
     }
     
-    // Ask user if they want to cancel the entire transfer
-    const confirmed = await window.confirmTranslated('cancel_transfer_confirm');
-    if (confirmed) {
-        const transferId = document.getElementById('transferId').value;
-        
-        // Call backend to cancel transfer
-        fetch('/transfer/cancel/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': window.getCsrfToken()
-            },
-            body: JSON.stringify({
-                transfer_id: transferId
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Clear localStorage
-                const storageKey = `transfer_items_${transferId}`;
-                localStorage.removeItem(storageKey);
-                
-                window.showAlert(data.message, 'success');
-                setTimeout(() => {
-                    window.location.href = '/transfer/';  // Redirect to transfer entry
-                }, 1500);
-            } else {
-                window.showAlert(data.error, 'danger');
-            }
-        })
-        .catch(error => {
-            console.error('Error canceling transfer:', error);
-            window.showAlert(window._ ? window._('error_canceling_transfer') : 'Error canceling transfer. Please try again.', 'danger');
-        });
-    }
+    await window.standardizeCancelOperation(
+        'transfer', 
+        document.getElementById('transferId').value,
+        '/transfer/cancel/',
+        '/transfer/'
+    );
 }
 
 // Complete transfer (following trip_sales pattern - FIXES the session ID error)

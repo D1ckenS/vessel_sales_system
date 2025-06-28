@@ -1,20 +1,17 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.models import User  # ← User import
-from django.db.models import Q, Sum  # ← Added Sum for aggregation
+from django.contrib.auth.models import User
+from django.db.models import Q, Sum
 from django.http import JsonResponse
 from datetime import date, datetime
 from decimal import Decimal
 import json
-
-# Project imports
 from frontend.utils.cache_helpers import VesselCacheHelper
 from vessels.models import Vessel
 from products.models import Product
 from transactions.models import Transaction, InventoryLot, WasteReport
 from .utils import BilingualMessages
 from .permissions import operations_access_required
-
 from django.core.exceptions import ValidationError
 from django.db import transaction
 

@@ -258,15 +258,15 @@
                             </div>
                             <div class="col-lg-2 col-md-4 mb-3">
                                 <label class="form-label fw-bold"><span data-translate="date_from">Date From</span></label>
-                                <input type="date" class="form-control" name="date_from" id="dateFromFilter" value="{{ filters.date_from }}">
+                                <input type="date" class="form-control" name="date_from" id="dateFromFilter" value="{{ filters.date_from|default:'' }}">
                             </div>
                             <div class="col-lg-2 col-md-4 mb-3">
                                 <label class="form-label fw-bold"><span data-translate="date_to">Date To</span></label>
-                                <input type="date" class="form-control" name="date_to" id="dateToFilter" value="{{ filters.date_to }}">
+                                <input type="date" class="form-control" name="date_to" id="dateToFilter" value="{{ filters.date_to|default:'' }}">
                             </div>
                             <div class="col-lg-2 col-md-4 mb-3">
                                 <label class="form-label fw-bold"><span data-translate="min_revenue">Min Revenue</span></label>
-                                <input type="number" class="form-control" name="min_revenue" placeholder="0.000" step="0.001" value="{{ filters.min_revenue }}">
+                                <input type="number" class="form-control" name="min_revenue" placeholder="0.000" step="0.001" value="{{ filters.min_revenue|default:'' }}">
                             </div>
                             <div class="col-lg-2 col-md-4 mb-3 d-flex align-items-end">
                                 <button type="submit" class="btn btn-primary w-100">
@@ -501,7 +501,6 @@ document.addEventListener('DOMContentLoaded', function() {
     window.initializePage({
         titleKey: 'trip_management',
         fallbackTitle: 'Trip Management',
-        pageTranslations: pageTranslations
     })
     
     // Update page translations
