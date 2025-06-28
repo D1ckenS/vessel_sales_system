@@ -405,6 +405,8 @@ window.VesselSalesTranslations = {
         'quantity_to_transfer': 'Quantity to Transfer',
         'total_items': 'Total Items',
         'items_to_transfer': 'Items to Transfer',
+        'error_canceling_transfer': 'Error canceling transfer. Please try again.',
+        'click_to_resume_transfer': 'Click to resume this transfer',
 
         // Waste Translations
         'waste_management': 'Waste',
@@ -1261,6 +1263,8 @@ window.VesselSalesTranslations = {
         'quantity_to_transfer': 'كمية التحويل',
         'total_items': 'عدد العناصر',
         'items_to_transfer': 'العناصر المحولة',
+        'error_canceling_transfer': 'خطأ في إلغاء النقل. يرجى المحاولة مرة أخرى.',
+        'click_to_resume_transfer': 'انقر لمتابعة هذا التحويل',
 
         // Waste Translations
         'waste_management': 'إدارة المهدر',

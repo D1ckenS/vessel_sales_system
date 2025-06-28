@@ -557,3 +557,56 @@ def transfer_calculate_fifo_cost(request):
     except Exception as e:
         print(f"Endpoint error: {e}")
         return JsonResponse({'success': False, 'error': str(e)})
+    
+@operations_access_required  
+def transfer_cancel(request):
+    """Cancel transfer and delete it from database (if no items committed) - Following trip/PO pattern"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST method required'})
+    
+    try:
+        data = json.loads(request.body)
+        transfer_id = data.get('transfer_id')
+        
+        if not transfer_id:
+            return JsonResponse({'success': False, 'error': 'Transfer ID required'})
+        
+        # Get transfer
+        transfer = Transfer.objects.get(id=transfer_id)
+        
+        if transfer.is_completed:
+            return JsonResponse({'success': False, 'error': 'Cannot cancel completed transfer'})
+        
+        # Check if transfer has any committed transactions
+        # NOTE: Adjust the filter based on your actual Transfer model relationship
+        existing_transactions = Transaction.objects.filter(
+            transfer=transfer  # Use the correct foreign key field name
+        ).count()
+        
+        if existing_transactions > 0:
+            # Transfer has committed transactions - just clear cart but keep transfer
+            return JsonResponse({
+                'success': True,
+                'action': 'clear_cart',
+                'message': f'Cart cleared. Transfer {transfer.transfer_number if hasattr(transfer, "transfer_number") else transfer.id} kept (has committed transactions).'
+            })
+        else:
+            # No committed transactions - safe to delete transfer
+            transfer_display = transfer.transfer_number if hasattr(transfer, 'transfer_number') else f"#{transfer.id}"
+            transfer.delete()
+            
+            # 🚀 CACHE: Clear transfer cache after deletion
+            from frontend.utils.cache_helpers import TransferCacheHelper
+            TransferCacheHelper.clear_cache_after_transfer_delete(transfer_id)
+            
+            return JsonResponse({
+                'success': True,
+                'action': 'delete_transfer',
+                'message': f'Transfer {transfer_display} cancelled and removed.',
+                'redirect_url': '/transfer/'  # Redirect back to transfer entry
+            })
+        
+    except Transfer.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Transfer not found'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': f'Error cancelling transfer: {str(e)}'})

@@ -126,6 +126,7 @@ urlpatterns = [
     path('transfer/<int:transfer_id>/', transfer_views.transfer_items, name='transfer_items'),
     path('transfer/bulk-complete/', transfer_views.transfer_bulk_complete, name='transfer_bulk_complete'),
     path('transfer/calculate-fifo-cost/', transfer_views.transfer_calculate_fifo_cost, name='transfer_calculate_fifo_cost'),
+    path('transfer/cancel/', transfer_views.transfer_cancel, name='transfer_cancel'),
     
     # Transfer API endpoints
     path('transfer/search-products/', transfer_views.transfer_search_products, name='transfer_search_products'),

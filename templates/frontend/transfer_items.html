@@ -71,17 +71,7 @@
         <div class="card" style="background: linear-gradient(135deg, #fd7e14, #ffc107); color: white;">
             <div class="card-body">
                 <div class="row">
-                    <div class="col-md-4">
-                        <h6 class="mb-1 opacity-75"><span data-translate="items_to_transfer">Items to Transfer</span></h6>
-                        <h3 class="mb-0" id="transferItemCount">
-                            {% if not can_edit %}
-                                <span data-number data-original="{{ transfer.transaction_count }}">{{ transfer.transaction_count }}</span>
-                            {% else %}
-                                <span data-number data-original="0">0</span>
-                            {% endif %}
-                        </h3>
-                    </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <h6 class="mb-1 opacity-75"><span data-translate="total_cost">Total Cost</span></h6>
                         <h3 class="mb-0" id="transferTotalCost">
                             {% if not can_edit %}
@@ -91,7 +81,27 @@
                             {% endif %}
                         </h3>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
+                        <h6 class="mb-1 opacity-75"><span data-translate="items_to_transfer">Items to Transfer</span></h6>
+                        <h3 class="mb-0" id="transferItemCount">
+                            {% if not can_edit %}
+                                <span data-number data-original="{{ transfer.transaction_count }}">{{ transfer.transaction_count }}</span>
+                            {% else %}
+                                <span data-number data-original="0">0</span>
+                            {% endif %}
+                        </h3>
+                    </div>
+                    <div class="col-md-3">
+                        <h6 class="mb-1 opacity-75"><span data-translate="from_to">From → To</span></h6>
+                        <h3 class="mb-0" style="font-size: 1.5rem;">
+                            <i class="bi bi-ship text-light opacity-75 me-1"></i>
+                            <span class="vessel-name" data-en="{{ transfer.from_vessel.name }}" data-ar="{{ transfer.from_vessel.name_ar }}">{{ transfer.from_vessel.name }}</span>
+                            <i class="bi bi-arrow-right mx-2"></i>
+                            <i class="bi bi-ship text-light opacity-75 me-1"></i>
+                            <span class="vessel-name" data-en="{{ transfer.to_vessel.name }}" data-ar="{{ transfer.to_vessel.name_ar }}">{{ transfer.to_vessel.name }}</span>
+                        </h3>
+                    </div>
+                    <div class="col-md-3">
                         <h6 class="mb-1 opacity-75"><span data-translate="status">Status</span></h6>
                         <h3 class="mb-0">
                             {% if can_edit %}
@@ -108,32 +118,6 @@
 </div>
 
 <!-- Transfer Completed Alert (for completed transfers) -->
-{% if not can_edit %}
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="alert alert-success border-0 shadow-sm">
-            <div class="d-flex align-items-center">
-                <i class="bi bi-check-circle-fill me-3" style="font-size: 2rem;"></i>
-                <div class="flex-grow-1">
-                    <h6 class="mb-1">
-                        <span data-translate="transfer_completed">Transfer Completed</span>
-                    </h6>
-                    <p class="mb-0" data-translate="transfer_completed_desc">This transfer has been completed and is now read-only. All items have been transferred and inventory has been updated.</p>
-                    <small class="text-muted">
-                        <i class="bi bi-clock"></i> <span data-translate="completion_date">Completed:</span> {{ transfer.updated_at|date:"d/m/Y H:i" }}
-                    </small>
-                </div>
-                <div class="text-end">
-                    <button class="btn btn-outline-success btn-sm" onclick="window.showUnifiedExportModal('single_transfer',{ transfer_id: {{ transfer.id }} })">
-                        <i class="bi bi-download"></i> <span data-translate="export">Export</span>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
-
 <div class="row">
     {% if can_edit %}
     <!-- LEFT SIDE: Transfer Form -->
@@ -286,13 +270,13 @@
                             <i class="bi bi-check-circle"></i> <span data-translate="completed_transfer_items">Completed Transfer Items</span>
                         {% endif %}
                     </h5>
-                    {% if can_edit %}
+                    {% if not can_edit %}
                     <div class="d-flex gap-2">
-                        <button class="btn btn-outline-info btn-sm" onclick="window.templateUtils.showPrintComingSoon()">
-                            <i class="bi bi-printer"></i> <span data-translate="print">Print</span>
-                        </button>
-                        <button class="btn btn-outline-success btn-sm" onclick="window.templateUtils.showExportComingSoon()">
+                        <button class="btn btn-outline-success btn-sm" onclick="window.showUnifiedExportModal('single_transfer',{ transfer_id: {{ transfer.id }} })">
                             <i class="bi bi-download"></i> <span data-translate="export">Export</span>
+                        </button>
+                        <button class="btn btn-outline-primary btn-sm" onclick="window.print()">
+                            <i class="bi bi-printer"></i> <span data-translate="print">Print</span>
                         </button>
                     </div>
                     {% endif %}
@@ -395,12 +379,36 @@ document.addEventListener('DOMContentLoaded', function() {
         fallbackTitle: 'Transfer Items'
     });
     
-    // Check if transfer is completed (following trip_sales pattern)
-    const canEdit = document.getElementById('transferId') !== null;
+    // Check if required elements exist and if transfer is editable
+    const transferIdElement = document.getElementById('transferId');
+    const canEdit = {{ can_edit|yesno:"true,false" }};
+    
     if (!canEdit) {
-        // Handle completed transfers - load and display completed data
-        // This would be handled by backend template data
+        console.log('Transfer completed - displaying read-only data');
+        {% if completed_transfers_json %}
+        try {
+            const completedTransfersRaw = '{{ completed_transfers_json|escapejs }}';
+            const completedTransfers = JSON.parse(completedTransfersRaw);
+            
+            if (completedTransfers && completedTransfers.length > 0) {
+                displayCompletedTransfers(completedTransfers);
+                updateCompletedTransferTotals(completedTransfers);
+            } else {
+                console.log('🔍 No completed transfers to display');
+            }
+        } catch (e) {
+            console.log('Error parsing completed transfers:', e);
+        }
+        {% else %}
+        console.log('🔍 No completed_transfers_json available');
+        {% endif %}
+        // No need to load available products for completed transfers
         window.updatePageTranslations();
+        return;
+    }
+    
+    if (!transferIdElement) {
+        console.log('Transfer elements missing, skipping cart initialization');
         return;
     }
     
@@ -485,33 +493,33 @@ function displayAvailableProducts(products) {
         return;
     }
     
-    // Build table rows
+    // Build table rows (following trip_sales pattern exactly)
     const rows = products.map(product => {
         const productName = product.name || 'Unknown Product';
         const productId = product.item_id || product.id;
         const stock = product.total_quantity || 0;
-        const dutyFreeBadge = product.is_duty_free ? '<br><span class="badge bg-warning">Duty Free</span>' : '';
+        const dutyFreeBadge = product.is_duty_free ? '<br><span class="badge bg-warning text-dark ms-1">' + (window._ ? window._('duty_free') : 'Duty Free') + '</span>' : '';
         
         // Check if already in cart (following trip_sales pattern)
         const isInCart = transferItemsCart.some(item => item.product_id == product.id);
         const rowClass = isInCart ? 'table-warning' : '';
         
         return `
-            <tr class="${rowClass}" style="cursor: pointer;" onclick="selectProductFromList(${product.id}, '${productName.replace(/'/g, "\\'")}', ${stock}, ${product.is_duty_free || false})">
+            <tr class="${rowClass} cursor-pointer" onclick="selectProductFromList(${product.id}, '${productName.replace(/'/g, "\\'")}', ${stock}, ${product.is_duty_free || false})">
                 <td>
-                    <div class="fw-bold">${productName}</div>
-                    ${product.barcode ? `<small class="text-muted">📊 ${product.barcode}</small>` : ''}
-                    ${dutyFreeBadge}
-                    ${isInCart ? '<br><span class="badge bg-info">In Cart</span>' : ''}
+                    <div>
+                        <strong>${productName}</strong>
+                        ${product.barcode ? `<br><small class="text-muted">📊 ${product.barcode}</small>` : ''}
+                        ${dutyFreeBadge}
+                        ${isInCart ? '<br><span class="badge bg-info">In Cart</span>' : ''}
+                    </div>
                 </td>
                 <td>
-                    <span data-number data-original="${productId}">${window.translateNumber ? window.translateNumber(productId) : productId}</span>
+                    <code data-number data-original="${productId}">${window.translateNumber ? window.translateNumber(productId) : productId}</code>
                 </td>
                 <td class="text-end">
-                    <span class="badge bg-primary">
-                        <span data-number data-original="${stock}">${window.translateNumber ? window.translateNumber(stock.toString()) : stock}</span> 
-                        <span data-translate="units">units</span>
-                    </span>
+                    <span class="fw-bold text-success" data-number data-original="${stock}">${window.translateNumber ? window.translateNumber(stock.toString()) : stock}</span>
+                    <small class="text-muted d-block"><span data-translate="units">units</span></small>
                 </td>
             </tr>
         `;
@@ -653,13 +661,34 @@ function initializeTransferCart() {
         try {
             transferItemsCart = JSON.parse(savedCart);
             console.log('Loaded cart from localStorage:', transferItemsCart);
-            
-            // Clean up any legacy unit cost data
-            cleanupExistingCartItems();
         } catch (e) {
             console.log('Error parsing saved cart, starting fresh');
             transferItemsCart = [];
         }
+    }
+    
+    // If no saved cart, load from existing transfers (backend data)
+    if (transferItemsCart.length === 0) {
+        {% if existing_transfers_json %}
+        try {
+            const existingTransfers = JSON.parse('{{ existing_transfers_json|escapejs }}');
+            if (existingTransfers && existingTransfers.length > 0) {
+                transferItemsCart = existingTransfers.map(transfer => ({
+                    product_id: transfer.product_id,
+                    product_name: transfer.product_name,
+                    product_item_id: transfer.product_item_id,
+                    is_duty_free: transfer.is_duty_free,
+                    quantity: transfer.quantity,
+                    total_cost: transfer.total_amount, // Use total_amount as total_cost
+                    notes: transfer.notes || ''
+                }));
+                
+                console.log('Loaded existing transfers into cart:', transferItemsCart);
+            }
+        } catch (e) {
+            console.log('Error parsing existing transfers:', e);
+        }
+        {% endif %}
     }
 }
 
@@ -1112,6 +1141,138 @@ async function removeTransferItem(index) {
     }
 }
 
+function loadCompletedTransferData() {
+    try {
+        const transferData = JSON.parse(document.getElementById('transferData').textContent);
+        const completedTransfers = transferData.completedTransfers || [];
+        
+        console.log('Loading completed transfers:', completedTransfers);
+        
+        if (completedTransfers && completedTransfers.length > 0) {
+            displayCompletedTransfers(completedTransfers);
+            updateCompletedTransferTotals(completedTransfers);
+        } else {
+            showEmptyCompletedState();
+        }
+    } catch (e) {
+        console.error('Error loading completed transfers:', e);
+        showEmptyCompletedState();
+    }
+}
+
+// Display completed transfers in table (following trip_sales pattern)
+function displayCompletedTransfers(completedTransfers) {
+    const transfersList = document.getElementById('completedTransfersList');
+    const emptyState = document.getElementById('emptyCompletedState');
+    
+    if (!transfersList) {
+        console.log('🔍 completedTransfersList element not found');
+        return;
+    }
+    
+    // Update count with number translation
+    const transfersListCount = document.getElementById('transferItemCount');
+    if (transfersListCount) {
+        transfersListCount.innerHTML = `<span data-number data-original="${completedTransfers.length}">${window.translateNumber ? window.translateNumber(completedTransfers.length.toString()) : completedTransfers.length}</span>`;
+    }
+    
+    if (completedTransfers.length === 0) {
+        console.log('🔍 No completed transfers found, showing empty state');
+        transfersList.innerHTML = '';
+        if (emptyState) emptyState.style.display = 'block';
+        return;
+    }
+    
+    if (emptyState) emptyState.style.display = 'none';
+    
+    // Build table rows that match the current table structure
+    const rows = completedTransfers.map((item, index) => {
+        return `
+            <tr>
+                <td><small class="text-muted">${item.created_at || '-'}</small></td>
+                <td>
+                    <div>
+                        <strong>${item.product_name}</strong>
+                        <div class="small text-muted">
+                            <span data-number data-original="${item.product_item_id}">${window.translateNumber ? window.translateNumber(item.product_item_id) : item.product_item_id}</span>
+                        </div>
+                        ${item.is_duty_free ? '<span class="badge bg-warning">Duty Free</span>' : ''}
+                    </div>
+                </td>
+                <td class="text-center">
+                    <span class="fw-bold text-primary">
+                        <span data-number data-original="${item.quantity}">${window.translateNumber ? window.translateNumber(item.quantity.toString()) : item.quantity}</span>
+                    </span>
+                </td>
+                <td class="text-end">
+                    <span class="fw-bold text-success">
+                        <span data-number data-original="${item.total_amount.toFixed(3)}">${window.translateNumber ? window.translateNumber(item.total_amount.toFixed(3)) : item.total_amount.toFixed(3)}</span> <span data-currency-symbol>JOD</span>
+                    </span>
+                </td>
+                <td>
+                    <small class="text-muted">${item.notes || '-'}</small>
+                </td>
+            </tr>
+        `;
+    }).join('');
+    
+    transfersList.innerHTML = rows;
+    
+    // Apply translations after DOM update
+    setTimeout(() => {
+        if (window.updatePageTranslations) {
+            window.updatePageTranslations();
+        }
+    }, 100);
+}
+
+function showEmptyCompletedState() {
+    const tbody = document.getElementById('completedTransfersList');
+    const emptyState = document.getElementById('emptyCompletedState');
+    
+    if (tbody) tbody.innerHTML = '';
+    if (emptyState) emptyState.style.display = 'block';
+}
+
+function updateCompletedTransferTotals(completedTransfers) {
+    // Calculate totals from completed transfers data
+    let totalCost = 0;
+    let itemCount = completedTransfers.length;
+    
+    completedTransfers.forEach(item => {
+        totalCost += item.total_amount;
+    });
+    
+    // Update cost display for completed transfers
+    const costElement = document.getElementById('transferTotalCost');
+    if (costElement) {
+        costElement.setAttribute('data-original', totalCost.toFixed(3));
+        costElement.innerHTML = `<span data-number data-original="${totalCost.toFixed(3)}">${window.translateNumber ? window.translateNumber(totalCost.toFixed(3)) : totalCost.toFixed(3)}</span> <span data-currency-symbol>JOD</span>`;
+    }
+    
+    // Update item count for completed transfers  
+    const itemCountElement = document.getElementById('transferItemCount');
+    if (itemCountElement) {
+        itemCountElement.setAttribute('data-original', itemCount.toString());
+        itemCountElement.innerHTML = `<span data-number data-original="${itemCount}">${window.translateNumber ? window.translateNumber(itemCount.toString()) : itemCount}</span>`;
+    }
+    
+    console.log('Completed transfer totals updated');
+}
+
+function cleanupExistingCartItems() {
+    transferItemsCart.forEach(item => {
+        // Remove any legacy unit_cost properties if they exist
+        if (item.unit_cost !== undefined) {
+            delete item.unit_cost;
+        }
+        // Ensure total_cost exists
+        if (!item.total_cost && item.quantity && item.unit_price) {
+            item.total_cost = item.quantity * item.unit_price;
+        }
+    });
+}
+
 function exitEditMode() {
     editingIndex = -1;
     
@@ -1188,13 +1349,49 @@ function clearProductSelection() {
 }
 
 // Cancel edit mode (following trip_sales pattern)
-function cancelEdit() {
+async function cancelEdit() {
     if (editingIndex >= 0) {
-        editingIndex = -1;
-        document.getElementById('formTitle').innerHTML = '<i class="bi bi-plus-circle"></i> ' + (window._ ? window._('add_transfer_item') : 'Add Transfer Item');
-        document.getElementById('addBtnText').textContent = window._ ? window._('add_to_transfer') : 'Add to Transfer';
+        exitEditMode();
+        clearForm();
+        return;
     }
-    clearForm();
+    
+    // Ask user if they want to cancel the entire transfer
+    const confirmed = await window.confirmTranslated('cancel_transfer_confirm');
+    if (confirmed) {
+        const transferId = document.getElementById('transferId').value;
+        
+        // Call backend to cancel transfer
+        fetch('/transfer/cancel/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': window.getCsrfToken()
+            },
+            body: JSON.stringify({
+                transfer_id: transferId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Clear localStorage
+                const storageKey = `transfer_items_${transferId}`;
+                localStorage.removeItem(storageKey);
+                
+                window.showAlert(data.message, 'success');
+                setTimeout(() => {
+                    window.location.href = '/transfer/';  // Redirect to transfer entry
+                }, 1500);
+            } else {
+                window.showAlert(data.error, 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error canceling transfer:', error);
+            window.showAlert(window._ ? window._('error_canceling_transfer') : 'Error canceling transfer. Please try again.', 'danger');
+        });
+    }
 }
 
 // Complete transfer (following trip_sales pattern - FIXES the session ID error)

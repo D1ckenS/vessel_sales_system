@@ -121,29 +121,35 @@
                         </thead>
                         <tbody>
                             {% for transfer in recent_transfers %}
-                            <tr>
-                                <td><span data-transfer-date data-original="{{ transfer.transfer_date|date:'d/m/Y' }}">{{ transfer.transfer_date|date:"d/m/Y" }}</span></td>
+                            <tr {% if not transfer.is_completed %}class="table-warning cursor-pointer" onclick="resumeTransfer({{ transfer.id }})" title="Click to resume this transfer"{% endif %} data-transfer-id="{{ transfer.id }}" data-completed="{{ transfer.is_completed }}">
                                 <td>
-                                    <span class="badge bg-danger me-1">
-                                        <span class="vessel-name" data-en="{{ transfer.from_vessel.name }}" data-ar="{{ transfer.from_vessel.name_ar }}">{{ transfer.from_vessel.name }}</span>
-                                    </span>
-                                    <i class="bi bi-arrow-right"></i>
-                                    <span class="badge bg-success ms-1">
-                                        <span class="vessel-name" data-en="{{ transfer.to_vessel.name }}" data-ar="{{ transfer.to_vessel.name_ar }}">{{ transfer.to_vessel.name }}</span>
-                                    </span>
+                                    <span data-transfer-date data-original="{{ transfer.transfer_date|date:'d/m/Y' }}">{{ transfer.transfer_date|date:"d/m/Y" }}</span>
                                 </td>
                                 <td>
-                                    <span class="badge bg-info">{{ transfer.transaction_count }}</span>
+                                    <div class="d-flex align-items-center">
+                                        <i class="bi bi-ship text-danger me-1"></i>
+                                        <span class="vessel-name me-2" data-en="{{ transfer.from_vessel.name }}" data-ar="{{ transfer.from_vessel.name_ar }}">{{ transfer.from_vessel.name }}</span>
+                                        <i class="bi bi-arrow-right mx-1"></i>
+                                        <i class="bi bi-ship text-success me-1"></i>
+                                        <span class="vessel-name" data-en="{{ transfer.to_vessel.name }}" data-ar="{{ transfer.to_vessel.name_ar }}">{{ transfer.to_vessel.name }}</span>
+                                    </div>
+                                    {% if not transfer.is_completed %}
+                                        <small class="text-muted d-block"><span data-translate="click_to_resume">Click to resume</span></small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="fw-bold text-warning">{{ transfer.transaction_count }}</span>
+                                    {% if not transfer.is_completed %}
+                                        <small class="text-muted d-block">
+                                            <span data-translate="click_to_resume_transfer">Click to resume this transfer</span>
+                                        </small>
+                                    {% endif %}
                                 </td>
                                 <td>
                                     {% if transfer.is_completed %}
-                                        <span class="badge bg-success">
-                                            <i class="bi bi-check-circle"></i> <span data-translate="completed">Completed</span>
-                                        </span>
+                                        <span class="badge bg-success"><span data-translate="completed">Completed</span></span>
                                     {% else %}
-                                        <span class="badge bg-warning">
-                                            <i class="bi bi-clock"></i> <span data-translate="in_progress">In Progress</span>
-                                        </span>
+                                        <span class="badge bg-warning text-dark"><span data-translate="in_progress">In Progress</span></span>
                                     {% endif %}
                                 </td>
                                 <td>
@@ -151,9 +157,15 @@
                                     <small class="text-muted d-block transaction-time" data-time="{{ transfer.created_at|timesince }}">{{ transfer.created_at|timesince }} <span data-translate="ago">ago</span></small>
                                 </td>
                                 <td>
-                                    <button class="btn btn-outline-info btn-sm" onclick="viewTransferDetails('{{ transfer.id }}')" title="View Details">
-                                        <i class="bi bi-eye"></i> <span data-translate="view">View</span>
-                                    </button>
+                                    {% if not transfer.is_completed %}
+                                        <a href="{% url 'frontend:transfer_items' transfer.id %}" class="btn btn-warning btn-sm">
+                                            <i class="bi bi-plus"></i> <span data-translate="add_items">Add Items</span>
+                                        </a>
+                                    {% else %}
+                                        <button class="btn btn-outline-secondary btn-sm" onclick="viewTransferDetails('{{ transfer.id }}')" title="View Details">
+                                            <i class="bi bi-eye"></i> <span data-translate="view">View</span>
+                                        </button>
+                                    {% endif %}
                                 </td>
                             </tr>
                             {% empty %}
@@ -306,6 +318,10 @@ function clearForm() {
 }
 
 function viewTransferDetails(transferId) {
+    window.location.href = `/transfer/${transferId}/`;
+}
+
+function resumeTransfer(transferId) {
     window.location.href = `/transfer/${transferId}/`;
 }
 </script>
