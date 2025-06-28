@@ -143,6 +143,12 @@
             </div>
             <div class="card-body">
                 <form id="addWasteForm">
+                    {% csrf_token %}
+                    <!-- Hidden Inputs -->
+                    <input type="hidden" id="wasteId" value="{{ waste_report.id }}">
+                    <input type="hidden" id="reportNumber" value="{{ waste_report.report_number }}">
+                    <input type="hidden" id="vesselId" value="{{ waste_report.vessel.id }}">
+                    <input type="hidden" id="editIndex" value="-1">
                     <!-- Product Search -->
                     <div class="mb-3">
                         <label class="form-label fw-bold">
@@ -305,22 +311,6 @@
     </div>
 </div>
 
-<!-- Hidden Inputs -->
-<input type="hidden" id="wasteId" value="{{ waste_report.id }}">
-
-<!-- Hidden Data -->
-<script type="application/json" id="wasteData">
-{
-    "wasteReport": {
-        "id": {{ waste_report.id }},
-        "report_number": "{{ waste_report.report_number }}",
-        "vessel_id": {{ waste_report.vessel.id }},
-        "can_edit": {{ can_edit|yesno:"true,false" }}
-    },
-    "existingWasteItems": {{ existing_waste_items_json|safe }},
-    "completedWasteItems": {{ completed_waste_items_json|safe }}
-}
-</script>
 {% endblock %}
 
 {% block extra_js %}

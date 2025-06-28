@@ -164,6 +164,7 @@
                 <form id="addSupplyForm">
                     {% csrf_token %}
                     <input type="hidden" id="poId" value="{{ po.id }}">
+                    <input type="hidden" id="vesselId" value="{{ po.vessel.id }}">
                     <input type="hidden" id="editIndex" value="-1">
                     
                     <!-- Product Search -->
@@ -407,18 +408,8 @@ document.addEventListener('DOMContentLoaded', function() {
     window.initializePage({
         titleKey: 'po_supply',
         fallbackTitle: 'PO Supply',
-        pageTranslations: poSupplyTranslations
     })
 
-    
-    // Merge with global translations
-    const currentTranslations = window.translator.translations;
-    Object.keys(poSupplyTranslations).forEach(lang => {
-        if (currentTranslations[lang]) {
-            Object.assign(currentTranslations[lang], poSupplyTranslations[lang]);
-        }
-    });
-    
     // Check if required elements exist and if PO is editable
     const poIdElement = document.getElementById('poId');
     const canEdit = {{ can_edit|yesno:"true,false" }};
@@ -516,7 +507,7 @@ function loadProductCatalog() {
             'X-CSRFToken': window.getCsrfToken()
         },
         body: JSON.stringify({
-            vessel_id: {{ po.vessel.id }}
+            vessel_id: document.getElementById('vesselId').value
         })
     })
     .then(response => response.json())

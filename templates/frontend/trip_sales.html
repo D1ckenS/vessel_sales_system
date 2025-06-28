@@ -149,6 +149,8 @@
                     {% csrf_token %}
                     <input type="hidden" id="tripId" value="{{ trip.id }}">
                     <input type="hidden" id="editIndex" value="-1">
+                    <input type="hidden" id="vesselId" value="{{ trip.vessel.id }}">
+                    <input type="hidden" id="vesselHasDutyFree" value="{{ trip.vessel.has_duty_free|yesno:'true,false' }}">
                     
                     <!-- Product Search -->
                     <div class="mb-3">
@@ -487,7 +489,7 @@ function loadAvailableProducts() {
             'X-CSRFToken': window.getCsrfToken()
         },
         body: JSON.stringify({
-            vessel_id: {{ trip.vessel.id }}
+            vessel_id: tripData.vesselId
         })
     })
     .then(response => response.json())
@@ -694,7 +696,7 @@ function selectProductFromList(product) {
     let priceDisplay = `${product.selling_price.toFixed(3)} JOD`;
     if (product.is_custom_price) {
         priceDisplay += ` <span class="badge bg-info ms-1">${_('custom_price')}</span>`;
-    } else if (!product.is_custom_price && !{{ trip.vessel.has_duty_free|yesno:"true,false" }}) {
+    } else if (!product.is_custom_price && !tripData.vesselHasDutyFree) {
         priceDisplay += ` <span class="badge bg-warning text-dark ms-1">${_('default_price')}</span>`;
     }
     
@@ -805,7 +807,7 @@ function updateCOGSDisplay() {
                 'X-CSRFToken': window.getCsrfToken()
             },
             body: JSON.stringify({
-                vessel_id: {{ trip.vessel.id }},
+                vessel_id: tripData.vesselId,
                 product_id: selectedProduct.id,
                 quantity: quantity
             })
