@@ -186,6 +186,7 @@ def edit_trip(request, trip_id):
                 'notes': trip.notes or '',
                 'vessel_id': trip.vessel.id,
                 'vessel_name': trip.vessel.name,
+                'is_completed': trip.is_completed,
             }
         })
     
@@ -201,6 +202,10 @@ def edit_trip(request, trip_id):
             return error
         
         try:
+            # Track if status is changing for cache clearing
+            status_changed = False
+            old_status = trip.is_completed
+            
             # Update trip fields with validation
             if 'passenger_count' in data:
                 passenger_count = int(data['passenger_count'])
@@ -214,14 +219,45 @@ def edit_trip(request, trip_id):
             if 'notes' in data:
                 trip.notes = data['notes']
             
+            # 🚀 NEW: Handle completion status changes (admin/manager only)
+            if 'is_completed' in data:
+                # Check permission for status changes
+                from .permissions import is_admin_or_manager
+                if not is_admin_or_manager(request.user):
+                    return JsonResponseHelper.error('Permission denied: Only administrators and managers can change trip status')
+                
+                new_status = bool(data['is_completed'])
+                if new_status != old_status:
+                    status_changed = True
+                    trip.is_completed = new_status
+                    
+                    # Log the status change
+                    action = "completed" if new_status else "reopened"
+                    print(f"🔄 TRIP STATUS CHANGE: Trip {trip.trip_number} {action} by {request.user.username}")
+            
             trip.save()
+            
+            # 🚀 ENHANCED: Clear cache if status changed or always for consistency
+            if status_changed:
+                TripCacheHelper.clear_cache_after_trip_update(trip_id)
+                # Also clear robust cache for status changes
+                TripCacheHelper.clear_recent_trips_cache_only_when_needed()
+                print(f"🔥 Enhanced cache cleared due to status change")
+            else:
+                TripCacheHelper.clear_cache_after_trip_delete(trip_id)
+                TripCacheHelper.clear_recent_trips_cache_only_when_needed()
+            
+            # Create appropriate success message
+            if status_changed:
+                action = "completed" if trip.is_completed else "reopened for editing"
+                message = f'Trip {trip.trip_number} updated and {action} successfully'
+            else:
+                message = f'Trip {trip.trip_number} updated successfully'
             
             TripCacheHelper.clear_cache_after_trip_delete(trip_id)
             TripCacheHelper.clear_recent_trips_cache_only_when_needed()
             
-            return JsonResponseHelper.success(
-                message=f'Trip {trip.trip_number} updated successfully'
-            )
+            return JsonResponseHelper.success(message=message, data={'trip_id': trip.id})
             
         except (ValueError, ValidationError) as e:
             return JsonResponseHelper.error(f'Invalid data: {str(e)}')

@@ -8,8 +8,9 @@ from vessels.models import Vessel
 from products.models import Product
 from django.db.models import Sum, F, Count
 from django.db import transaction
-from frontend.utils.cache_helpers import ProductCacheHelper
+from frontend.utils.cache_helpers import ProductCacheHelper, TripCacheHelper
 from frontend.utils.error_helpers import InventoryErrorHelper
+from django.core.cache import cache
 
 class InventoryLot(models.Model):
     """Tracks individual purchase batches for FIFO inventory management"""
@@ -935,6 +936,25 @@ class Transaction(models.Model):
             ProductCacheHelper.clear_cache_after_product_update()
         except:
             pass
+
+        # 🚀 CACHE: Clear trip cache if this affects trip data
+        try:
+            if self.transaction_type == 'SALE' and hasattr(self, 'trip') and self.trip:
+                TripCacheHelper.clear_cache_after_trip_update(self.trip.id)
+                
+                # 🚀 FIX: Also clear completed trip cache specifically
+                if self.trip.is_completed:
+                    completed_cache_key = TripCacheHelper.get_completed_trip_cache_key(self.trip.id)
+                    cache.delete(completed_cache_key)
+                    print(f"🔥 Completed trip cache cleared: Trip {self.trip.id}")
+                
+                print(f"🔥 Trip cache cleared after transaction deletion: Trip {self.trip.id}")
+            else:
+                # Clear general trip cache for any transaction changes
+                TripCacheHelper.clear_recent_trips_cache_only_when_needed()
+                print(f"🔥 Recent trips cache cleared after transaction deletion")
+        except Exception as e:
+            print(f"⚠️ Trip cache clear error: {e}")
         
         super().delete(*args, **kwargs)
 

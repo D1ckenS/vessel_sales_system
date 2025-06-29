@@ -307,6 +307,10 @@ class TripCacheHelper:
         cls._increment_cache_version()
         cleared_keys.append('version_bumped')
         
+        # 🚀 FIX: Also increment robust cache version
+        cls.clear_recent_trips_cache_only_when_needed()
+        cleared_keys.append('robust_version_bumped')
+        
         # Clear specific completed trip if provided
         if trip_id:
             completed_cache_key = cls.get_completed_trip_cache_key(trip_id)

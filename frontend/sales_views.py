@@ -84,26 +84,6 @@ def sales_entry(request):
             
             # 🚀 ROBUST CACHE: Store with longer timeout for browser navigation
             TripCacheHelper.cache_recent_trips_with_revenue_robust(str(user_role), recent_trips, today)
-            
-            # 🚀 OPTIMIZED: Process trips with prefetched data (no additional queries)
-            recent_trips = []
-            for trip in recent_trips_query:
-                # Calculate revenue using prefetched sales_transactions
-                sales_transactions = trip.sales_transactions.all()  # Uses prefetched data
-                total_revenue = sum(
-                    float(txn.quantity) * float(txn.unit_price) 
-                    for txn in sales_transactions
-                )
-                transaction_count = len(sales_transactions)
-                
-                # Add calculated fields to trip object for template
-                trip.calculated_total_revenue = total_revenue
-                trip.calculated_transaction_count = transaction_count
-                
-                recent_trips.append(trip)
-            
-            # 🚀 CACHE: Store processed trips for future requests
-            TripCacheHelper.cache_recent_trips_with_revenue(str(user_role), recent_trips, today)
         
         context = {
             'vessels': vessels,
@@ -511,14 +491,19 @@ def trip_bulk_complete(request):
                 
                 created_transactions.append(sale_transaction)
                 total_revenue += quantity * unit_price
+                
+            # 🚀 CACHE: Clear cache after adding transactions (before completion)
+            if created_transactions:
+                TripCacheHelper.clear_recent_trips_cache_only_when_needed()
+                print(f"🔥 Cache cleared after adding {len(created_transactions)} transactions")
             
             # Mark trip as completed
             trip.is_completed = True
             trip.save()
     
             # 🚀 CACHE: Clear trip cache after completion
+            TripCacheHelper.clear_cache_after_trip_update(trip_id)
             TripCacheHelper.clear_cache_after_trip_complete(trip_id)
-            TripCacheHelper.clear_recent_trips_cache_only_when_needed()
         
         # Build success response
         response_data = {

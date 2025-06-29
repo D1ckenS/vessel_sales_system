@@ -398,11 +398,6 @@
                                             <button class="btn btn-outline-primary" onclick="editTrip({{ trip.id }})" data-translate-title="edit_trip">
                                                 <i class="bi bi-pencil"></i>
                                             </button>
-                                            {% if not trip.is_completed %}
-                                            <button class="btn btn-outline-success" onclick="toggleTripStatus({{ trip.id }})" data-translate-title="mark_complete">
-                                                <i class="bi bi-check-circle"></i>
-                                            </button>
-                                            {% endif %}
                                             <button class="btn btn-outline-danger" onclick="deleteTrip({{ trip.id }})" data-translate-title="delete_trip">
                                                 <i class="bi bi-trash"></i>
                                             </button>
@@ -479,6 +474,21 @@
                         <label class="form-label fw-bold"><span data-translate="notes">Notes</span></label>
                         <textarea class="form-control" id="editTripNotes" name="notes" rows="3"></textarea>
                     </div>
+                    {% if user_permissions.is_admin_or_manager %}
+                    <div class="mb-3">
+                        <label class="form-label fw-bold"><span data-translate="trip_status">Trip Status</span></label>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="editTripCompleted" name="is_completed">
+                            <label class="form-check-label" for="editTripCompleted">
+                                <span data-translate="mark_as_completed">Mark as Completed</span>
+                            </label>
+                        </div>
+                        <small class="form-text text-muted">
+                            <i class="bi bi-info-circle"></i>
+                            <span data-translate="trip_status_help">Changing status will require confirmation</span>
+                        </small>
+                    </div>
+                    {% endif %}
                 </form>
             </div>
             <div class="modal-footer">
@@ -487,6 +497,40 @@
                 </button>
                 <button type="button" class="btn btn-primary" onclick="saveTrip()">
                     <span data-translate="save_changes">Save Changes</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirmation Modal for Status Changes -->
+<div class="modal fade" id="statusChangeConfirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-exclamation-triangle text-warning me-2"></i>
+                    <span data-translate="confirm_status_change">Confirm Status Change</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info d-flex align-items-center">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <div id="statusChangeMessage"></div>
+                </div>
+                <p class="mb-0 text-muted">
+                    <small><span data-translate="status_change_note">This action can be reversed later through the edit function.</span></small>
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-1"></i>
+                    <span data-translate="cancel">Cancel</span>
+                </button>
+                <button type="button" class="btn btn-primary" id="confirmStatusChange">
+                    <i class="bi bi-check-circle me-1"></i>
+                    <span data-translate="confirm">Confirm</span>
                 </button>
             </div>
         </div>
@@ -542,7 +586,16 @@ function editTrip(tripId) {
             document.getElementById('editPassengerCount').value = data.trip.passenger_count;
             document.getElementById('editTripDate').value = data.trip.trip_date;
             document.getElementById('editTripNotes').value = data.trip.notes;
+
+            const completedToggle = document.getElementById('editTripCompleted');
+            if (completedToggle) {
+                completedToggle.checked = data.trip.is_completed;
+            }
             
+            window.currentTripData = {
+                is_completed: data.trip.is_completed
+            };
+
             new bootstrap.Modal(document.getElementById('editTripModal')).show();
         } else {
             window.showAlert(data.error, 'danger');
@@ -556,14 +609,35 @@ function editTrip(tripId) {
 
 function saveTrip() {
     const tripId = document.getElementById('editTripId').value;
+    const completedToggle = document.getElementById('editTripCompleted');
+    
     const formData = {
         passenger_count: document.getElementById('editPassengerCount').value,
         trip_date: document.getElementById('editTripDate').value,
         notes: document.getElementById('editTripNotes').value
     };
     
-    // FIXED: Remove /manage/ from URL
-    fetch(`/trips/${tripId}/edit/`, {  // ← WAS: `/trips/manage/${tripId}/edit/`
+    // Add completion status if toggle exists (admin/manager only)
+    if (completedToggle) {
+        formData.is_completed = completedToggle.checked;
+        
+        // Check if status is changing
+        const currentStatus = window.currentTripData && window.currentTripData.is_completed;
+        const newStatus = completedToggle.checked;
+        
+        if (currentStatus !== newStatus) {
+            // Status is changing - show confirmation
+            const confirmMessage = newStatus 
+                ? 'Mark this trip as completed? This will finalize all transactions and prevent further editing.'
+                : 'Reopen this completed trip? This will allow editing of transactions and trip details.';
+            
+            showStatusChangeConfirmation(confirmMessage, formData, tripId);
+            return;
+        }
+    }
+    
+    // Proceed with save
+    fetch(`/trips/${tripId}/edit/`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -576,7 +650,50 @@ function saveTrip() {
         if (data.success) {
             window.showAlert(data.message, 'success');
             bootstrap.Modal.getInstance(document.getElementById('editTripModal')).hide();
-            location.reload();
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            window.showAlert(data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        window.showAlert('Error saving trip', 'danger');
+    });
+}
+
+function showStatusChangeConfirmation(message, formData, tripId) {
+    // Set the message
+    document.getElementById('statusChangeMessage').textContent = message;
+    
+    // Show the modal
+    const modal = new bootstrap.Modal(document.getElementById('statusChangeConfirmModal'));
+    modal.show();
+    
+    // Handle confirmation
+    document.getElementById('confirmStatusChange').onclick = function() {
+        // Hide confirmation modal
+        modal.hide();
+        
+        // Proceed with the actual save
+        executeTripSave(formData, tripId);
+    };
+}
+
+function executeTripSave(formData, tripId) {
+    fetch(`/trips/${tripId}/edit/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': window.getCsrfToken()
+        },
+        body: JSON.stringify(formData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.showAlert(data.message, 'success');
+            bootstrap.Modal.getInstance(document.getElementById('editTripModal')).hide();
+            setTimeout(() => location.reload(), 1000);
         } else {
             window.showAlert(data.error, 'danger');
         }
@@ -782,28 +899,6 @@ function handleDeletionError(data) {
         const errorMsg = data.error || data.error_message || data.message || 'An error occurred';
         window.showAlert(errorMsg, 'danger');
     }
-}
-
-function toggleTripStatus(tripId) {
-    fetch(`/trips/manage/${tripId}/toggle-status/`, {
-        method: 'POST',
-        headers: {
-            'X-CSRFToken': window.getCsrfToken()
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            window.showAlert(data.message, 'success');
-            location.reload();
-        } else {
-            window.showAlert(data.error, 'danger');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        window.showAlert('Error updating trip status', 'danger');
-    });
 }
 </script>
 {% endblock %}
