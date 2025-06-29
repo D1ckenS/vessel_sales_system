@@ -112,17 +112,22 @@ def delete_transaction(request, transaction_id):
         )
         
     except ValidationError as e:
-        # Enhanced error handling for inventory conflicts
+        # 🛡️ ENHANCED ERROR HANDLING: Parse and format user-friendly messages
         error_message = str(e)
         
         # Extract message from ValidationError list format
         if error_message.startswith('[') and error_message.endswith(']'):
-            error_message = error_message[2:-2]
+            error_message = error_message[2:-2]  # Remove ['...']
         
-        # Check if it's a supply consumption error
+        # Check if it's an inventory consumption error
         if "Cannot delete supply transaction" in error_message:
+            # Extract key information for better error display
+            lines = error_message.split('\\n')  # Split on literal \n
+            main_error = lines[0] if lines else error_message
+            
+            # Return enhanced error with additional context
             return JsonResponseHelper.error(
-                error_message=error_message.split('.')[0],  # First sentence only
+                error_message=main_error,
                 error_type='inventory_consumption_blocked',
                 detailed_message=error_message,
                 suggested_actions=[
@@ -134,17 +139,23 @@ def delete_transaction(request, transaction_id):
                     },
                     {
                         'action': 'view_inventory',
-                        'label': 'Check Inventory Details',
+                        'label': 'Check Inventory',
                         'url': reverse('frontend:inventory_check'),
                         'description': 'View current inventory levels and consumption details'
+                    },
+                    {
+                        'action': 'contact_admin',
+                        'label': 'Contact Administrator',
+                        'description': 'If you need to force delete this transaction, contact your system administrator'
                     }
                 ]
             )
-        else:
-            return JsonResponseHelper.error(
-                error_message=f"Cannot delete transaction: {error_message}",
-                error_type='validation_error'
-            )
+        
+        # Handle other validation errors
+        return JsonResponseHelper.error(
+            error_message=error_message,
+            error_type='validation_error'
+        )
             
     except Exception as e:
         return JsonResponseHelper.error(

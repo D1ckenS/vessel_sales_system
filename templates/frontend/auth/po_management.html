@@ -437,13 +437,13 @@
     </div>
 </div>
 
-<!-- PO Edit Modal -->
+<!-- Edit PO Modal -->
 <div class="modal fade" id="editPOModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
-                    <i class="bi bi-pencil me-2"></i>
+                    <i class="bi bi-pencil text-primary me-2"></i>
                     <span data-translate="edit_po">Edit Purchase Order</span>
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -467,6 +467,22 @@
                         <label class="form-label fw-bold"><span data-translate="notes">Notes</span></label>
                         <textarea class="form-control" id="editPONotes" name="notes" rows="3"></textarea>
                     </div>
+
+                    {% if user_permissions.is_admin_or_manager %}
+                    <div class="mb-3">
+                        <label class="form-label fw-bold"><span data-translate="po_status">PO Status</span></label>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="editPOCompleted" name="is_completed">
+                            <label class="form-check-label" for="editPOCompleted">
+                                <span data-translate="mark_as_completed">Mark as Completed</span>
+                            </label>
+                        </div>
+                        <small class="form-text text-muted">
+                            <i class="bi bi-info-circle"></i>
+                            <span data-translate="po_status_help">Changing status will require confirmation</span>
+                        </small>
+                    </div>
+                    {% endif %}
                 </form>
             </div>
             <div class="modal-footer">
@@ -475,6 +491,40 @@
                 </button>
                 <button type="button" class="btn btn-primary" onclick="savePO()">
                     <span data-translate="save_changes">Save Changes</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirmation Modal for PO Status Changes -->
+<div class="modal fade" id="poStatusChangeConfirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-exclamation-triangle text-warning me-2"></i>
+                    <span data-translate="confirm_status_change">Confirm Status Change</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info d-flex align-items-center">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <div id="poStatusChangeMessage"></div>
+                </div>
+                <p class="mb-0 text-muted">
+                    <small><span data-translate="status_change_note">This action can be reversed later through the edit function.</span></small>
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-1"></i>
+                    <span data-translate="cancel">Cancel</span>
+                </button>
+                <button type="button" class="btn btn-primary" id="confirmPOStatusChange">
+                    <i class="bi bi-check-circle me-1"></i>
+                    <span data-translate="confirm">Confirm</span>
                 </button>
             </div>
         </div>
@@ -514,8 +564,7 @@ function getFilterData() {
 }
 
 function editPO(poId) {
-    // FIXED: Remove /manage/ from URL
-    fetch(`/purchase-orders/${poId}/edit/`, {  // ← WAS: `/purchase-orders/manage/${poId}/edit/`
+    fetch(`/purchase-orders/${poId}/edit/`, {
         method: 'GET',
         headers: {
             'X-CSRFToken': window.getCsrfToken()
@@ -528,7 +577,18 @@ function editPO(poId) {
             document.getElementById('editPONumber').value = data.po.po_number;
             document.getElementById('editPODate').value = data.po.po_date;
             document.getElementById('editPONotes').value = data.po.notes;
+
+            // Set PO completion status toggle (admin/manager only)
+            const completedToggle = document.getElementById('editPOCompleted');
+            if (completedToggle) {
+                completedToggle.checked = data.po.is_completed;
+            }
             
+            // Store current PO data for status change detection
+            window.currentPOData = {
+                is_completed: data.po.is_completed
+            };
+
             new bootstrap.Modal(document.getElementById('editPOModal')).show();
         } else {
             window.showAlert(data.error, 'danger');
@@ -542,13 +602,56 @@ function editPO(poId) {
 
 function savePO() {
     const poId = document.getElementById('editPOId').value;
+    const completedToggle = document.getElementById('editPOCompleted');
+    
     const formData = {
         po_date: document.getElementById('editPODate').value,
         notes: document.getElementById('editPONotes').value
     };
     
-    // FIXED: Remove /manage/ from URL
-    fetch(`/purchase-orders/${poId}/edit/`, {  // ← WAS: `/purchase-orders/manage/${poId}/edit/`
+    // Add completion status if toggle exists (admin/manager only)
+    if (completedToggle) {
+        formData.is_completed = completedToggle.checked;
+        
+        // Check if status is changing
+        const currentStatus = window.currentPOData && window.currentPOData.is_completed;
+        const newStatus = completedToggle.checked;
+        
+        if (currentStatus !== newStatus) {
+            // Status is changing - show confirmation
+            const confirmMessage = newStatus 
+                ? 'Mark this PO as completed? This will finalize all supply transactions and prevent further editing.'
+                : 'Reopen this completed PO? This will allow editing of supply transactions and PO details.';
+            
+            showPOStatusChangeConfirmation(confirmMessage, formData, poId);
+            return; // Exit here, modal will handle the save
+        }
+    }
+    
+    // Proceed with save (no status change)
+    executePOSave(formData, poId);
+}
+
+function showPOStatusChangeConfirmation(message, formData, poId) {
+    // Set the message
+    document.getElementById('poStatusChangeMessage').textContent = message;
+    
+    // Show the modal
+    const modal = new bootstrap.Modal(document.getElementById('poStatusChangeConfirmModal'));
+    modal.show();
+    
+    // Handle confirmation
+    document.getElementById('confirmPOStatusChange').onclick = function() {
+        // Hide confirmation modal
+        modal.hide();
+        
+        // Proceed with the actual save
+        executePOSave(formData, poId);
+    };
+}
+
+function executePOSave(formData, poId) {
+    fetch(`/purchase-orders/${poId}/edit/`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -561,7 +664,7 @@ function savePO() {
         if (data.success) {
             window.showAlert(data.message, 'success');
             bootstrap.Modal.getInstance(document.getElementById('editPOModal')).hide();
-            location.reload();
+            setTimeout(() => location.reload(), 1000);
         } else {
             window.showAlert(data.error, 'danger');
         }
@@ -782,40 +885,36 @@ function showInventoryBlockedModal(errorData) {
                             Deleting it would create data inconsistencies.
                         </div>
                         
-                        <div class="mb-3">
-                            <h6>Detailed Information:</h6>
-                            <div class="text-muted" style="white-space: pre-line;">${detailedMessage}</div>
-                        </div>
-                        
-                        <h6>What you can do:</h6>
-                        <div class="list-group">
-                            ${errorData.suggested_actions.map(action => `
-                                <div class="list-group-item">
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <div>
-                                            <h6 class="mb-1">${action.label}</h6>
-                                            <p class="mb-0 text-muted small">${action.description}</p>
+                        <div class="accordion" id="errorDetailsAccordion">
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#errorDetails">
+                                        <i class="bi bi-info-circle me-2"></i>
+                                        Technical Details
+                                    </button>
+                                </h2>
+                                <div id="errorDetails" class="accordion-collapse collapse" data-bs-parent="#errorDetailsAccordion">
+                                    <div class="accordion-body">
+                                        <div class="bg-light p-3 rounded">
+                                            <small class="font-monospace">${detailedMessage}</small>
                                         </div>
-                                        ${action.url ? `
-                                            <a href="${action.url}" class="btn btn-sm btn-outline-primary" target="_blank">
-                                                <i class="bi bi-arrow-up-right"></i> Go
-                                            </a>
-                                        ` : `
-                                            <button class="btn btn-sm btn-outline-secondary" disabled>
-                                                <i class="bi bi-envelope"></i>
-                                            </button>
-                                        `}
                                     </div>
                                 </div>
-                            `).join('')}
+                            </div>
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="this.blur()">
-                            <i class="bi bi-x-circle me-1"></i> Got It
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-circle me-1"></i>
+                            Close
                         </button>
-                        <a href="${errorData.suggested_actions[0]?.url || '#'}" class="btn btn-primary" target="_blank">
-                            <i class="bi bi-list-ul me-1"></i> View Transactions
+                        <a href="/transactions/" class="btn btn-primary">
+                            <i class="bi bi-list-ul me-1"></i>
+                            View All Transactions
+                        </a>
+                        <a href="/inventory/" class="btn btn-outline-info">
+                            <i class="bi bi-boxes me-1"></i>
+                            Check Inventory
                         </a>
                     </div>
                 </div>
@@ -826,10 +925,10 @@ function showInventoryBlockedModal(errorData) {
     // Add modal to body
     document.body.insertAdjacentHTML('beforeend', modalHTML);
     
-    // Wait a tiny bit before showing the new modal to let the old one fully close
+    // Show modal with delay to ensure DOM is ready
     setTimeout(() => {
-        const newModal = new bootstrap.Modal(document.getElementById('inventoryBlockedModal'));
-        newModal.show();
+        const modal = new bootstrap.Modal(document.getElementById('inventoryBlockedModal'));
+        modal.show();
     }, 100);
 }
 

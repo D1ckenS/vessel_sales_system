@@ -4,7 +4,7 @@ from django.shortcuts import render, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.http import JsonResponse
 from django.db import transaction
-from frontend.utils.cache_helpers import VesselCacheHelper
+from frontend.utils.cache_helpers import POCacheHelper, VesselCacheHelper
 from .utils.query_helpers import TransactionQueryHelper
 from transactions.models import PurchaseOrder
 from django.views.decorators.http import require_http_methods
@@ -145,6 +145,7 @@ def edit_po(request, po_id):
                 'notes': po.notes or '',
                 'vessel_id': po.vessel.id,
                 'vessel_name': po.vessel.name,
+                'is_completed': po.is_completed,
             }
         })
     
@@ -160,6 +161,10 @@ def edit_po(request, po_id):
             return error
         
         try:
+            # Track if status is changing for cache clearing
+            status_changed = False
+            old_status = po.is_completed
+            
             # Update PO fields
             if 'po_date' in data:
                 po.po_date = datetime.strptime(data['po_date'], '%Y-%m-%d').date()
@@ -167,12 +172,40 @@ def edit_po(request, po_id):
             if 'notes' in data:
                 po.notes = data['notes']
             
+            # 🚀 NEW: Handle completion status changes (admin/manager only)
+            if 'is_completed' in data:
+                # Check permission for status changes
+                from .permissions import is_admin_or_manager
+                if not is_admin_or_manager(request.user):
+                    return JsonResponseHelper.error('Permission denied: Only administrators and managers can change PO status')
+                
+                new_status = bool(data['is_completed'])
+                if new_status != old_status:
+                    status_changed = True
+                    po.is_completed = new_status
+                    
+                    # Log the status change
+                    action = "completed" if new_status else "reopened"
+                    print(f"🔄 PO STATUS CHANGE: PO {po.po_number} {action} by {request.user.username}")
+            
             po.save()
             
-            return JsonResponseHelper.success(
-                message=f'Purchase Order {po.po_number} updated successfully'
-            )
+            # 🚀 ENHANCED: Clear cache if status changed or always for consistency
+            if status_changed:
+                POCacheHelper.clear_cache_after_po_update(po_id)
+                print(f"🔥 Enhanced cache cleared due to status change")
+            else:
+                POCacheHelper.clear_cache_after_po_update(po_id)
             
+            # Create appropriate success message
+            if status_changed:
+                action = "completed" if po.is_completed else "reopened for editing"
+                message = f'PO {po.po_number} updated and {action} successfully'
+            else:
+                message = f'PO {po.po_number} updated successfully'
+
+            return JsonResponseHelper.success(message=message, data={'po_id': po.id})
+                
         except (ValueError, ValidationError) as e:
             return JsonResponseHelper.error(f'Invalid data: {str(e)}')
         except Exception as e:

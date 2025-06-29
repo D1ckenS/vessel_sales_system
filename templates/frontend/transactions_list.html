@@ -554,6 +554,116 @@ function confirmTransactionDelete(transactionId) {
         }, 200);
     });
 }
+
+function showInventoryBlockedModal(errorData) {
+    // First, properly close any existing modals and clear focus
+    const existingConfirmModal = document.getElementById('deleteConfirmationModal');
+    if (existingConfirmModal) {
+        const modalInstance = bootstrap.Modal.getInstance(existingConfirmModal);
+        if (modalInstance) {
+            modalInstance.hide();
+        }
+        existingConfirmModal.remove();
+    }
+    
+    // Remove any existing inventory modal
+    const existingModal = document.getElementById('inventoryBlockedModal');
+    if (existingModal) {
+        const modalInstance = bootstrap.Modal.getInstance(existingModal);
+        if (modalInstance) {
+            modalInstance.hide();
+        }
+        existingModal.remove();
+    }
+    
+    // Clear any focused elements
+    if (document.activeElement && document.activeElement.blur) {
+        document.activeElement.blur();
+    }
+
+    // Process the detailed message to convert \n to <br>
+    let detailedMessage = errorData.detailed_message || errorData.error_message || errorData.error || '';
+    
+    // Clean up the message format
+    if (detailedMessage.startsWith('[') && detailedMessage.endsWith(']')) {
+        detailedMessage = detailedMessage.slice(2, -2); // Remove [' and ']
+    }
+    
+    // Convert \n to HTML line breaks and format sections
+    detailedMessage = detailedMessage
+        .replace(/\\n\\n/g, '<br><br>')  // Double newlines
+        .replace(/\\n/g, '<br>')         // Single newlines
+        .replace(/❌ REASON:/g, '<strong>❌ REASON:</strong>')
+        .replace(/📊 DETAILS:/g, '<strong>📊 DETAILS:</strong>')
+        .replace(/📅 ORIGINAL TRANSACTION:/g, '<strong>📅 ORIGINAL TRANSACTION:</strong>')
+        .replace(/🔧 TO FIX THIS ISSUE:/g, '<strong>🔧 TO FIX THIS ISSUE:</strong>')
+        .replace(/💡 QUICK ACTIONS:/g, '<strong>💡 QUICK ACTIONS:</strong>');
+
+    const modalHTML = `
+        <div class="modal fade" id="inventoryBlockedModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header bg-warning text-dark">
+                        <h5 class="modal-title">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            Inventory Usage Detected
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" onclick="this.blur()"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-warning">
+                            <i class="bi bi-info-circle me-2"></i>
+                            <strong>Why can't I delete this?</strong><br>
+                            This supply transaction has inventory that was already sold or transferred. 
+                            Deleting it would create data inconsistencies.
+                        </div>
+                        
+                        <div class="accordion" id="errorDetailsAccordion">
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#errorDetails">
+                                        <i class="bi bi-info-circle me-2"></i>
+                                        Technical Details
+                                    </button>
+                                </h2>
+                                <div id="errorDetails" class="accordion-collapse collapse" data-bs-parent="#errorDetailsAccordion">
+                                    <div class="accordion-body">
+                                        <div class="bg-light p-3 rounded">
+                                            <small class="font-monospace">${detailedMessage}</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-circle me-1"></i>
+                            Close
+                        </button>
+                        <a href="/transactions/" class="btn btn-primary">
+                            <i class="bi bi-list-ul me-1"></i>
+                            View All Transactions
+                        </a>
+                        <a href="/inventory/" class="btn btn-outline-info">
+                            <i class="bi bi-boxes me-1"></i>
+                            Check Inventory
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Add modal to body
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    // Show modal with delay to ensure DOM is ready
+    setTimeout(() => {
+        const modal = new bootstrap.Modal(document.getElementById('inventoryBlockedModal'));
+        modal.show();
+    }, 100);
+}
 </script>
 
 <!-- Notes Display Script -->
