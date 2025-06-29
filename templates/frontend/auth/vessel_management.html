@@ -648,17 +648,8 @@ document.addEventListener('DOMContentLoaded', function() {
     window.initializePage({
         titleKey: 'vessel_management',
         fallbackTitle: 'Vessel Management',
-        pageTranslations: pageTranslations
     })
 
-    // Merge with global translations - OPTIMIZED: Single merge operation
-    const currentTranslations = window.translator.translations;
-    Object.keys(pageTranslations).forEach(lang => {
-        if (currentTranslations[lang]) {
-            Object.assign(currentTranslations[lang], pageTranslations[lang]);
-        }
-    });
-    
     // Apply translations
     window.updatePageTranslations();
     
