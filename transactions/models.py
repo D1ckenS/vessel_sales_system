@@ -9,6 +9,7 @@ from products.models import Product
 from django.db.models import Sum, F, Count
 from django.db import transaction
 from frontend.utils.cache_helpers import ProductCacheHelper
+from frontend.utils.error_helpers import InventoryErrorHelper
 
 class InventoryLot(models.Model):
     """Tracks individual purchase batches for FIFO inventory management"""
@@ -926,6 +927,7 @@ class Transaction(models.Model):
     def _validate_and_delete_supply_inventory(self):
         """
         🛡️ SAFE SUPPLY DELETION: Validate no consumption before deleting inventory lots
+        Enhanced with user-friendly error messages and actionable guidance
         """
         
         print(f"🔍 DEBUG: Checking supply deletion for {self.product.name} on {self.vessel.name}")
@@ -945,6 +947,7 @@ class Transaction(models.Model):
         total_supplied = 0
         total_remaining = 0
         consumption_details = []
+        blocking_transactions = []
         
         for lot in matching_lots:
             consumed_from_lot = lot.original_quantity - lot.remaining_quantity
@@ -960,6 +963,12 @@ class Transaction(models.Model):
                     'remaining': lot.remaining_quantity,
                     'original': lot.original_quantity
                 })
+                
+                # Find transactions that consumed from this lot
+                # This is a simplified approach - in reality you'd need more sophisticated tracking
+                blocking_transactions.extend([
+                    f"{self.product.name}: {consumed_from_lot} units consumed"
+                ])
         
         total_consumed = total_supplied - total_remaining
         print(f"🔍 DEBUG: Total supplied={total_supplied}, remaining={total_remaining}, consumed={total_consumed}")
@@ -968,22 +977,17 @@ class Transaction(models.Model):
         if total_consumed > 0:
             print(f"❌ DEBUG: BLOCKING DELETION - {total_consumed} units consumed")
             
-            # Build detailed error message
-            error_details = []
-            for detail in consumption_details:
-                error_details.append(
-                    f"Lot {detail['lot_id']}: {detail['consumed']} consumed "
-                    f"({detail['remaining']}/{detail['original']} remaining)"
-                )
-            
-            consumption_breakdown = "; ".join(error_details)
-            
+            # Enhanced user-friendly error message
+            from frontend.utils.error_helpers import InventoryErrorHelper
             raise ValidationError(
-                f"DELETION BLOCKED: Cannot delete supply transaction for "
-                f"{self.product.name} on {self.vessel.name}. "
-                f"Total Consumed: {total_consumed} units. "
-                f"Details: {consumption_breakdown}. "
-                f"Delete related sales/transfers first."
+                InventoryErrorHelper.format_supply_deletion_error(
+                    product_name=self.product.name,
+                    vessel_name=self.vessel.name,
+                    total_consumed=total_consumed,
+                    total_supplied=total_supplied,
+                    consumption_details=consumption_details,
+                    transaction_date=self.transaction_date
+                )
             )
         
         # ✅ SAFE TO DELETE: No consumption detected

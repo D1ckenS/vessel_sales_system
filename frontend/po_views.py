@@ -1,3 +1,4 @@
+from django.urls import reverse
 from django.utils import timezone
 from django.shortcuts import render, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -240,10 +241,56 @@ def delete_po(request, po_id):
             )
             
     except ValidationError as e:
-        # 🛡️ CATCH SAFETY VALIDATION: Return proper error response
-        return JsonResponseHelper.error(str(e))
+        # 🛡️ ENHANCED ERROR HANDLING: Parse and format user-friendly messages
+        error_message = str(e)
+        
+        # Extract message from ValidationError list format
+        if error_message.startswith('[') and error_message.endswith(']'):
+            error_message = error_message[2:-2]  # Remove ['...']
+        
+        # Check if it's an inventory consumption error
+        if "Cannot delete supply transaction" in error_message:
+            # Extract key information for better error display
+            lines = error_message.split('\\n')  # Split on literal \n
+            main_error = lines[0] if lines else error_message
+            
+            # Return enhanced error with additional context
+            return JsonResponseHelper.error(
+                error_message=main_error,
+                error_type='inventory_consumption_blocked',
+                detailed_message=error_message,
+                suggested_actions=[
+                    {
+                        'action': 'view_transactions',
+                        'label': 'View Transaction Log',
+                        'url': reverse('frontend:transactions_list'),
+                        'description': 'Find and delete the sales/transfers that consumed this inventory'
+                    },
+                    {
+                        'action': 'view_inventory',
+                        'label': 'Check Inventory Details',
+                        'url': reverse('frontend:inventory_check'),
+                        'description': 'View current inventory levels and consumption details'
+                    },
+                    {
+                        'action': 'contact_admin',
+                        'label': 'Contact Administrator',
+                        'description': 'Get help identifying which transactions need to be deleted first'
+                    }
+                ]
+            )
+        else:
+            # For other validation errors, return standard error
+            return JsonResponseHelper.error(
+                error_message=f"Cannot delete purchase order: {error_message}",
+                error_type='validation_error'
+            )
+            
     except Exception as e:
-        return JsonResponseHelper.error(str(e))
+        return JsonResponseHelper.error(
+            error_message=f"An unexpected error occurred: {str(e)}",  # ← FIXED: was message=
+            error_type='system_error'
+        )
 
 @login_required
 @user_passes_test(is_admin_or_manager)
