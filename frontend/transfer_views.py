@@ -160,7 +160,7 @@ def transfer_entry(request):
             
             # Clear transfer cache
             
-            TransferCacheHelper.clear_recent_transfers_cache()
+            TransferCacheHelper.clear_all_transfer_cache()
             
             BilingualMessages.success(request, 'transfer_created_success', transfer_number=transfer.id)
             # ✅ Redirect to transfer_items with transfer_id (like sales/supply pattern)
@@ -406,7 +406,7 @@ def transfer_bulk_complete(request):
             transfer.save()
             
             # Clear transfer cache
-            TransferCacheHelper.clear_recent_transfers_cache()
+            TransferCacheHelper.clear_all_transfer_cache()
         
         return JsonResponse({
             'success': True,

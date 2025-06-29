@@ -4,7 +4,7 @@ from django.urls import path
 from . import (views, auth_views, reports_views, export_views,
                product_views, category_views, supply_views, transfer_views, waste_views,
                sales_views, inventory_views, pricing_views, vessel_views, user_views,
-               group_views, trip_views, po_views, transaction_views)
+               group_views, trip_views, po_views, transaction_views, transfer_management_views)
 
 app_name = 'frontend'
 
@@ -159,6 +159,12 @@ urlpatterns = [
     path('purchase-orders/<int:po_id>/edit/', po_views.edit_po, name='edit_po'),
     path('purchase-orders/<int:po_id>/delete/', po_views.delete_po, name='delete_po'),
     path('purchase-orders/<int:po_id>/toggle-status/', po_views.toggle_po_status, name='toggle_po_status'),
+    
+    # Transfer Management (Admin replacement)
+    path('transfers/manage/', transfer_management_views.transfer_management, name='transfer_management'),
+    path('transfers/<int:transfer_id>/edit/', transfer_management_views.edit_transfer, name='edit_transfer'),
+    path('transfers/<int:transfer_id>/delete/', transfer_management_views.delete_transfer, name='delete_transfer'),
+    path('transfers/<int:transfer_id>/toggle-status/', transfer_management_views.toggle_transfer_status, name='toggle_transfer_status'),
     
     # Transaction Management (Admin replacement)
     path('transactions/<int:transaction_id>/delete/', transaction_views.delete_transaction, name='delete_transaction'),

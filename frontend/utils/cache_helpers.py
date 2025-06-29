@@ -564,119 +564,189 @@ class POCacheHelper:
         return cache_status
 
 class TransferCacheHelper:
-    """Cache helper for transfer operations - mirrors TripCacheHelper and POCacheHelper patterns"""
+    """Cache management for Transfer operations with version control - Following POCacheHelper pattern"""
     
-    @staticmethod
-    def get_completed_transfer_data(transfer_id):
-        """Get cached completed transfer data - returns None if not cached or not completed"""
-        try:
-            cache_key = f'completed_transfer_{transfer_id}'
-            cached_data = cache.get(cache_key)
-            
-            if cached_data:
-                print(f"🚀 CACHE HIT: Completed transfer {transfer_id}")
-                return cached_data
-            else:
-                print(f"🔍 CACHE MISS: Transfer {transfer_id} not in cache")
-                return None
-        except Exception as e:
-            print(f"❌ CACHE ERROR: {e}")
+    # Cache timeouts (in seconds) 
+    COMPLETED_TRANSFER_CACHE_TIMEOUT = 86400    # 24 hours (completed transfers never change)
+    RECENT_TRANSFERS_CACHE_TIMEOUT = 3600       # 1 hour (recent transfers change frequently)
+    TRANSFER_FINANCIAL_CACHE_TIMEOUT = 43200    # 12 hours (financial calculations)
+    
+    CACHE_KEY_PREFIX = 'transfer_mgmt'
+    
+    # Transfer-related cache keys
+    TRANSFER_CACHE_KEYS = [
+        'transfer_financial_summary',
+        'recent_transfers_with_cost',
+        'completed_transfer_data',
+        'transfer_cost_calculations',
+    ]
+    
+    # 🚀 GLOBAL CACHE VERSION: Following POCacheHelper pattern
+    @classmethod
+    def _get_cache_version(cls):
+        """Get current cache version for transfer lists"""
+        return cache.get('transfer_cache_version', 1)
+    
+    @classmethod
+    def _increment_cache_version(cls):
+        """Increment cache version to invalidate ALL transfer cache"""
+        current_version = cls._get_cache_version()
+        new_version = current_version + 1
+        cache.set('transfer_cache_version', new_version, None)  # Never expires
+        print(f"🔥 TRANSFER CACHE VERSION BUMPED: {current_version} → {new_version}")
+        return new_version
+    
+    @classmethod
+    def get_completed_transfer_cache_key(cls, transfer_id):
+        """Generate cache key for completed transfer data (never changes)"""
+        return f"completed_transfer_{transfer_id}_financial_data"
+    
+    @classmethod
+    def get_recent_transfers_cache_key(cls):
+        """Generate cache key for recent transfers with cost data"""
+        cache_version = cls._get_cache_version()
+        return f"recent_transfers_v{cache_version}_all"
+    
+    @classmethod
+    def get_transfer_financial_cache_key(cls, transfer_id):
+        """Generate cache key for transfer financial calculations"""
+        cache_version = cls._get_cache_version()
+        return f"transfer_financial_v{cache_version}_{transfer_id}"
+    
+    # 🚀 COMPLETED TRANSFER CACHING (never changes, can cache forever)
+    @classmethod
+    def get_completed_transfer_data(cls, transfer_id):
+        """Get cached completed transfer data"""
+        cache_key = cls.get_completed_transfer_cache_key(transfer_id)
+        cached_data = cache.get(cache_key)
+        
+        if cached_data:
+            print(f"🚀 CACHE HIT: Completed transfer {transfer_id}")
+            return cached_data
+        else:
+            print(f"🔍 CACHE MISS: Transfer {transfer_id} not in cache")
             return None
     
-    @staticmethod
-    def cache_completed_transfer_data(transfer_id, context_data):
-        """Cache completed transfer data for future requests"""
-        try:
-            cache_key = f'completed_transfer_{transfer_id}'
-            # Cache for 24 hours (completed transfers don't change)
-            cache.set(cache_key, context_data, timeout=86400)
-            print(f"✅ CACHED: Completed transfer {transfer_id}")
-        except Exception as e:
-            print(f"❌ CACHE SAVE ERROR: {e}")
+    @classmethod
+    def cache_completed_transfer_data(cls, transfer_id, context_data):
+        """Cache completed transfer data (24 hour timeout)"""
+        cache_key = cls.get_completed_transfer_cache_key(transfer_id)
+        cache.set(cache_key, context_data, cls.COMPLETED_TRANSFER_CACHE_TIMEOUT)
+        print(f"🚀 CACHED COMPLETED TRANSFER: {transfer_id}")
+        return True
     
-    @staticmethod
-    def clear_cache_after_transfer_complete(transfer_id):
-        """Clear specific transfer cache after completion"""
-        try:
-            cache_key = f'completed_transfer_{transfer_id}'
-            cache.delete(cache_key)
-            print(f"🗑️ CLEARED: Transfer {transfer_id} cache")
-        except Exception as e:
-            print(f"❌ CACHE CLEAR ERROR: {e}")
+    # 🚀 RECENT TRANSFERS CACHING (for transfer_entry page)
+    @classmethod
+    def get_recent_transfers_with_cost(cls):
+        """Get cached recent transfers with cost calculations"""
+        cache_key = cls.get_recent_transfers_cache_key()
+        cached_transfers = cache.get(cache_key)
+        
+        if cached_transfers:
+            print(f"🚀 CACHE HIT: Recent transfers")
+            return cached_transfers
+            
+        print(f"🔍 CACHE MISS: Recent transfers")
+        return None
     
-    @staticmethod
-    def clear_cache_after_transfer_delete(transfer_id):
+    @classmethod
+    def cache_recent_transfers_with_cost(cls, transfers_data):
+        """Cache recent transfers with cost data (1 hour timeout)"""
+        cache_key = cls.get_recent_transfers_cache_key()
+        cache.set(cache_key, transfers_data, cls.RECENT_TRANSFERS_CACHE_TIMEOUT)
+        print(f"🚀 CACHED RECENT TRANSFERS: {len(transfers_data)} transfers")
+        return True
+    
+    # 🚀 FINANCIAL CALCULATIONS CACHING
+    @classmethod
+    def get_transfer_financial_data(cls, transfer_id):
+        """Get cached transfer financial calculations"""
+        cache_key = cls.get_transfer_financial_cache_key(transfer_id)
+        return cache.get(cache_key)
+    
+    @classmethod
+    def cache_transfer_financial_data(cls, transfer_id, financial_data):
+        """Cache transfer financial calculations"""
+        cache_key = cls.get_transfer_financial_cache_key(transfer_id)
+        cache.set(cache_key, financial_data, cls.TRANSFER_FINANCIAL_CACHE_TIMEOUT)
+        return True
+    
+    # 🚀 CACHE MANAGEMENT (following POCacheHelper patterns)
+    @classmethod
+    def clear_all_transfer_cache(cls):
+        """🚀 NUCLEAR OPTION: Clear ALL transfer-related cache instantly"""
+        cleared_keys = []
+        
+        try:
+            # Method 1: Version bump (always works, instant)
+            cls._increment_cache_version()
+            cleared_keys.append('transfer_cache_version_bumped')
+            
+            # Method 2: Clear static keys
+            for cache_key in cls.TRANSFER_CACHE_KEYS:
+                if cache.delete(cache_key):
+                    cleared_keys.append(cache_key)
+            
+            print(f"🚀 TRANSFER CACHE CLEARED: {len(cleared_keys)} operations")
+            return True, len(cleared_keys)
+            
+        except Exception as e:
+            print(f"❌ TRANSFER CACHE CLEAR FAILED: {e}")
+            return False, 0
+    
+    @classmethod
+    def clear_cache_after_transfer_update(cls, transfer_id=None):
+        """Clear transfer cache after transfer modifications"""
+        cleared_keys = []
+        
+        # Version bump clears all versioned cache
+        cls._increment_cache_version()
+        cleared_keys.append('version_bumped')
+        
+        # Clear specific completed transfer if provided
+        if transfer_id:
+            completed_cache_key = cls.get_completed_transfer_cache_key(transfer_id)
+            if cache.delete(completed_cache_key):
+                cleared_keys.append(f'completed_transfer_{transfer_id}')
+        
+        print(f"🚀 TRANSFER CACHE UPDATED: {len(cleared_keys)} operations")
+        return True, len(cleared_keys)
+    
+    @classmethod
+    def clear_cache_after_transfer_create(cls):
+        """Clear cache after transfer creation"""
+        return cls.clear_cache_after_transfer_update()
+    
+    @classmethod
+    def clear_cache_after_transfer_delete(cls, transfer_id):
         """Clear cache after transfer deletion"""
-        try:
-            cache_key = f'completed_transfer_{transfer_id}'
-            cache.delete(cache_key)
-            
-            # Also clear recent transfers cache
-            TransferCacheHelper.clear_recent_transfers_cache()
-            print(f"🗑️ CLEARED: Transfer {transfer_id} deleted, cache cleared")
-        except Exception as e:
-            print(f"❌ CACHE DELETE ERROR: {e}")
+        return cls.clear_cache_after_transfer_update(transfer_id)
     
-    @staticmethod
-    def clear_recent_transfers_cache():
-        """Clear recent transfers cache"""
-        try:
-            cache.delete('recent_transfers_list')
-            print(f"🗑️ CLEARED: Recent transfers cache")
-        except Exception as e:
-            print(f"❌ RECENT TRANSFERS CACHE ERROR: {e}")
+    @classmethod
+    def clear_cache_after_transfer_complete(cls, transfer_id):
+        """Clear cache after transfer completion (important for recent transfers)"""
+        return cls.clear_cache_after_transfer_update(transfer_id)
     
-    @staticmethod
-    def get_recent_transfers():
-        """Get cached recent transfers"""
-        try:
-            cache_key = 'recent_transfers_list'
-            cached_transfers = cache.get(cache_key)
-            
-            if cached_transfers:
-                print(f"🚀 CACHE HIT: Recent transfers")
-                return cached_transfers
-            
-            # Not cached, fetch from DB
-            from transactions.models import Transfer
-            recent_transfers = Transfer.objects.select_related(
-                'from_vessel', 'to_vessel', 'created_by'
-            ).prefetch_related(
-                'transfer_transactions'
-            ).order_by('-created_at')[:10]
-            
-            # Convert to list to cache
-            transfers_list = list(recent_transfers)
-            
-            # Cache for 5 minutes
-            cache.set(cache_key, transfers_list, timeout=300)
-            print(f"✅ CACHED: Recent transfers")
-            
-            return transfers_list
-            
-        except Exception as e:
-            print(f"❌ RECENT TRANSFERS ERROR: {e}")
-            return []
-    
-    @staticmethod
-    def clear_cache_after_transfer_create():
-        """Clear cache after new transfer creation"""
-        try:
-            TransferCacheHelper.clear_recent_transfers_cache()
-            print(f"🗑️ CLEARED: Cache after transfer creation")
-        except Exception as e:
-            print(f"❌ CACHE CLEAR ERROR: {e}")
-    
-    @staticmethod
-    def clear_all_transfer_cache():
-        """Clear all transfer-related cache - for admin use"""
-        try:
-            # Clear all completed transfer caches (we'd need to track them)
-            # For now, just clear the recent transfers
-            TransferCacheHelper.clear_recent_transfers_cache()
-            print(f"🗑️ CLEARED: All transfer cache")
-        except Exception as e:
-            print(f"❌ CACHE CLEAR ALL ERROR: {e}")
+    # 🚀 CONVENIENCE METHODS
+    @classmethod
+    def debug_transfer_cache_status(cls):
+        """🔍 DEBUG: Check transfer cache status"""
+        cache_status = {}
+        
+        # Check static keys
+        for key in cls.TRANSFER_CACHE_KEYS:
+            cache_status[key] = cache.get(key) is not None
+        
+        # Add version info
+        cache_status['transfer_cache_version'] = cls._get_cache_version()
+        
+        # Count active cache entries
+        active_count = sum(1 for exists in cache_status.values() if isinstance(exists, bool) and exists)
+        
+        print(f"🔍 TRANSFER CACHE STATUS: {active_count}/{len(cls.TRANSFER_CACHE_KEYS)} static keys active")
+        print(f"🔍 Transfer Cache Version: {cache_status['transfer_cache_version']}")
+        
+        return cache_status
 
 # 🚀 PERFECT PAGINATION - Full template compatibility
 class PerfectPagination:
