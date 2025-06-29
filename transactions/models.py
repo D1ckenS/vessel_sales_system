@@ -399,6 +399,18 @@ class Transaction(models.Model):
         validators=[MinValueValidator(Decimal('0.001'))],
         help_text="Quantity involved in this transaction"
     )
+    boxes = models.IntegerField(
+        null=True, 
+        blank=True,
+        validators=[MinValueValidator(1)],
+        help_text="Number of boxes (for supply transactions)"
+    )
+    items_per_box = models.IntegerField(
+        null=True,
+        blank=True, 
+        validators=[MinValueValidator(1)],
+        help_text="Items per box (for supply transactions)"
+    )
     unit_price = models.DecimalField(
         max_digits=20,
         decimal_places=6,
@@ -490,6 +502,18 @@ class Transaction(models.Model):
         if self.unit_price is not None and self.quantity is not None:
             return self.quantity * self.unit_price
         return 0
+    
+    @property
+    def has_breakdown(self):
+        """Check if this transaction has box breakdown data"""
+        return self.boxes is not None and self.items_per_box is not None
+
+    @property
+    def calculated_quantity(self):
+        """Calculate total quantity from breakdown (for validation)"""
+        if self.has_breakdown:
+            return self.boxes * self.items_per_box
+        return self.quantity
     
     def clean(self):
         """Validate transaction data and auto-set unit price for transfers"""

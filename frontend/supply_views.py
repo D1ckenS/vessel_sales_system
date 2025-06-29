@@ -351,6 +351,22 @@ def po_bulk_complete(request):
             unit_price = item.get('unit_price', 0)
             notes = item.get('notes', '').strip()
             
+            boxes = item.get('boxes')
+            items_per_box = item.get('items_per_box')
+            
+            # Validate breakdown if provided
+            if boxes is not None and items_per_box is not None:
+                boxes = int(boxes)
+                items_per_box = int(items_per_box)
+                calculated_quantity = boxes * items_per_box
+                
+                # Ensure calculated quantity matches the provided quantity
+                if abs(calculated_quantity - quantity) > 0.001:
+                    return JsonResponse({
+                        'success': False, 
+                        'error': f'Quantity mismatch: {boxes} boxes × {items_per_box} items = {calculated_quantity}, but quantity is {quantity}'
+                    })
+            
             if not product_id or quantity <= 0 or unit_price <= 0:
                 continue
                 
@@ -393,7 +409,9 @@ def po_bulk_complete(request):
                     transaction_date=po.po_date,
                     purchase_order=po,
                     notes=notes,
-                    created_by=request.user
+                    created_by=request.user,
+                    boxes=boxes if boxes is not None else None,
+                    items_per_box=items_per_box if items_per_box is not None else None
                 )
                 
                 created_transactions.append(supply_transaction)
