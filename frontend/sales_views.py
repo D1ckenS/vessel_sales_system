@@ -232,7 +232,7 @@ def trip_sales(request, trip_id):
                 # Try to parse COGS from notes if it was logged during sale
                 if sale.notes and 'FIFO consumption:' in sale.notes:
                     # Parse the FIFO breakdown from notes
-                    fifo_pattern = r'(\d+(?:\.\d+)?)\s+units\s+@\s+(\d+(?:\.\d+)?)\s+JOD/unit'
+                    fifo_pattern = r'(\d+(?:\.\d+)?)\s+units\s+@\s+(\d+(?:\.\d+)?)\s+JOD'
                     matches = re.findall(fifo_pattern, sale.notes)
                     
                     for qty_str, price_str in matches:
