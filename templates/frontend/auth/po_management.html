@@ -391,11 +391,6 @@
                                             <button class="btn btn-outline-primary" onclick="editPO({{ po.id }})" data-translate-title="edit_po">
                                                 <i class="bi bi-pencil"></i>
                                             </button>
-                                            {% if not po.is_completed %}
-                                            <button class="btn btn-outline-success" onclick="togglePOStatus({{ po.id }})" data-translate-title="mark_complete">
-                                                <i class="bi bi-check-circle"></i>
-                                            </button>
-                                            {% endif %}
                                             <button class="btn btn-outline-danger" onclick="deletePO({{ po.id }})" data-translate-title="delete_po">
                                                 <i class="bi bi-trash"></i>
                                             </button>
@@ -990,28 +985,6 @@ function confirmForceDelete(type, id) {
                 window.showAlert(`Error deleting ${type}: ${error.message}`, 'danger');
             }
         }, 200);
-    });
-}
-
-function togglePOStatus(poId) {
-    fetch(`/purchase-orders/manage/${poId}/toggle-status/`, {
-        method: 'POST',
-        headers: {
-            'X-CSRFToken': window.getCsrfToken()
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            window.showAlert(data.message, 'success');
-            location.reload();
-        } else {
-            window.showAlert(data.error, 'danger');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        window.showAlert('Error updating PO status', 'danger');
     });
 }
 </script>
