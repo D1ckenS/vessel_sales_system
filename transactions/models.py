@@ -908,13 +908,18 @@ class Transaction(models.Model):
         print(f"✅ TRANSFER COMPLETED: {self.vessel.name} → {self.transfer_to_vessel.name}, Cost: {self.unit_price}/unit")
         
     def delete(self, *args, **kwargs):
-        """Enhanced delete with comprehensive safety validation"""
+        """Enhanced delete with comprehensive safety validation and inventory restoration"""
         
         if self.transaction_type == 'SUPPLY':
             self._validate_and_delete_supply_inventory()
-        elif self.transaction_type in ['SALE', 'TRANSFER_OUT', 'WASTE']:
-            # TODO: Implement inventory restoration (next phase)
-            pass
+        elif self.transaction_type == 'SALE':
+            self._restore_inventory_for_sale()
+        elif self.transaction_type == 'TRANSFER_OUT':
+            self._restore_inventory_for_transfer_out()
+        elif self.transaction_type == 'WASTE':
+            self._restore_inventory_for_waste()
+        elif self.transaction_type == 'TRANSFER_IN':
+            self._remove_transferred_inventory()
         
         # Clear product cache since inventory changed
         try:
@@ -923,6 +928,204 @@ class Transaction(models.Model):
             pass
         
         super().delete(*args, **kwargs)
+
+    def _restore_inventory_for_sale(self):
+        """
+        🔄 RESTORE INVENTORY: Reverse FIFO consumption when deleting a sale transaction
+        """
+        
+        print(f"🔄 RESTORING: Sale deletion for {self.product.name} on {self.vessel.name}, Qty: {self.quantity}")
+        
+        if not self.notes or "FIFO consumption:" not in self.notes:
+            # Fallback: Try to restore using average cost if no FIFO details
+            print(f"⚠️ WARNING: No FIFO details found, using fallback restoration")
+            self._restore_inventory_fallback()
+            return
+        
+        # Parse FIFO consumption details from notes
+        # Expected format: "FIFO consumption: 25 units @ 0.208333 JOD; 23 units @ 0.300000 JOD"
+        try:
+            fifo_part = self.notes.split("FIFO consumption: ")[1]
+            consumption_entries = fifo_part.split("; ")
+            
+            restoration_details = []
+            
+            for entry in consumption_entries:
+                # Parse "25 units @ 0.208333 JOD"
+                parts = entry.split(" units @ ")
+                if len(parts) != 2:
+                    continue
+                    
+                consumed_qty = int(float(parts[0]))
+                unit_cost = float(parts[1].replace(" JOD", ""))
+                
+                restoration_details.append({
+                    'quantity': consumed_qty,
+                    'unit_cost': unit_cost
+                })
+            
+            print(f"🔍 PARSED FIFO: {len(restoration_details)} consumption entries")
+            
+            # Restore inventory to the original lots
+            total_restored = 0
+            for detail in restoration_details:
+                restored_qty = self._restore_to_matching_lot(
+                    detail['quantity'], 
+                    detail['unit_cost']
+                )
+                total_restored += restored_qty
+                
+            print(f"✅ RESTORED: {total_restored} units to inventory lots")
+            
+            # Verify we restored the correct total
+            if abs(total_restored - int(self.quantity)) > 0.001:
+                print(f"⚠️ WARNING: Restoration mismatch: restored {total_restored}, expected {self.quantity}")
+                
+        except Exception as e:
+            print(f"❌ ERROR: Failed to parse FIFO details: {e}")
+            print(f"🔄 FALLBACK: Using basic restoration")
+            self._restore_inventory_fallback()
+
+    def _restore_to_matching_lot(self, quantity, unit_cost):
+        """
+        Find and restore quantity to the inventory lot with matching cost
+        """
+        
+        # Find lots with matching cost (within small tolerance for decimal precision)
+        tolerance = 0.000001
+        matching_lots = InventoryLot.objects.filter(
+            vessel=self.vessel,
+            product=self.product,
+            purchase_price__gte=unit_cost - tolerance,
+            purchase_price__lte=unit_cost + tolerance
+        ).order_by('purchase_date', 'created_at')
+        
+        print(f"🔍 SEARCHING: {matching_lots.count()} lots found for cost {unit_cost}")
+        
+        if not matching_lots.exists():
+            print(f"⚠️ WARNING: No matching lot found for cost {unit_cost}, creating new lot")
+            # Create a new lot if original doesn't exist (edge case)
+            InventoryLot.objects.create(
+                vessel=self.vessel,
+                product=self.product,
+                purchase_date=self.transaction_date,
+                purchase_price=Decimal(str(unit_cost)),
+                original_quantity=quantity,
+                remaining_quantity=quantity,
+                created_by=self.created_by
+            )
+            return quantity
+        
+        # Restore to the first matching lot (FIFO order)
+        lot = matching_lots.first()
+        lot.remaining_quantity += quantity
+        lot.save()
+        
+        print(f"✅ RESTORED: {quantity} units to lot {lot.id} (new remaining: {lot.remaining_quantity})")
+        return quantity
+
+    def _restore_inventory_fallback(self):
+        """
+        Fallback restoration when FIFO details are not available
+        Creates a new inventory lot with estimated PURCHASE cost
+        """
+        
+        print(f"🔄 FALLBACK: Creating restoration lot for {self.quantity} units")
+        
+        # For SALE transactions, use product's default purchase price, NOT the selling price
+        if self.transaction_type == 'SALE':
+            estimated_cost = self.product.purchase_price
+            print(f"💰 USING: Product purchase price {estimated_cost} (not sale price {self.unit_price})")
+        else:
+            # For other transaction types, the unit_price should be the purchase price
+            estimated_cost = self.unit_price or self.product.purchase_price
+        
+        InventoryLot.objects.create(
+            vessel=self.vessel,
+            product=self.product,
+            purchase_date=self.transaction_date,
+            purchase_price=estimated_cost,
+            original_quantity=int(self.quantity),
+            remaining_quantity=int(self.quantity),
+            created_by=self.created_by
+        )
+    
+        print(f"✅ FALLBACK: Created new lot with {self.quantity} units @ {estimated_cost} (purchase price)")
+
+    def _restore_inventory_for_transfer_out(self):
+        """
+        🔄 RESTORE INVENTORY: Handle TRANSFER_OUT deletion
+        """
+        
+        print(f"🔄 RESTORING: Transfer out deletion for {self.product.name}")
+        
+        # For transfer out, we need to restore inventory like a sale
+        # and also handle the related TRANSFER_IN
+        
+        if self.related_transfer:
+            print(f"🔗 FOUND: Related transfer in transaction {self.related_transfer.id}")
+            # Delete the related TRANSFER_IN first (this will remove inventory from destination)
+            try:
+                self.related_transfer.delete()
+                print(f"✅ DELETED: Related transfer in transaction")
+            except Exception as e:
+                print(f"⚠️ WARNING: Could not delete related transfer: {e}")
+        
+        # Restore inventory using the same logic as sales
+        self._restore_inventory_for_sale()
+
+    def _restore_inventory_for_waste(self):
+        """
+        🔄 RESTORE INVENTORY: Handle WASTE transaction deletion
+        """
+        
+        print(f"🔄 RESTORING: Waste deletion for {self.product.name}")
+        
+        # Waste uses the same FIFO consumption logic as sales
+        self._restore_inventory_for_sale()
+
+    def _remove_transferred_inventory(self):
+        """
+        🗑️ REMOVE INVENTORY: Handle TRANSFER_IN deletion
+        Remove inventory that was added by the transfer
+        """
+        
+        print(f"🗑️ REMOVING: Transfer in inventory for {self.product.name}")
+        
+        # Find and remove the inventory lots created by this transfer
+        # Look for lots with the same date and cost
+        lots_to_remove = InventoryLot.objects.filter(
+            vessel=self.vessel,
+            product=self.product,
+            purchase_date=self.transaction_date,
+            purchase_price=self.unit_price,
+            remaining_quantity__gt=0
+        ).order_by('created_at')
+        
+        remaining_to_remove = int(self.quantity)
+        
+        for lot in lots_to_remove:
+            if remaining_to_remove <= 0:
+                break
+                
+            if lot.remaining_quantity >= remaining_to_remove:
+                # This lot has enough to cover the remaining amount
+                lot.remaining_quantity -= remaining_to_remove
+                if lot.remaining_quantity == 0:
+                    lot.delete()
+                    print(f"🗑️ DELETED: Empty lot {lot.id}")
+                else:
+                    lot.save()
+                    print(f"🔄 UPDATED: Lot {lot.id} remaining: {lot.remaining_quantity}")
+                remaining_to_remove = 0
+            else:
+                # Remove this entire lot and continue
+                remaining_to_remove -= lot.remaining_quantity
+                print(f"🗑️ REMOVING: Entire lot {lot.id} ({lot.remaining_quantity} units)")
+                lot.delete()
+        
+        if remaining_to_remove > 0:
+            print(f"⚠️ WARNING: Could not remove all inventory. {remaining_to_remove} units remaining")
 
     def _validate_and_delete_supply_inventory(self):
         """

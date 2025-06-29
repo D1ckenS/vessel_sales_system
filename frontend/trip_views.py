@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db import transaction, models
 from django.db.models import Sum, F, Count, Prefetch
 from django.db.models.functions import Round
+from django.urls import reverse
 from frontend.utils.cache_helpers import TripCacheHelper, VesselCacheHelper
 from transactions.models import Transaction, Trip
 from vessels.models import Vessel
@@ -275,10 +276,10 @@ def delete_trip(request, trip_id):
         trip_number = trip.trip_number
         
         if transaction_count > 0:
-            # OPTIMIZED: Bulk operations in transaction
+            # Enhanced: Use individual deletion for proper inventory restoration and error handling
             with transaction.atomic():
-                # Delete all related transactions
-                trip.sales_transactions.all().delete()
+                for transaction_obj in trip.sales_transactions.all():
+                    transaction_obj.delete()  # This now properly restores inventory and can raise ValidationError
                 trip.delete()
             
             TripCacheHelper.clear_cache_after_trip_delete(trip_id)
@@ -297,9 +298,45 @@ def delete_trip(request, trip_id):
             return JsonResponseHelper.success(
                 message=f'Trip {trip_number} deleted successfully'
             )
+
+    except ValidationError as e:
+        # Enhanced error handling for inventory conflicts
+        error_message = str(e)
         
+        # Extract message from ValidationError list format
+        if error_message.startswith('[') and error_message.endswith(']'):
+            error_message = error_message[2:-2]
+        
+        # Check if it's an inventory-related error
+        if "inventory" in error_message.lower() or "lot" in error_message.lower():
+            return JsonResponseHelper.error(
+                error_message=f"Cannot delete trip due to inventory conflicts: {error_message}",
+                error_type='inventory_conflict',
+                suggested_actions=[
+                    {
+                        'action': 'view_transactions',
+                        'label': 'View Transaction Log',
+                        'url': reverse('frontend:transactions_list'),
+                        'description': 'Review the transactions that may be causing conflicts'
+                    },
+                    {
+                        'action': 'contact_admin',
+                        'label': 'Contact Administrator',
+                        'description': 'Get help resolving the inventory conflict'
+                    }
+                ]
+            )
+        else:
+            return JsonResponseHelper.error(
+                error_message=f"Cannot delete trip: {error_message}",
+                error_type='validation_error'
+            )
+            
     except Exception as e:
-        return JsonResponseHelper.error(str(e))
+        return JsonResponseHelper.error(
+            error_message=f"An unexpected error occurred while deleting trip: {str(e)}",
+            error_type='system_error'
+        )
 
 @login_required
 @user_passes_test(is_admin_or_manager)

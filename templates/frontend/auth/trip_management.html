@@ -706,10 +706,14 @@ function showTransactionConfirmationModal(type, id, data) {
 }
 
 function confirmForceDelete(type, id) {
-    // FIXED: Remove /manage/ from URLs
-    const url = type === 'trip' ? 
-        `/trips/${id}/delete/` :       // ← WAS: `/trips/manage/${id}/delete/`
-        `/purchase-orders/${id}/delete/`;  // ← WAS: `/purchase-orders/manage/${id}/delete/`
+    // Immediately blur the button that triggered this
+    if (document.activeElement && document.activeElement.tagName === 'BUTTON') {
+        document.activeElement.blur();
+    }
+    
+    const url = type === 'trip' ?
+        `/trips/${id}/delete/` :       
+        `/purchase-orders/${id}/delete/`;  
     
     fetch(url, {
         method: 'DELETE',
@@ -718,20 +722,65 @@ function confirmForceDelete(type, id) {
             'X-Force-Delete': 'true'
         }
     })
-    .then(response => response.json())
+    .then(response => {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            return response.json();
+        } else {
+            throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+        }
+    })
     .then(data => {
         if (data.success) {
-            bootstrap.Modal.getInstance(document.getElementById('deleteConfirmationModal')).hide();
+            // Properly close modal before reload
+            const modal = bootstrap.Modal.getInstance(document.getElementById('deleteConfirmationModal'));
+            if (modal) {
+                modal.hide();
+            }
             window.showAlert(data.message, 'success');
             location.reload();
         } else {
-            window.showAlert(data.error, 'danger');
+            // Close the confirmation modal first, then show error
+            const modal = bootstrap.Modal.getInstance(document.getElementById('deleteConfirmationModal'));
+            if (modal) {
+                modal.hide();
+            }
+            
+            // Small delay to let the modal close before showing error
+            setTimeout(() => {
+                handleDeletionError(data);
+            }, 200);
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        window.showAlert(`Error deleting ${type}`, 'danger');
+        
+        // Close modal on error too
+        const modal = bootstrap.Modal.getInstance(document.getElementById('deleteConfirmationModal'));
+        if (modal) {
+            modal.hide();
+        }
+        
+        setTimeout(() => {
+            if (error.message.includes('400')) {
+                window.showAlert('Cannot delete: This item has dependencies that prevent deletion.', 'danger');
+            } else {
+                window.showAlert(`Error deleting ${type}: ${error.message}`, 'danger');
+            }
+        }, 200);
     });
+}
+
+function handleDeletionError(data) {
+    // Check if it's an inventory consumption error with suggested actions
+    if ((data.error_type === 'inventory_consumption_blocked' || data.error_type === 'inventory_conflict') 
+        && data.suggested_actions) {
+        showInventoryBlockedModal(data);
+    } else {
+        // Standard error display - handle both error and error_message
+        const errorMsg = data.error || data.error_message || data.message || 'An error occurred';
+        window.showAlert(errorMsg, 'danger');
+    }
 }
 
 function toggleTripStatus(tripId) {

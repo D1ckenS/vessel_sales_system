@@ -584,6 +584,7 @@ function exportInventoryData() {
 const showComingSoon = (feature) => window.templateUtils.showComingSoonAlert(feature);
 const printInventory = () => window.templateUtils.showPrintComingSoon();
 
+window.switchVessel = switchVessel;
 window.handleFilterChange = handleFilterChange;
 window.loadInventoryData = loadInventoryData;
 window.handleSearchInput = handleSearchInput;
