@@ -103,6 +103,7 @@
                                 <th class="text-center"><span data-translate="quantity">Quantity</span></th>
                                 <th class="text-end"><span data-translate="amount">Amount</span></th>
                                 <th><span data-translate="trip_po">Trip/PO</span></th>
+                                <th><span data-translate="notes">Notes</span></th>
                                 <th><span data-translate="created_by">Created By</span></th>
                             </tr>
                         </thead>
@@ -151,13 +152,18 @@
                                     {% endif %}
                                 </td>
                                 <td>
+                                    <span data-notes="{{ transaction.notes }}" class="transaction-notes">
+                                        {{ transaction.notes|default:"-" }}
+                                    </span>
+                                </td>
+                                <td>
                                     <small>{{ transaction.created_by.username|default:"System" }}</small>
                                     <small class="text-muted d-block transaction-time-ago" data-time="{{ transaction.created_at|timesince }}">{{ transaction.created_at|timesince }} ago</small>
                                 </td>
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="8" class="text-center text-muted py-4">
+                                <td colspan="9" class="text-center text-muted py-4">
                                     <i class="bi bi-list-ul" style="font-size: 2rem;"></i>
                                     <p class="mt-2 mb-0"><span data-translate="no_transactions_found">No transactions found</span></p>
                                     <small><span data-translate="try_adjusting_filters">Try adjusting your filter criteria</span></small>
@@ -410,4 +416,7 @@ function exportTransactions(btn) {
     window.showUnifiedExportModal('transactions', additionalData);
 }
 </script>
+
+<!-- Notes Display Script -->
+<script src="{% static 'frontend/js/notes-display.js' %}"></script>
 {% endblock %}

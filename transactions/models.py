@@ -546,7 +546,7 @@ class Transaction(models.Model):
     def _validate_and_consume_inventory(self):
         """
         🔥 ATOMIC: Validate and consume inventory for sales with database locking
-        This prevents race conditions by locking inventory lots during the operation
+        ENHANCED: Always store FIFO consumption details in notes
         """
         # Lock inventory lots for this vessel/product combination
         inventory_lots = InventoryLot.objects.filter(
@@ -589,14 +589,23 @@ class Transaction(models.Model):
             
             remaining_to_consume -= consume_from_lot
         
-        # Add FIFO consumption details to notes if empty
-        if not self.notes and consumption_details:
+        # 🚀 ENHANCED: ALWAYS append FIFO consumption details to notes
+        if consumption_details:
             cost_breakdown = []
             for detail in consumption_details:
                 cost_breakdown.append(
                     f"{detail['consumed_quantity']} units @ {detail['unit_cost']} JOD"
                 )
-            self.notes = f"FIFO consumption: {'; '.join(cost_breakdown)}"
+            
+            fifo_details = f"FIFO consumption: {'; '.join(cost_breakdown)}"
+            
+            # Append to existing notes or set if empty
+            if self.notes and self.notes.strip():
+                self.notes = f"{self.notes}. {fifo_details}"
+            else:
+                self.notes = fifo_details
+            
+            print(f"✅ FIFO STORED: {fifo_details}")
     
     def _validate_and_consume_for_transfer(self):
         """
@@ -937,13 +946,13 @@ class Transaction(models.Model):
         print(f"🔄 RESTORING: Sale deletion for {self.product.name} on {self.vessel.name}, Qty: {self.quantity}")
         
         if not self.notes or "FIFO consumption:" not in self.notes:
-            # Fallback: Try to restore using average cost if no FIFO details
+            # Fallback: Try to restore using product's purchase price
             print(f"⚠️ WARNING: No FIFO details found, using fallback restoration")
             self._restore_inventory_fallback()
             return
         
         # Parse FIFO consumption details from notes
-        # Expected format: "FIFO consumption: 25 units @ 0.208333 JOD; 23 units @ 0.300000 JOD"
+        # Expected format: "User notes. FIFO consumption: 25 units @ 0.208333 JOD; 23 units @ 0.300000 JOD"
         try:
             fifo_part = self.notes.split("FIFO consumption: ")[1]
             consumption_entries = fifo_part.split("; ")
@@ -1027,18 +1036,14 @@ class Transaction(models.Model):
     def _restore_inventory_fallback(self):
         """
         Fallback restoration when FIFO details are not available
-        Creates a new inventory lot with estimated PURCHASE cost
+        Creates a new inventory lot with product's default purchase price
         """
         
         print(f"🔄 FALLBACK: Creating restoration lot for {self.quantity} units")
         
         # For SALE transactions, use product's default purchase price, NOT the selling price
-        if self.transaction_type == 'SALE':
-            estimated_cost = self.product.purchase_price
-            print(f"💰 USING: Product purchase price {estimated_cost} (not sale price {self.unit_price})")
-        else:
-            # For other transaction types, the unit_price should be the purchase price
-            estimated_cost = self.unit_price or self.product.purchase_price
+        estimated_cost = self.product.purchase_price
+        print(f"💰 USING: Product purchase price {estimated_cost} (not sale price {self.unit_price})")
         
         InventoryLot.objects.create(
             vessel=self.vessel,
@@ -1049,22 +1054,16 @@ class Transaction(models.Model):
             remaining_quantity=int(self.quantity),
             created_by=self.created_by
         )
-    
+        
         print(f"✅ FALLBACK: Created new lot with {self.quantity} units @ {estimated_cost} (purchase price)")
 
     def _restore_inventory_for_transfer_out(self):
-        """
-        🔄 RESTORE INVENTORY: Handle TRANSFER_OUT deletion
-        """
-        
+        """🔄 RESTORE INVENTORY: Handle TRANSFER_OUT deletion"""
         print(f"🔄 RESTORING: Transfer out deletion for {self.product.name}")
         
-        # For transfer out, we need to restore inventory like a sale
-        # and also handle the related TRANSFER_IN
-        
+        # Delete the related TRANSFER_IN first
         if self.related_transfer:
             print(f"🔗 FOUND: Related transfer in transaction {self.related_transfer.id}")
-            # Delete the related TRANSFER_IN first (this will remove inventory from destination)
             try:
                 self.related_transfer.delete()
                 print(f"✅ DELETED: Related transfer in transaction")
@@ -1075,25 +1074,15 @@ class Transaction(models.Model):
         self._restore_inventory_for_sale()
 
     def _restore_inventory_for_waste(self):
-        """
-        🔄 RESTORE INVENTORY: Handle WASTE transaction deletion
-        """
-        
+        """🔄 RESTORE INVENTORY: Handle WASTE transaction deletion"""
         print(f"🔄 RESTORING: Waste deletion for {self.product.name}")
-        
-        # Waste uses the same FIFO consumption logic as sales
         self._restore_inventory_for_sale()
 
     def _remove_transferred_inventory(self):
-        """
-        🗑️ REMOVE INVENTORY: Handle TRANSFER_IN deletion
-        Remove inventory that was added by the transfer
-        """
-        
+        """🗑️ REMOVE INVENTORY: Handle TRANSFER_IN deletion"""
         print(f"🗑️ REMOVING: Transfer in inventory for {self.product.name}")
         
         # Find and remove the inventory lots created by this transfer
-        # Look for lots with the same date and cost
         lots_to_remove = InventoryLot.objects.filter(
             vessel=self.vessel,
             product=self.product,

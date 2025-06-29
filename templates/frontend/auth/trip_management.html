@@ -773,8 +773,9 @@ function confirmForceDelete(type, id) {
 
 function handleDeletionError(data) {
     // Check if it's an inventory consumption error with suggested actions
-    if ((data.error_type === 'inventory_consumption_blocked' || data.error_type === 'inventory_conflict') 
-        && data.suggested_actions) {
+    if ((data.error_type === 'inventory_consumption_blocked' || 
+         data.error_type === 'inventory_conflict') && 
+        data.suggested_actions) {
         showInventoryBlockedModal(data);
     } else {
         // Standard error display - handle both error and error_message

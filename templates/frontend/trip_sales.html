@@ -608,7 +608,11 @@ function displayCompletedSales(completedSales) {
                         <span class="fw-bold text-success" data-number data-original="${item.total_amount.toFixed(3)}">${translateNumber(item.total_amount.toFixed(3))}</span>
                         <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
                     </td>
-                    <td><small>${item.notes || '-'}</small></td>
+                    <td class="text-muted">
+                        <span data-notes="${item.notes || ''}" class="sale-notes">
+                            ${item.notes || '-'}
+                        </span>
+                    </td>
                 </tr>`;
             
             return row;
@@ -1134,10 +1138,6 @@ function updateCartDisplay() {
                     <td class="text-end">
                         <span data-number data-original="${item.unit_price.toFixed(3)}">${translateNumber(item.unit_price.toFixed(3))}</span>
                         <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
-                    </td>
-                    <td class="text-end">
-                        <strong class="text-success" data-number data-original="${item.total_amount.toFixed(3)}">${translateNumber(item.total_amount.toFixed(3))}</strong>
-                        <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
                     </td>`;
             
             // Add COGS column if user has financial permissions
@@ -1154,6 +1154,10 @@ function updateCartDisplay() {
             }
             
             row += `
+                    <td class="text-end">
+                        <strong class="text-success" data-number data-original="${item.total_amount.toFixed(3)}">${translateNumber(item.total_amount.toFixed(3))}</strong>
+                        <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+                    </td>
                     <td>
                         <small>${item.notes || '-'}</small>
                     </td>
@@ -1459,4 +1463,7 @@ document.addEventListener('DOMContentLoaded', function() {
     updateTripTotals();
 });
 </script>
+
+<!-- Notes Display Script -->
+<script src="{% static 'frontend/js/notes-display.js' %}"></script>
 {% endblock %}
