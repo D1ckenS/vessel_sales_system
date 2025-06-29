@@ -4,7 +4,7 @@ from django.urls import path
 from . import (views, auth_views, reports_views, export_views,
                product_views, category_views, supply_views, transfer_views, waste_views,
                sales_views, inventory_views, pricing_views, vessel_views, user_views,
-               group_views, trip_views, po_views)
+               group_views, trip_views, po_views, transaction_views)
 
 app_name = 'frontend'
 
@@ -160,6 +160,10 @@ urlpatterns = [
     path('purchase-orders/<int:po_id>/delete/', po_views.delete_po, name='delete_po'),
     path('purchase-orders/<int:po_id>/toggle-status/', po_views.toggle_po_status, name='toggle_po_status'),
     
+    # Transaction Management (Admin replacement)
+    path('transactions/<int:transaction_id>/delete/', transaction_views.delete_transaction, name='delete_transaction'),
+    path('transactions/', transaction_views.transactions_list, name='transactions_list'),
+    
     # =============================================================================
     # REPORTS
     # =============================================================================
@@ -173,7 +177,6 @@ urlpatterns = [
     path('reports/purchase-orders/', reports_views.po_reports, name='po_reports'),
     
     # Transaction Reports
-    path('transactions/', reports_views.transactions_list, name='transactions_list'),
     
     # =============================================================================
     # EXPORTS

@@ -5,17 +5,14 @@ from datetime import datetime, timedelta, date
 from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
 import calendar
-import hashlib
-from django.db.models import Avg, Sum, Count, F, Q, Case, When, Prefetch
-
+from django.db.models import Avg, Sum, Count, F, Q, Prefetch
 from frontend.utils.cache_helpers import VesselCacheHelper
 from .utils.aggregators import TransactionAggregator, ProductAnalytics
-from transactions.models import Transaction, InventoryLot, Trip, PurchaseOrder, get_vessel_pricing_warnings
+from transactions.models import Transaction, InventoryLot, Trip, PurchaseOrder
 from django.shortcuts import render
 from vessels.models import Vessel
 from products.models import Product
-from .utils.query_helpers import TransactionQueryHelper, DateRangeHelper
-from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from .utils.query_helpers import TransactionQueryHelper
 from .permissions import (
     operations_access_required,
     reports_access_required,
@@ -157,77 +154,6 @@ def po_reports(request):
     context.update(TransactionQueryHelper.get_filter_context(request))
     
     return render(request, 'frontend/po_reports.html', context)
-
-@reports_access_required
-def transactions_list(request):
-    """Enhanced transaction list with advanced filtering and pagination"""
-    
-    # ✅ STEP 1: Single optimized query with all relationships
-    transactions = Transaction.objects.select_related(
-        'vessel',
-        'product',
-        'product__category',
-        'created_by',
-        'trip',
-        'purchase_order'
-    ).prefetch_related(
-        'trip__vessel',
-        'purchase_order__vessel'
-    )
-    
-    # ✅ STEP 2: Apply filters using helper (your existing code)
-    transactions = TransactionQueryHelper.apply_common_filters(transactions, request)
-    
-    # ✅ STEP 3: Order results (your existing code)
-    transactions = transactions.order_by('-transaction_date', '-created_at')
-    
-    # ✅ STEP 4: Pagination with count optimization
-    paginator = Paginator(transactions, 50)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-    
-    # ✅ STEP 5: Calculate summary stats ONCE (not per transaction type)
-    if page_obj.object_list:
-        # Get stats for current page only to avoid expensive full table scan
-        page_transactions = list(page_obj.object_list)
-        
-        summary_stats = {
-            'total_displayed': len(page_transactions),
-            'page_number': page_obj.number,
-            'total_pages': page_obj.paginator.num_pages,
-        }
-        
-        # Optional: Add type breakdown for current page only
-        type_counts = {}
-        for tx in page_transactions:
-            tx_type = tx.transaction_type
-            type_counts[tx_type] = type_counts.get(tx_type, 0) + 1
-            
-        summary_stats['type_breakdown'] = type_counts
-    else:
-        summary_stats = {
-            'total_displayed': 0,
-            'page_number': 1,
-            'total_pages': 1,
-            'type_breakdown': {}
-        }
-    
-    # ✅ STEP 6: Context (your existing structure)
-    context = {
-        'page_obj': page_obj,
-        'transactions': page_obj.object_list,  # For template compatibility
-        'transaction_types': Transaction.TRANSACTION_TYPES,
-        'summary_stats': summary_stats,
-        'vessels': VesselCacheHelper.get_active_vessels(),
-        'current_filters': {
-            'product': request.GET.get('product', ''),
-            'transaction_type': request.GET.get('transaction_type', ''),
-            'date_from': request.GET.get('date_from', ''),
-            'date_to': request.GET.get('date_to', ''),
-        }
-    }
-    
-    return render(request, 'frontend/transactions_list.html', context)
 
 @reports_access_required
 def reports_dashboard(request):

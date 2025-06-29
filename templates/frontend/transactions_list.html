@@ -105,6 +105,7 @@
                                 <th><span data-translate="trip_po">Trip/PO</span></th>
                                 <th><span data-translate="notes">Notes</span></th>
                                 <th><span data-translate="created_by">Created By</span></th>
+                                <th class="text-center"><span data-translate="actions">Actions</span></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -115,19 +116,17 @@
                                     <small class="text-muted transaction-time" data-time="{{ transaction.created_at|time:"H:i" }}">{{ transaction.created_at|time:"H:i" }}</small>
                                 </td>
                                 <td>
-                                    <span class="badge transaction-type-badge {% if transaction.transaction_type == 'SALE' %}bg-success{% elif transaction.transaction_type == 'SUPPLY' %}bg-primary{% elif transaction.transaction_type == 'TRANSFER_OUT' %}bg-warning{% else %}bg-info{% endif %}" data-type="{{ transaction.get_transaction_type_display }}">
-                                        {{ transaction.get_transaction_type_display }}
+                                    <span class="badge {% if transaction.transaction_type == 'SALE' %}bg-success{% elif transaction.transaction_type == 'SUPPLY' %}bg-primary{% elif transaction.transaction_type == 'TRANSFER_OUT' %}bg-warning{% elif transaction.transaction_type == 'TRANSFER_IN' %}bg-info{% elif transaction.transaction_type == 'WASTE' %}bg-danger{% endif %}">
+                                        <span data-translate="transaction_{{ transaction.transaction_type|lower }}">{{ transaction.get_transaction_type_display }}</span>
                                     </span>
                                 </td>
                                 <td>
-                                    <span class="badge {% if transaction.vessel.name|lower == 'amman' %}bg-primary{% elif transaction.vessel.name|lower == 'aylah' %}bg-danger{% elif transaction.vessel.name|lower == 'sinaa' %}bg-success{% elif transaction.vessel.name|lower == 'nefertiti' %}bg-secondary{% elif transaction.vessel.name|lower == 'babel' %}bg-warning{% elif transaction.vessel.name|lower == 'dahab' %}bg-info{% else %}bg-primary{% endif %}">
-                                        <span class="vessel-name" data-en="{{ transaction.vessel.name }}" data-ar="{{ transaction.vessel.name_ar }}">{{ transaction.vessel.name }}</span>
-                                    </span>
+                                    <span class="vessel-name" data-en="{{ transaction.vessel.name }}" data-ar="{{ transaction.vessel.name_ar }}">{{ transaction.vessel.name }}</span>
                                 </td>
-                                <td data-product-id="{{ transaction.product.item_id }}">
+                                <td>
                                     <div>
                                         <strong>{{ transaction.product.name }}</strong>
-                                        <small class="text-muted d-block"><span data-translate="id_label">ID</span>: {{ transaction.product.item_id }}</small>
+                                        <small class="text-muted d-block">{{ transaction.product.item_id }}</small>
                                     </div>
                                 </td>
                                 <td class="text-center">
@@ -160,10 +159,22 @@
                                     <small>{{ transaction.created_by.username|default:"System" }}</small>
                                     <small class="text-muted d-block transaction-time-ago" data-time="{{ transaction.created_at|timesince }}">{{ transaction.created_at|timesince }} ago</small>
                                 </td>
+                                <td class="text-center">
+                                    {% if user.is_superuser or user.groups.all.0.name == 'Administrators' or user.groups.all.0.name == 'Managers' %}
+                                    <button 
+                                        class="btn btn-outline-danger btn-sm" 
+                                        onclick="this.blur(); deleteTransaction({{ transaction.id }}, '{{ transaction.transaction_type }}', '{{ transaction.product.name }}', '{{ transaction.vessel.name }}')"
+                                        title="Delete Transaction">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                    {% else %}
+                                    <small class="text-muted">-</small>
+                                    {% endif %}
+                                </td>
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="9" class="text-center text-muted py-4">
+                                <td colspan="10" class="text-center text-muted py-4">  <!-- Updated colspan from 8 to 10 -->
                                     <i class="bi bi-list-ul" style="font-size: 2rem;"></i>
                                     <p class="mt-2 mb-0"><span data-translate="no_transactions_found">No transactions found</span></p>
                                     <small><span data-translate="try_adjusting_filters">Try adjusting your filter criteria</span></small>
@@ -414,6 +425,134 @@ function exportTransactions(btn) {
     };
     console.log('additionalData', additionalData);
     window.showUnifiedExportModal('transactions', additionalData);
+}
+
+function deleteTransaction(transactionId, transactionType, productName, vesselName) {
+    // Show confirmation modal
+    const modalHTML = `
+        <div class="modal fade" id="deleteTransactionModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-danger text-white">
+                        <h5 class="modal-title">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            Delete Transaction
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" onclick="this.blur()"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-warning">
+                            <i class="bi bi-info-circle me-2"></i>
+                            <strong>Are you sure?</strong><br>
+                            This will permanently delete this transaction and may affect inventory levels.
+                        </div>
+                        
+                        <h6>Transaction Details:</h6>
+                        <ul class="list-unstyled">
+                            <li><strong>Type:</strong> <span class="badge bg-secondary">${transactionType}</span></li>
+                            <li><strong>Product:</strong> ${productName}</li>
+                            <li><strong>Vessel:</strong> ${vesselName}</li>
+                        </ul>
+                        
+                        <div class="alert alert-info">
+                            <i class="bi bi-lightbulb me-2"></i>
+                            <strong>What happens:</strong><br>
+                            ${getTransactionDeletionEffect(transactionType)}
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="this.blur()">
+                            <i class="bi bi-x-circle me-1"></i> Cancel
+                        </button>
+                        <button type="button" class="btn btn-danger" onclick="this.blur(); confirmTransactionDelete(${transactionId})">
+                            <i class="bi bi-trash me-1"></i> Delete Transaction
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remove existing modal
+    const existingModal = document.getElementById('deleteTransactionModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // Add and show modal
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    new bootstrap.Modal(document.getElementById('deleteTransactionModal')).show();
+}
+
+function getTransactionDeletionEffect(transactionType) {
+    switch(transactionType) {
+        case 'SALE':
+            return 'Inventory will be restored to the vessel (products added back to stock)';
+        case 'SUPPLY':
+            return 'Inventory will be removed from the vessel (products removed from stock)';
+        case 'TRANSFER_OUT':
+            return 'Inventory will be restored to source vessel and removed from destination vessel';
+        case 'TRANSFER_IN':
+            return 'Inventory will be removed from this vessel';
+        case 'WASTE':
+            return 'Inventory will be restored to the vessel (wasted products added back to stock)';
+        default:
+            return 'Inventory levels will be adjusted accordingly';
+    }
+}
+
+function confirmTransactionDelete(transactionId) {
+    fetch(`/transactions/${transactionId}/delete/`, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRFToken': window.getCsrfToken()
+        }
+    })
+    .then(response => {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            return response.json();
+        } else {
+            throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+        }
+    })
+    .then(data => {
+        // Close modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('deleteTransactionModal'));
+        if (modal) {
+            modal.hide();
+        }
+        
+        if (data.success) {
+            window.showAlert(data.message, 'success');
+            location.reload();
+        } else {
+            // Check for enhanced error handling
+            if (data.error_type === 'inventory_consumption_blocked' && data.suggested_actions) {
+                showInventoryBlockedModal(data);
+            } else {
+                const errorMsg = data.error || data.error_message || data.message || 'An error occurred';
+                window.showAlert(errorMsg, 'danger');
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        
+        // Close modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('deleteTransactionModal'));
+        if (modal) {
+            modal.hide();
+        }
+        
+        setTimeout(() => {
+            if (error.message.includes('400')) {
+                window.showAlert('Cannot delete: This transaction has dependencies that prevent deletion.', 'danger');
+            } else {
+                window.showAlert('Error deleting transaction: ' + error.message, 'danger');
+            }
+        }, 200);
+    });
 }
 </script>
 
