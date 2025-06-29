@@ -382,12 +382,11 @@ document.addEventListener('DOMContentLoaded', function() {
         fallbackTitle: 'Transfer Items'
     });
     
-    // Check if required elements exist and if transfer is editable
     const transferIdElement = document.getElementById('transferId');
     const canEdit = {{ can_edit|yesno:"true,false" }};
     
     if (!canEdit) {
-        console.log('Transfer completed - displaying read-only data');
+        console.log('🔒 COMPLETED: Transfer completed - displaying read-only data');
         {% if completed_transfers_json %}
         try {
             const completedTransfersRaw = '{{ completed_transfers_json|escapejs }}';
@@ -396,40 +395,31 @@ document.addEventListener('DOMContentLoaded', function() {
             if (completedTransfers && completedTransfers.length > 0) {
                 displayCompletedTransfers(completedTransfers);
                 updateCompletedTransferTotals(completedTransfers);
-            } else {
-                console.log('🔍 No completed transfers to display');
             }
         } catch (e) {
-            console.log('Error parsing completed transfers:', e);
+            console.log('❌ ERROR: Parsing completed transfers:', e);
         }
-        {% else %}
-        console.log('🔍 No completed_transfers_json available');
         {% endif %}
-        // No need to load available products for completed transfers
         window.updatePageTranslations();
         return;
     }
     
     if (!transferIdElement) {
-        console.log('Transfer elements missing, skipping cart initialization');
+        console.log('❌ ERROR: Transfer elements missing, skipping cart initialization');
         return;
     }
     
-    // Initialize for editable transfers (following trip_sales pattern)
+    // Initialize for editable transfers (EXACT trip_sales/po_supply pattern)
     try {
-        initializeTransferCart();
+        initializeTransferCart();           // Load existing transactions into cart
         loadAvailableProducts();
-        updateCartDisplay();
+        updateCartDisplay();                // Show cart with loaded items
         setupEventListeners();
+        console.log('✅ INITIALIZED: Transfer cart following trip/PO pattern');
     } catch (error) {
-        console.error('Error initializing transfer cart:', error);
-        window.showAlert(window._ ? window._('error_loading_cart') : 'Error loading cart', 'warning');
-        transferItemsCart = [];
-        updateCartDisplay();
+        console.error('❌ ERROR: Initializing transfer cart:', error);
+        window.showAlert(window._ ? window._('error_initializing') : 'Error initializing page. Please refresh.', 'danger');
     }
-    
-    // Apply translations
-    window.updatePageTranslations();
 });
 
 // Load available products (from Step 3)
@@ -652,46 +642,58 @@ async function calculateFIFOCost(productId, quantity) {
     }
 }
 
-// Initialize transfer cart (following trip_sales pattern)
+// Initialize transfer cart (CORRECTED: Following trip_sales/po_supply pattern exactly)
 function initializeTransferCart() {
     const transferId = document.getElementById('transferId').value;
     const storageKey = `transfer_items_${transferId}`;
     
-    // Try to load from localStorage first
+    // Try localStorage first (for unsaved changes)
     const savedCart = localStorage.getItem(storageKey);
     if (savedCart) {
         try {
             transferItemsCart = JSON.parse(savedCart);
-            console.log('Loaded cart from localStorage:', transferItemsCart);
+            console.log('✅ LOADED: Cart from localStorage:', transferItemsCart.length, 'items');
+            return; // Use localStorage if available
         } catch (e) {
-            console.log('Error parsing saved cart, starting fresh');
-            transferItemsCart = [];
+            console.log('❌ ERROR: Parsing saved cart, loading from database');
         }
     }
     
-    // If no saved cart, load from existing transfers (backend data)
-    if (transferItemsCart.length === 0) {
-        {% if existing_transfers_json %}
-        try {
-            const existingTransfers = JSON.parse('{{ existing_transfers_json|escapejs }}');
-            if (existingTransfers && existingTransfers.length > 0) {
-                transferItemsCart = existingTransfers.map(transfer => ({
-                    product_id: transfer.product_id,
-                    product_name: transfer.product_name,
-                    product_item_id: transfer.product_item_id,
-                    is_duty_free: transfer.is_duty_free,
-                    quantity: transfer.quantity,
-                    total_cost: transfer.total_amount, // Use total_amount as total_cost
-                    notes: transfer.notes || ''
-                }));
-                
-                console.log('Loaded existing transfers into cart:', transferItemsCart);
-            }
-        } catch (e) {
-            console.log('Error parsing existing transfers:', e);
+    // No localStorage - load from existing database transactions (like trip_sales/po_supply)
+    {% if existing_transfers_json %}
+    try {
+        const existingTransfers = JSON.parse('{{ existing_transfers_json|escapejs }}');
+        if (existingTransfers && existingTransfers.length > 0) {
+            // Convert database transactions to cart format (exactly like trip_sales/po_supply)
+            transferItemsCart = existingTransfers.map(transfer => ({
+                product_id: transfer.product_id,
+                product_name: transfer.product_name,
+                product_item_id: transfer.product_item_id,
+                is_duty_free: transfer.is_duty_free,
+                quantity: transfer.quantity,
+                total_cost: transfer.total_amount, // Use existing total amount
+                notes: transfer.notes || '',
+                // Mark as existing transaction for potential special handling
+                transaction_id: transfer.id
+            }));
+            
+            console.log('✅ LOADED: Cart from database transactions:', transferItemsCart.length, 'items');
+            
+            // Save to localStorage for consistency
+            saveCartToStorage();
+        } else {
+            transferItemsCart = [];
+            console.log('✅ FRESH: Empty cart - no existing transactions');
         }
-        {% endif %}
+    } catch (e) {
+        console.log('❌ ERROR: Loading existing transfers:', e);
+        transferItemsCart = [];
     }
+    {% else %}
+    // No existing transactions - fresh cart
+    transferItemsCart = [];
+    console.log('✅ FRESH: Empty cart - new transfer');
+    {% endif %}
 }
 
 // Save cart to localStorage (following trip_sales pattern)
@@ -1366,7 +1368,7 @@ async function cancelEdit() {
     );
 }
 
-// Complete transfer (following trip_sales pattern - FIXES the session ID error)
+// Complete transfer (CORRECTED: Handle existing transactions like trip_sales/po_supply)
 async function completeTransfer() {
     if (transferItemsCart.length === 0) {
         window.showAlert(window._ ? window._('add_one_item_first') : 'Please add at least one item to complete the transfer.', 'warning');
@@ -1399,9 +1401,9 @@ async function completeTransfer() {
     }
     
     try {
-        // FIXED: Use transfer_id instead of transfer_session_id
         const transferId = document.getElementById('transferId').value;
         
+        // Send cart items exactly like trip_sales/po_supply
         const response = await fetch('/transfer/bulk-complete/', {
             method: 'POST',
             headers: {
@@ -1409,12 +1411,13 @@ async function completeTransfer() {
                 'X-CSRFToken': window.getCsrfToken()
             },
             body: JSON.stringify({
-                transfer_id: parseInt(transferId), // FIXED: Use transfer_id
+                transfer_id: parseInt(transferId),
                 items: transferItemsCart.map(item => ({
                     product_id: item.product_id,
                     quantity: item.quantity,
                     notes: item.notes || ''
                 }))
+                // Backend will automatically handle clearing existing transactions
             })
         });
         

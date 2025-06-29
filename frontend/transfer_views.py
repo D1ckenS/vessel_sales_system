@@ -322,7 +322,7 @@ def transfer_available_products(request):
 
 @operations_access_required
 def transfer_bulk_complete(request):
-    """Complete transfer with bulk transaction creation and Transfer record creation"""
+    """Complete transfer - CORRECTED: Clear existing + create new (like trip_sales/po_supply)"""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
@@ -342,7 +342,23 @@ def transfer_bulk_complete(request):
         transfer_date = transfer.transfer_date
         notes = transfer.notes or ''
         
-        # Validate all items first
+        # CORRECTED: Always clear existing transactions first (like trip_sales/po_supply)
+        existing_transactions = Transaction.objects.filter(
+            transfer=transfer,
+            transaction_type__in=['TRANSFER_OUT', 'TRANSFER_IN']
+        )
+        
+        if existing_transactions.exists():
+            print(f"🔄 CLEARING: {existing_transactions.count()} existing transfer transactions")
+            
+            # Delete existing transactions (this restores inventory automatically via Transaction.delete())
+            for txn in existing_transactions:
+                print(f"🗑️ DELETING: {txn.transaction_type} {txn.id} - {txn.product.name} x{txn.quantity}")
+                txn.delete()  # Transaction.delete() handles inventory restoration
+            
+            print(f"✅ CLEARED: All existing transactions removed and inventory restored")
+        
+        # Validate all new items before creating transactions
         validated_items = []
         
         for item in items:
@@ -366,9 +382,8 @@ def transfer_bulk_complete(request):
                     'error': f'Cannot transfer duty-free product {product.name} to {to_vessel.name}'
                 })
             
-            # Check inventory availability
+            # Check inventory availability (after clearing existing transactions)
             try:
-                # This will validate availability
                 get_fifo_cost_for_transfer(from_vessel, product, quantity)
             except Exception as e:
                 return JsonResponse({
@@ -382,12 +397,12 @@ def transfer_bulk_complete(request):
                 'notes': item_notes
             })
         
-        # All items validated - create transactions atomically
+        # All items validated - create new transactions atomically
         with transaction.atomic():
             created_transactions = []
             
             for item in validated_items:
-                # Create TRANSFER_OUT transaction linked to Transfer record
+                # Create TRANSFER_OUT transaction (linked to Transfer record)
                 transfer_out = Transaction.objects.create(
                     vessel=from_vessel,
                     product=item['product'],
@@ -400,10 +415,14 @@ def transfer_bulk_complete(request):
                     created_by=request.user
                 )
                 created_transactions.append(transfer_out)
+                
+                print(f"✅ CREATED: TRANSFER_OUT {transfer_out.id} - {item['product'].name} x{item['quantity']}")
             
             # Mark transfer as completed
             transfer.is_completed = True
             transfer.save()
+            
+            print(f"✅ COMPLETED: Transfer {transfer.id} marked as completed with {len(created_transactions)} items")
             
             # Clear transfer cache
             TransferCacheHelper.clear_all_transfer_cache()
@@ -418,6 +437,7 @@ def transfer_bulk_complete(request):
     except Transfer.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Transfer not found'})
     except Exception as e:
+        print(f"❌ ERROR: Transfer bulk complete failed: {str(e)}")
         return JsonResponse({'success': False, 'error': f'Transfer failed: {str(e)}'})
     
 @operations_access_required

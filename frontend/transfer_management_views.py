@@ -296,55 +296,14 @@ def delete_transfer(request, transfer_id):
 @user_passes_test(is_admin_or_manager)
 @require_http_methods(["POST"])
 def toggle_transfer_status(request, transfer_id):
-    """Toggle transfer completion status with proper inventory management"""
+    """Toggle transfer completion status - FIXED: Aggressive cache clearing like trips"""
     # Get transfer safely
     transfer, error = CRUDHelper.safe_get_object(Transfer, transfer_id, 'Transfer')
     if error:
         return error
     
-    try:
-        # Get current status before changing
-        was_completed = transfer.is_completed
-        
-        # Toggle the status
-        transfer.is_completed = not was_completed
-        
-        # CRITICAL: Handle inventory when marking as incomplete
-        if was_completed and not transfer.is_completed:
-            # Was completed, now marking as incomplete
-            # Delete all TRANSFER_IN transactions to remove inventory from destination vessel
-            with transaction.atomic():
-                transfer_in_transactions = transfer.transactions.filter(transaction_type='TRANSFER_IN')
-                
-                if transfer_in_transactions.exists():
-                    print(f"🔄 REOPENING TRANSFER: Removing {transfer_in_transactions.count()} TRANSFER_IN transactions")
-                    
-                    # Delete each TRANSFER_IN transaction (this removes inventory via Transaction.delete())
-                    for txn in transfer_in_transactions:
-                        txn.delete()
-                    
-                    print(f"✅ TRANSFER REOPENED: All TRANSFER_IN inventory removed from {transfer.to_vessel.name}")
-        
-        # Save the transfer with new status
-        transfer.save()
-        
-        # Clear cache
-        TransferCacheHelper.clear_cache_after_transfer_update(transfer_id)
-        
-        # Create appropriate success message
-        status = 'completed' if transfer.is_completed else 'reopened for editing'
-        message = f'Transfer {transfer.id} {status} successfully'
-        
-        if was_completed and not transfer.is_completed:
-            message += f'. Inventory removed from {transfer.to_vessel.name}'
-        
-        return JsonResponseHelper.success(
-            message=message,
-            new_status=transfer.is_completed
-        )
-        
-    except Exception as e:
-        return JsonResponseHelper.error(
-            error_message=f"Error toggling transfer status: {str(e)}",
-            error_type='system_error'
-        )
+    # FIXED: Aggressive cache clearing like trips (before toggle)
+    TransferCacheHelper.clear_cache_after_transfer_delete(transfer_id)    # Individual transfer cache
+    TransferCacheHelper.clear_all_transfer_cache()                        # All transfer cache
+    
+    return CRUDHelper.toggle_boolean_field(transfer, 'is_completed', 'Transfer')
