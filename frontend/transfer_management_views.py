@@ -183,8 +183,11 @@ def delete_transfer(request, transfer_id):
     # 🔧 IMPROVED: Get linked transaction pairs for better analysis
     transfer_out_transactions = []
     transfer_in_transactions = []
+    transfer_transactions = transfer.transactions.filter(
+        transaction_type__in=['TRANSFER_OUT', 'TRANSFER_IN']
+    )
     
-    for txn in transfer.transfer_transactions.select_related('product', 'related_transfer'):
+    for txn in transfer_transactions:
         txn_info = {
             'id': txn.id,
             'product_name': txn.product.name,
@@ -223,14 +226,14 @@ def delete_transfer(request, transfer_id):
                 # 🔧 FIXED: Proper deletion order and linking
                 
                 # Step 1: Delete TRANSFER_OUT transactions (they auto-delete linked TRANSFER_IN via related_transfer)
-                transfer_out_txns = transfer.transfer_transactions.filter(transaction_type='TRANSFER_OUT')
+                transfer_out_txns = transfer.transactions.filter(transaction_type='TRANSFER_OUT')
                 for txn in transfer_out_txns:
                     print(f"🗑️ DELETING TRANSFER_OUT: {txn.product.name} x{txn.quantity} (ID: {txn.id})")
                     # This will automatically delete the linked TRANSFER_IN via Transaction.delete()
                     txn.delete()
                 
                 # Step 2: Delete any remaining TRANSFER_IN transactions (orphaned ones)
-                remaining_transfer_in = transfer.transfer_transactions.filter(transaction_type='TRANSFER_IN')
+                remaining_transfer_in = transfer.transactions.filter(transaction_type='TRANSFER_IN')
                 for txn in remaining_transfer_in:
                     print(f"🗑️ DELETING REMAINING TRANSFER_IN: {txn.product.name} x{txn.quantity} (ID: {txn.id})")
                     # This will validate consumption and raise ValidationError if consumed

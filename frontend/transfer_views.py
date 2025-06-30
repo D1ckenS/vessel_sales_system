@@ -228,7 +228,7 @@ def transfer_items(request, transfer_id):
                 'transactions',
                 queryset=Transaction.objects.select_related(
                     'product', 'product__category'
-                ).filter(transaction_type='TRANSFER_OUT').order_by('created_at')
+                ).order_by('created_at')
             )
         ).get(id=transfer_id)
         
@@ -821,11 +821,11 @@ def transfer_cancel(request):
             return JsonResponse({
                 'success': True,
                 'action': 'clear_cart',
-                'message': f'Cart cleared. Transfer {transfer.transfer_number if hasattr(transfer, "transfer_number") else transfer.id} kept (has committed transactions).'
+                'message': f'Cart cleared. Transfer {transfer.id} kept (has committed transactions).'
             })
         else:
             # No committed transactions - safe to delete transfer
-            transfer_display = transfer.transfer_number if hasattr(transfer, 'transfer_number') else f"#{transfer.id}"
+            transfer_display = f"#{transfer.id}"
             transfer.delete()
             
             # 🚀 CACHE: Clear transfer cache after deletion

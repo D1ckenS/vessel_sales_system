@@ -265,7 +265,7 @@ class Transfer(models.Model):
             # Use TRANSFER_OUT transactions (they have the real costs)
             return sum(
                 tx.unit_price * tx.quantity 
-                for tx in self._prefetched_objects_cache['transfer_transactions']
+                for tx in self._prefetched_objects_cache['transactions']
                 if tx.transaction_type == 'TRANSFER_OUT'
             )
         else:
@@ -280,7 +280,7 @@ class Transfer(models.Model):
         """Count of items transferred (count TRANSFER_OUT only to avoid double counting)"""
         if hasattr(self, '_prefetched_objects_cache') and 'transfer_transactions' in self._prefetched_objects_cache:
             return len([
-                tx for tx in self._prefetched_objects_cache['transfer_transactions']
+                tx for tx in self._prefetched_objects_cache['transactions']
                 if tx.transaction_type == 'TRANSFER_OUT'
             ])
         else:
@@ -292,7 +292,7 @@ class Transfer(models.Model):
         if hasattr(self, '_prefetched_objects_cache') and 'transfer_transactions' in self._prefetched_objects_cache:
             return len(set(
                 tx.product_id 
-                for tx in self._prefetched_objects_cache['transfer_transactions']
+                for tx in self._prefetched_objects_cache['transactions']
                 if tx.transaction_type == 'TRANSFER_OUT'
             ))
         else:

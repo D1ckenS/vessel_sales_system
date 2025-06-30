@@ -122,8 +122,21 @@ def delete_transaction(request, transaction_id):
                 print(f"🔗 TRANSFER_OUT deletion will auto-delete linked TRANSFER_IN: {linked_transfer_in.id}")
                 
         elif transaction_type == 'TRANSFER_IN':
-            # Check if this TRANSFER_IN has been consumed
-            print(f"🔍 VALIDATING: TRANSFER_IN deletion for {product_name} x{quantity}")
+            # Find the TRANSFER_OUT that points to this TRANSFER_IN
+            linked_transfer_out = Transaction.objects.filter(
+                related_transfer=transaction_obj,
+                transaction_type='TRANSFER_OUT'
+            ).first()
+            
+            if linked_transfer_out:
+                print(f"🔗 TRANSFER_IN deletion will auto-delete linked TRANSFER_OUT: {linked_transfer_out.id}")
+                # Delete the TRANSFER_OUT, which will cascade delete this TRANSFER_IN
+                linked_transfer_out.delete()
+                return JsonResponseHelper.success(
+                    message=f'Transfer In transaction for {product_name} deleted successfully. Linked Transfer Out also deleted and inventory restored.'
+                )
+            else:
+                print(f"🔍 ORPHANED: TRANSFER_IN {transaction_obj.id} has no linked TRANSFER_OUT")
         
         # Delete transaction (this triggers the enhanced delete method with proper linking)
         transaction_obj.delete()
