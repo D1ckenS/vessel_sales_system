@@ -564,24 +564,21 @@ class POCacheHelper:
         return cache_status
 
 class TransferCacheHelper:
-    """Cache management for Transfer operations with version control - Following POCacheHelper pattern"""
+    """Cache management for Transfer operations - Simple pattern like POCacheHelper"""
     
     # Cache timeouts (in seconds) 
     COMPLETED_TRANSFER_CACHE_TIMEOUT = 86400    # 24 hours (completed transfers never change)
     RECENT_TRANSFERS_CACHE_TIMEOUT = 3600       # 1 hour (recent transfers change frequently)
-    TRANSFER_FINANCIAL_CACHE_TIMEOUT = 43200    # 12 hours (financial calculations)
     
     CACHE_KEY_PREFIX = 'transfer_mgmt'
     
-    # Transfer-related cache keys
+    # Transfer-related cache keys (simplified)
     TRANSFER_CACHE_KEYS = [
-        'transfer_financial_summary',
         'recent_transfers_with_cost',
         'completed_transfer_data',
-        'transfer_cost_calculations',
     ]
     
-    # 🚀 GLOBAL CACHE VERSION: Following POCacheHelper pattern
+    # 🚀 GLOBAL CACHE VERSION: Simple pattern like POCacheHelper
     @classmethod
     def _get_cache_version(cls):
         """Get current cache version for transfer lists"""
@@ -599,7 +596,7 @@ class TransferCacheHelper:
     @classmethod
     def get_completed_transfer_cache_key(cls, transfer_id):
         """Generate cache key for completed transfer data (never changes)"""
-        return f"completed_transfer_{transfer_id}_financial_data"
+        return f"completed_transfer_{transfer_id}_data"
     
     @classmethod
     def get_recent_transfers_cache_key(cls):
@@ -607,13 +604,7 @@ class TransferCacheHelper:
         cache_version = cls._get_cache_version()
         return f"recent_transfers_v{cache_version}_all"
     
-    @classmethod
-    def get_transfer_financial_cache_key(cls, transfer_id):
-        """Generate cache key for transfer financial calculations"""
-        cache_version = cls._get_cache_version()
-        return f"transfer_financial_v{cache_version}_{transfer_id}"
-    
-    # 🚀 COMPLETED TRANSFER CACHING (never changes, can cache forever)
+    # 🚀 COMPLETED TRANSFER CACHING (like trips/POs - keep this)
     @classmethod
     def get_completed_transfer_data(cls, transfer_id):
         """Get cached completed transfer data"""
@@ -635,7 +626,7 @@ class TransferCacheHelper:
         print(f"🚀 CACHED COMPLETED TRANSFER: {transfer_id}")
         return True
     
-    # 🚀 RECENT TRANSFERS CACHING (for transfer_entry page)
+    # 🚀 RECENT TRANSFERS CACHING (for transfer_entry page - like supply_entry)
     @classmethod
     def get_recent_transfers_with_cost(cls):
         """Get cached recent transfers with cost calculations"""
@@ -657,21 +648,7 @@ class TransferCacheHelper:
         print(f"🚀 CACHED RECENT TRANSFERS: {len(transfers_data)} transfers")
         return True
     
-    # 🚀 FINANCIAL CALCULATIONS CACHING
-    @classmethod
-    def get_transfer_financial_data(cls, transfer_id):
-        """Get cached transfer financial calculations"""
-        cache_key = cls.get_transfer_financial_cache_key(transfer_id)
-        return cache.get(cache_key)
-    
-    @classmethod
-    def cache_transfer_financial_data(cls, transfer_id, financial_data):
-        """Cache transfer financial calculations"""
-        cache_key = cls.get_transfer_financial_cache_key(transfer_id)
-        cache.set(cache_key, financial_data, cls.TRANSFER_FINANCIAL_CACHE_TIMEOUT)
-        return True
-    
-    # 🚀 CACHE MANAGEMENT (following POCacheHelper patterns)
+    # 🚀 CACHE MANAGEMENT (simple pattern like POCacheHelper)
     @classmethod
     def clear_all_transfer_cache(cls):
         """🚀 NUCLEAR OPTION: Clear ALL transfer-related cache instantly"""
@@ -726,27 +703,6 @@ class TransferCacheHelper:
     def clear_cache_after_transfer_complete(cls, transfer_id):
         """Clear cache after transfer completion (important for recent transfers)"""
         return cls.clear_cache_after_transfer_update(transfer_id)
-    
-    # 🚀 CONVENIENCE METHODS
-    @classmethod
-    def debug_transfer_cache_status(cls):
-        """🔍 DEBUG: Check transfer cache status"""
-        cache_status = {}
-        
-        # Check static keys
-        for key in cls.TRANSFER_CACHE_KEYS:
-            cache_status[key] = cache.get(key) is not None
-        
-        # Add version info
-        cache_status['transfer_cache_version'] = cls._get_cache_version()
-        
-        # Count active cache entries
-        active_count = sum(1 for exists in cache_status.values() if isinstance(exists, bool) and exists)
-        
-        print(f"🔍 TRANSFER CACHE STATUS: {active_count}/{len(cls.TRANSFER_CACHE_KEYS)} static keys active")
-        print(f"🔍 Transfer Cache Version: {cache_status['transfer_cache_version']}")
-        
-        return cache_status
 
 # 🚀 PERFECT PAGINATION - Full template compatibility
 class PerfectPagination:

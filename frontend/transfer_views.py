@@ -106,15 +106,45 @@ def transfer_entry(request):
     if request.method == 'GET':
         vessels = VesselCacheHelper.get_active_vessels()
         
-        # ✅ Show Transfer model records (like sales shows Trip records, supply shows PO records)
-        recent_transfers = Transfer.objects.select_related(
-            'from_vessel', 'to_vessel', 'created_by'
-        ).prefetch_related(
-            Prefetch(
-                'transactions',
-                queryset=Transaction.objects.filter(transaction_type='TRANSFER_OUT')
-            )
-        ).order_by('-created_at')[:10]
+        # 🚀 OPTIMIZED: Check cache for recent transfers with cost data (like supply_entry)
+        cached_transfers = TransferCacheHelper.get_recent_transfers_with_cost()
+        
+        if cached_transfers:
+            print(f"🚀 CACHE HIT: Recent transfers ({len(cached_transfers)} transfers)")
+            recent_transfers = cached_transfers
+        else:
+            print(f"🔍 CACHE MISS: Building recent transfers")
+            
+            # 🚀 OPTIMIZED: Single query with proper prefetching (like supply_entry)
+            recent_transfers_query = Transfer.objects.select_related(
+                'from_vessel', 'to_vessel', 'created_by'
+            ).prefetch_related(
+                Prefetch(
+                    'transactions',
+                    queryset=Transaction.objects.select_related('product').filter(transaction_type='TRANSFER_OUT')
+                )
+            ).order_by('-created_at')[:10]
+            
+            # 🚀 OPTIMIZED: Process transfers with prefetched data (no additional queries)
+            recent_transfers = []
+            for transfer in recent_transfers_query:
+                # Calculate cost using prefetched TRANSFER_OUT transactions
+                transfer_transactions = transfer.transactions.all()  # Uses prefetched data
+                total_cost = sum(
+                    float(txn.quantity) * float(txn.unit_price) 
+                    for txn in transfer_transactions
+                )
+                transaction_count = len(transfer_transactions)
+                
+                # Add calculated fields to Transfer object for template
+                transfer.calculated_total_cost = total_cost
+                transfer.calculated_transaction_count = transaction_count
+                
+                recent_transfers.append(transfer)
+            
+            # 🚀 CACHE: Store processed transfers for future requests (like supply_entry)
+            TransferCacheHelper.cache_recent_transfers_with_cost(recent_transfers)
+            print(f"🔥 CACHED: Recent transfers ({len(recent_transfers)} transfers) - 1 hour timeout")
         
         context = {
             'vessels': vessels,

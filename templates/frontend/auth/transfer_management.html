@@ -173,21 +173,21 @@
                                 {% for transfer in transfers %}
                                 <tr class="{{ transfer.cost_performance_class }}">
                                     <td>
-                                        <strong>{{ transfer.id }}</strong>
+                                        <strong class="transfer-number" data-number data-original="{{ transfer.transfer_number }}">{{ transfer.id }}</strong>
                                     </td>
                                     <td>
-                                        <span class="badge bg-primary">{{ transfer.from_vessel.name }}</span>
+                                        <span class="badge bg-primary vessel-name" data-en="{{ transfer.from_vessel.name }}" data-ar="{{ transfer.from_vessel.name_ar }}">{{ transfer.from_vessel.name }}</span>
                                     </td>
                                     <td>
-                                        <span class="badge bg-success">{{ transfer.to_vessel.name }}</span>
+                                        <span class="badge bg-success vessel-name" data-en="{{ transfer.to_vessel.name }}" data-ar="{{ transfer.to_vessel.name_ar }}">{{ transfer.to_vessel.name }}</span>
                                     </td>
-                                    <td>{{ transfer.transfer_date|date:"M d, Y" }}</td>
+                                    <td data-transfer-date data-original="{{ transfer.transfer_date|date:'d/m/Y' }}">{{ transfer.transfer_date|date:"M d, Y" }}</td>
                                     <td class="cost-column">
-                                        <span class="fw-bold text-success">{{ transfer.total_cost|floatformat:3 }} JOD</span>
+                                        <span class="fw-bold text-success" data-number data-original="{{ transfer.total_cost|floatformat:3 }}">{{ transfer.total_cost|floatformat:3 }}</span> <span data-currency-symbol>JOD</span>
                                     </td>
                                     <td>
-                                        <span class="badge bg-info">{{ transfer.transaction_count }}</span>
-                                        <small class="text-muted">items</small>
+                                        <span class="badge bg-info" data-number data-original="{{ transfer.transaction_count }}">{{ transfer.transaction_count }}</span>
+                                        <small class="text-muted"><span data-translate="items">items</span></small>
                                     </td>
                                     <td>
                                         {% if transfer.is_completed %}

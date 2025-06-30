@@ -296,14 +296,12 @@ def delete_transfer(request, transfer_id):
 @user_passes_test(is_admin_or_manager)
 @require_http_methods(["POST"])
 def toggle_transfer_status(request, transfer_id):
-    """Toggle transfer completion status - FIXED: Aggressive cache clearing like trips"""
+    """Toggle transfer completion status - SIMPLE: Like PO pattern (0 cache clearing lines)"""
     # Get transfer safely
     transfer, error = CRUDHelper.safe_get_object(Transfer, transfer_id, 'Transfer')
     if error:
         return error
     
-    # FIXED: Aggressive cache clearing like trips (before toggle)
-    TransferCacheHelper.clear_cache_after_transfer_delete(transfer_id)    # Individual transfer cache
-    TransferCacheHelper.clear_all_transfer_cache()                        # All transfer cache
-    
+    # SIMPLE: No cache clearing needed (like PO toggle - works with simple versioning)
+    # Toggle status with standardized response
     return CRUDHelper.toggle_boolean_field(transfer, 'is_completed', 'Transfer')
