@@ -75,7 +75,6 @@ def transfer_management(request):
 
 @login_required
 @user_passes_test(is_admin_or_manager)
-@require_http_methods(["GET", "POST"])
 def edit_transfer(request, transfer_id):
     """Edit transfer details following PO edit pattern"""
     transfer, error = CRUDHelper.safe_get_object(Transfer, transfer_id, 'Transfer')
@@ -167,43 +166,39 @@ def edit_transfer(request, transfer_id):
 @user_passes_test(is_admin_or_manager)
 @require_http_methods(["DELETE"])
 def delete_transfer(request, transfer_id):
-    """Delete transfer with validation for TRANSFER_IN consumption, following PO delete pattern"""
+    """
+    🔧 FIXED: Delete transfer with proper OUT/IN linking and validation
+    
+    Logic:
+    - TRANSFER_OUT deletion automatically deletes linked TRANSFER_IN (via related_transfer)
+    - TRANSFER_IN deletion validates no consumption (like PO validation)
+    - Proper linking ensures consistency
+    """
     transfer, error = CRUDHelper.safe_get_object(Transfer, transfer_id, 'Transfer')
     if error:
         return error
 
     force_delete = AdminActionHelper.check_force_delete(request)
 
-    # Get transaction info for both TRANSFER_OUT and TRANSFER_IN
-    transfer_out_transactions = [
-        {
-            'product_name': txn['product__name'],
-            'quantity': txn['quantity'],
-            'unit_price': txn['unit_price'],
-            'amount': float(txn['quantity']) * float(txn['unit_price']),
-            'type': 'TRANSFER_OUT'
-        }
-        for txn in transfer.transfer_transactions.filter(
-            transaction_type='TRANSFER_OUT'
-        ).select_related('product').values(
-            'product__name', 'quantity', 'unit_price'
-        )
-    ]
+    # 🔧 IMPROVED: Get linked transaction pairs for better analysis
+    transfer_out_transactions = []
+    transfer_in_transactions = []
     
-    transfer_in_transactions = [
-        {
-            'product_name': txn['product__name'],
-            'quantity': txn['quantity'],
-            'unit_price': txn['unit_price'],
-            'amount': float(txn['quantity']) * float(txn['unit_price']),
-            'type': 'TRANSFER_IN'
+    for txn in transfer.transfer_transactions.select_related('product', 'related_transfer'):
+        txn_info = {
+            'id': txn.id,
+            'product_name': txn.product.name,
+            'quantity': txn.quantity,
+            'unit_price': txn.unit_price,
+            'amount': float(txn.quantity) * float(txn.unit_price),
+            'type': txn.transaction_type,
+            'related_transfer_id': txn.related_transfer.id if txn.related_transfer else None
         }
-        for txn in transfer.transfer_transactions.filter(
-            transaction_type='TRANSFER_IN'
-        ).select_related('product').values(
-            'product__name', 'quantity', 'unit_price'
-        )
-    ]
+        
+        if txn.transaction_type == 'TRANSFER_OUT':
+            transfer_out_transactions.append(txn_info)
+        elif txn.transaction_type == 'TRANSFER_IN':
+            transfer_in_transactions.append(txn_info)
 
     transaction_count = len(transfer_out_transactions) + len(transfer_in_transactions)
 
@@ -225,11 +220,26 @@ def delete_transfer(request, transfer_id):
 
         if transaction_count > 0:
             with transaction.atomic():
-                # Delete all transfer transactions (both OUT and IN)
-                for transaction_obj in transfer.transfer_transactions.all():
-                    transaction_obj.delete()  # This can raise ValidationError for consumed TRANSFER_IN
+                # 🔧 FIXED: Proper deletion order and linking
+                
+                # Step 1: Delete TRANSFER_OUT transactions (they auto-delete linked TRANSFER_IN via related_transfer)
+                transfer_out_txns = transfer.transfer_transactions.filter(transaction_type='TRANSFER_OUT')
+                for txn in transfer_out_txns:
+                    print(f"🗑️ DELETING TRANSFER_OUT: {txn.product.name} x{txn.quantity} (ID: {txn.id})")
+                    # This will automatically delete the linked TRANSFER_IN via Transaction.delete()
+                    txn.delete()
+                
+                # Step 2: Delete any remaining TRANSFER_IN transactions (orphaned ones)
+                remaining_transfer_in = transfer.transfer_transactions.filter(transaction_type='TRANSFER_IN')
+                for txn in remaining_transfer_in:
+                    print(f"🗑️ DELETING REMAINING TRANSFER_IN: {txn.product.name} x{txn.quantity} (ID: {txn.id})")
+                    # This will validate consumption and raise ValidationError if consumed
+                    txn.delete()
+                
+                # Step 3: Delete the transfer group
                 transfer.delete()
             
+            # Clear cache
             try:
                 ProductCacheHelper.clear_cache_after_product_update()
                 TransferCacheHelper.clear_cache_after_transfer_delete(transfer_id)
@@ -238,9 +248,10 @@ def delete_transfer(request, transfer_id):
                 print(f"⚠️ Cache clear error: {e}")
 
             return JsonResponseHelper.success(
-                message=f'{transfer_number} and all {transaction_count} transactions deleted successfully. Inventory updated.'
+                message=f'{transfer_number} and all {transaction_count} linked transactions deleted successfully. Inventory updated.'
             )
         else:
+            # No transactions, safe to delete
             transfer.delete()
             TransferCacheHelper.clear_cache_after_transfer_delete(transfer_id)
             return JsonResponseHelper.success(
@@ -248,23 +259,23 @@ def delete_transfer(request, transfer_id):
             )
             
     except ValidationError as e:
-        # Enhanced error handling for inventory consumption conflicts
+        # 🛡️ ENHANCED: Better error handling for inventory consumption
         error_message = str(e)
         
         # Extract message from ValidationError list format
         if error_message.startswith('[') and error_message.endswith(']'):
             error_message = error_message[2:-2]  # Remove ['...']
         
-        # Check if it's an inventory consumption error
+        # Check if it's a TRANSFER_IN consumption error
         if "Cannot delete" in error_message or "consumed" in error_message.lower():
             # Extract key information for better error display
             lines = error_message.split('\\n')
             main_error = lines[0] if lines else error_message
             
-            # Return enhanced error with additional context
+            # Return enhanced error with transfer-specific context
             return JsonResponseHelper.error(
-                error_message=main_error,
-                error_type='inventory_consumption_blocked',
+                error_message=f"Cannot delete transfer - transferred inventory has been consumed: {main_error}",
+                error_type='transfer_inventory_consumed',
                 detailed_message=error_message,
                 suggested_actions=[
                     {
@@ -272,6 +283,12 @@ def delete_transfer(request, transfer_id):
                         'label': 'View Transaction Log',
                         'url': reverse('frontend:transactions_list'),
                         'description': 'Find and delete the sales/transfers that consumed from the transferred inventory'
+                    },
+                    {
+                        'action': 'check_destination_vessel',
+                        'label': 'Check Destination Vessel Inventory',
+                        'url': reverse('frontend:inventory_check'),
+                        'description': 'Review inventory levels on the destination vessel to understand consumption'
                     },
                     {
                         'action': 'contact_admin',
@@ -294,7 +311,6 @@ def delete_transfer(request, transfer_id):
 
 @login_required
 @user_passes_test(is_admin_or_manager)
-@require_http_methods(["POST"])
 def toggle_transfer_status(request, transfer_id):
     """Toggle transfer completion status - SIMPLE: Like PO pattern (0 cache clearing lines)"""
     # Get transfer safely

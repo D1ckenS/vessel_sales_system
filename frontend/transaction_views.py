@@ -92,7 +92,16 @@ def transactions_list(request):
 @user_passes_test(is_admin_or_manager)
 @require_http_methods(["DELETE"])
 def delete_transaction(request, transaction_id):
-    """Delete individual transaction with proper inventory handling"""
+    """
+    🔧 ENHANCED: Delete individual transaction with proper transfer linking
+    
+    Handles all transaction types:
+    - SALE: Restores inventory using FIFO details
+    - SUPPLY: Validates no consumption (like PO validation)
+    - TRANSFER_OUT: Auto-deletes linked TRANSFER_IN, restores inventory  
+    - TRANSFER_IN: Validates no consumption, removes transferred inventory
+    - WASTE: Restores inventory using purchase price
+    """
     
     # Get transaction safely
     transaction_obj, error = CRUDHelper.safe_get_object(Transaction, transaction_id, 'Transaction')
@@ -103,62 +112,97 @@ def delete_transaction(request, transaction_id):
         transaction_type = transaction_obj.transaction_type
         product_name = transaction_obj.product.name
         vessel_name = transaction_obj.vessel.name
+        quantity = transaction_obj.quantity
         
-        # Delete transaction (this triggers the enhanced delete method)
+        # 🔧 ENHANCED: Special handling for transfer transactions
+        if transaction_type == 'TRANSFER_OUT':
+            # Check if there's a linked TRANSFER_IN
+            linked_transfer_in = transaction_obj.related_transfer
+            if linked_transfer_in:
+                print(f"🔗 TRANSFER_OUT deletion will auto-delete linked TRANSFER_IN: {linked_transfer_in.id}")
+                
+        elif transaction_type == 'TRANSFER_IN':
+            # Check if this TRANSFER_IN has been consumed
+            print(f"🔍 VALIDATING: TRANSFER_IN deletion for {product_name} x{quantity}")
+        
+        # Delete transaction (this triggers the enhanced delete method with proper linking)
         transaction_obj.delete()
         
-        return JsonResponseHelper.success(
-            message=f'{transaction_type} transaction for {product_name} on {vessel_name} deleted successfully. Inventory updated.'
-        )
+        # 🔧 ENHANCED: Better success messages based on transaction type
+        if transaction_type == 'TRANSFER_OUT':
+            message = f'Transfer Out transaction for {product_name} deleted successfully. Linked Transfer In also deleted and inventory restored to {vessel_name}.'
+        elif transaction_type == 'TRANSFER_IN':
+            message = f'Transfer In transaction for {product_name} deleted successfully. Transferred inventory removed from {vessel_name}.'
+        elif transaction_type == 'SUPPLY':
+            message = f'Supply transaction for {product_name} deleted successfully. Inventory removed from {vessel_name}.'
+        elif transaction_type == 'SALE':
+            message = f'Sale transaction for {product_name} deleted successfully. Inventory restored to {vessel_name}.'
+        elif transaction_type == 'WASTE':
+            message = f'Waste transaction for {product_name} deleted successfully. Inventory restored to {vessel_name}.'
+        else:
+            message = f'{transaction_type} transaction for {product_name} on {vessel_name} deleted successfully. Inventory updated.'
+        
+        return JsonResponseHelper.success(message=message)
         
     except ValidationError as e:
-        # 🛡️ ENHANCED ERROR HANDLING: Parse and format user-friendly messages
+        # 🛡️ ENHANCED: Better error handling for different transaction types
         error_message = str(e)
         
         # Extract message from ValidationError list format
         if error_message.startswith('[') and error_message.endswith(']'):
-            error_message = error_message[2:-2]  # Remove ['...']
+            error_message = error_message[2:-2]
         
-        # Check if it's an inventory consumption error
-        if "Cannot delete supply transaction" in error_message:
-            # Extract key information for better error display
-            lines = error_message.split('\\n')  # Split on literal \n
-            main_error = lines[0] if lines else error_message
-            
-            # Return enhanced error with additional context
+        # Provide transaction-type specific error context
+        if transaction_type == 'SUPPLY' and "Cannot delete supply transaction" in error_message:
             return JsonResponseHelper.error(
-                error_message=main_error,
-                error_type='inventory_consumption_blocked',
+                error_message=f"Cannot delete supply transaction - inventory has been consumed: {error_message}",
+                error_type='supply_consumption_blocked',
                 detailed_message=error_message,
                 suggested_actions=[
                     {
-                        'action': 'view_transactions',
-                        'label': 'View Transaction Log',
+                        'action': 'view_consumption',
+                        'label': 'View What Consumed This Inventory',
                         'url': reverse('frontend:transactions_list'),
-                        'description': 'Find and delete the sales/transfers that consumed this inventory'
+                        'description': f'Find the sales/transfers that consumed {product_name} from {vessel_name}'
                     },
                     {
-                        'action': 'view_inventory',
-                        'label': 'Check Inventory',
+                        'action': 'check_inventory',
+                        'label': 'Check Current Inventory',
                         'url': reverse('frontend:inventory_check'),
-                        'description': 'View current inventory levels and consumption details'
-                    },
-                    {
-                        'action': 'contact_admin',
-                        'label': 'Contact Administrator',
-                        'description': 'If you need to force delete this transaction, contact your system administrator'
+                        'description': 'Review current inventory levels and consumption details'
                     }
                 ]
             )
         
-        # Handle other validation errors
+        elif transaction_type == 'TRANSFER_IN' and ("Cannot delete" in error_message or "consumed" in error_message.lower()):
+            return JsonResponseHelper.error(
+                error_message=f"Cannot delete transfer in - transferred inventory has been consumed: {error_message}",
+                error_type='transfer_in_consumption_blocked',
+                detailed_message=error_message,
+                suggested_actions=[
+                    {
+                        'action': 'view_consumption',
+                        'label': 'View What Consumed Transferred Inventory',
+                        'url': reverse('frontend:transactions_list'),
+                        'description': f'Find the sales/transfers that consumed {product_name} on {vessel_name}'
+                    },
+                    {
+                        'action': 'check_destination_inventory', 
+                        'label': 'Check Destination Vessel Inventory',
+                        'url': reverse('frontend:inventory_check'),
+                        'description': f'Review inventory levels on {vessel_name} to understand consumption'
+                    }
+                ]
+            )
+        
+        # Generic validation error
         return JsonResponseHelper.error(
-            error_message=error_message,
+            error_message=f"Cannot delete {transaction_type.lower()} transaction: {error_message}",
             error_type='validation_error'
         )
             
     except Exception as e:
         return JsonResponseHelper.error(
-            error_message=f"An unexpected error occurred: {str(e)}",
+            error_message=f"An unexpected error occurred while deleting {transaction_type.lower()} transaction: {str(e)}",
             error_type='system_error'
         )
