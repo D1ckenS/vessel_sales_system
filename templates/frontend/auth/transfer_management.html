@@ -492,6 +492,21 @@ function executeTransferSave(formData, transferId) {
 }
 
 function deleteTransfer(transferId) {
+
+    const existingModals = document.querySelectorAll('.modal.show, .modal[aria-hidden="false"]');
+    existingModals.forEach(modal => {
+        const modalInstance = bootstrap.Modal.getInstance(modal);
+        if (modalInstance) {
+            modalInstance.hide();
+        }
+        modal.setAttribute('aria-hidden', 'true');
+        modal.style.display = 'none';
+    });
+    
+    // Remove any modal backdrops
+    const backdrops = document.querySelectorAll('.modal-backdrop');
+    backdrops.forEach(backdrop => backdrop.remove());
+    
     fetch(`/transfers/${transferId}/delete/`, {
         method: 'DELETE',
         headers: {
@@ -518,26 +533,19 @@ function deleteTransfer(transferId) {
 
 function showTransactionConfirmationModal(type, id, data) {
     const isTransfer = type === 'transfer';
-    const title = isTransfer ? 'Delete Transfer with Transactions' : 'Delete Trip with Transactions';
-    const entityName = isTransfer ? 'transfer' : 'trip';
-    const totalLabel = isTransfer ? 'Total Cost' : 'Total Revenue';
+    const title = isTransfer ? 'Delete Transfer with Transactions' : 
+                  type === 'trip' ? 'Delete Trip with Transactions' : 'Delete PO with Transactions';
+    const entityName = isTransfer ? 'transfer' : (type === 'trip' ? 'trip' : 'purchase order');
+    const totalLabel = isTransfer ? 'Total Cost' : (type === 'trip' ? 'Total Revenue' : 'Total Cost');
+    const totalValue = isTransfer ? data.total_cost : (type === 'trip' ? data.total_revenue : data.total_cost);
     
-    // 🔧 FIXED: Safe access to total_cost/total_revenue
-    const totalValue = isTransfer 
-        ? (data.confirmation_data?.total_cost || data.total_cost || 0)
-        : (data.confirmation_data?.total_revenue || data.total_revenue || 0);
-    
-    // 🔧 FIXED: Safe access to transactions array
-    const transactions = data.confirmation_data?.transfer_out_transactions || 
-                        data.confirmation_data?.transfer_in_transactions || 
-                        data.transactions || [];
-    
-    // Build transaction list
+    // Build transaction list (same for all types)
     let transactionsList = '<ul class="list-group list-group-flush mb-3">';
-    transactions.forEach(trans => {
+    data.transactions.forEach(trans => {
+        const typeLabel = isTransfer ? ` (${trans.type})` : '';
         transactionsList += `
             <li class="list-group-item d-flex justify-content-between">
-                <span>${trans.product_name} (${trans.type || 'TRANSFER'})</span>
+                <span>${trans.product_name}${typeLabel}</span>
                 <div>
                     <span class="badge bg-primary me-2">${trans.quantity} units</span>
                     <span class="fw-bold">
@@ -550,7 +558,7 @@ function showTransactionConfirmationModal(type, id, data) {
     transactionsList += '</ul>';
     
     // 🔧 FIXED: Safe access to transaction_count
-    const transactionCount = data.confirmation_data?.transaction_count || transactions.length || 0;
+    const transactionCount = data.transaction_count || data.transactions.length || 0;
     
     const modalHTML = `
         <div class="modal fade" id="deleteConfirmationModal" tabindex="-1">
@@ -591,10 +599,10 @@ function showTransactionConfirmationModal(type, id, data) {
                         <h6>Transactions to be deleted:</h6>
                         ${transactionsList}
                         
-                        <p class="text-muted mb-0">
-                            <i class="bi bi-info-circle me-1"></i>
-                            All transactions will be permanently deleted and inventory will be updated accordingly.
-                        </p>
+                        <div class="alert alert-danger">
+                            <i class="bi bi-exclamation-octagon me-2"></i>
+                            <strong>This action cannot be undone!</strong> All transactions and related inventory changes will be permanently deleted.
+                        </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>

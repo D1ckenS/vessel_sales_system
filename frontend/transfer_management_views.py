@@ -143,6 +143,14 @@ def edit_transfer(request, transfer_id):
             
             # Clear cache appropriately
             if status_changed:
+                # 🔧 FIX: Clear specific completed transfer cache when toggling status
+                if original_status and not is_completed:
+                    # Was completed, now incomplete - remove specific completed cache
+                    completed_cache_key = TransferCacheHelper.get_completed_transfer_cache_key(transfer_id)
+                    from django.core.cache import cache
+                    cache.delete(completed_cache_key)
+                    print(f"🔥 DELETED SPECIFIC CACHE: {completed_cache_key}")
+                
                 TransferCacheHelper.clear_all_transfer_cache()
                 print("🔥 Enhanced cache cleared due to status change")
             else:
@@ -186,8 +194,8 @@ def delete_transfer(request, transfer_id):
     transfer_transactions = transfer.transactions.filter(
         transaction_type__in=['TRANSFER_OUT', 'TRANSFER_IN']
     )
-    
-    for txn in transfer_transactions:
+
+    for txn in transfer_transactions.select_related('product', 'related_transfer'):
         txn_info = {
             'id': txn.id,
             'product_name': txn.product.name,
@@ -203,25 +211,29 @@ def delete_transfer(request, transfer_id):
         elif txn.transaction_type == 'TRANSFER_IN':
             transfer_in_transactions.append(txn_info)
 
-    transaction_count = len(transfer_out_transactions) + len(transfer_in_transactions)
+    # 🔧 CHANGE: Count transfers as single operations for user display
+    user_transfer_count = len(transfer_out_transactions)  # Only count OUT (user operations)
+    actual_transaction_count = len(transfer_out_transactions) + len(transfer_in_transactions)  # Keep for system
 
-    if transaction_count > 0 and not force_delete:
+    if actual_transaction_count > 0 and not force_delete:
         total_cost = transfer.total_cost
 
         return JsonResponseHelper.requires_confirmation(
-            message=f'This transfer has {transaction_count} transactions ({len(transfer_out_transactions)} out, {len(transfer_in_transactions)} in). Delete anyway?',
+            message=f'This transfer has {user_transfer_count} transfer operations ({actual_transaction_count} system transactions). Delete anyway?',
             confirmation_data={
-                'transaction_count': transaction_count,
-                'total_cost': total_cost,
-                'transfer_out_transactions': transfer_out_transactions,
-                'transfer_in_transactions': transfer_in_transactions
+                'transaction_count': user_transfer_count,  # Show user-friendly count
+                'actual_transaction_count': actual_transaction_count,  # Keep actual count
+                'total_cost': round(total_cost, 3),
+                'transactions': transfer_out_transactions,  # Show only OUT for display
+                'transfer_out_transactions': transfer_out_transactions,  # Keep for safety
+                'transfer_in_transactions': transfer_in_transactions  # Keep for safety
             }
         )
 
     try:
         transfer_number = f"Transfer {transfer.id}"
 
-        if transaction_count > 0:
+        if actual_transaction_count > 0:
             with transaction.atomic():
                 # 🔧 FIXED: Proper deletion order and linking
                 
@@ -251,7 +263,7 @@ def delete_transfer(request, transfer_id):
                 print(f"⚠️ Cache clear error: {e}")
 
             return JsonResponseHelper.success(
-                message=f'{transfer_number} and all {transaction_count} linked transactions deleted successfully. Inventory updated.'
+                message=f'{transfer_number} and all {actual_transaction_count} linked transactions deleted successfully. Inventory updated.'
             )
         else:
             # No transactions, safe to delete
