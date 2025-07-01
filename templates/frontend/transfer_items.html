@@ -386,6 +386,25 @@ document.addEventListener('DOMContentLoaded', function() {
     const canEdit = {{ can_edit|yesno:"true,false" }};
     
     if (!canEdit) {
+        // 🔧 CLEANUP: Clear any existing timers and event listeners
+        // Clear any intervals that might be running
+        const highestTimeoutId = setTimeout(function(){}, 1);
+        for (let i = 0; i < highestTimeoutId; i++) {
+            clearTimeout(i);
+        }
+        
+        // Clear any intervals
+        const highestIntervalId = setInterval(function(){}, 1);
+        for (let i = 0; i < highestIntervalId; i++) {
+            clearInterval(i);
+        }
+        
+        // Reset global state
+        transferItemsCart = [];
+        selectedProduct = null;
+        availableProducts = [];
+        editingIndex = -1;
+        
         console.log('🔒 COMPLETED: Transfer completed - displaying read-only data');
         {% if completed_transfers_json %}
         try {
@@ -1370,6 +1389,20 @@ async function cancelEdit() {
 
 // Complete transfer (CORRECTED: Handle existing transactions like trip_sales/po_supply)
 async function completeTransfer() {
+    const existingModals = document.querySelectorAll('.modal.show, .modal[aria-hidden="false"]');
+    existingModals.forEach(modal => {
+        const modalInstance = bootstrap.Modal.getInstance(modal);
+        if (modalInstance) {
+            modalInstance.hide();
+        }
+        modal.setAttribute('aria-hidden', 'true');
+        modal.style.display = 'none';
+    });
+    
+    // Remove any modal backdrops that might be stuck
+    const backdrops = document.querySelectorAll('.modal-backdrop');
+    backdrops.forEach(backdrop => backdrop.remove());
+    
     if (transferItemsCart.length === 0) {
         window.showAlert(window._ ? window._('add_one_item_first') : 'Please add at least one item to complete the transfer.', 'warning');
         return;

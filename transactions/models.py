@@ -261,7 +261,7 @@ class Transfer(models.Model):
     @property
     def total_cost(self):
         """Calculate total cost from transfer transactions using actual FIFO costs"""
-        if hasattr(self, '_prefetched_objects_cache') and 'transfer_transactions' in self._prefetched_objects_cache:
+        if hasattr(self, '_prefetched_objects_cache') and 'transactions' in self._prefetched_objects_cache:
             # Use TRANSFER_OUT transactions (they have the real costs)
             return sum(
                 tx.unit_price * tx.quantity 
@@ -278,18 +278,18 @@ class Transfer(models.Model):
     @property
     def transaction_count(self):
         """Count of items transferred (count TRANSFER_OUT only to avoid double counting)"""
-        if hasattr(self, '_prefetched_objects_cache') and 'transfer_transactions' in self._prefetched_objects_cache:
+        if hasattr(self, '_prefetched_objects_cache') and 'transactions' in self._prefetched_objects_cache:
             return len([
                 tx for tx in self._prefetched_objects_cache['transactions']
                 if tx.transaction_type == 'TRANSFER_OUT'
             ])
         else:
             return self.transfer_transactions.filter(transaction_type='TRANSFER_OUT').count()
-    
+
     @property
     def unique_products_count(self):
         """Count of unique products transferred"""
-        if hasattr(self, '_prefetched_objects_cache') and 'transfer_transactions' in self._prefetched_objects_cache:
+        if hasattr(self, '_prefetched_objects_cache') and 'transactions' in self._prefetched_objects_cache:
             return len(set(
                 tx.product_id 
                 for tx in self._prefetched_objects_cache['transactions']

@@ -121,7 +121,7 @@ def transfer_entry(request):
             ).prefetch_related(
                 Prefetch(
                     'transactions',
-                    queryset=Transaction.objects.select_related('product').filter(transaction_type='TRANSFER_OUT')
+                    queryset=Transaction.objects.select_related('product')
                 )
             ).order_by('-created_at')[:10]
             
@@ -233,7 +233,11 @@ def transfer_items(request, transfer_id):
         ).get(id=transfer_id)
         
         # 🚀 FORCE: Get all transactions immediately to prevent additional queries
-        transfer_transactions = list(transfer.transactions.all())
+        transfer_transactions = [
+            tx for tx in transfer.transactions.all() 
+            if tx.transaction_type == 'TRANSFER_OUT'
+        ]
+
         
     except Transfer.DoesNotExist:
         BilingualMessages.error(request, 'Transfer not found.')
