@@ -71,6 +71,14 @@
 .table thead.sticky-top {
     z-index: 1020;
 }
+
+.cost-performance-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+.high-cost { border-left: 4px solid #dc3545; }
+.medium-cost { border-left: 4px solid #ffc107; }
+.low-cost { border-left: 4px solid #28a745; }
 </style>
 {% endblock %}
 
@@ -339,7 +347,7 @@
                             </thead>
                             <tbody id="tripsTableBody">
                                 {% for trip in trips %}
-                                <tr class="trip-row {% if trip.is_completed %}completed{% else %}in-progress{% endif %}" data-trip-id="{{ trip.id }}">
+                                <tr class="trip-row {{ trip.cost_performance_class }} {% if trip.is_completed %}completed{% else %}in-progress{% endif %}" data-trip-id="{{ trip.id }}">
                                     <td>
                                         <strong class="trip-number" data-original="{{ trip.trip_number }}">{{ trip.trip_number }}</strong>
                                         {% if trip.notes %}

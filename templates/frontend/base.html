@@ -94,7 +94,7 @@
                     <!-- 🆕 WASTE - Inventory Staff, Managers, Administrators (NOT Vessel Operators) -->
                     {% if user_permissions.can_add_products %}
                     <li class="nav-item">
-                        <a class="nav-link {% if 'waste' in request.resolver_match.url_name %}active{% endif %}" 
+                        <a class="nav-link {% if request.resolver_match.url_name == 'waste_entry' or request.resolver_match.url_name == 'waste_items' %}active{% endif %}" 
                         href="{% url 'frontend:waste_entry' %}">
                             <i class="bi bi-trash"></i> <span data-translate="waste">Waste</span>
                         </a>

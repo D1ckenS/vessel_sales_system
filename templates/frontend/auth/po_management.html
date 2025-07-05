@@ -71,6 +71,14 @@
 .table thead.sticky-top {
     z-index: 1020;
 }
+
+.cost-performance-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+.high-cost { border-left: 4px solid #dc3545; }
+.medium-cost { border-left: 4px solid #ffc107; }
+.low-cost { border-left: 4px solid #28a745; }
 </style>
 {% endblock %}
 
@@ -340,7 +348,7 @@
                             </thead>
                             <tbody id="posTableBody">
                                 {% for po in purchase_orders %}
-                                <tr class="po-row {% if po.is_completed %}completed{% else %}pending{% endif %}" data-po-id="{{ po.id }}">
+                                <tr class="po-row {{ po.cost_performance_class }} {% if po.is_completed %}completed{% else %}pending{% endif %}" data-po-id="{{ po.id }}">
                                     <td>
                                         <strong class="po-number" data-original="{{ po.po_number }}">{{ po.po_number }}</strong>
                                         {% if po.notes %}

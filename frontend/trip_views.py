@@ -89,6 +89,14 @@ def trip_management(request):
             
         # Accumulate stats
         total_revenue += trip_revenue
+        if trip_revenue > 1000:  # Use trip_revenue, not total_revenue
+            trip.cost_performance_class = 'low-cost'
+        elif trip_revenue > 500:
+            trip.cost_performance_class = 'medium-cost'
+        else:
+            trip.cost_performance_class = 'high-cost'
+        
+        # Count completed trips
         if trip.is_completed:
             completed_count += 1
         

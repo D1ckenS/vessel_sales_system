@@ -63,6 +63,15 @@ def po_management(request):
         
         # Accumulate stats
         total_cost += po_cost
+        
+        if total_cost > 1000:
+            po.cost_performance_class = 'high-cost'
+        elif total_cost > 500:
+            po.cost_performance_class = 'medium-cost'
+        else:
+            po.cost_performance_class = 'low-cost'
+            
+        # Count completed POs
         if po.is_completed:
             completed_count += 1
 
