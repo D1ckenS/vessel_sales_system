@@ -11,7 +11,7 @@ from django.views.decorators.http import require_http_methods
 from django.core.exceptions import ValidationError
 from django.contrib.auth.password_validation import validate_password
 from datetime import datetime
-from django.core.cache import cache
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from .utils.response_helpers import JsonResponseHelper
 from .utils.crud_helpers import CRUDHelper, AdminActionHelper
 from .permissions import (
@@ -24,7 +24,7 @@ from .permissions import (
 @login_required
 @user_passes_test(is_admin_or_manager)
 def trip_management(request):
-    """OPTIMIZED: Trip management following inventory pattern - 4-5 queries max"""
+    """OPTIMIZED: Trip management with pagination following transactions_list pattern"""
     
     # Get filter parameters
     vessel_filter = request.GET.get('vessel')
@@ -51,9 +51,19 @@ def trip_management(request):
         trips_query = trips_query.filter(trip_date__gte=date_from)
     if date_to:
         trips_query = trips_query.filter(trip_date__lte=date_to)
+        
+    paginator = Paginator(trips_query, 25)
+    page_number = request.GET.get('page')
     
-    # OPTIMIZED: Get limited dataset early like inventory does
-    trips_list = list(trips_query[:50])
+    try:
+        page_obj = paginator.get_page(page_number)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+    
+    # OPTIMIZED: Get trips from paginated results instead of [:50]
+    trips_list = list(page_obj)
     
     # OPTIMIZED: Calculate everything in Python using prefetched data
     total_revenue = 0
@@ -103,59 +113,19 @@ def trip_management(request):
         # Vessel performance tracking
         vessel_key = trip.vessel.name
         if vessel_key not in vessel_revenues:
-            vessel_revenues[vessel_key] = {
-                'vessel__name': trip.vessel.name,
-                'vessel__name_ar': trip.vessel.name_ar,
-                'trip_count': 0,
-                'vessel_total_revenue': 0
-            }
-        vessel_revenues[vessel_key]['trip_count'] += 1
-        vessel_revenues[vessel_key]['vessel_total_revenue'] += trip_revenue
+            vessel_revenues[vessel_key] = 0
+        vessel_revenues[vessel_key] += trip_revenue
     
-    # Calculate final stats
+    # OPTIMIZED: Calculate derived stats from filtered results 
+    in_progress_count = len(trips_list) - completed_count
     total_trips = len(trips_list)
-    in_progress_count = total_trips - completed_count
     
-    # OPTIMIZED: Vessel performance calculated from processed data
-    vessel_performance = []
-    for vessel_data in vessel_revenues.values():
-        avg_monthly = vessel_data['trip_count'] / 12.0
-        
-        # Performance classification
-        if avg_monthly >= 10:
-            performance_class = 'high'
-            performance_icon = 'arrow-up-circle'
-            badge_class = 'bg-success'
-        elif avg_monthly >= 5:
-            performance_class = 'medium'
-            performance_icon = 'dash-circle'
-            badge_class = 'bg-warning'
-        else:
-            performance_class = 'low'
-            performance_icon = 'arrow-down-circle'
-            badge_class = 'bg-danger'
-        
-        vessel_performance.append({
-            'vessel__name': vessel_data['vessel__name'],
-            'vessel__name_ar': vessel_data['vessel__name_ar'],
-            'trip_count': vessel_data['trip_count'],
-            'avg_monthly': round(avg_monthly, 1),
-            'vessel_total_revenue': vessel_data['vessel_total_revenue'],
-            'performance_class': performance_class,
-            'performance_icon': performance_icon,
-            'badge_class': badge_class,
-        })
-    
-    # Sort vessel performance by trip count
-    vessel_performance.sort(key=lambda x: x['trip_count'], reverse=True)
-    
-    # OPTIMIZED: Get vessels for filter in single query
-    vessels = VesselCacheHelper.get_active_vessels()
-    
+    # Context with pagination object added
     context = {
         'trips': trips_list,
-        'vessels': vessels,
-        'vessel_performance': vessel_performance,
+        'page_obj': page_obj,  # ADD: Pagination object for template
+        'active_vessels': VesselCacheHelper.get_active_vessels(),
+        'page_title': 'Trip Management',
         'stats': {
             'total_trips': total_trips,
             'completed_trips': completed_count,

@@ -1,5 +1,6 @@
 from django.urls import reverse
 from django.utils import timezone
+from datetime import timedelta
 from django.shortcuts import render, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.http import JsonResponse
@@ -14,6 +15,7 @@ from frontend.utils.cache_helpers import ProductCacheHelper
 from .permissions import is_admin_or_manager
 from .utils.response_helpers import JsonResponseHelper
 from .utils.crud_helpers import CRUDHelper, AdminActionHelper
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from .permissions import (
     operations_access_required,
     reports_access_required,
@@ -23,7 +25,7 @@ from .permissions import (
 @login_required
 @user_passes_test(is_admin_or_manager)
 def po_management(request):
-    """WORKING: PO management with template-required annotations"""
+    """WORKING: PO management with pagination following transactions_list pattern"""
     
     # WORKING: Base queryset with template-required annotations
     purchase_orders = PurchaseOrder.objects.select_related(
@@ -42,8 +44,19 @@ def po_management(request):
     # Order for consistent results
     purchase_orders = purchase_orders.order_by('-po_date', '-created_at')
     
+    # ADD PAGINATION: 25 items per page like transactions_list
+    paginator = Paginator(purchase_orders, 25)
+    page_number = request.GET.get('page')
+    
+    try:
+        page_obj = paginator.get_page(page_number)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+    
     # WORKING: Add cost performance class to each PO (for template)
-    po_list = list(purchase_orders[:50])
+    po_list = list(page_obj)  # Changed from [:50] to use paginated results
     
     # OPTIMIZED: Calculate stats in Python using prefetched data
     total_cost = 0
@@ -64,9 +77,9 @@ def po_management(request):
         # Accumulate stats
         total_cost += po_cost
         
-        if total_cost > 1000:
+        if po_cost > 1000:  # Fixed: Use po_cost instead of total_cost
             po.cost_performance_class = 'high-cost'
-        elif total_cost > 500:
+        elif po_cost > 500:
             po.cost_performance_class = 'medium-cost'
         else:
             po.cost_performance_class = 'low-cost'
@@ -86,7 +99,6 @@ def po_management(request):
     completion_rate = (completed_pos / max(total_pos, 1)) * 100
 
     # Calculate recent activity from existing data
-    from datetime import timedelta
     week_ago = timezone.now() - timedelta(days=7)
     recent_pos_count = sum(1 for po in po_list if po.created_at >= week_ago)
     recent_value = sum(po.annotated_total_cost for po in po_list if po.created_at >= week_ago)
@@ -112,18 +124,19 @@ def po_management(request):
 
     context = {
         'purchase_orders': po_list,
+        'page_obj': page_obj,  # ADD: Pagination object for template
         'vessels': vessels,
         'top_vessels': top_vessels,  # Simplified but functional
         'stats': {
             'total_pos': total_pos,
-                'completed_pos': completed_pos,
-                'in_progress_pos': in_progress_pos,
-                'completion_rate': round(completion_rate, 1),
-                'total_procurement_value': total_procurement_value,
-                'avg_po_value': round(avg_po_value, 2),
-                'total_transactions': total_transactions,
-                'avg_transactions_per_po': round(total_transactions / max(total_pos, 1), 1),
-            },
+            'completed_pos': completed_pos,
+            'in_progress_pos': in_progress_pos,
+            'completion_rate': round(completion_rate, 1),
+            'total_procurement_value': total_procurement_value,
+            'avg_po_value': round(avg_po_value, 2),
+            'total_transactions': total_transactions,
+            'avg_transactions_per_po': round(total_transactions / max(total_pos, 1), 1),
+        },
         'recent_activity': {
             'recent_pos': recent_pos_count,
             'recent_value': recent_value,

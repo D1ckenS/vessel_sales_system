@@ -1,6 +1,8 @@
 from django.core.cache import cache
 from django.urls import reverse
 from django.utils import timezone
+from datetime import timedelta
+from django.db.models import Q
 from django.shortcuts import render, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.http import JsonResponse
@@ -14,6 +16,7 @@ from datetime import datetime
 from frontend.utils.cache_helpers import ProductCacheHelper
 from .permissions import is_admin_or_manager
 from .utils.response_helpers import JsonResponseHelper
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from .utils.crud_helpers import CRUDHelper, AdminActionHelper
 from .permissions import (
     operations_access_required,
@@ -25,7 +28,7 @@ import json
 @login_required
 @user_passes_test(is_admin_or_manager)
 def transfer_management(request):
-    """Transfer management with template-required annotations following PO pattern"""
+    """Transfer management with pagination following transactions_list pattern"""
     
     # Base queryset with template-required annotations
     transfers = Transfer.objects.select_related(
@@ -41,31 +44,145 @@ def transfer_management(request):
         status_field='is_completed'        # Enable status filtering for transfers
     )
     
+    from_vessel_filter = request.GET.get('from_vessel')
+    to_vessel_filter = request.GET.get('to_vessel')
+    search_filter = request.GET.get('search')
+    
+    if from_vessel_filter:
+        transfers = transfers.filter(from_vessel_id=from_vessel_filter)
+    if to_vessel_filter:
+        transfers = transfers.filter(to_vessel_id=to_vessel_filter)
+    if search_filter:
+        transfers = transfers.filter(
+            Q(from_vessel__name__icontains=search_filter) |
+            Q(to_vessel__name__icontains=search_filter) |
+            Q(notes__icontains=search_filter)
+        )
+    
     # Order for consistent results
     transfers = transfers.order_by('-transfer_date', '-created_at')
     
+    paginator = Paginator(transfers, 25)
+    page_number = request.GET.get('page')
+    
+    try:
+        page_obj = paginator.get_page(page_number)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+    
     # Add cost performance class to each transfer (for template)
-    transfer_list = list(transfers[:50])
+    transfer_list = list(page_obj)  # Changed from [:50] to use paginated results
+    
+    # OPTIMIZED: Calculate stats in Python using prefetched data
+    total_cost = 0
+    completed_count = 0
+    total_transactions = 0
     
     # Add template-required annotations for each transfer
     for transfer in transfer_list:
+        # Calculate cost using prefetched transactions (no additional queries)
+        transfer_cost = sum(
+            float(txn.quantity) * float(txn.unit_price) 
+            for txn in transfer.transactions.all()
+            if txn.transaction_type == 'TRANSFER_OUT'  # Only count TRANSFER_OUT to avoid double counting
+        )
+        transfer_transaction_count = len([
+            txn for txn in transfer.transactions.all()
+            if txn.transaction_type == 'TRANSFER_OUT'
+        ])
+        
+        # Add calculated fields to transfer object for template
+        transfer.annotated_total_cost = transfer_cost
+        transfer.annotated_transaction_count = transfer_transaction_count
+        
+        # Accumulate stats
+        total_cost += transfer_cost
+        total_transactions += transfer_transaction_count
+        
         # Calculate cost performance class for template styling
-        total_cost = transfer.total_cost
-        if total_cost > 1000:
+        if transfer_cost > 1000:
             transfer.cost_performance_class = 'high-cost'
-        elif total_cost > 500:
+        elif transfer_cost > 500:
             transfer.cost_performance_class = 'medium-cost'
         else:
             transfer.cost_performance_class = 'low-cost'
+        
+        # Count completed transfers
+        if transfer.is_completed:
+            completed_count += 1
+    
+    # Calculate derived stats
+    total_transfers = len(transfer_list)
+    in_progress_count = total_transfers - completed_count
+    completion_rate = (completed_count / max(total_transfers, 1)) * 100
+    avg_transfer_cost = total_cost / max(total_transfers, 1)
+    
+    # Calculate recent activity from existing data
+    
+    week_ago = timezone.now() - timedelta(days=7)
+    recent_transfers_count = sum(1 for transfer in transfer_list if transfer.created_at >= week_ago)
+    recent_value = sum(transfer.annotated_total_cost for transfer in transfer_list if transfer.created_at >= week_ago)
+    
+    # Calculate vessel performance from existing data
+    vessel_stats = {}
+    for transfer in transfer_list:
+        from_vessel_name = transfer.from_vessel.name
+        to_vessel_name = transfer.to_vessel.name
+        
+        # Track outgoing transfers (from_vessel)
+        if from_vessel_name not in vessel_stats:
+            vessel_stats[from_vessel_name] = {
+                'vessel': transfer.from_vessel,
+                'outgoing_count': 0,
+                'incoming_count': 0,
+                'total_value': 0
+            }
+        vessel_stats[from_vessel_name]['outgoing_count'] += 1
+        vessel_stats[from_vessel_name]['total_value'] += transfer.annotated_total_cost
+        
+        # Track incoming transfers (to_vessel)
+        if to_vessel_name not in vessel_stats:
+            vessel_stats[to_vessel_name] = {
+                'vessel': transfer.to_vessel,
+                'outgoing_count': 0,
+                'incoming_count': 0,
+                'total_value': 0
+            }
+        vessel_stats[to_vessel_name]['incoming_count'] += 1
+    
+    # Convert to list and sort by total transfer activity
+    top_vessels = sorted(
+        vessel_stats.values(), 
+        key=lambda x: x['outgoing_count'] + x['incoming_count'], 
+        reverse=True
+    )[:5]
     
     context = {
         'transfers': transfer_list,
+        'page_obj': page_obj,  # ADD: Pagination object for template
         'active_vessels': VesselCacheHelper.get_active_vessels(),
-        'total_count': transfers.count() if transfers.count() <= 1000 else '1000+',
         'page_title': 'Transfer Management',
+        'stats': {
+            'total_transfers': total_transfers,
+            'completed_transfers': completed_count,
+            'in_progress_transfers': in_progress_count,
+            'completion_rate': round(completion_rate, 1),
+            'total_transfer_value': total_cost,
+            'avg_transfer_cost': round(avg_transfer_cost, 2),
+            'total_transactions': total_transactions,
+            'avg_transactions_per_transfer': round(total_transactions / max(total_transfers, 1), 1),
+        },
+        'recent_activity': {
+            'recent_transfers': recent_transfers_count,
+            'recent_value': recent_value,
+        },
+        'top_vessels': top_vessels,
         'current_filters': {
             'search': request.GET.get('search', ''),
-            'vessel': request.GET.get('vessel', ''),
+            'from_vessel': request.GET.get('from_vessel', ''),
+            'to_vessel': request.GET.get('to_vessel', ''),
             'status': request.GET.get('status', ''),
             'date_from': request.GET.get('date_from', ''),
             'date_to': request.GET.get('date_to', ''),

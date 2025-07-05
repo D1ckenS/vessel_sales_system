@@ -10,11 +10,14 @@ from django.core.exceptions import ValidationError
 from django.shortcuts import render
 from transactions.models import WasteReport
 from datetime import datetime
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from datetime import timedelta
+from django.utils import timezone
 
 @login_required
 @user_passes_test(is_admin_or_manager)
 def waste_management(request):
-    """Waste report management with template-required annotations following PO pattern"""
+    """Waste report management with pagination following transactions_list pattern"""
     
     # Base queryset with template-required annotations
     waste_reports = WasteReport.objects.select_related(
@@ -33,25 +36,125 @@ def waste_management(request):
     # Order for consistent results
     waste_reports = waste_reports.order_by('-report_date', '-created_at')
     
+    paginator = Paginator(waste_reports, 25)
+    page_number = request.GET.get('page')
+    
+    try:
+        page_obj = paginator.get_page(page_number)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+    
     # Add cost performance class to each waste report (for template)
-    waste_reports_list = list(waste_reports[:50])
+    waste_reports_list = list(page_obj)  # Changed from [:50] to use paginated results
+    
+    # OPTIMIZED: Calculate stats in Python using prefetched data
+    total_cost = 0
+    completed_count = 0
+    total_transactions = 0
+    total_waste_items = 0
     
     # Add template-required annotations for each waste report
     for waste_report in waste_reports_list:
+        # Calculate cost using prefetched waste_transactions (no additional queries)
+        waste_cost = sum(
+            float(txn.quantity) * float(txn.unit_price) 
+            for txn in waste_report.waste_transactions.all()
+        )
+        waste_transaction_count = len(waste_report.waste_transactions.all())
+        waste_item_count = sum(
+            int(txn.quantity) 
+            for txn in waste_report.waste_transactions.all()
+        )
+        
+        # Add calculated fields to waste report object for template
+        waste_report.annotated_total_cost = waste_cost
+        waste_report.annotated_transaction_count = waste_transaction_count
+        waste_report.annotated_item_count = waste_item_count
+        
+        # Accumulate stats
+        total_cost += waste_cost
+        total_transactions += waste_transaction_count
+        total_waste_items += waste_item_count
+        
         # Calculate cost performance class for template styling
-        total_cost = waste_report.total_cost
-        if total_cost > 500:
+        if waste_cost > 500:
             waste_report.cost_performance_class = 'high-cost'
-        elif total_cost > 200:
+        elif waste_cost > 200:
             waste_report.cost_performance_class = 'medium-cost'
         else:
             waste_report.cost_performance_class = 'low-cost'
+        
+        # Count completed waste reports
+        if waste_report.is_completed:
+            completed_count += 1
+    
+    # Calculate derived stats
+    total_reports = len(waste_reports_list)
+    in_progress_count = total_reports - completed_count
+    completion_rate = (completed_count / max(total_reports, 1)) * 100
+    avg_waste_cost = total_cost / max(total_reports, 1)
+    avg_cost_per_item = total_cost / max(total_waste_items, 1)
+    
+    # Calculate recent activity from existing data
+    week_ago = timezone.now() - timedelta(days=7)
+    recent_reports_count = sum(1 for report in waste_reports_list if report.created_at >= week_ago)
+    recent_value = sum(report.annotated_total_cost for report in waste_reports_list if report.created_at >= week_ago)
+    
+    # Calculate vessel performance from existing data
+    vessel_stats = {}
+    for waste_report in waste_reports_list:
+        vessel_name = waste_report.vessel.name
+        if vessel_name not in vessel_stats:
+            vessel_stats[vessel_name] = {
+                'vessel': waste_report.vessel,
+                'report_count': 0,
+                'total_value': 0,
+                'total_items': 0
+            }
+        vessel_stats[vessel_name]['report_count'] += 1
+        vessel_stats[vessel_name]['total_value'] += waste_report.annotated_total_cost
+        vessel_stats[vessel_name]['total_items'] += waste_report.annotated_item_count
+    
+    # Convert to list and sort by total waste cost
+    top_vessels = sorted(
+        vessel_stats.values(), 
+        key=lambda x: x['total_value'], 
+        reverse=True
+    )[:5]
+    
+    # Calculate environmental impact metrics
+    environmental_stats = {
+        'total_items_wasted': total_waste_items,
+        'avg_waste_per_report': total_waste_items / max(total_reports, 1),
+        'highest_waste_vessel': top_vessels[0]['vessel'].name if top_vessels else 'N/A',
+        'waste_reduction_target': max(0, total_waste_items - (total_waste_items * 0.1)),  # 10% reduction target
+    }
     
     context = {
         'waste_reports': waste_reports_list,
+        'page_obj': page_obj,  # ADD: Pagination object for template
         'active_vessels': VesselCacheHelper.get_active_vessels(),
-        'total_count': waste_reports.count() if waste_reports.count() <= 1000 else '1000+',
         'page_title': 'Waste Management',
+        'stats': {
+            'total_reports': total_reports,
+            'completed_reports': completed_count,
+            'in_progress_reports': in_progress_count,
+            'completion_rate': round(completion_rate, 1),
+            'total_waste_value': total_cost,
+            'avg_waste_cost': round(avg_waste_cost, 2),
+            'total_transactions': total_transactions,
+            'avg_transactions_per_report': round(total_transactions / max(total_reports, 1), 1),
+            'total_waste_items': total_waste_items,
+            'avg_cost_per_item': round(avg_cost_per_item, 2),
+        },
+        'recent_activity': {
+            'recent_reports': recent_reports_count,
+            'recent_value': recent_value,
+        },
+        'top_vessels': top_vessels,
+        'environmental_stats': environmental_stats,
         'current_filters': {
             'search': request.GET.get('search', ''),
             'vessel': request.GET.get('vessel', ''),

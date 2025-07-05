@@ -293,7 +293,7 @@
                                     <i class="bi bi-x-circle"></i> <span data-translate="clear_filters">Clear Filters</span>
                                 </a>
                                 <span class="text-muted ms-3">
-                                    <span data-translate="showing">Showing</span> <strong id="resultCount" data-number data-original="{{ purchase_orders|length }}">{{ purchase_orders|length }}</strong> <span data-translate="of">of</span> <strong id="totalCount" data-number data-original="{{ stats.total_pos }}">{{ stats.total_pos }}</strong> <span data-translate="purchase_orders">purchase orders</span>
+                                    <span data-translate="showing">Showing</span> <strong id="resultCount" data-number data-original="{{ purchase_orders|length }}">{{ purchase_orders|length }}</strong> <span data-translate="of">of</span> <strong id="totalCount" data-number data-original="{{ page_obj.paginator.count }}">{{ page_obj.paginator.count }}</strong> <span data-translate="purchase_orders">purchase orders</span>
                                 </span>
                             </div>
                         </div>
@@ -421,7 +421,8 @@
                 <div class="card-footer">
                     <div class="d-flex justify-content-between align-items-center">
                         <div class="text-muted">
-                            <span data-translate="showing_entries">Showing {{ purchase_orders|length }} of {{ stats.total_pos }} purchase orders</span>
+                            <!-- UPDATE: Show pagination info instead of purchase_orders|length -->
+                            <span data-translate="showing_entries">Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }} purchase orders</span>
                             {% if filters.vessel or filters.status or filters.date_from or filters.date_to %}
                             (<span dir="ltr" data-translate="filtered">filtered</span>)
                             {% endif %}
@@ -437,6 +438,43 @@
                 </div>
             </div>
         </div>
+    </div>
+</div>
+
+<!-- ADD: Pagination Section (same pattern as transactions_list.html) -->
+<div class="row mt-4">
+    <div class="col-12">
+        <nav aria-label="Purchase Orders pagination">
+            <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1{% if filters.vessel %}&vessel={{ filters.vessel }}{% endif %}{% if filters.status %}&status={{ filters.status }}{% endif %}{% if filters.date_from %}&date_from={{ filters.date_from }}{% endif %}{% if filters.date_to %}&date_to={{ filters.date_to }}{% endif %}">&laquo; First</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if filters.vessel %}&vessel={{ filters.vessel }}{% endif %}{% if filters.status %}&status={{ filters.status }}{% endif %}{% if filters.date_from %}&date_from={{ filters.date_from }}{% endif %}{% if filters.date_to %}&date_to={{ filters.date_to }}{% endif %}">Previous</a>
+                    </li>
+                {% endif %}
+                
+                <li class="page-item active">
+                    <span class="page-link">
+                        Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                    </span>
+                </li>
+                
+                {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if filters.vessel %}&vessel={{ filters.vessel }}{% endif %}{% if filters.status %}&status={{ filters.status }}{% endif %}{% if filters.date_from %}&date_from={{ filters.date_from }}{% endif %}{% if filters.date_to %}&date_to={{ filters.date_to }}{% endif %}">Next</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if filters.vessel %}&vessel={{ filters.vessel }}{% endif %}{% if filters.status %}&status={{ filters.status }}{% endif %}{% if filters.date_from %}&date_from={{ filters.date_from }}{% endif %}{% if filters.date_to %}&date_to={{ filters.date_to }}{% endif %}">Last &raquo;</a>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+        
+        <p class="text-center text-muted">
+            Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }} purchase orders
+        </p>
     </div>
 </div>
 
@@ -482,7 +520,7 @@
                         </div>
                         <small class="form-text text-muted">
                             <i class="bi bi-info-circle"></i>
-                            <span data-translate="po_status_help">Changing status will require confirmation</span>
+                            <span data-translate="status_help">Changing status will require confirmation</span>
                         </small>
                     </div>
                     {% endif %}
