@@ -1,6 +1,7 @@
 from django.urls import reverse
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required, user_passes_test
+from django.views.decorators.http import require_http_methods
 from frontend.utils.cache_helpers import VesselCacheHelper, WasteCacheHelper
 from .utils.query_helpers import TransactionQueryHelper
 from .utils.response_helpers import JsonResponseHelper
@@ -252,6 +253,7 @@ def edit_waste_report(request, waste_id):
 
 @login_required
 @user_passes_test(is_admin_or_manager)
+@require_http_methods(["DELETE"])
 def delete_waste_report(request, waste_id):
     """
     Delete waste report following transfer pattern with inventory restoration
