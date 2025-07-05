@@ -4,7 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Q, Sum, Prefetch
 from django.http import JsonResponse
 from datetime import date, datetime
-from frontend.utils.cache_helpers import VesselCacheHelper, TransferCacheHelper
+from frontend.utils.cache_helpers import ProductCacheHelper, VesselCacheHelper, TransferCacheHelper
 from frontend.utils.helpers import get_fifo_cost_for_transfer
 from vessels.models import Vessel
 from products.models import Product
@@ -15,6 +15,7 @@ from django.db import transaction
 import json
 from decimal import Decimal
 import uuid
+import time
 from .permissions import (
     operations_access_required,
     reports_access_required,
@@ -213,7 +214,6 @@ def transfer_items(request, transfer_id):
     """Step 2: Multi-item transfer entry for a specific transfer (follows trip_sales/po_supply pattern)"""
     
     # 🚀 OPTIMIZED: Check cache first for completed transfers (no DB query needed)
-    from frontend.utils.cache_helpers import TransferCacheHelper
     cached_data = TransferCacheHelper.get_completed_transfer_data(transfer_id)
     if cached_data:
         print(f"🚀 CACHE HIT: Completed transfer {transfer_id}")
@@ -365,12 +365,6 @@ def transfer_bulk_complete(request):
     - Batch inventory operations
     - Targeted cache clearing
     """
-    import time
-    from datetime import datetime
-    from django.db import transaction
-    from decimal import Decimal
-    from products.models import Product
-    from transactions.models import Transfer, Transaction
     
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'POST method required'})
@@ -432,7 +426,6 @@ def transfer_bulk_complete(request):
                 
                 try:
                     # Calculate FIFO cost (this is the expensive operation)
-                    from frontend.utils.helpers import get_fifo_cost_for_transfer
                     fifo_cost_per_unit = get_fifo_cost_for_transfer(from_vessel, product, quantity)
                     
                     fifo_calculations[product_id] = {
@@ -560,9 +553,7 @@ def transfer_bulk_complete(request):
 def _batch_consume_inventory_for_transfer_out(fifo_calculations, from_vessel, transfer_out_transactions):
     """
     🚀 BATCH OPERATION: Consume inventory for all TRANSFER_OUT transactions efficiently
-    """
-    from transactions.models import InventoryLot
-    
+    """    
     print(f"📊 BATCH CONSUME: Processing inventory consumption for {len(fifo_calculations)} products")
     
     for product_id, calc_data in fifo_calculations.items():
@@ -600,10 +591,7 @@ def _batch_consume_inventory_for_transfer_out(fifo_calculations, from_vessel, tr
 def _batch_create_inventory_for_transfer_in(fifo_calculations, to_vessel, transfer_in_transactions):
     """
     🚀 BATCH OPERATION: Create inventory lots for all TRANSFER_IN transactions efficiently
-    """
-    from datetime import datetime
-    from transactions.models import InventoryLot
-    
+    """    
     print(f"📦 BATCH CREATE: Creating inventory lots for {len(fifo_calculations)} products")
     
     inventory_lots_to_create = []
@@ -634,9 +622,7 @@ def _batch_create_inventory_for_transfer_in(fifo_calculations, to_vessel, transf
 def _clear_transfer_cache_targeted(transfer_id, from_vessel_id, to_vessel_id):
     """
     🚀 TARGETED CACHE CLEARING: Clear only relevant cache, not nuclear option
-    """
-    from frontend.utils.cache_helpers import TransferCacheHelper, VesselCacheHelper, ProductCacheHelper
-    
+    """    
     print(f"🔥 TARGETED CACHE: Clearing cache for transfer {transfer_id}")
     
     try:
@@ -747,9 +733,7 @@ def transfer_calculate_fifo_cost(request):
         vessel = Vessel.objects.get(id=vessel_id, active=True)
         product = Product.objects.get(id=product_id, active=True)
         
-        # Get FIFO cost calculation using existing helper
-        from frontend.utils.helpers import get_fifo_cost_for_transfer
-        
+        # Get FIFO cost calculation using existing helper        
         try:
             result = get_fifo_cost_for_transfer(vessel, product, quantity)
             

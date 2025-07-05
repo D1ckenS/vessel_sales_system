@@ -6,7 +6,7 @@ from django.http import JsonResponse
 from datetime import date, datetime
 from decimal import Decimal
 import json
-from frontend.utils.cache_helpers import VesselCacheHelper
+from frontend.utils.cache_helpers import VesselCacheHelper, WasteCacheHelper
 from vessels.models import Vessel
 from products.models import Product
 from transactions.models import Transaction, InventoryLot, WasteReport
@@ -70,6 +70,8 @@ def waste_entry(request):
                 notes=notes,
                 created_by=request.user
             )
+            
+            WasteCacheHelper.clear_cache_after_waste_create()
             
             BilingualMessages.success(request, 'waste_report_created')
             return redirect('frontend:waste_items', waste_id=waste_report.id)
@@ -375,6 +377,7 @@ def waste_bulk_complete(request):
             # Mark waste report as completed
             waste_report.is_completed = True
             waste_report.save()
+            WasteCacheHelper.clear_cache_after_waste_complete(waste_report.id)
         
         return JsonResponse({
             'success': True,
@@ -423,6 +426,8 @@ def waste_cancel(request):
             # No committed transactions - safe to delete waste report
             report_number = waste_report.report_number
             waste_report.delete()
+            
+            WasteCacheHelper.clear_cache_after_waste_delete(waste_id)
             
             return JsonResponse({
                 'success': True,

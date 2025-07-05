@@ -1,3 +1,4 @@
+from django.core.cache import cache
 from django.urls import reverse
 from django.utils import timezone
 from django.shortcuts import render, get_object_or_404
@@ -147,7 +148,7 @@ def edit_transfer(request, transfer_id):
                 if original_status and not is_completed:
                     # Was completed, now incomplete - remove specific completed cache
                     completed_cache_key = TransferCacheHelper.get_completed_transfer_cache_key(transfer_id)
-                    from django.core.cache import cache
+                    
                     cache.delete(completed_cache_key)
                     print(f"🔥 DELETED SPECIFIC CACHE: {completed_cache_key}")
                 

@@ -1,6 +1,7 @@
 from django.core.cache import cache
-from datetime import date
+from datetime import date, timedelta
 import hashlib
+from vessels.models import Vessel
 
 class ProductCacheHelper:
     """🔥 ULTIMATE: Bulletproof cache management for product operations"""
@@ -704,6 +705,191 @@ class TransferCacheHelper:
         """Clear cache after transfer completion (important for recent transfers)"""
         return cls.clear_cache_after_transfer_update(transfer_id)
 
+class WasteCacheHelper:
+    """Cache management for Waste Report operations with version control"""
+    
+    # Cache timeouts (in seconds) 
+    COMPLETED_WASTE_CACHE_TIMEOUT = 86400      # 24 hours (completed waste reports never change)
+    RECENT_WASTES_CACHE_TIMEOUT = 3600         # 1 hour (recent waste reports change frequently)
+    WASTE_FINANCIAL_CACHE_TIMEOUT = 43200      # 12 hours (financial calculations)
+    
+    CACHE_KEY_PREFIX = 'waste_mgmt'
+    
+    # Waste-related cache keys
+    WASTE_CACHE_KEYS = [
+        'waste_financial_summary',
+        'recent_wastes_with_cost',
+        'completed_waste_data',
+        'waste_cost_calculations',
+    ]
+    
+    # 🚀 GLOBAL CACHE VERSION: Following TripCacheHelper pattern
+    @classmethod
+    def _get_cache_version(cls):
+        """Get current cache version for waste report lists"""
+        return cache.get('waste_cache_version', 1)
+    
+    @classmethod
+    def _increment_cache_version(cls):
+        """Increment cache version to invalidate ALL waste cache"""
+        current_version = cls._get_cache_version()
+        new_version = current_version + 1
+        cache.set('waste_cache_version', new_version, None)  # Never expires
+        print(f"🔥 WASTE CACHE VERSION BUMPED: {current_version} → {new_version}")
+        return new_version
+    
+    @classmethod
+    def get_completed_waste_cache_key(cls, waste_id):
+        """Generate cache key for completed waste data (never changes)"""
+        return f"completed_waste_{waste_id}_data"
+    
+    @classmethod
+    def get_recent_wastes_cache_key(cls):
+        """Generate cache key for recent wastes with cost data"""
+        cache_version = cls._get_cache_version()
+        return f"recent_wastes_v{cache_version}_all"
+    
+    @classmethod
+    def get_waste_financial_cache_key(cls, waste_id):
+        """Generate cache key for waste financial calculations"""
+        cache_version = cls._get_cache_version()
+        return f"waste_financial_v{cache_version}_{waste_id}"
+    
+    # 🚀 COMPLETED WASTE CACHING (never changes, can cache forever)
+    @classmethod
+    def get_completed_waste_data(cls, waste_id):
+        """Get cached completed waste data"""
+        cache_key = cls.get_completed_waste_cache_key(waste_id)
+        cached_data = cache.get(cache_key)
+        
+        if cached_data:
+            print(f"🚀 CACHE HIT: Completed waste {waste_id}")
+            return cached_data
+        else:
+            print(f"🔍 CACHE MISS: Waste {waste_id} not in cache")
+            return None
+    
+    @classmethod
+    def cache_completed_waste_data(cls, waste_id, context_data):
+        """Cache completed waste data (24 hour timeout)"""
+        cache_key = cls.get_completed_waste_cache_key(waste_id)
+        cache.set(cache_key, context_data, cls.COMPLETED_WASTE_CACHE_TIMEOUT)
+        print(f"🚀 CACHED COMPLETED WASTE: {waste_id}")
+        return True
+    
+    # 🚀 RECENT WASTES CACHING (for waste_entry page - like supply_entry)
+    @classmethod
+    def get_recent_wastes_with_cost(cls):
+        """Get cached recent wastes with cost calculations"""
+        cache_key = cls.get_recent_wastes_cache_key()
+        cached_wastes = cache.get(cache_key)
+        
+        if cached_wastes:
+            print(f"🚀 CACHE HIT: Recent wastes")
+            return cached_wastes
+            
+        print(f"🔍 CACHE MISS: Recent wastes")
+        return None
+    
+    @classmethod
+    def cache_recent_wastes_with_cost(cls, wastes_data):
+        """Cache recent wastes with cost data (1 hour timeout)"""
+        cache_key = cls.get_recent_wastes_cache_key()
+        cache.set(cache_key, wastes_data, cls.RECENT_WASTES_CACHE_TIMEOUT)
+        print(f"🚀 CACHED RECENT WASTES: {len(wastes_data)} waste reports")
+        return True
+    
+    # 🚀 FINANCIAL CALCULATIONS CACHING
+    @classmethod
+    def get_waste_financial_data(cls, waste_id):
+        """Get cached waste financial calculations"""
+        cache_key = cls.get_waste_financial_cache_key(waste_id)
+        return cache.get(cache_key)
+    
+    @classmethod
+    def cache_waste_financial_data(cls, waste_id, financial_data):
+        """Cache waste financial calculations"""
+        cache_key = cls.get_waste_financial_cache_key(waste_id)
+        cache.set(cache_key, financial_data, cls.WASTE_FINANCIAL_CACHE_TIMEOUT)
+        return True
+    
+    # 🚀 CACHE MANAGEMENT (following TripCacheHelper patterns)
+    @classmethod
+    def clear_all_waste_cache(cls):
+        """🚀 NUCLEAR OPTION: Clear ALL waste-related cache instantly"""
+        cleared_keys = []
+        
+        try:
+            # Method 1: Version bump (always works, instant)
+            cls._increment_cache_version()
+            cleared_keys.append('waste_cache_version_bumped')
+            
+            # Method 2: Clear static keys
+            for cache_key in cls.WASTE_CACHE_KEYS:
+                if cache.delete(cache_key):
+                    cleared_keys.append(cache_key)
+            
+            print(f"🚀 WASTE CACHE CLEARED: {len(cleared_keys)} operations")
+            return True, len(cleared_keys)
+            
+        except Exception as e:
+            print(f"❌ WASTE CACHE CLEAR FAILED: {e}")
+            return False, 0
+    
+    @classmethod
+    def clear_cache_after_waste_update(cls, waste_id=None):
+        """Clear waste cache after waste modifications"""
+        cleared_keys = []
+        
+        # Version bump clears all versioned cache
+        cls._increment_cache_version()
+        cleared_keys.append('version_bumped')
+        
+        # Clear specific completed waste if provided
+        if waste_id:
+            completed_cache_key = cls.get_completed_waste_cache_key(waste_id)
+            if cache.delete(completed_cache_key):
+                cleared_keys.append(f'completed_waste_{waste_id}')
+        
+        print(f"🚀 WASTE CACHE UPDATED: {len(cleared_keys)} operations")
+        return True, len(cleared_keys)
+    
+    @classmethod
+    def clear_cache_after_waste_create(cls):
+        """Clear cache after waste creation"""
+        return cls.clear_cache_after_waste_update()
+    
+    @classmethod
+    def clear_cache_after_waste_delete(cls, waste_id):
+        """Clear cache after waste deletion"""
+        return cls.clear_cache_after_waste_update(waste_id)
+    
+    @classmethod
+    def clear_cache_after_waste_complete(cls, waste_id):
+        """Clear cache after waste completion (important for recent wastes)"""
+        return cls.clear_cache_after_waste_update(waste_id)
+    
+    # 🚀 CONVENIENCE METHODS
+    @classmethod
+    def debug_waste_cache_status(cls):
+        """🔍 DEBUG: Check waste cache status"""
+        cache_status = {}
+        
+        # Check static keys
+        for key in cls.WASTE_CACHE_KEYS:
+            cache_status[key] = cache.get(key) is not None
+        
+        # Add version info
+        cache_status['waste_cache_version'] = cls._get_cache_version()
+        
+        # Count active cache entries
+        active_count = sum(1 for exists in cache_status.values() if isinstance(exists, bool) and exists)
+        
+        print(f"🔍 WASTE CACHE STATUS: {active_count}/{len(cls.WASTE_CACHE_KEYS)} static keys active")
+        print(f"🔍 Waste Cache Version: {cache_status['waste_cache_version']}")
+        
+        return cache_status
+
 # 🚀 PERFECT PAGINATION - Full template compatibility
 class PerfectPagination:
     def __init__(self, products, page_num, total_count, page_size):
@@ -756,7 +942,7 @@ class VesselCacheHelper:
         vessels = cache.get(cls.CACHE_KEY)
         
         if vessels is None:
-            from vessels.models import Vessel
+            
             vessels = list(Vessel.objects.filter(active=True).order_by('name'))
             cache.set(cls.CACHE_KEY, vessels, timeout=cls.CACHE_TIMEOUT)
         
@@ -810,9 +996,6 @@ class VesselManagementCacheHelper:
     @classmethod
     def clear_vessel_management_cache(cls):
         """Clear vessel management cache when vessels are modified"""
-        from django.core.cache import cache
-        from datetime import date, timedelta
-        
         cleared_keys = []
         
         # Clear cache for today and recent days (in case timezone differences)
@@ -834,9 +1017,7 @@ class UserManagementCacheHelper:
     
     @classmethod
     def clear_user_management_cache(cls):
-        """Clear user management cache when users/groups are modified"""
-        from django.core.cache import cache
-        
+        """Clear user management cache when users/groups are modified"""        
         cache_keys = [
             'user_management_data',
         ]

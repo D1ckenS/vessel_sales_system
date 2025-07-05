@@ -4,11 +4,12 @@ from django.core.validators import MinValueValidator
 from django.core.exceptions import ValidationError
 from decimal import Decimal
 from datetime import date
+from frontend.utils.helpers import get_fifo_cost_for_transfer
 from vessels.models import Vessel
 from products.models import Product
-from django.db.models import Sum, F, Count
+from django.db.models import Sum, F, Count, Avg, Min, Max, StdDev
 from django.db import transaction
-from frontend.utils.cache_helpers import ProductCacheHelper, TripCacheHelper
+from frontend.utils.cache_helpers import ProductCacheHelper, TripCacheHelper, WasteCacheHelper
 from frontend.utils.error_helpers import InventoryErrorHelper
 from django.core.cache import cache
 
@@ -795,7 +796,6 @@ class Transaction(models.Model):
             print(f"⚠️ WARNING: No consumption details found for transfer {self.id}")
             # Try to recalculate FIFO cost as fallback
             try:
-                from frontend.utils.helpers import get_fifo_cost_for_transfer
                 fifo_cost_per_unit = get_fifo_cost_for_transfer(self.vessel, self.product, self.quantity)
                 self.unit_price = Decimal(str(fifo_cost_per_unit)) if fifo_cost_per_unit else Decimal('0.001')
                 print(f"🔄 FALLBACK: Using calculated FIFO cost {fifo_cost_per_unit} for transfer {self.id}")
@@ -979,6 +979,25 @@ class Transaction(models.Model):
                 print(f"🔥 Recent trips cache cleared after transaction deletion")
         except Exception as e:
             print(f"⚠️ Trip cache clear error: {e}")
+        
+        try:
+            if self.transaction_type == 'WASTE' and hasattr(self, 'waste_report') and self.waste_report:
+                
+                WasteCacheHelper.clear_cache_after_waste_update(self.waste_report.id)
+                
+                # 🚀 FIX: Also clear completed waste cache specifically
+                if self.waste_report.is_completed:
+                    completed_cache_key = WasteCacheHelper.get_completed_waste_cache_key(self.waste_report.id)
+                    cache.delete(completed_cache_key)
+                    print(f"🔥 Completed waste cache cleared: Waste {self.waste_report.id}")
+                
+                print(f"🔥 Waste cache cleared after transaction deletion: Waste {self.waste_report.id}")
+            else:
+                # Clear general waste cache for any transaction changes that might affect waste calculations
+                WasteCacheHelper.clear_cache_after_waste_update()
+                print(f"🔥 General waste cache cleared after transaction deletion")
+        except Exception as e:
+            print(f"⚠️ Waste cache clear error: {e}")
         
         super().delete(*args, **kwargs)
 
@@ -1214,7 +1233,7 @@ class Transaction(models.Model):
             print(f"❌ DEBUG: BLOCKING DELETION - {total_consumed} units consumed")
             
             # Enhanced user-friendly error message
-            from frontend.utils.error_helpers import InventoryErrorHelper
+            
             raise ValidationError(
                 InventoryErrorHelper.format_supply_deletion_error(
                     product_name=self.product.name,
@@ -1372,9 +1391,6 @@ def get_vessel_product_price(vessel, product):
 
 def get_all_vessel_pricing_summary():
     """Get enriched vessel pricing data for dashboard"""
-
-    from django.db.models import Count, Avg, Min, Max
-    from vessels.models import Vessel
     
     total_products = Product.objects.filter(active=True, is_duty_free=False).count()
 
@@ -1433,9 +1449,6 @@ def get_vessel_pricing_warnings(vessel=None):
     if vessel is None:
         # Original behavior - return general warnings
         warnings = []
-        
-        # Find products with extreme price variations across vessels
-        from django.db.models import StdDev, Avg, Count
         
         price_variations = VesselProductPrice.objects.values('product').annotate(
             avg_price=Avg('selling_price'),
