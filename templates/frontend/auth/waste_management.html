@@ -223,6 +223,11 @@
                                     </td>
                                     <td class="text-center">
                                         <div class="btn-group" role="group">
+                                            <a href="{% url 'frontend:waste_items' waste_report.id %}" 
+                                            class="btn btn-outline-info" 
+                                            title="View Details">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
                                             <button class="btn btn-sm btn-outline-primary" onclick="editWasteReport({{ waste_report.id }})" title="Edit waste report">
                                                 <i class="bi bi-pencil"></i>
                                             </button>
@@ -526,32 +531,33 @@ function saveWasteReport() {
 }
 
 function performWasteReportSave(wasteId, formData) {
-    // Convert to FormData for POST
-    const form = new FormData();
-    Object.keys(formData).forEach(key => {
-        form.append(key, formData[key]);
-    });
-    
+    const saveButton = document.querySelector('#editWasteReportModal .btn-primary');
+    window.standardizeLoadingStates(saveButton, true);
+
     fetch(`/wastes/${wasteId}/edit/`, {
         method: 'POST',
         headers: {
+            'Content-Type': 'application/json',
             'X-CSRFToken': window.getCsrfToken()
         },
-        body: form
+        body: JSON.stringify(formData)
     })
     .then(response => response.json())
     .then(data => {
+        window.standardizeLoadingStates(saveButton, false);
+        
         if (data.success) {
             window.showAlert(data.message, 'success');
             bootstrap.Modal.getInstance(document.getElementById('editWasteReportModal')).hide();
-            location.reload(); // Refresh to show updated data
+            setTimeout(() => location.reload(), 1000);
         } else {
-            window.showAlert(data.error || 'Failed to update waste report', 'danger');
+            window.showAlert(data.error, 'danger');
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        window.showAlert('Error updating waste report', 'danger');
+        window.standardizeLoadingStates(saveButton, false);
+        window.showAlert('Error saving waste report', 'danger');
     });
 }
 

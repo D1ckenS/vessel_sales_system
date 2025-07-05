@@ -13,6 +13,7 @@ from datetime import datetime
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from datetime import timedelta
 from django.utils import timezone
+import json
 
 @login_required
 @user_passes_test(is_admin_or_manager)
@@ -193,9 +194,13 @@ def edit_waste_report(request, waste_id):
 
     if request.method == 'POST':
         try:
-            # Parse and validate input
-            report_date = request.POST.get('report_date')
-            notes = request.POST.get('notes', '').strip()
+            # Parse JSON data (consistent with other templates)
+            data = json.loads(request.body)
+            
+            # Validate required fields
+            report_date = data.get('report_date')
+            notes = data.get('notes', '').strip()
+            is_completed = data.get('is_completed', False)
             
             if not report_date:
                 return JsonResponseHelper.error(
@@ -203,17 +208,36 @@ def edit_waste_report(request, waste_id):
                     error_type='validation_error'
                 )
             
-            # Update waste report
-            waste_report.report_date = datetime.strptime(report_date, '%Y-%m-%d').date()
+            # Parse and validate date
+            try:
+                report_date = datetime.strptime(report_date, '%Y-%m-%d').date()
+            except ValueError:
+                return JsonResponseHelper.error(
+                    error_message="Invalid date format",
+                    error_type='validation_error'
+                )
+            
+            # Track if status is changing to trigger proper cache clearing
+            original_status = waste_report.is_completed
+            status_changed = original_status != is_completed
+            
+            # Update waste report fields
+            waste_report.report_date = report_date
             waste_report.notes = notes
+            waste_report.is_completed = is_completed
             waste_report.save()
             
             # Clear waste cache after update
             WasteCacheHelper.clear_cache_after_waste_update(waste_id)
             
-            return JsonResponseHelper.success(
-                message=f'Waste report {waste_report.report_number} updated successfully'
-            )
+            # Create appropriate success message
+            if status_changed:
+                action = "completed" if waste_report.is_completed else "reopened for editing"
+                message = f'Waste report {waste_report.report_number} updated and {action} successfully'
+            else:
+                message = f'Waste report {waste_report.report_number} updated successfully'
+            
+            return JsonResponseHelper.success(message=message)
             
         except ValueError as e:
             return JsonResponseHelper.error(
