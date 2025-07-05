@@ -181,7 +181,7 @@
                                     <td>
                                         <span class="badge bg-success vessel-name" data-en="{{ transfer.to_vessel.name }}" data-ar="{{ transfer.to_vessel.name_ar }}">{{ transfer.to_vessel.name }}</span>
                                     </td>
-                                    <td data-transfer-date data-original="{{ transfer.transfer_date|date:'d/m/Y' }}">{{ transfer.transfer_date|date:"M d, Y" }}</td>
+                                    <td data-transfer-date data-original="{{ transfer.transfer_date|date:'d-m-Y' }}">{{ transfer.transfer_date|date:"M d, Y" }}</td>
                                     <td class="cost-column">
                                         <span class="fw-bold text-success" data-number data-original="{{ transfer.total_cost|floatformat:3 }}">{{ transfer.total_cost|floatformat:3 }}</span> <span data-currency-symbol>JOD</span>
                                     </td>

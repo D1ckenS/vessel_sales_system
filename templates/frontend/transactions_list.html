@@ -112,7 +112,7 @@
                             {% for transaction in transactions %}
                             <tr>
                                 <td>
-                                    <div class="transaction-date" data-date="{{ transaction.transaction_date|date:"d/m/Y" }}">{{ transaction.transaction_date|date:"d/m/Y" }}</div>
+                                    <div class="transaction-date" data-date="{{ transaction.transaction_date|date:"d-m-Y" }}">{{ transaction.transaction_date|date:"d-m-Y" }}</div>
                                     <small class="text-muted transaction-time" data-time="{{ transaction.created_at|time:"H:i" }}">{{ transaction.created_at|time:"H:i" }}</small>
                                 </td>
                                 <td>

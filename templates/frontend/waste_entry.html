@@ -138,7 +138,7 @@
                                  {% for waste_report in recent_reports %}
                                 <tr>
                                     <td>
-                                        <strong>{{ waste_report.report_number }}</strong>
+                                        <strong class="waste-number" data-original="{{ waste_report.report_number }}">{{ waste_report.report_number }}</strong>
                                     </td>
                                     <td>
                                         <span class="badge {% if waste_report.vessel.name|lower == 'amman' %}bg-primary{% elif waste_report.vessel.name|lower == 'aylah' %}bg-danger{% elif waste_report.vessel.name|lower == 'sinaa' %}bg-success{% elif waste_report.vessel.name|lower == 'nefertiti' %}bg-secondary{% elif waste_report.vessel.name|lower == 'babel' %}bg-warning{% elif waste_report.vessel.name|lower == 'dahab' %}bg-info{% else %}bg-primary{% endif %}">
@@ -146,10 +146,10 @@
                                         </span>
                                     </td>
                                     <td>
-                                        {{ waste_report.report_date|date:"d/m/Y" }}
+                                        <span data-number data-original="{{ waste_report.report_date|date:'d-m-Y' }}">{{ waste_report.report_date|date:'d-m-Y' }}</span>
                                     </td>
                                     <td>
-                                        <span class="text-danger fw-bold">{{ waste_report.total_cost|floatformat:3 }} JOD</span>
+                                        <strong class="text-danger" data-number data-original="{{ waste_report.total_cost|floatformat:3|default:'0.000' }}">{{ waste_report.total_cost|floatformat:3|default:"0.000" }}</strong> <span data-currency-symbol>JOD</span>
                                     </td>
                                     <td>
                                         {% if waste_report.is_completed %}

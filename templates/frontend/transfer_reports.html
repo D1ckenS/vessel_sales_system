@@ -193,7 +193,7 @@
                                     <strong class="text-primary">{{ transfer.transfer_number }}</strong>
                                 </td>
                                 <td>
-                                    <span data-transfer-date data-original="{{ transfer.transfer_date|date:'d/m/Y' }}">{{ transfer.transfer_date|date:"d/m/Y" }}</span>
+                                    <span data-transfer-date data-original="{{ transfer.transfer_date|date:'d-m-Y' }}">{{ transfer.transfer_date|date:"d-m-Y" }}</span>
                                     <small class="text-muted d-block">{{ transfer.created_at|date:"H:i" }}</small>
                                 </td>
                                 <td>
@@ -253,7 +253,7 @@
                                 </td>
                                 <td class="created-by-column">
                                     <small>{{ transfer.created_by.username|default:"System" }}</small>
-                                    <small class="text-muted d-block">{{ transfer.created_at|date:"d/m/Y" }}</small>
+                                    <small class="text-muted d-block">{{ transfer.created_at|date:"d-m-Y" }}</small>
                                 </td>
                                 <td>
                                     <div class="btn-group btn-group-sm">

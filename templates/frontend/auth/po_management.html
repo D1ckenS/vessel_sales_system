@@ -358,7 +358,7 @@
                                             </div>
                                         </div>
                                     </td>
-                                    <td data-po-date data-original="{{ po.po_date|date:'d/m/Y' }}">{{ po.po_date|date:"d/m/Y" }}</td>
+                                    <td data-po-date data-original="{{ po.po_date|date:'d-m-Y' }}">{{ po.po_date|date:"d-m-Y" }}</td>
                                     <td>
                                         <strong class="{% if po.annotated_total_cost %}text-success{% else %}text-muted{% endif %}">
                                             <span data-number data-original="{{ po.annotated_total_cost|floatformat:3|default:'0.000' }}">{{ po.annotated_total_cost|floatformat:3|default:"0.000" }}</span> <span data-currency-symbol>JOD</span>

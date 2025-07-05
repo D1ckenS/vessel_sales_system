@@ -123,7 +123,7 @@
                             {% for transfer in recent_transfers %}
                             <tr {% if not transfer.is_completed %}class="table-warning cursor-pointer" onclick="resumeTransfer({{ transfer.id }})" title="Click to resume this transfer"{% endif %} data-transfer-id="{{ transfer.id }}" data-completed="{{ transfer.is_completed }}">
                                 <td>
-                                    <span data-transfer-date data-original="{{ transfer.transfer_date|date:'d/m/Y' }}">{{ transfer.transfer_date|date:"d/m/Y" }}</span>
+                                    <span data-transfer-date data-original="{{ transfer.transfer_date|date:'d-m-Y' }}">{{ transfer.transfer_date|date:"d-m-Y" }}</span>
                                 </td>
                                 <td>
                                     <div class="d-flex align-items-center">

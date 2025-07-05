@@ -702,7 +702,7 @@ window.updatePageTranslations = function() {
     // This was causing issues with elements like "Last 90 days" getting "ago" added incorrectly
     
     // Update numbers with Arabic-Indic numerals
-    ['.po-number', '.trip-number', '.count'].forEach(selector => {
+    ['.po-number', '.trip-number', '.transfer-number', '.waste-number', '.count'].forEach(selector => {
         document.querySelectorAll(selector).forEach(element => {
             const originalValue = element.getAttribute('data-original') || element.textContent.trim();
             if (!element.getAttribute('data-original')) {

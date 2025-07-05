@@ -76,7 +76,7 @@
                 </h2>
                 <p class="text-muted mb-0">
                     <i class="bi bi-ship"></i> <span class="vessel-name" data-en="{{ waste_report.vessel.name }}" data-ar="{{ waste_report.vessel.name_ar }}">{{ waste_report.vessel.name }}</span> •
-                    <i class="bi bi-calendar"></i> <span data-waste-date data-original="{{ waste_report.report_date|date:'d/m/Y' }}">{{ waste_report.report_date|date:"d/m/Y" }}</span>
+                    <i class="bi bi-calendar"></i> <span data-waste-date data-original="{{ waste_report.report_date|date:'d-m-Y' }}">{{ waste_report.report_date|date:"d-m-Y" }}</span>
                 </p>
             </div>
             <div class="d-flex gap-2">
@@ -262,7 +262,7 @@
                 <div class="col-md-4 text-end">
                     <small class="text-muted">
                         <span data-translate="completed">Completed</span>: 
-                        <span data-waste-date data-original="{{ waste_report.updated_at|date:'d/m/Y H:i' }}">{{ waste_report.updated_at|date:"d/m/Y H:i" }}</span>
+                        <span data-waste-date data-original="{{ waste_report.updated_at|date:'d-m-Y H:i' }}">{{ waste_report.updated_at|date:"d-m-Y H:i" }}</span>
                     </small>
                 </div>
             </div>

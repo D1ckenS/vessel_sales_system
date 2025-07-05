@@ -4,7 +4,6 @@ from django.core.validators import MinValueValidator
 from django.core.exceptions import ValidationError
 from decimal import Decimal
 from datetime import date
-from frontend.utils.helpers import get_fifo_cost_for_transfer
 from vessels.models import Vessel
 from products.models import Product
 from django.db.models import Sum, F, Count, Avg, Min, Max, StdDev
@@ -786,6 +785,7 @@ class Transaction(models.Model):
     
     def _complete_transfer(self):
         """Complete transfer by creating TRANSFER_IN and inventory lots on receiving vessel preserving exact FIFO costs"""
+        from frontend.utils.helpers import get_fifo_cost_for_transfer
         
         # ✅ FIX: ALWAYS ensure unit_price is set before proceeding
         if self.unit_price is None:

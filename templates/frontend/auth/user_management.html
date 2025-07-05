@@ -161,7 +161,7 @@
                                     </td>
                                     <td>
                                         {% if user.last_login %}
-                                            {{ user.last_login|date:"d/m/Y H:i" }}
+                                            {{ user.last_login|date:"d-m-Y H:i" }}
                                         {% else %}
                                             <span class="text-muted" data-translate="never">Never</span>
                                         {% endif %}

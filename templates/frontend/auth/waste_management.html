@@ -1,0 +1,592 @@
+{% extends 'frontend/base.html' %}
+{% load static %}
+
+{% block title %}Waste Management{% endblock %}
+
+{% block extra_css %}
+<style>
+    .cost-performance-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+    .high-cost { border-left: 4px solid #dc3545; }
+    .medium-cost { border-left: 4px solid #ffc107; }
+    .low-cost { border-left: 4px solid #28a745; }
+    
+    .waste-status-completed {
+        background: linear-gradient(135deg, #dc3545, #e74c3c);
+        color: white;
+    }
+    .waste-status-in-progress {
+        background: linear-gradient(135deg, #ffc107, #fd7e14);
+        color: white;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="h4 mb-1">
+                        <i class="bi bi-trash text-danger me-2"></i>
+                        <span data-translate="waste_management">Waste Management</span>
+                    </h2>
+                    <p class="text-muted mb-0">
+                        <span data-translate="waste_management_desc">Manage waste reports and inventory disposal operations</span>
+                    </p>
+                </div>
+                <div>
+                    <a href="{% url 'frontend:waste_entry' %}" class="btn btn-danger">
+                        <i class="bi bi-plus-circle me-2"></i>
+                        <span data-translate="new_waste_report">New Waste Report</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="row mb-4">
+        <div class="col">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-light">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="card-title mb-0">
+                            <i class="bi bi-funnel me-2"></i>
+                            <span data-translate="filters">Filters</span>
+                        </h6>
+                        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#filtersCollapse">
+                            <i class="bi bi-chevron-down"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="collapse show" id="filtersCollapse">
+                    <form method="GET" action="{% url 'frontend:waste_management' %}" id="filtersForm">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-lg-2 col-md-4 mb-3">
+                                    <label class="form-label fw-bold"><span data-translate="vessel">Vessel</span></label>
+                                    <select class="form-select" name="vessel" id="vesselFilter">
+                                        <option value=""><span data-translate="all_vessels">All Vessels</span></option>
+                                        {% for vessel in active_vessels %}
+                                        <option value="{{ vessel.id }}" {% if current_filters.vessel == vessel.id|stringformat:"s" %}selected{% endif %}>
+                                            <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-lg-2 col-md-4 mb-3">
+                                    <label class="form-label fw-bold"><span data-translate="status">Status</span></label>
+                                    <select class="form-select" name="status" id="statusFilter">
+                                        <option value=""><span data-translate="all_status">All Statuses</span></option>
+                                        <option value="completed" {% if current_filters.status == 'completed' %}selected{% endif %}>
+                                            <span data-translate="completed">Completed</span>
+                                        </option>
+                                        <option value="in_progress" {% if current_filters.status == 'in_progress' %}selected{% endif %}>
+                                            <span data-translate="in_progress">In Progress</span>
+                                        </option>
+                                    </select>
+                                </div>
+                                <div class="col-lg-2 col-md-4 mb-3">
+                                    <label class="form-label fw-bold"><span data-translate="date_from">Date From</span></label>
+                                    <input type="date" class="form-control" name="date_from" id="dateFromFilter" value="{{ current_filters.date_from }}">
+                                </div>
+                                <div class="col-lg-2 col-md-4 mb-3">
+                                    <label class="form-label fw-bold"><span data-translate="date_to">Date To</span></label>
+                                    <input type="date" class="form-control" name="date_to" id="dateToFilter" value="{{ current_filters.date_to }}">
+                                </div>
+                                <div class="col-lg-2 col-md-4 mb-3">
+                                    <label class="form-label fw-bold"><span data-translate="min_cost">Min Cost</span></label>
+                                    <input type="number" class="form-control" name="min_cost" placeholder="0.000" step="0.001" value="{{ current_filters.min_cost|default:'' }}">
+                                </div>
+                                <div class="col-lg-2 col-md-4 mb-3 d-flex align-items-end">
+                                    <button type="submit" class="btn btn-primary w-100">
+                                        <i class="bi bi-funnel"></i> <span data-translate="apply_filters">Apply Filters</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-12">
+                                    <a href="{% url 'frontend:waste_management' %}" class="btn btn-outline-secondary btn-sm">
+                                        <i class="bi bi-x-circle"></i> <span data-translate="clear_filters">Clear Filters</span>
+                                    </a>
+                                    <span class="text-muted ms-3">
+                                        <span data-translate="showing">Showing</span> <strong id="resultCount" data-number data-original="{{ waste_reports|length }}">{{ waste_reports|length }}</strong> <span data-translate="of">of</span> <strong id="totalCount" data-number data-original="{{ total_count }}">{{ total_count }}</strong> <span data-translate="waste_reports">waste reports</span>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Waste Reports Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-table me-2"></i>
+                        <span data-translate="waste_reports_overview">Waste Reports Overview</span>
+                    </h5>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-outline-primary btn-sm" onclick="location.reload()">
+                            <i class="bi bi-arrow-clockwise"></i> <span data-translate="refresh">Refresh</span>
+                        </button>
+                        <div class="dropdown">
+                            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+                                <i class="bi bi-gear"></i> <span data-translate="view_options">View Options</span>
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="#" onclick="toggleColumn('items')">
+                                    <i class="bi bi-box"></i> <span data-translate="show_items">Show Items</span>
+                                </a></li>
+                                <li><a class="dropdown-item" href="#" onclick="toggleColumn('created-by')">
+                                    <i class="bi bi-person"></i> <span data-translate="show_created_by">Show Created By</span>
+                                </a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0" id="wasteReportsTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th><span data-translate="waste_report_number">Report Number</span></th>
+                                    <th><span data-translate="vessel">Vessel</span></th>
+                                    <th><span data-translate="report_date">Report Date</span></th>
+                                    <th><span data-translate="waste_cost">Waste Cost</span></th>
+                                    <th class="items-column"><span data-translate="items_wasted">Items Wasted</span></th>
+                                    <th><span data-translate="status">Status</span></th>
+                                    <th class="created-by-column"><span data-translate="created_by">Created By</span></th>
+                                    <th class="text-center"><span data-translate="actions">Actions</span></th>
+                                </tr>
+                            </thead>
+                            <tbody id="wasteReportsTableBody">
+                                {% for waste_report in waste_reports %}
+                                <tr class="{{ waste_report.cost_performance_class }}">
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div>
+                                                <strong class="waste-number" data-original="{{ waste_report.report_number }}">{{ waste_report.report_number }}</strong>
+                                                {% if waste_report.notes %}
+                                                <br><small class="text-muted">{{ waste_report.notes|truncatechars:50 }}</small>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge {% if waste_report.vessel.name|lower == 'amman' %}bg-primary{% elif waste_report.vessel.name|lower == 'aylah' %}bg-danger{% elif waste_report.vessel.name|lower == 'sinaa' %}bg-success{% elif waste_report.vessel.name|lower == 'nefertiti' %}bg-secondary{% elif waste_report.vessel.name|lower == 'babel' %}bg-warning{% elif waste_report.vessel.name|lower == 'dahab' %}bg-info{% else %}bg-primary{% endif %}">
+                                            <span class="vessel-name" data-en="{{ waste_report.vessel.name }}" data-ar="{{ waste_report.vessel.name_ar }}">{{ waste_report.vessel.name }}</span>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span data-number data-original="{{ waste_report.report_date|date:'d-m-Y' }}">{{ waste_report.report_date|date:'d-m-Y' }}</span>
+                                        <br>
+                                        <small class="text-muted" data-number data-original="{{ waste_report.created_at|date:'H:i' }}">{{ waste_report.created_at|date:'H:i' }}</small>
+                                    </td>
+                                    <td>
+                                        <strong class="text-danger" data-number data-original="{{ waste_report.total_cost|floatformat:3|default:'0.000' }}">{{ waste_report.total_cost|floatformat:3|default:"0.000" }}</strong> <span data-currency-symbol>JOD</span>
+                                        {% if waste_report.cost_performance_class == 'high-cost' %}
+                                        <span class="badge bg-danger cost-performance-badge">High</span>
+                                        {% elif waste_report.cost_performance_class == 'medium-cost' %}
+                                        <span class="badge bg-warning cost-performance-badge">Medium</span>
+                                        {% else %}
+                                        <span class="badge bg-success cost-performance-badge">Low</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="items-column">
+                                        <span data-number data-original="{{ waste_report.transaction_count }}">{{ waste_report.transaction_count }}</span> <span data-translate="items">items</span>
+                                    </td>
+                                    <td>
+                                        {% if waste_report.is_completed %}
+                                        <span class="badge waste-status-completed">
+                                            <i class="bi bi-check-circle me-1"></i>
+                                            <span data-translate="completed">Completed</span>
+                                        </span>
+                                        {% else %}
+                                        <span class="badge waste-status-in-progress">
+                                            <i class="bi bi-clock me-1"></i>
+                                            <span data-translate="in_progress">In Progress</span>
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="created-by-column">
+                                        <small class="text-muted">{{ waste_report.created_by.username|default:"System" }}</small>
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="btn-group" role="group">
+                                            <button class="btn btn-sm btn-outline-primary" onclick="editWasteReport({{ waste_report.id }})" title="Edit waste report">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger" onclick="deleteWasteReport({{ waste_report.id }}, '{{ waste_report.report_number }}')" title="Delete waste report">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="8" class="text-center text-muted py-4">
+                                        <i class="bi bi-trash" style="font-size: 2rem;"></i>
+                                        <p class="mt-2 mb-0"><span data-translate="no_waste_reports_found">No waste reports found</span></p>
+                                        <small><span data-translate="try_creating_waste_reports">Try creating new waste reports or adjusting your filters</span></small>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="text-muted">
+                            <span data-translate="showing_entries">Showing {{ waste_reports|length }} of {{ total_count }} waste reports</span>
+                            {% if current_filters.vessel or current_filters.status or current_filters.date_from or current_filters.date_to or current_filters.min_cost %}
+                            (<span dir="ltr" data-translate="filtered">filtered</span>)
+                            {% endif %}
+                        </div>
+                        {% if current_filters.vessel or current_filters.status or current_filters.date_from or current_filters.date_to or current_filters.min_cost %}
+                        <div>
+                            <a href="{% url 'frontend:waste_management' %}" class="btn btn-outline-secondary btn-sm">
+                                <i class="bi bi-x-circle"></i> <span data-translate="clear_filters">Clear Filters</span>
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Waste Report Edit Modal -->
+<div class="modal fade" id="editWasteReportModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-pencil me-2"></i>
+                    <span data-translate="edit_waste_report">Edit Waste Report</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editWasteReportForm">
+                    <input type="hidden" id="editWasteReportId">
+                    
+                    <div class="mb-3">
+                        <label for="editReportNumber" class="form-label fw-bold">
+                            <span data-translate="waste_report_number">Report Number</span>
+                        </label>
+                        <input type="text" class="form-control" id="editReportNumber" readonly>
+                        <small class="form-text text-muted"><span data-translate="report_number_readonly">Report number cannot be changed</span></small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="editVesselName" class="form-label fw-bold">
+                            <span data-translate="vessel">Vessel</span>
+                        </label>
+                        <input type="text" class="form-control" id="editVesselName" readonly>
+                        <small class="form-text text-muted"><span data-translate="vessel_readonly">Vessel cannot be changed</span></small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="editReportDate" class="form-label fw-bold">
+                            <span data-translate="report_date">Report Date</span>
+                        </label>
+                        <input type="date" class="form-control" id="editReportDate" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="editWasteNotes" class="form-label fw-bold">
+                            <span data-translate="waste_notes">Notes</span>
+                        </label>
+                        <textarea class="form-control" id="editWasteNotes" rows="3"
+                                  placeholder="Additional notes about this waste report..."
+                                  data-placeholder-en="Additional notes about this waste report..."
+                                  data-placeholder-ar="ملاحظات إضافية حول تقرير المهدر..."></textarea>
+                    </div>
+                    
+                    <!-- Status Toggle for Admin/Manager -->
+                    {% if user_permissions.is_admin_or_manager %}
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="editWasteCompleted">
+                            <label class="form-check-label fw-bold" for="editWasteCompleted">
+                                <span data-translate="mark_completed">Mark as Completed</span>
+                            </label>
+                            <small class="form-text text-muted d-block">
+                                <span data-translate="completed_waste_note">Completed waste reports cannot be edited and finalize all waste transactions</span>
+                            </small>
+                        </div>
+                    </div>
+                    {% endif %}
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <span data-translate="cancel">Cancel</span>
+                </button>
+                <button type="button" class="btn btn-primary" onclick="saveWasteReport()">
+                    <i class="bi bi-check-lg me-2"></i>
+                    <span data-translate="save_changes">Save Changes</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirmation Modal for Status Changes -->
+<div class="modal fade" id="statusChangeConfirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-exclamation-triangle text-warning me-2"></i>
+                    <span data-translate="confirm_status_change">Confirm Status Change</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info d-flex align-items-center">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <div id="statusChangeMessage"></div>
+                </div>
+                <p class="mb-0 text-muted">
+                    <small><span data-translate="status_change_note">This action can be reversed later through the edit function.</span></small>
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-1"></i>
+                    <span data-translate="cancel">Cancel</span>
+                </button>
+                <button type="button" class="btn btn-primary" id="confirmStatusChange">
+                    <i class="bi bi-check-circle me-1"></i>
+                    <span data-translate="confirm">Confirm</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    window.initializePage({
+        titleKey: 'waste_management',
+        fallbackTitle: 'Waste Management',
+    })
+    
+    // Update page translations
+    updatePageTranslations();
+});
+
+function toggleColumn(columnClass) {
+    const columns = document.querySelectorAll(`.${columnClass}-column`);
+    const isVisible = columns[0].style.display !== 'none';
+    
+    columns.forEach(col => {
+        col.style.display = isVisible ? 'none' : '';
+    });
+}
+
+function getFilterData() {
+    return {
+        vessel: document.getElementById('vesselFilter').value,
+        status: document.getElementById('statusFilter').value,
+        date_from: document.getElementById('dateFromFilter').value,
+        date_to: document.getElementById('dateToFilter').value,
+        min_cost: document.querySelector('input[name="min_cost"]').value,
+    };
+}
+
+function editWasteReport(wasteId) {
+    fetch(`/wastes/${wasteId}/edit/`, {
+        method: 'GET',
+        headers: {
+            'X-CSRFToken': window.getCsrfToken()
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('editWasteReportId').value = data.waste_report.id;
+            document.getElementById('editReportNumber').value = data.waste_report.report_number;
+            document.getElementById('editVesselName').value = data.waste_report.vessel_name;
+            document.getElementById('editReportDate').value = data.waste_report.report_date;
+            document.getElementById('editWasteNotes').value = data.waste_report.notes;
+
+            const completedToggle = document.getElementById('editWasteCompleted');
+            if (completedToggle) {
+                completedToggle.checked = data.waste_report.is_completed;
+            }
+            
+            window.currentWasteReportData = {
+                is_completed: data.waste_report.is_completed
+            };
+
+            new bootstrap.Modal(document.getElementById('editWasteReportModal')).show();
+        } else {
+            window.showAlert(data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        window.showAlert('Error loading waste report data', 'danger');
+    });
+}
+
+function saveWasteReport() {
+    const wasteId = document.getElementById('editWasteReportId').value;
+    const completedToggle = document.getElementById('editWasteCompleted');
+    
+    const formData = {
+        report_date: document.getElementById('editReportDate').value,
+        notes: document.getElementById('editWasteNotes').value
+    };
+    
+    // Add completion status if toggle exists (admin/manager only)
+    if (completedToggle) {
+        formData.is_completed = completedToggle.checked;
+        
+        // Check if status is changing
+        const currentStatus = window.currentWasteReportData && window.currentWasteReportData.is_completed;
+        const newStatus = completedToggle.checked;
+        
+        if (currentStatus !== newStatus) {
+            // Status is changing - show confirmation
+            const confirmMessage = newStatus 
+                ? 'Mark this waste report as completed? This will finalize all waste transactions and prevent further editing.'
+                : 'Reopen this completed waste report? This will allow editing of waste transactions and report details.';
+            
+            document.getElementById('statusChangeMessage').innerHTML = confirmMessage;
+            
+            // Set up confirmation handler
+            document.getElementById('confirmStatusChange').onclick = function() {
+                performWasteReportSave(wasteId, formData);
+                bootstrap.Modal.getInstance(document.getElementById('statusChangeConfirmModal')).hide();
+            };
+            
+            new bootstrap.Modal(document.getElementById('statusChangeConfirmModal')).show();
+            return;
+        }
+    }
+    
+    // No status change - save directly
+    performWasteReportSave(wasteId, formData);
+}
+
+function performWasteReportSave(wasteId, formData) {
+    // Convert to FormData for POST
+    const form = new FormData();
+    Object.keys(formData).forEach(key => {
+        form.append(key, formData[key]);
+    });
+    
+    fetch(`/wastes/${wasteId}/edit/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': window.getCsrfToken()
+        },
+        body: form
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.showAlert(data.message, 'success');
+            bootstrap.Modal.getInstance(document.getElementById('editWasteReportModal')).hide();
+            location.reload(); // Refresh to show updated data
+        } else {
+            window.showAlert(data.error || 'Failed to update waste report', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        window.showAlert('Error updating waste report', 'danger');
+    });
+}
+
+function deleteWasteReport(wasteId, reportNumber) {
+    if (!window.confirmDelete) {
+        window.showAlert('Delete confirmation system not available', 'warning');
+        return;
+    }
+    
+    window.confirmDelete({
+        title: 'Delete Waste Report',
+        message: `Are you sure you want to delete waste report "${reportNumber}"?`,
+        confirmText: 'Delete Waste Report',
+        confirmClass: 'btn-danger',
+        onConfirm: function() {
+            fetch(`/wastes/${wasteId}/delete/`, {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRFToken': window.getCsrfToken()
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.showAlert(data.message, 'success');
+                    location.reload(); // Refresh to remove deleted item
+                } else if (data.requires_confirmation) {
+                    // Show detailed confirmation if waste report has items
+                    showDetailedWasteDeleteConfirmation(wasteId, data);
+                } else {
+                    window.showAlert(data.error || 'Failed to delete waste report', 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                window.showAlert('Error deleting waste report', 'danger');
+            });
+        }
+    });
+}
+
+function showDetailedWasteDeleteConfirmation(wasteId, data) {
+    const confirmation = data.confirmation_data;
+    const itemsList = confirmation.items.map(item => 
+        `• ${item.product_name} (${item.quantity} units @ ${item.unit_price} JOD) - ${item.damage_reason}`
+    ).join('\n');
+    
+    window.confirmDelete({
+        title: 'Delete Waste Report with Items',
+        message: `Waste report "${confirmation.waste_report_number}" contains ${confirmation.waste_item_count} waste items:\n\n${itemsList}\n\nTotal Cost: ${confirmation.total_cost} JOD\n\nDeleting will restore all items back to inventory.`,
+        confirmText: 'Delete & Restore Inventory',
+        confirmClass: 'btn-danger',
+        onConfirm: function() {
+            fetch(`/wastes/${wasteId}/delete/?force=true`, {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRFToken': window.getCsrfToken()
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.showAlert(data.message, 'success');
+                    location.reload();
+                } else {
+                    window.showAlert(data.error || 'Failed to delete waste report', 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                window.showAlert('Error deleting waste report', 'danger');
+            });
+        }
+    });
+}
+</script>
+{% endblock %}

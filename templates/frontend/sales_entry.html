@@ -126,9 +126,9 @@
                 {% if user_role == 'Vessel Operators' %}
                     <small class="text-muted">
                         {% if LANGUAGE_CODE == 'ar' %}
-                            عرض رحلات {{ today|date:"d/m/Y" }} فقط
+                            عرض رحلات {{ today|date:"d-m-Y" }} فقط
                         {% else %}
-                            Showing trips for {{ today|date:"d/m/Y" }} only
+                            Showing trips for {{ today|date:"d-m-Y" }} only
                         {% endif %}
                     </small>
                 {% endif %}
@@ -163,7 +163,7 @@
                                     <small class="text-muted"><span data-translate="passengers_short">passengers</span></small>
                                 </td>
                                 <td>
-                                    {{ trip.trip_date|date:"d/m/Y" }}
+                                    {{ trip.trip_date|date:"d-m-Y" }}
                                 </td>
                                 <td>
                                     <span class="fw-bold">{{ trip.total_revenue|floatformat:3 }}</span>
