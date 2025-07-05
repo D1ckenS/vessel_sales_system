@@ -575,7 +575,7 @@ function setupEventListeners() {
                     
                     window.showAlert(data.message, 'success');
                     setTimeout(() => {
-                        window.location.href = '{% url "frontend:waste_entry" %}';
+                        window.location.href = `/waste/report/${wasteId}/`;
                     }, 1500);
                 } else {
                     window.showAlert(data.error, 'danger');
@@ -725,7 +725,12 @@ function updateCartDisplay() {
                                 <span class="fw-bold text-primary" data-number data-original="${item.quantity}">${translateNumber(item.quantity.toString())}</span>
                                 <small class="text-muted d-block">${_('units')}</small>
                             </td>
-                            <td><span class="fw-bold text-danger" data-number data-original="${item.total_cost.toFixed(3)}">${item.total_cost.toFixed(3)} JOD</span></td>
+                            <td>
+                                <div class="fw-bold text-danger">
+                                    <span data-number data-original="${item.total_cost.toFixed(3)}">${translateNumber(item.total_cost.toFixed(3))}</span>
+                                    <span data-currency-symbol>JOD</span>
+                                </div>
+                            </td>
                             <td><span class="badge bg-warning">${item.damage_reason}</span></td>
                             <td>
                                 <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); editWasteItem(${index})">
@@ -743,6 +748,13 @@ function updateCartDisplay() {
     `;
     
     cartBody.innerHTML = cartHtml;
+
+    // Apply translations after DOM update
+    setTimeout(() => {
+        if (typeof updatePageTranslations === 'function') {
+            updatePageTranslations();
+        }
+    }, 100);
 }
 
 function updateWasteTotals() {
@@ -758,7 +770,7 @@ function updateWasteTotals() {
             const completedWasteItems = JSON.parse('{{ completed_waste_items_json|escapejs }}');
             if (completedWasteItems) {
                 totalItems = completedWasteItems.length;
-                totalCost = completedWasteItems.reduce((sum, item) => sum + item.total_amount, 0);
+                totalCost = completedWasteItems.reduce((sum, item) => sum + item.total_cost, 0);
             }
         } catch (e) {
             console.log('Error parsing completed waste items:', e);
@@ -1072,7 +1084,7 @@ function displayCompletedWasteItems(items) {
                             </td>
                             <td>
                                 <span class="fw-bold text-danger">
-                                    <span data-number data-original="${item.total_amount.toFixed(3)}">${item.total_amount.toFixed(3)}</span> 
+                                    <span data-number data-original="${item.total_cost.toFixed(3)}">${item.total_cost.toFixed(3)}</span> 
                                     <span data-currency-symbol>JOD</span>
                                 </span>
                             </td>

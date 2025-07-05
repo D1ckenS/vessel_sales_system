@@ -109,7 +109,7 @@ def waste_items(request, waste_id):
                 'product_item_id': waste.product.item_id,
                 'quantity': int(waste.quantity),
                 'unit_price': float(waste.unit_price),
-                'total_amount': float(waste.total_amount),
+                'total_cost': float(waste.total_amount),
                 'damage_reason': waste.damage_reason,
                 'notes': waste.notes or '',
                 'created_at': waste.created_at.strftime('%H:%M')
@@ -129,7 +129,7 @@ def waste_items(request, waste_id):
                 'product_item_id': waste.product.item_id,
                 'quantity': int(waste.quantity),
                 'unit_price': float(waste.unit_price),
-                'total_amount': float(waste.total_amount),
+                'total_cost': float(waste.total_amount),
                 'damage_reason': waste.damage_reason,
                 'notes': waste.notes or '',
                 'created_at': waste.created_at.strftime('%H:%M')

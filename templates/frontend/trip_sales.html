@@ -1244,7 +1244,7 @@ async function completeTripSales() {
             localStorage.removeItem(storageKey);
             showAlert(data.message, 'success');
             setTimeout(() => {
-                window.location.href = "{% url 'frontend:sales_entry' %}";
+                window.location.href = `/sales/trip/${tripId}/`;
             }, 2000);
         } else {
             showAlert(data.error || _('error_completing_trip'), 'danger');

@@ -225,13 +225,13 @@
                                         <div class="btn-group" role="group">
                                             <a href="{% url 'frontend:waste_items' waste_report.id %}" 
                                             class="btn btn-outline-info" 
-                                            title="View Details">
+                                            data-translate-title="View Details">
                                                 <i class="bi bi-eye"></i>
                                             </a>
-                                            <button class="btn btn-sm btn-outline-primary" onclick="editWasteReport({{ waste_report.id }})" title="Edit waste report">
+                                            <button class="btn btn-sm btn-outline-primary" onclick="editWasteReport({{ waste_report.id }})" data-translate-title="Edit waste report">
                                                 <i class="bi bi-pencil"></i>
                                             </button>
-                                            <button class="btn btn-sm btn-outline-danger" onclick="deleteWasteReport({{ waste_report.id }}, '{{ waste_report.report_number }}')" title="Delete waste report">
+                                            <button class="btn btn-sm btn-outline-danger" onclick="deleteWasteReport({{ waste_report.id }})" data-translate-title="Delete waste report">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </div>
@@ -561,76 +561,163 @@ function performWasteReportSave(wasteId, formData) {
     });
 }
 
-function deleteWasteReport(wasteId, reportNumber) {
-    if (!window.confirmDelete) {
-        window.showAlert('Delete confirmation system not available', 'warning');
-        return;
-    }
-    
-    window.confirmDelete({
-        title: 'Delete Waste Report',
-        message: `Are you sure you want to delete waste report "${reportNumber}"?`,
-        confirmText: 'Delete Waste Report',
-        confirmClass: 'btn-danger',
-        onConfirm: function() {
-            fetch(`/wastes/${wasteId}/delete/`, {
-                method: 'DELETE',
-                headers: {
-                    'X-CSRFToken': window.getCsrfToken()
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    window.showAlert(data.message, 'success');
-                    location.reload(); // Refresh to remove deleted item
-                } else if (data.requires_confirmation) {
-                    // Show detailed confirmation if waste report has items
-                    showDetailedWasteDeleteConfirmation(wasteId, data);
-                } else {
-                    window.showAlert(data.error || 'Failed to delete waste report', 'danger');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                window.showAlert('Error deleting waste report', 'danger');
-            });
+function deleteWasteReport(wasteId) {
+    fetch(`/wastes/${wasteId}/delete/`, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRFToken': window.getCsrfToken()
         }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.showAlert(data.message, 'success');
+            location.reload();
+        } else if (data.requires_confirmation) {
+            showTransactionConfirmationModal('waste', wasteId, data);
+        } else {
+            window.showAlert(data.error || 'Failed to delete waste report', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        window.showAlert('Error deleting waste report', 'danger');
     });
+
 }
 
-function showDetailedWasteDeleteConfirmation(wasteId, data) {
-    const confirmation = data.confirmation_data;
-    const itemsList = confirmation.items.map(item => 
-        `• ${item.product_name} (${item.quantity} units @ ${item.unit_price} JOD) - ${item.damage_reason}`
-    ).join('\n');
+function showTransactionConfirmationModal(type, id, data) {
+    const title = 'Delete Waste Report with Items';
+    const entityName = 'waste report';
     
-    window.confirmDelete({
-        title: 'Delete Waste Report with Items',
-        message: `Waste report "${confirmation.waste_report_number}" contains ${confirmation.waste_item_count} waste items:\n\n${itemsList}\n\nTotal Cost: ${confirmation.total_cost} JOD\n\nDeleting will restore all items back to inventory.`,
-        confirmText: 'Delete & Restore Inventory',
-        confirmClass: 'btn-danger',
-        onConfirm: function() {
-            fetch(`/wastes/${wasteId}/delete/?force=true`, {
-                method: 'DELETE',
-                headers: {
-                    'X-CSRFToken': window.getCsrfToken()
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    window.showAlert(data.message, 'success');
-                    location.reload();
-                } else {
-                    window.showAlert(data.error || 'Failed to delete waste report', 'danger');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                window.showAlert('Error deleting waste report', 'danger');
-            });
+    // Build waste items list
+    let itemsList = '<ul class="list-group list-group-flush mb-3">';
+    data.items.forEach(item => {
+        itemsList += `
+            <li class="list-group-item d-flex justify-content-between">
+                <div>
+                    <span>${item.product_name}</span>
+                    <br><small class="text-muted">${item.damage_reason}</small>
+                </div>
+                <div class="text-end">
+                    <span class="badge bg-primary me-2">${item.quantity} units</span>
+                    <span class="fw-bold">${item.amount.toFixed(3)} JOD</span>
+                </div>
+            </li>
+        `;
+    });
+    itemsList += '</ul>';
+    
+    const modalHTML = `
+        <div class="modal fade" id="deleteConfirmationModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header bg-danger text-white">
+                        <h5 class="modal-title">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            ${title}
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            <strong>Warning!</strong> This ${entityName} "${data.waste_report_number}" has <strong>${data.waste_item_count} waste items</strong> that will be restored to inventory.
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center">
+                                        <h6 class="card-title">Total Waste Cost</h6>
+                                        <h4 class="text-primary">${data.total_cost.toFixed(3)} JOD</h4>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center">
+                                        <h6 class="card-title">Waste Items</h6>
+                                        <h4 class="text-danger">${data.waste_item_count}</h4>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <h6>Waste items to be restored to inventory:</h6>
+                        ${itemsList}
+                        
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle me-2"></i>
+                            <strong>Inventory Restoration:</strong> All waste items will be returned to inventory for vessel "${data.vessel_name}".
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-circle me-1"></i> Cancel
+                        </button>
+                        <button type="button" class="btn btn-danger" onclick="confirmForceDelete('waste', ${id})">
+                            <i class="bi bi-trash me-1"></i> Delete Waste Report & Restore Inventory
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remove existing modal if any
+    const existingModal = document.getElementById('deleteConfirmationModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // Add modal to body
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    // Show modal
+    new bootstrap.Modal(document.getElementById('deleteConfirmationModal')).show();
+}
+
+function confirmForceDelete(type, id) {
+    // Immediately blur the button that triggered this
+    if (document.activeElement && document.activeElement.tagName === 'BUTTON') {
+        document.activeElement.blur();
+    }
+    
+    const url = `/wastes/${id}/delete/?force=true`;
+    
+    // Close the confirmation modal first
+    const confirmModal = document.getElementById('deleteConfirmationModal');
+    if (confirmModal) {
+        const modalInstance = bootstrap.Modal.getInstance(confirmModal);
+        if (modalInstance) {
+            modalInstance.hide();
         }
+        confirmModal.remove();
+    }
+    
+    // Remove any modal backdrops
+    const backdrops = document.querySelectorAll('.modal-backdrop');
+    backdrops.forEach(backdrop => backdrop.remove());
+    
+    fetch(url, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRFToken': window.getCsrfToken()
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.showAlert(data.message, 'success');
+            location.reload();
+        } else {
+            window.showAlert(data.error || 'Failed to delete waste report', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        window.showAlert('Error deleting waste report', 'danger');
     });
 }
 </script>

@@ -1173,7 +1173,7 @@ async function completePOSupplies() {
             
             // Redirect after export
             setTimeout(() => {
-                window.location.href = "{% url 'frontend:supply_entry' %}";
+                window.location.href = `/supply/po/${poId}/`;
             }, 2000);
         } else {
             window.window.showAlert(data.error || _('error_completing_po'), 'danger');

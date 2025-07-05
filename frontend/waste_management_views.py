@@ -298,7 +298,7 @@ def delete_waste_report(request, waste_id):
                     'vessel_name': waste_report.vessel.name,
                     'waste_item_count': waste_item_count,
                     'total_cost': float(total_cost),
-                    'items': waste_items[:5]  # Show first 5 items for confirmation
+                    'items': waste_items
                 },
                 detailed_message=f'Deleting "{waste_report_number}" will restore {waste_item_count} items back to inventory. Inventory updated.',
                 suggested_actions=[
