@@ -241,7 +241,7 @@
                                 <tr>
                                     <td colspan="8" class="text-center text-muted py-4">
                                         <i class="bi bi-trash" style="font-size: 2rem;"></i>
-                                        <p class="mt-2 mb-0"><span data-translate="no_waste_reports_found">No waste reports found</span></p>
+                                        <p class="mt-2 mb-0"><span data-translate="no_waste_reports_yet">No waste reports found</span></p>
                                         <small><span data-translate="try_creating_waste_reports">Try creating new waste reports or adjusting your filters</span></small>
                                     </td>
                                 </tr>
@@ -684,7 +684,7 @@ function confirmForceDelete(type, id) {
         document.activeElement.blur();
     }
     
-    const url = `/wastes/${id}/delete/?force=true`;
+    const url = `/wastes/${id}/delete/`;
     
     // Close the confirmation modal first
     const confirmModal = document.getElementById('deleteConfirmationModal');
@@ -703,7 +703,8 @@ function confirmForceDelete(type, id) {
     fetch(url, {
         method: 'DELETE',
         headers: {
-            'X-CSRFToken': window.getCsrfToken()
+            'X-CSRFToken': window.getCsrfToken(),
+            'X-Force-Delete': 'true'
         }
     })
     .then(response => response.json())

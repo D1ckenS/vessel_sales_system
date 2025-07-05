@@ -1138,8 +1138,20 @@ class Transaction(models.Model):
 
     def _restore_inventory_for_waste(self):
         """🔄 RESTORE INVENTORY: Handle WASTE transaction deletion"""
-        print(f"🔄 RESTORING: Waste deletion for {self.product.name}")
-        self._restore_inventory_for_sale()
+        print(f"🔄 RESTORING: Waste deletion for {self.product.name} on {self.vessel.name}, Qty: {self.quantity}")
+        
+        # Create new inventory lot using the waste transaction's unit_price (original FIFO cost)
+        InventoryLot.objects.create(
+            vessel=self.vessel,
+            product=self.product,
+            purchase_date=self.transaction_date,
+            purchase_price=self.unit_price,  # Use actual FIFO cost, not product default
+            original_quantity=int(self.quantity),
+            remaining_quantity=int(self.quantity),
+            created_by=self.created_by
+        )
+        
+        print(f"✅ WASTE RESTORED: Created lot with {self.quantity} units @ {self.unit_price} (original FIFO cost)")
 
     def _remove_transferred_inventory(self):
         """🗑️ REMOVE INVENTORY: Handle TRANSFER_IN deletion"""

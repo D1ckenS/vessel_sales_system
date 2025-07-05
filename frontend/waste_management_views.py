@@ -15,6 +15,7 @@ from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from datetime import timedelta
 from django.utils import timezone
 import json
+from django.db import transaction
 
 @login_required
 @user_passes_test(is_admin_or_manager)
@@ -270,9 +271,7 @@ def delete_waste_report(request, waste_id):
     force_delete = AdminActionHelper.check_force_delete(request)
 
     # Get waste transactions for analysis
-    waste_transactions = waste_report.waste_transactions.filter(
-        transaction_type='WASTE'
-    ).select_related('product')
+    waste_transactions = waste_report.waste_transactions.select_related('product')
 
     waste_items = []
     for txn in waste_transactions:
@@ -289,44 +288,51 @@ def delete_waste_report(request, waste_id):
     waste_item_count = len(waste_items)
     waste_report_number = waste_report.report_number
 
-    try:
-        if waste_item_count > 0 and not force_delete:
-            total_cost = waste_report.total_cost
+    # Confirmation check
+    if waste_item_count > 0 and not force_delete:
+        total_cost = waste_report.total_cost
 
-            return JsonResponseHelper.requires_confirmation(
-                message=f'This waste report has {waste_item_count} waste items. Delete anyway?',
-                confirmation_data={
-                    'waste_report_number': waste_report_number,
-                    'vessel_name': waste_report.vessel.name,
-                    'waste_item_count': waste_item_count,
-                    'total_cost': float(total_cost),
-                    'items': waste_items
-                },
-                detailed_message=f'Deleting "{waste_report_number}" will restore {waste_item_count} items back to inventory. Inventory updated.',
-                suggested_actions=[
-                    {
-                        'action': 'view_inventory',
-                        'label': 'Check Inventory After Deletion',
-                        'url': reverse('frontend:inventory_check'),
-                        'description': 'View updated inventory levels after restoration'
-                    },
-                    {
-                        'action': 'view_transactions',
-                        'label': 'Review Transaction History',
-                        'url': reverse('frontend:transactions_list'),
-                        'description': 'See the inventory restoration transactions'
-                    }
-                ]
+        return JsonResponseHelper.requires_confirmation(
+            message=f'This waste report has {waste_item_count} waste items. Delete anyway?',
+            confirmation_data={
+                'waste_report_number': waste_report_number,
+                'vessel_name': waste_report.vessel.name,
+                'waste_item_count': waste_item_count,
+                'total_cost': float(total_cost),
+                'items': waste_items
+            },
+            detailed_message=f'Deleting "{waste_report_number}" will restore {waste_item_count} items back to inventory. Inventory updated.'
+        )
+
+    # Main deletion logic
+    try:
+        if waste_item_count > 0:
+            with transaction.atomic():
+                # Manually delete waste transactions to trigger inventory restoration
+                waste_transactions = waste_report.waste_transactions.select_related('product')
+                
+                for waste_txn in waste_transactions:
+                    print(f"🗑️ DELETING WASTE: {waste_txn.product.name} x{waste_txn.quantity} (ID: {waste_txn.id})")
+                    waste_txn.delete()  # This calls _restore_inventory_for_waste()
+                
+                # Delete the empty waste report
+                waste_report.delete()
+            
+            # Clear cache
+            WasteCacheHelper.clear_cache_after_waste_delete(waste_id)
+
+            return JsonResponseHelper.success(
+                message=f'{waste_report_number} and all {waste_item_count} waste items deleted successfully. Inventory restored.'
             )
         else:
-            # No transactions or force delete - proceed with deletion
+            # No transactions - simple deletion
             waste_report.delete()
             
             # Clear waste cache after deletion
             WasteCacheHelper.clear_cache_after_waste_delete(waste_id)
             
             return JsonResponseHelper.success(
-                message=f'{waste_report_number} deleted successfully. Inventory restored.'
+                message=f'{waste_report_number} deleted successfully.'
             )
             
     except ValidationError as e:
@@ -339,15 +345,7 @@ def delete_waste_report(request, waste_id):
         
         return JsonResponseHelper.error(
             error_message=f"Cannot delete waste report: {error_message}",
-            error_type='validation_error',
-            detailed_message=error_message,
-            suggested_actions=[
-                {
-                    'action': 'contact_admin',
-                    'label': 'Contact Administrator',
-                    'description': 'Get help resolving the deletion conflict'
-                }
-            ]
+            error_type='validation_error'
         )
             
     except Exception as e:
