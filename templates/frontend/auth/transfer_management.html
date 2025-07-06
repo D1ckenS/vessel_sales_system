@@ -433,8 +433,10 @@ function editTransfer(transferId) {
                 completedToggle.checked = data.transfer.is_completed;
             }
             
+            // FIXED: Store complete transfer data including items for preservation
             window.currentTransferData = {
-                is_completed: data.transfer.is_completed
+                is_completed: data.transfer.is_completed,
+                transfer_items: data.transfer_items || [] // Include transfer items data
             };
 
             new bootstrap.Modal(document.getElementById('editTransferModal')).show();
@@ -457,45 +459,149 @@ function saveTransfer() {
         notes: document.getElementById('editTransferNotes').value
     };
     
-    // Add completion status if toggle exists (admin/manager only)
+    // Check if status is changing (only if toggle exists - admin/manager only)
+    let statusChanged = false;
+    let newStatus = null;
+    
     if (completedToggle) {
-        formData.is_completed = completedToggle.checked;
-        
-        // Check if status is changing
         const currentStatus = window.currentTransferData && window.currentTransferData.is_completed;
-        const newStatus = completedToggle.checked;
+        newStatus = completedToggle.checked;
+        statusChanged = currentStatus !== newStatus;
         
-        if (currentStatus !== newStatus) {
+        if (statusChanged) {
             // Status is changing - show confirmation
             const confirmMessage = newStatus 
                 ? 'Mark this transfer as completed? This will finalize all transactions and prevent further editing.'
                 : 'Reopen this completed transfer? This will allow editing of transactions and transfer details.';
             
-            showStatusChangeConfirmation(confirmMessage, formData, transferId);
+            showStatusChangeConfirmation(confirmMessage, formData, transferId, statusChanged, newStatus);
             return;
         }
     }
     
-    // Proceed with save
-    executeTransferSave(formData, transferId);
+    // No status change - proceed with normal update
+    performTransferUpdate(transferId, formData, statusChanged, newStatus);
 }
 
-function showStatusChangeConfirmation(message, formData, transferId) {
-    // Set the message
+function showStatusChangeConfirmation(message, formData, transferId, statusChanged, newStatus) {
     document.getElementById('statusChangeMessage').textContent = message;
     
-    // Show the modal
     const modal = new bootstrap.Modal(document.getElementById('statusChangeConfirmModal'));
     modal.show();
     
-    // Handle confirmation
     document.getElementById('confirmStatusChange').onclick = function() {
-        // Hide confirmation modal
         modal.hide();
-        
-        // Proceed with the actual save
-        executeTransferSave(formData, transferId);
+        performTransferUpdate(transferId, formData, statusChanged, newStatus);
     };
+}
+
+function performTransferUpdate(transferId, formData, statusChanged, newStatus) {
+    const saveButton = document.querySelector('#editTransferModal .btn-primary');
+    window.standardizeLoadingStates(saveButton, true);
+
+    if (statusChanged) {
+        // FIXED: Before toggling completed→incomplete, preserve cart data
+        if (newStatus === false) { // Going from completed to incomplete
+            preserveTransferCartBeforeToggle(transferId);
+        }
+        
+        // Use toggle endpoint for status changes (with transaction deletion)
+        fetch(`/transfers/${transferId}/toggle-status/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': window.getCsrfToken()
+            },
+            body: JSON.stringify({})
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // After successful status toggle, update other fields if needed
+                if (formData.transfer_date || formData.notes) {
+                    updateTransferFields(transferId, formData, saveButton, data.message);
+                } else {
+                    handleTransferUpdateSuccess(saveButton, data.message);
+                }
+            } else {
+                handleTransferUpdateError(saveButton, data.error || 'Failed to update transfer status');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            handleTransferUpdateError(saveButton, 'Error updating transfer status');
+        });
+    } else {
+        // Use edit endpoint for normal field updates (no status change)
+        updateTransferFields(transferId, formData, saveButton, null);
+    }
+}
+
+function preserveTransferCartBeforeToggle(transferId) {
+    try {
+        const currentTransferData = window.currentTransferData;
+        
+        if (currentTransferData && currentTransferData.transfer_items) {
+            const preserveKey = `transfer_toggle_preserve_${transferId}`;
+            const cartData = currentTransferData.transfer_items.map(item => ({
+                product_id: item.product_id,
+                product_name: item.product_name,
+                product_item_id: item.product_item_id,
+                quantity: item.quantity,
+                unit_cost: item.unit_cost || item.unit_price || 0,
+                total_cost: item.total_cost || 0,
+                notes: item.notes || ''
+            }));
+            
+            localStorage.setItem(preserveKey, JSON.stringify({
+                items: cartData,
+                timestamp: Date.now(),
+                preserved_from: 'toggle_operation'
+            }));
+            
+            console.log(`🔄 TRANSFER TOGGLE PRESERVE: Saved ${cartData.length} items for transfer ${transferId}`);
+        }
+    } catch (error) {
+        console.error('Error preserving transfer cart data before toggle:', error);
+    }
+}
+
+function updateTransferFields(transferId, formData, saveButton, previousMessage) {
+    fetch(`/transfers/${transferId}/edit/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': window.getCsrfToken()
+        },
+        body: JSON.stringify(formData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const finalMessage = previousMessage 
+                ? `${previousMessage} Transfer details updated successfully.`
+                : data.message;
+            handleTransferUpdateSuccess(saveButton, finalMessage);
+        } else {
+            handleTransferUpdateError(saveButton, data.error || 'Failed to update transfer');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        handleTransferUpdateError(saveButton, 'Error updating transfer');
+    });
+}
+
+function handleTransferUpdateSuccess(saveButton, message) {
+    window.standardizeLoadingStates(saveButton, false);
+    window.showAlert(message, 'success');
+    bootstrap.Modal.getInstance(document.getElementById('editTransferModal')).hide();
+    setTimeout(() => location.reload(), 1000);
+}
+
+function handleTransferUpdateError(saveButton, errorMessage) {
+    window.standardizeLoadingStates(saveButton, false);
+    window.showAlert(errorMessage, 'danger');
 }
 
 function executeTransferSave(formData, transferId) {

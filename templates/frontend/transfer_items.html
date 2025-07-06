@@ -665,53 +665,62 @@ async function calculateFIFOCost(productId, quantity) {
 function initializeTransferCart() {
     const transferId = document.getElementById('transferId').value;
     const storageKey = `transfer_items_${transferId}`;
+    const preserveKey = `transfer_toggle_preserve_${transferId}`;
     
-    // Try localStorage first (for unsaved changes)
+    // FIXED: Check for preserved data from toggle operation FIRST
+    const preservedData = localStorage.getItem(preserveKey);
+    if (preservedData) {
+        try {
+            const preserved = JSON.parse(preservedData);
+            const ageInMinutes = (Date.now() - preserved.timestamp) / (1000 * 60);
+            
+            // Use preserved data if it's less than 10 minutes old
+            if (ageInMinutes < 10 && preserved.items) {
+                transferItemsCart = preserved.items;
+                saveCartToStorage(); // Save to normal storage
+                
+                // Clean up the preservation data
+                localStorage.removeItem(preserveKey);
+                
+                console.log(`🔄 TRANSFER TOGGLE RESTORE: Loaded ${transferItemsCart.length} preserved items for transfer ${transferId}`);
+                updateCartDisplay();
+                updateTransferTotals();
+                return; // Exit early - use preserved data instead of backend data
+            } else {
+                // Expired preserved data - clean it up
+                localStorage.removeItem(preserveKey);
+            }
+        } catch (e) {
+            console.log('Error parsing preserved transfer cart data:', e);
+            localStorage.removeItem(preserveKey);
+        }
+    }
+    
+    // FIXED: Fallback to normal loading process (existing logic)
+    // Try to load from localStorage
     const savedCart = localStorage.getItem(storageKey);
     if (savedCart) {
         try {
             transferItemsCart = JSON.parse(savedCart);
-            console.log('✅ LOADED: Cart from localStorage:', transferItemsCart.length, 'items');
-            return; // Use localStorage if available
+            console.log('Loaded transfer cart from localStorage:', transferItemsCart);
         } catch (e) {
-            console.log('❌ ERROR: Parsing saved cart, loading from database');
+            console.log('Error parsing saved transfer cart, starting fresh');
+            transferItemsCart = [];
         }
     }
     
-    // No localStorage - load from existing database transactions (like trip_sales/po_supply)
-    {% if existing_transfers_json %}
+    // If no saved cart, load from existing transfer items (backend data)
+    {% if existing_transfer_items_json %}
     try {
-        const existingTransfers = JSON.parse('{{ existing_transfers_json|escapejs }}');
-        if (existingTransfers && existingTransfers.length > 0) {
-            // Convert database transactions to cart format (exactly like trip_sales/po_supply)
-            transferItemsCart = existingTransfers.map(transfer => ({
-                product_id: transfer.product_id,
-                product_name: transfer.product_name,
-                product_item_id: transfer.product_item_id,
-                is_duty_free: transfer.is_duty_free,
-                quantity: transfer.quantity,
-                total_cost: transfer.total_amount, // Use existing total amount
-                notes: transfer.notes || '',
-                // Mark as existing transaction for potential special handling
-                transaction_id: transfer.id
-            }));
-            
-            console.log('✅ LOADED: Cart from database transactions:', transferItemsCart.length, 'items');
-            
-            // Save to localStorage for consistency
+        const existingTransferItems = JSON.parse('{{ existing_transfer_items_json|escapejs }}');
+        if (existingTransferItems && existingTransferItems.length > 0 && transferItemsCart.length === 0) {
+            transferItemsCart = existingTransferItems;
+            console.log('Loaded transfer cart from existing items:', transferItemsCart);
             saveCartToStorage();
-        } else {
-            transferItemsCart = [];
-            console.log('✅ FRESH: Empty cart - no existing transactions');
         }
     } catch (e) {
-        console.log('❌ ERROR: Loading existing transfers:', e);
-        transferItemsCart = [];
+        console.log('Error parsing existing transfer items:', e);
     }
-    {% else %}
-    // No existing transactions - fresh cart
-    transferItemsCart = [];
-    console.log('✅ FRESH: Empty cart - new transfer');
     {% endif %}
 }
 

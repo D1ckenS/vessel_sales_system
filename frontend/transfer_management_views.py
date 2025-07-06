@@ -209,9 +209,31 @@ def edit_transfer(request, transfer_id):
             'to_vessel': transfer.to_vessel.name,
         }
         
+        transfer_items = []
+        if transfer.is_completed:
+            # Get transfer transactions for completed transfers
+            transfer_transactions = transfer.transactions.filter(
+                transaction_type__in=['TRANSFER_OUT', 'TRANSFER_IN']
+            ).select_related('product').order_by('created_at')
+            
+            # Use TRANSFER_OUT transactions for cart data (avoid duplicates)
+            for txn in transfer_transactions.filter(transaction_type='TRANSFER_OUT'):
+                transfer_items.append({
+                    'id': txn.id,
+                    'product_id': txn.product.id,
+                    'product_name': txn.product.name,
+                    'product_item_id': txn.product.item_id,
+                    'quantity': int(txn.quantity),
+                    'unit_cost': float(txn.unit_price),
+                    'total_cost': float(txn.total_amount),
+                    'notes': txn.notes or '',
+                    'created_at': txn.created_at.strftime('%H:%M')
+                })
+        
         return JsonResponse({
             'success': True,
-            'transfer': transfer_data
+            'transfer': transfer_data,
+            'transfer_items': transfer_items  # FIXED: Include transfer items for preservation
         })
 
     if request.method == 'POST':
@@ -445,12 +467,77 @@ def delete_transfer(request, transfer_id):
 @login_required
 @user_passes_test(is_admin_or_manager)
 def toggle_transfer_status(request, transfer_id):
-    """Toggle transfer completion status - SIMPLE: Like PO pattern (0 cache clearing lines)"""
+    """Toggle transfer completion status with proper transaction deletion"""
     # Get transfer safely
     transfer, error = CRUDHelper.safe_get_object(Transfer, transfer_id, 'Transfer')
     if error:
         return error
     
-    # SIMPLE: No cache clearing needed (like PO toggle - works with simple versioning)
-    # Toggle status with standardized response
-    return CRUDHelper.toggle_boolean_field(transfer, 'is_completed', 'Transfer')
+    try:
+        # Determine the action based on current status
+        if transfer.is_completed:
+            # RESTART WORKFLOW: completed → incomplete
+            with transaction.atomic():
+                # Delete all TRANSFER_IN transactions to remove inventory from destination vessel
+                transfer_in_transactions = transfer.transactions.filter(transaction_type='TRANSFER_IN')
+                
+                transaction_count = transfer_in_transactions.count()
+                
+                if transaction_count > 0:
+                    print(f"🔄 TRANSFER RESTART: Removing {transaction_count} TRANSFER_IN transactions for transfer {transfer.id}")
+                    
+                    # Delete each TRANSFER_IN transaction (this removes inventory via Transaction.delete())
+                    for txn in transfer_in_transactions:
+                        txn.delete()
+                    
+                    print(f"✅ TRANSFER RESTART: All TRANSFER_IN inventory removed from {transfer.to_vessel.name}")
+                
+                # Mark as incomplete
+                transfer.is_completed = False
+                transfer.save()
+                
+                # Clear transfer cache
+                TransferCacheHelper.clear_cache_after_transfer_update(transfer_id)
+                
+                print(f"🔄 TRANSFER RESTART: Transfer {transfer.id} reopened for editing")
+            
+            # Return redirect response to restart workflow at transfer_items
+            return JsonResponse({
+                'success': True,
+                'action': 'restart_workflow',
+                'message': f'Transfer reopened successfully. Inventory restored for {transaction_count} items.',
+                'redirect_url': reverse('frontend:transfer_items', kwargs={'transfer_id': transfer_id}),
+                'transaction_count': transaction_count,
+                'transfer_data': {
+                    'from_vessel': transfer.from_vessel.name,
+                    'to_vessel': transfer.to_vessel.name,
+                    'is_completed': False
+                }
+            })
+            
+        else:
+            # SIMPLE TOGGLE: incomplete → completed
+            # Use standard toggle (stays on management page)
+            transfer.is_completed = True
+            transfer.save()
+            
+            # Clear transfer cache
+            TransferCacheHelper.clear_cache_after_transfer_update(transfer_id)
+            
+            return JsonResponse({
+                'success': True,
+                'action': 'mark_completed',
+                'message': f'Transfer marked as completed successfully.',
+                'new_status': True,
+                'transfer_data': {
+                    'from_vessel': transfer.from_vessel.name,
+                    'to_vessel': transfer.to_vessel.name,
+                    'is_completed': True
+                }
+            })
+            
+    except Exception as e:
+        return JsonResponseHelper.error(
+            error_message=f"Error toggling transfer status: {str(e)}",
+            error_type='system_error'
+        )

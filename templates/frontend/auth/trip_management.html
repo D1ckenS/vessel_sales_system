@@ -617,8 +617,7 @@ function getFilterData() {
 }
 
 function editTrip(tripId) {
-    // FIXED: Remove /manage/ from URL
-    fetch(`/trips/${tripId}/edit/`, {  // ← WAS: `/trips/manage/${tripId}/edit/`
+    fetch(`/trips/${tripId}/edit/`, {
         method: 'GET',
         headers: {
             'X-CSRFToken': window.getCsrfToken()
@@ -638,8 +637,10 @@ function editTrip(tripId) {
                 completedToggle.checked = data.trip.is_completed;
             }
             
+            // FIXED: Store complete trip data including items for preservation
             window.currentTripData = {
-                is_completed: data.trip.is_completed
+                is_completed: data.trip.is_completed,
+                trip_items: data.trip_items || [] // Include trip items data
             };
 
             new bootstrap.Modal(document.getElementById('editTripModal')).show();
@@ -663,26 +664,116 @@ function saveTrip() {
         notes: document.getElementById('editTripNotes').value
     };
     
-    // Add completion status if toggle exists (admin/manager only)
+    // Check if status is changing (only if toggle exists - admin/manager only)
+    let statusChanged = false;
+    let newStatus = null;
+    
     if (completedToggle) {
-        formData.is_completed = completedToggle.checked;
-        
-        // Check if status is changing
         const currentStatus = window.currentTripData && window.currentTripData.is_completed;
-        const newStatus = completedToggle.checked;
+        newStatus = completedToggle.checked;
+        statusChanged = currentStatus !== newStatus;
         
-        if (currentStatus !== newStatus) {
+        if (statusChanged) {
             // Status is changing - show confirmation
             const confirmMessage = newStatus 
                 ? 'Mark this trip as completed? This will finalize all transactions and prevent further editing.'
                 : 'Reopen this completed trip? This will allow editing of transactions and trip details.';
             
-            showStatusChangeConfirmation(confirmMessage, formData, tripId);
+            showStatusChangeConfirmation(confirmMessage, formData, tripId, statusChanged, newStatus);
             return;
         }
     }
     
-    // Proceed with save
+    // No status change - proceed with normal update
+    performTripUpdate(tripId, formData, statusChanged, newStatus);
+}
+
+function showStatusChangeConfirmation(message, formData, tripId, statusChanged, newStatus) {
+    document.getElementById('statusChangeMessage').textContent = message;
+    
+    const modal = new bootstrap.Modal(document.getElementById('statusChangeConfirmModal'));
+    modal.show();
+    
+    document.getElementById('confirmStatusChange').onclick = function() {
+        modal.hide();
+        performTripUpdate(tripId, formData, statusChanged, newStatus);
+    };
+}
+
+function performTripUpdate(tripId, formData, statusChanged, newStatus) {
+    const saveButton = document.querySelector('#editTripModal .btn-primary');
+    window.standardizeLoadingStates(saveButton, true);
+
+    if (statusChanged) {
+        // FIXED: Before toggling completed→incomplete, preserve cart data
+        if (newStatus === false) { // Going from completed to incomplete
+            preserveTripCartBeforeToggle(tripId);
+        }
+        
+        // Use toggle endpoint for status changes (with transaction deletion)
+        fetch(`/trips/${tripId}/toggle-status/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': window.getCsrfToken()
+            },
+            body: JSON.stringify({})
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // After successful status toggle, update other fields if needed
+                if (formData.passenger_count || formData.trip_date || formData.notes) {
+                    updateTripFields(tripId, formData, saveButton, data.message);
+                } else {
+                    handleTripUpdateSuccess(saveButton, data.message);
+                }
+            } else {
+                handleTripUpdateError(saveButton, data.error || 'Failed to update trip status');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            handleTripUpdateError(saveButton, 'Error updating trip status');
+        });
+    } else {
+        // Use edit endpoint for normal field updates (no status change)
+        updateTripFields(tripId, formData, saveButton, null);
+    }
+}
+
+function preserveTripCartBeforeToggle(tripId) {
+    try {
+        const currentTripData = window.currentTripData;
+        
+        if (currentTripData && currentTripData.trip_items) {
+            const preserveKey = `trip_toggle_preserve_${tripId}`;
+            const cartData = currentTripData.trip_items.map(item => ({
+                product_id: item.product_id,
+                product_name: item.product_name,
+                product_item_id: item.product_item_id,
+                product_barcode: item.product_barcode || '',
+                is_duty_free: item.is_duty_free,
+                quantity: item.quantity,
+                unit_price: item.unit_price,
+                total_amount: item.total_amount,
+                notes: item.notes || ''
+            }));
+            
+            localStorage.setItem(preserveKey, JSON.stringify({
+                items: cartData,
+                timestamp: Date.now(),
+                preserved_from: 'toggle_operation'
+            }));
+            
+            console.log(`🔄 TRIP TOGGLE PRESERVE: Saved ${cartData.length} items for trip ${tripId}`);
+        }
+    } catch (error) {
+        console.error('Error preserving trip cart data before toggle:', error);
+    }
+}
+
+function updateTripFields(tripId, formData, saveButton, previousMessage) {
     fetch(`/trips/${tripId}/edit/`, {
         method: 'POST',
         headers: {
@@ -694,35 +785,30 @@ function saveTrip() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            window.showAlert(data.message, 'success');
-            bootstrap.Modal.getInstance(document.getElementById('editTripModal')).hide();
-            setTimeout(() => location.reload(), 1000);
+            const finalMessage = previousMessage 
+                ? `${previousMessage} Trip details updated successfully.`
+                : data.message;
+            handleTripUpdateSuccess(saveButton, finalMessage);
         } else {
-            window.showAlert(data.error, 'danger');
+            handleTripUpdateError(saveButton, data.error || 'Failed to update trip');
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        window.showAlert('Error saving trip', 'danger');
+        handleTripUpdateError(saveButton, 'Error updating trip');
     });
 }
 
-function showStatusChangeConfirmation(message, formData, tripId) {
-    // Set the message
-    document.getElementById('statusChangeMessage').textContent = message;
-    
-    // Show the modal
-    const modal = new bootstrap.Modal(document.getElementById('statusChangeConfirmModal'));
-    modal.show();
-    
-    // Handle confirmation
-    document.getElementById('confirmStatusChange').onclick = function() {
-        // Hide confirmation modal
-        modal.hide();
-        
-        // Proceed with the actual save
-        executeTripSave(formData, tripId);
-    };
+function handleTripUpdateSuccess(saveButton, message) {
+    window.standardizeLoadingStates(saveButton, false);
+    window.showAlert(message, 'success');
+    bootstrap.Modal.getInstance(document.getElementById('editTripModal')).hide();
+    setTimeout(() => location.reload(), 1000);
+}
+
+function handleTripUpdateError(saveButton, errorMessage) {
+    window.standardizeLoadingStates(saveButton, false);
+    window.showAlert(errorMessage, 'danger');
 }
 
 function executeTripSave(formData, tripId) {

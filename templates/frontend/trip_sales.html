@@ -436,36 +436,65 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initializeTripCart() {
-    const tripId = document.getElementById('tripId').value;
+    const tripId = document.getElementById('tripId').value; // Adjust ID as needed
     const storageKey = `trip_sales_${tripId}`;
+    const preserveKey = `trip_toggle_preserve_${tripId}`;
     
-    // Try to load from localStorage first
+    // FIXED: Check for preserved data from toggle operation FIRST
+    const preservedData = localStorage.getItem(preserveKey);
+    if (preservedData) {
+        try {
+            const preserved = JSON.parse(preservedData);
+            const ageInMinutes = (Date.now() - preserved.timestamp) / (1000 * 60);
+            
+            // Use preserved data if it's less than 10 minutes old
+            if (ageInMinutes < 10 && preserved.items) {
+                tripSalesCart = preserved.items;
+                saveCartToStorage(); // Save to normal storage
+                
+                // Clean up the preservation data
+                localStorage.removeItem(preserveKey);
+                
+                console.log(`🔄 TRIP TOGGLE RESTORE: Loaded ${tripSalesCart.length} preserved items for trip ${tripId}`);
+                updateCartDisplay();
+                updateTripTotals();
+                return; // Exit early - use preserved data instead of backend data
+            } else {
+                // Expired preserved data - clean it up
+                localStorage.removeItem(preserveKey);
+            }
+        } catch (e) {
+            console.log('Error parsing preserved trip cart data:', e);
+            localStorage.removeItem(preserveKey);
+        }
+    }
+    
+    // FIXED: Fallback to normal loading process (existing logic)
+    // Try to load from localStorage
     const savedCart = localStorage.getItem(storageKey);
     if (savedCart) {
         try {
             tripSalesCart = JSON.parse(savedCart);
-            console.log('Loaded cart from localStorage:', tripSalesCart);
+            console.log('Loaded trip cart from localStorage:', tripSalesCart);
         } catch (e) {
-            console.log('Error parsing saved cart, starting fresh');
+            console.log('Error parsing saved trip cart, starting fresh');
             tripSalesCart = [];
         }
     }
     
-    // If no saved cart, load from existing sales (backend data)
-    if (tripSalesCart.length === 0) {
-        {% if existing_sales_json %}
-        try {
-            const existingSales = JSON.parse('{{ existing_sales_json|escapejs }}');
-            if (existingSales && existingSales.length > 0) {
-                tripSalesCart = existingSales;
-                console.log('Loaded cart from existing sales:', tripSalesCart);
-                saveCartToStorage();
-            }
-        } catch (e) {
-            console.log('Error parsing existing sales:', e);
+    // If no saved cart, load from existing sales items (backend data)
+    {% if existing_sales_json %}
+    try {
+        const existingSalesItems = JSON.parse('{{ existing_sales_json|escapejs }}');
+        if (existingSalesItems && existingSalesItems.length > 0 && tripSalesCart.length === 0) {
+            tripSalesCart = existingSalesItems;
+            console.log('Loaded trip cart from existing sales:', tripSalesCart);
+            saveCartToStorage();
         }
-        {% endif %}
+    } catch (e) {
+        console.log('Error parsing existing sales items:', e);
     }
+    {% endif %}
 }
 
 function saveCartToStorage() {
@@ -473,9 +502,9 @@ function saveCartToStorage() {
         const tripId = document.getElementById('tripId').value;
         const storageKey = `trip_sales_${tripId}`;
         localStorage.setItem(storageKey, JSON.stringify(tripSalesCart));
-        console.log('Cart saved to localStorage:', storageKey, tripSalesCart);
+        console.log('Trip cart saved to localStorage:', storageKey, tripSalesCart);
     } catch (error) {
-        console.error('Error saving cart to localStorage:', error);
+        console.error('Error saving trip cart to localStorage:', error);
     }
 }
 

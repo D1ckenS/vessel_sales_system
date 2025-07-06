@@ -1,3 +1,4 @@
+from django.http import JsonResponse
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db import transaction, models
@@ -150,22 +151,47 @@ def trip_management(request):
 def edit_trip(request, trip_id):
     """Edit trip details"""
     if request.method == 'GET':
-        # Get trip safely with vessel data
-        trip, error = CRUDHelper.safe_get_object(Trip, trip_id, 'Trip')
-        if error:
-            return error
+        # FIXED: Include trip items data for cart preservation
+        trip_items = []
+        if trip.is_completed:
+            # Get sales transactions for completed trips
+            sales_transactions = Transaction.objects.filter(
+                trip=trip,
+                transaction_type='SALE'
+            ).select_related('product').order_by('created_at')
             
-        return JsonResponseHelper.success(data={
-            'trip': {
-                'id': trip.id,
-                'trip_number': trip.trip_number,
-                'passenger_count': trip.passenger_count,
-                'trip_date': trip.trip_date.strftime('%Y-%m-%d'),
-                'notes': trip.notes or '',
-                'vessel_id': trip.vessel.id,
-                'vessel_name': trip.vessel.name,
-                'is_completed': trip.is_completed,
-            }
+            for sale in sales_transactions:
+                trip_items.append({
+                    'id': sale.id,
+                    'product_id': sale.product.id,
+                    'product_name': sale.product.name,
+                    'product_item_id': sale.product.item_id,
+                    'product_barcode': sale.product.barcode or '',
+                    'is_duty_free': sale.product.is_duty_free,
+                    'quantity': int(sale.quantity),
+                    'unit_price': float(sale.unit_price),
+                    'total_amount': float(sale.total_amount),
+                    'notes': sale.notes or '',
+                    'created_at': sale.created_at.strftime('%H:%M')
+                })
+        
+        trip_data = {
+            'id': trip.id,
+            'trip_number': trip.trip_number,
+            'passenger_count': trip.passenger_count,
+            'trip_date': trip.trip_date.strftime('%Y-%m-%d'),
+            'notes': trip.notes or '',
+            'vessel_id': trip.vessel.id,
+            'vessel_name': trip.vessel.name,
+            'is_completed': trip.is_completed,
+            'total_revenue': float(trip.total_revenue),
+            'transaction_count': trip.transaction_count,
+        }
+        
+        return JsonResponse({
+            'success': True,
+            'trip': trip_data,
+            'trip_items': trip_items  # FIXED: Include trip items for preservation
         })
     
     elif request.method == 'POST':
@@ -356,17 +382,83 @@ def delete_trip(request, trip_id):
 @user_passes_test(is_admin_or_manager)
 @require_http_methods(["POST"])
 def toggle_trip_status(request, trip_id):
-    """Toggle trip completion status"""
+    """Toggle trip completion status with proper transaction deletion"""
     # Get trip safely
     trip, error = CRUDHelper.safe_get_object(Trip, trip_id, 'Trip')
     if error:
         return error
     
-    TripCacheHelper.clear_cache_after_trip_delete(trip_id)
-    TripCacheHelper.clear_recent_trips_cache_only_when_needed()
-    
-    # Toggle status with standardized response
-    return CRUDHelper.toggle_boolean_field(trip, 'is_completed', 'Trip')
+    try:
+        # Determine the action based on current status
+        if trip.is_completed:
+            # RESTART WORKFLOW: completed → incomplete
+            with transaction.atomic():
+                # Delete all sales transactions (automatically restores inventory)
+                sales_transactions = Transaction.objects.filter(
+                    trip=trip,
+                    transaction_type='SALE'
+                )
+                
+                transaction_count = sales_transactions.count()
+                
+                if transaction_count > 0:
+                    print(f"🔄 TRIP RESTART: Deleting {transaction_count} sales transactions for trip {trip.trip_number}")
+                    
+                    # Delete each transaction (triggers inventory restoration via Transaction.delete())
+                    for txn in sales_transactions:
+                        txn.delete()
+                    
+                    print(f"✅ TRIP RESTART: Inventory restored for {transaction_count} items")
+                
+                # Mark as incomplete
+                trip.is_completed = False
+                trip.save()
+                
+                # Clear trip cache
+                TripCacheHelper.clear_cache_after_trip_update(trip_id)
+                
+                print(f"🔄 TRIP RESTART: Trip {trip.trip_number} reopened for editing")
+            
+            # Return redirect response to restart workflow at trip_sales
+            return JsonResponse({
+                'success': True,
+                'action': 'restart_workflow',
+                'message': f'Trip {trip.trip_number} reopened successfully. Inventory restored for {transaction_count} items.',
+                'redirect_url': reverse('frontend:trip_sales', kwargs={'trip_id': trip_id}),
+                'transaction_count': transaction_count,
+                'trip_data': {
+                    'trip_number': trip.trip_number,
+                    'vessel': trip.vessel.name,
+                    'is_completed': False
+                }
+            })
+            
+        else:
+            # SIMPLE TOGGLE: incomplete → completed
+            # Use standard toggle (stays on management page)
+            trip.is_completed = True
+            trip.save()
+            
+            # Clear trip cache
+            TripCacheHelper.clear_cache_after_trip_update(trip_id)
+            
+            return JsonResponse({
+                'success': True,
+                'action': 'mark_completed',
+                'message': f'Trip {trip.trip_number} marked as completed successfully.',
+                'new_status': True,
+                'trip_data': {
+                    'trip_number': trip.trip_number,
+                    'vessel': trip.vessel.name,
+                    'is_completed': True
+                }
+            })
+            
+    except Exception as e:
+        return JsonResponseHelper.error(
+            error_message=f"Error toggling trip status: {str(e)}",
+            error_type='system_error'
+        )
 
 @login_required
 @user_passes_test(is_admin_or_manager)
