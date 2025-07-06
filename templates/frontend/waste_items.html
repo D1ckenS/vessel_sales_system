@@ -1037,6 +1037,8 @@ function clearForm() {
 // FIXED: Enhanced completed items display with full translation support
 function displayCompletedWasteItems(items) {
     const container = document.getElementById('completedWasteItems');
+
+    window.updateNumberElement('cartItemsBadge', items.length);
     
     if (items.length === 0) {
         container.innerHTML = `
@@ -1069,7 +1071,7 @@ function displayCompletedWasteItems(items) {
                 <tbody>
                     ${items.map(item => `
                         <tr>
-                            <td><small class="text-muted">${item.created_at}</small></td>
+                            <td><small data-number data-original="${item.created_at}">${translateNumber(item.created_at)}</small></td>
                             <td>
                                 <strong>${item.product_name}</strong>
                                 <small class="d-block text-muted">

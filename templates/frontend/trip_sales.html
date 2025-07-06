@@ -562,7 +562,7 @@ function displayCompletedSales(completedSales) {
     const canViewFinancials = {{ user_permissions.can_view_financials|yesno:"true,false" }};
     
     // Update count with number translation
-    updateNumberElement('salesListCount', completedSales.length);
+    window.updateNumberElement('salesListCount', completedSales.length);
     
     if (completedSales.length === 0) {
         salesList.innerHTML = '';
@@ -650,7 +650,7 @@ function updateCompletedTripTotals(completedSales) {
     // Update item count for completed trips
     const itemCountElement = document.getElementById('itemCount');
     if (itemCountElement) {
-        updateNumberElement('itemCount', itemCount);
+        window.updateNumberElement('itemCount', itemCount);
     }
     
     // Only update COGS and profit elements if user has financial permissions
@@ -1040,8 +1040,8 @@ function updateCartDisplay() {
     
     // Update counts
     const count = tripSalesCart.length;
-    updateNumberElement('salesListCount', count);
-    updateNumberElement('itemCount', count);
+    window.updateNumberElement('salesListCount', count);
+    window.updateNumberElement('itemCount', count);
     
     // Calculate totals
     let totalRevenue = 0;
@@ -1175,16 +1175,6 @@ function updateCartDisplay() {
             
             return row;
         }).join('');
-    }
-}
-
-// Helper function for updating number elements
-function updateNumberElement(elementId, value) {
-    const element = document.getElementById(elementId);
-    if (element) {
-        element.setAttribute('data-number', '');
-        element.setAttribute('data-original', value.toString());
-        element.textContent = translateNumber(value.toString());
     }
 }
 

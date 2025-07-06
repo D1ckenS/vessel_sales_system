@@ -228,22 +228,13 @@ function loadInventoryData() {
 function updateInventoryDisplay(data) {
     // Update stats with number localization
     const stats = data.vessel_stats;
-    updateNumberElement('outOfStockCount', stats.out_of_stock_count);
-    updateNumberElement('lowStockCount', stats.low_stock_count);
-    updateNumberElement('totalProductsCount', stats.total_products);
-    updateNumberElement('inventoryValue', stats.total_inventory_value.toFixed(0));
+    window.updateNumberElement('outOfStockCount', stats.out_of_stock_count);
+    window.updateNumberElement('lowStockCount', stats.low_stock_count);
+    window.updateNumberElement('totalProductsCount', stats.total_products);
+    window.updateNumberElement('inventoryValue', stats.total_inventory_value.toFixed(0));
     
     // Update table
     updateInventoryTable();
-}
-
-function updateNumberElement(elementId, value) {
-    const element = document.getElementById(elementId);
-    if (element) {
-        element.setAttribute('data-original', value.toString());
-        const translatedNumber = translateNumber(value.toString());
-        element.textContent = translatedNumber;
-    }
 }
 
 function updateInventoryTable() {

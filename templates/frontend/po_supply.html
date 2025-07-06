@@ -573,7 +573,7 @@ function displayCompletedSupplies(completedSupplies) {
     const suppliesList = document.getElementById('suppliesList');
     const emptyState = document.getElementById('emptySuppliesState');
     
-    updateNumberElement('suppliesListCount', completedSupplies.length);
+    window.updateNumberElement('suppliesListCount', completedSupplies.length);
     
     if (!suppliesList) {
         console.error('🔍 suppliesList element not found!');
@@ -987,8 +987,8 @@ function updateCartDisplay() {
     const itemCount = document.getElementById('itemCount');
 
     const count = poSuppliesCart.length;
-    updateNumberElement('suppliesListCount', count);
-    updateNumberElement('itemCount', count);
+    window.updateNumberElement('suppliesListCount', count);
+    window.updateNumberElement('itemCount', count);
     
     if (poSuppliesCart.length === 0) {
         suppliesList.innerHTML = '';
@@ -1067,10 +1067,10 @@ function updateCartDisplay() {
     // 🆕 UPDATE HEADER: Real-time header updates for non-completed POs
     if (poSuppliesCart.length > 0) {
         // Update Total Cost in header
-        updateNumberElement('poTotalCost', totalPOCost.toFixed(3));
+        window.updateNumberElement('poTotalCost', totalPOCost.toFixed(3));
         
         // Update Items Count in header  
-        updateNumberElement('itemCount', poSuppliesCart.length.toString());
+        window.updateNumberElement('itemCount', poSuppliesCart.length.toString());
     }
     
     // Update cart count in header
@@ -1095,16 +1095,6 @@ function updateCartDisplay() {
     if (completeBtnText) {
         completeBtnText.innerHTML = 
             `<i class="bi bi-check-circle"></i> ${_('complete_po')} (${poSuppliesCart.length} items, ${totalPOCost.toFixed(3)} JOD)`;
-    }
-}
-
-// Helper function for updating number elements
-function updateNumberElement(elementId, value) {
-    const element = document.getElementById(elementId);
-    if (element) {
-        element.setAttribute('data-number', '');
-        element.setAttribute('data-original', value.toString());
-        element.textContent = translateNumber(value.toString());
     }
 }
 

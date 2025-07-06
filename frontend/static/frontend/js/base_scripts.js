@@ -398,9 +398,9 @@ window.translateCurrency = function(amount) {
 window.updateNumberElement = function(elementId, value) {
     const element = document.getElementById(elementId);
     if (element) {
+        element.setAttribute('data-number', '');
         element.setAttribute('data-original', value.toString());
-        const translatedNumber = translateNumber(value.toString());
-        element.textContent = translatedNumber;
+        element.textContent = translateNumber(value.toString());
     }
 };
 
