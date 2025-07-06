@@ -396,11 +396,15 @@ def transfer_bulk_complete(request):
                 transfer=transfer,
                 transaction_type__in=['TRANSFER_OUT', 'TRANSFER_IN']
             )
-            
+
             if existing_transactions.exists():
-                print(f"🔄 CLEARING: {existing_transactions.count()} existing transactions in bulk")
-                # Use bulk_delete to avoid individual delete() overhead
-                existing_transactions._raw_delete(existing_transactions.db)
+                print(f"🔄 TRANSFER EDIT: Deleting {existing_transactions.count()} existing transfer transactions individually for inventory restoration")
+                
+                # Delete each transaction individually to trigger inventory restoration
+                for txn in existing_transactions:
+                    txn.delete()  # This calls the individual delete() method with inventory restoration
+                
+                print(f"✅ TRANSFER EDIT: Inventory restored for {existing_transactions.count()} transactions")
                 
             # 🚀 STEP 2: Batch product fetching and validation
             product_ids = [item.get('product_id') for item in items if item.get('product_id')]

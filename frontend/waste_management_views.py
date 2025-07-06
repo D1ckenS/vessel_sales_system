@@ -8,6 +8,7 @@ from .utils.response_helpers import JsonResponseHelper
 from .utils.crud_helpers import CRUDHelper, AdminActionHelper
 from .permissions import is_admin_or_manager
 from django.core.exceptions import ValidationError
+from transactions.models import Transaction
 from django.shortcuts import render
 from transactions.models import WasteReport
 from datetime import datetime
@@ -357,12 +358,86 @@ def delete_waste_report(request, waste_id):
 @login_required
 @user_passes_test(is_admin_or_manager)
 def toggle_waste_status(request, waste_id):
-    """Toggle waste report completion status - SIMPLE: Like PO pattern (0 cache clearing lines)"""
+    """
+    Enhanced toggle waste report completion status with workflow restart capability
+    
+    Behavior:
+    - completed → incomplete: Delete transactions, restore inventory, redirect to waste_items
+    - incomplete → completed: Simple boolean toggle (stays on management page)
+    """
     # Get waste report safely
     waste_report, error = CRUDHelper.safe_get_object(WasteReport, waste_id, 'Waste Report')
     if error:
         return error
     
-    # SIMPLE: No cache clearing needed (like PO toggle - works with simple versioning)
-    # Toggle status with standardized response
-    return CRUDHelper.toggle_boolean_field(waste_report, 'is_completed', 'Waste Report')
+    try:
+        # Determine the action based on current status
+        if waste_report.is_completed:
+            # RESTART WORKFLOW: completed → incomplete
+            with transaction.atomic():
+                # Delete all waste transactions (automatically restores inventory)
+                waste_transactions = Transaction.objects.filter(
+                    waste_report=waste_report,
+                    transaction_type='WASTE'
+                )
+                
+                transaction_count = waste_transactions.count()
+                
+                if transaction_count > 0:
+                    print(f"🔄 WASTE RESTART: Deleting {transaction_count} waste transactions for report {waste_report.report_number}")
+                    
+                    # Delete each transaction (triggers inventory restoration via Transaction.delete())
+                    for txn in waste_transactions:
+                        txn.delete()
+                    
+                    print(f"✅ WASTE RESTART: Inventory restored for {transaction_count} items")
+                
+                # Mark as incomplete
+                waste_report.is_completed = False
+                waste_report.save()
+                
+                # Clear waste cache
+                WasteCacheHelper.clear_cache_after_waste_update(waste_id)
+                
+                print(f"🔄 WASTE RESTART: Report {waste_report.report_number} reopened for editing")
+            
+            # Return redirect response to restart workflow at waste_items
+            return JsonResponse({
+                'success': True,
+                'action': 'restart_workflow',
+                'message': f'Waste report {waste_report.report_number} reopened successfully. Inventory restored for {transaction_count} items.',
+                'redirect_url': reverse('frontend:waste_items', kwargs={'waste_id': waste_id}),
+                'transaction_count': transaction_count,
+                'waste_data': {
+                    'report_number': waste_report.report_number,
+                    'vessel': waste_report.vessel.name,
+                    'is_completed': False
+                }
+            })
+            
+        else:
+            # SIMPLE TOGGLE: incomplete → completed
+            # Use standard toggle (stays on management page)
+            waste_report.is_completed = True
+            waste_report.save()
+            
+            # Clear waste cache
+            WasteCacheHelper.clear_cache_after_waste_update(waste_id)
+            
+            return JsonResponse({
+                'success': True,
+                'action': 'mark_completed',
+                'message': f'Waste report {waste_report.report_number} marked as completed successfully.',
+                'new_status': True,
+                'waste_data': {
+                    'report_number': waste_report.report_number,
+                    'vessel': waste_report.vessel.name,
+                    'is_completed': True
+                }
+            })
+            
+    except Exception as e:
+        return JsonResponseHelper.error(
+            error_message=f"Error toggling waste report status: {str(e)}",
+            error_type='system_error'
+        )

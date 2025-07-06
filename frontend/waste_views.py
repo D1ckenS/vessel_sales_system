@@ -327,7 +327,19 @@ def waste_bulk_complete(request):
             waste_report = WasteReport.objects.select_for_update().get(id=waste_id)
             
             # Clear existing transactions for this waste report
-            Transaction.objects.filter(waste_report=waste_report, transaction_type='WASTE').delete()
+            existing_waste_transactions = Transaction.objects.filter(
+                waste_report=waste_report, 
+                transaction_type='WASTE'
+            )
+
+            if existing_waste_transactions.exists():
+                print(f"🔄 WASTE EDIT: Deleting {existing_waste_transactions.count()} existing waste transactions individually for inventory restoration")
+                
+                # Delete each transaction individually to trigger inventory restoration
+                for txn in existing_waste_transactions:
+                    txn.delete()  # This calls the individual delete() method with inventory restoration
+                
+                print(f"✅ WASTE EDIT: Inventory restored for {existing_waste_transactions.count()} transactions")
             
             # Process each waste item
             for item in items:

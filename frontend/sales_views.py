@@ -452,7 +452,19 @@ def trip_bulk_complete(request):
         
         with transaction.atomic():
             # Clear existing transactions for this trip (if any)
-            Transaction.objects.filter(trip=trip, transaction_type='SALE').delete()
+            existing_sales_transactions = Transaction.objects.filter(
+                trip=trip, 
+                transaction_type='SALE'
+            )
+
+            if existing_sales_transactions.exists():
+                print(f"🔄 TRIP EDIT: Deleting {existing_sales_transactions.count()} existing sales transactions individually for inventory restoration")
+                
+                # Delete each transaction individually to trigger inventory restoration
+                for txn in existing_sales_transactions:
+                    txn.delete()  # This calls the individual delete() method with inventory restoration
+                
+                print(f"✅ TRIP EDIT: Inventory restored for {existing_sales_transactions.count()} transactions")
             
             # Process each sales item
             for item in sales_items:

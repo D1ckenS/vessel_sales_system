@@ -390,7 +390,19 @@ def po_bulk_complete(request):
         
         with transaction.atomic():
             # Clear existing transactions for this PO (if any)
-            Transaction.objects.filter(purchase_order=po, transaction_type='SUPPLY').delete()
+            existing_supply_transactions = Transaction.objects.filter(
+                purchase_order=po, 
+                transaction_type='SUPPLY'
+            )
+
+            if existing_supply_transactions.exists():
+                print(f"🔄 PO EDIT: Deleting {existing_supply_transactions.count()} existing supply transactions individually for inventory restoration")
+                
+                # Delete each transaction individually to trigger inventory restoration
+                for txn in existing_supply_transactions:
+                    txn.delete()  # This calls the individual delete() method with inventory restoration
+                
+                print(f"✅ PO EDIT: Inventory restored for {existing_supply_transactions.count()} transactions")
             
             # Process each supply item
             for item_data in validated_items:
