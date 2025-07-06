@@ -354,8 +354,39 @@ document.addEventListener('DOMContentLoaded', function() {
 function initializeWasteCart() {
     const wasteId = document.getElementById('wasteId').value;
     const storageKey = `waste_items_${wasteId}`;
+    const preserveKey = `waste_toggle_preserve_${wasteId}`;
     
-    // Try to load from localStorage first
+    // FIXED: Check for preserved data from toggle operation FIRST
+    const preservedData = localStorage.getItem(preserveKey);
+    if (preservedData) {
+        try {
+            const preserved = JSON.parse(preservedData);
+            const ageInMinutes = (Date.now() - preserved.timestamp) / (1000 * 60);
+            
+            // Use preserved data if it's less than 10 minutes old
+            if (ageInMinutes < 10 && preserved.items) {
+                wasteItemsCart = preserved.items;
+                saveCartToStorage(); // Save to normal storage
+                
+                // Clean up the preservation data
+                localStorage.removeItem(preserveKey);
+                
+                console.log(`🔄 TOGGLE RESTORE: Loaded ${wasteItemsCart.length} preserved items for waste ${wasteId}`);
+                updateCartDisplay();
+                updateWasteTotals();
+                return; // Exit early - use preserved data instead of backend data
+            } else {
+                // Expired preserved data - clean it up
+                localStorage.removeItem(preserveKey);
+            }
+        } catch (e) {
+            console.log('Error parsing preserved cart data:', e);
+            localStorage.removeItem(preserveKey);
+        }
+    }
+    
+    // FIXED: Fallback to normal loading process (existing logic)
+    // Try to load from localStorage
     const savedCart = localStorage.getItem(storageKey);
     if (savedCart) {
         try {
@@ -371,7 +402,7 @@ function initializeWasteCart() {
     {% if existing_waste_items_json %}
     try {
         const existingWasteItems = JSON.parse('{{ existing_waste_items_json|escapejs }}');
-        if (existingWasteItems && existingWasteItems.length > 0) {
+        if (existingWasteItems && existingWasteItems.length > 0 && wasteItemsCart.length === 0) {
             wasteItemsCart = existingWasteItems;
             console.log('Loaded cart from existing waste:', wasteItemsCart);
             saveCartToStorage();
@@ -693,6 +724,8 @@ function updateCartDisplay() {
     const completeBtn = document.getElementById('completeWasteBtn');
     
     if (wasteItemsCart.length === 0) {
+        // CRITICAL FIX: Clear cartBody content when empty
+        if (cartBody) cartBody.innerHTML = '';
         if (emptyCart) emptyCart.style.display = 'block';
         if (completeBtn) completeBtn.disabled = true;
         return;
@@ -701,6 +734,7 @@ function updateCartDisplay() {
     if (emptyCart) emptyCart.style.display = 'none';
     if (completeBtn) completeBtn.disabled = false;
     
+    // RESTORED: Original table structure exactly as it was
     const cartHtml = `
         <div class="table-responsive">
             <table class="table table-sm table-hover">
@@ -714,47 +748,54 @@ function updateCartDisplay() {
                     </tr>
                 </thead>
                 <tbody>
-                    ${wasteItemsCart.map((item, index) => `
+                    ${wasteItemsCart.map((item, index) => {
+                        // FIXED: Handle both unit_cost and unit_price properties safely
+                        const unitCost = item.unit_cost || item.unit_price || 0;
+                        const totalCost = item.total_cost || 0;
+                        
+                        return `
                         <tr class="cursor-pointer" onclick="editWasteItem(${index})">
                             <td>
                                 <strong>${item.product_name}</strong>
-                                <small class="text-muted d-block">${_('id_label')}: <span data-number data-original="${item.product_item_id}">${translateNumber(item.product_item_id)}</span></small>
-                                ${item.notes ? `<small class="text-muted d-block">📝 ${item.notes}</small>` : ''}
+                                <small class="text-muted d-block">${window.translator?._('id_label') || 'ID'}: <span data-number data-original="${item.product_item_id}">${window.translateNumber ? window.translateNumber(item.product_item_id) : item.product_item_id}</span></small>
+                                ${item.notes ? `<small class="text-muted d-block"><i class="bi bi-chat-left-text"></i> ${item.notes}</small>` : ''}
                             </td>
-                            <td>
-                                <span class="fw-bold text-primary" data-number data-original="${item.quantity}">${translateNumber(item.quantity.toString())}</span>
-                                <small class="text-muted d-block">${_('units')}</small>
+                            <td class="text-center">
+                                <span class="fw-bold" data-number data-original="${item.quantity}">${window.translateNumber ? window.translateNumber(item.quantity.toString()) : item.quantity}</span>
                             </td>
-                            <td>
-                                <div class="fw-bold text-danger">
-                                    <span data-number data-original="${item.total_cost.toFixed(3)}">${translateNumber(item.total_cost.toFixed(3))}</span>
-                                    <span data-currency-symbol>JOD</span>
+                            <td class="text-end">
+                                <span class="fw-bold text-danger" data-number data-original="${totalCost.toFixed(3)}">${window.translateNumber ? window.translateNumber(totalCost.toFixed(3)) : totalCost.toFixed(3)}</span>
+                                <small class="text-muted d-block"><span data-currency-symbol>JOD</span></small>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-warning">${item.damage_reason}</span>
+                            </td>
+                            <td class="text-center">
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-primary" onclick="editWasteItem(${index}); event.stopPropagation();" data-translate-title="edit_item">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="btn btn-outline-danger" onclick="removeWasteItem(${index}); event.stopPropagation();" data-translate-title="remove_item">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
                                 </div>
                             </td>
-                            <td><span class="badge bg-warning">${item.damage_reason}</span></td>
-                            <td>
-                                <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); editWasteItem(${index})">
-                                    <i class="bi bi-pencil"></i>
-                                </button>
-                                <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation(); removeWasteItem(${index})">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </td>
-                        </tr>
-                    `).join('')}
+                        </tr>`;
+                    }).join('')}
                 </tbody>
             </table>
         </div>
     `;
     
-    cartBody.innerHTML = cartHtml;
-
-    // Apply translations after DOM update
-    setTimeout(() => {
-        if (typeof updatePageTranslations === 'function') {
-            updatePageTranslations();
-        }
-    }, 100);
+    // Set the complete table HTML into cartBody
+    if (cartBody) {
+        cartBody.innerHTML = cartHtml;
+    }
+    
+    // Update page translations for dynamic content
+    if (window.updatePageTranslations) {
+        window.updatePageTranslations();
+    }
 }
 
 function updateWasteTotals() {
@@ -953,7 +994,7 @@ async function removeWasteItem(index) {
         saveCartToStorage();
         updateCartDisplay();
         updateWasteTotals();
-        window.showAlert('Item removed from waste cart', 'info');
+        window.showAlert(window.translator?._('item_removed') || 'Item removed', 'info');
     }
 }
 

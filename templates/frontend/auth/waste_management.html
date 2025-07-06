@@ -475,8 +475,10 @@ function editWasteReport(wasteId) {
                 completedToggle.checked = data.waste_report.is_completed;
             }
             
+            // FIXED: Store complete waste data including items for preservation
             window.currentWasteReportData = {
-                is_completed: data.waste_report.is_completed
+                is_completed: data.waste_report.is_completed,
+                waste_items: data.waste_items || [] // Include waste items data
             };
 
             new bootstrap.Modal(document.getElementById('editWasteReportModal')).show();
@@ -499,15 +501,16 @@ function saveWasteReport() {
         notes: document.getElementById('editWasteNotes').value
     };
     
-    // Add completion status if toggle exists (admin/manager only)
+    // Check if status is changing (only if toggle exists - admin/manager only)
+    let statusChanged = false;
+    let newStatus = null;
+    
     if (completedToggle) {
-        formData.is_completed = completedToggle.checked;
-        
-        // Check if status is changing
         const currentStatus = window.currentWasteReportData && window.currentWasteReportData.is_completed;
-        const newStatus = completedToggle.checked;
+        newStatus = completedToggle.checked;
+        statusChanged = currentStatus !== newStatus;
         
-        if (currentStatus !== newStatus) {
+        if (statusChanged) {
             // Status is changing - show confirmation
             const confirmMessage = newStatus 
                 ? 'Mark this waste report as completed? This will finalize all waste transactions and prevent further editing.'
@@ -517,7 +520,7 @@ function saveWasteReport() {
             
             // Set up confirmation handler
             document.getElementById('confirmStatusChange').onclick = function() {
-                performWasteReportSave(wasteId, formData);
+                performWasteReportUpdate(wasteId, formData, statusChanged, newStatus);
                 bootstrap.Modal.getInstance(document.getElementById('statusChangeConfirmModal')).hide();
             };
             
@@ -526,8 +529,169 @@ function saveWasteReport() {
         }
     }
     
-    // No status change - save directly
-    performWasteReportSave(wasteId, formData);
+    // No status change - proceed with normal update
+    performWasteReportUpdate(wasteId, formData, statusChanged, newStatus);
+}
+
+function performWasteReportUpdate(wasteId, formData, statusChanged, newStatus) {
+    const saveButton = document.querySelector('#editWasteReportModal .btn-primary');
+    window.standardizeLoadingStates(saveButton, true);
+
+    if (statusChanged) {
+        // FIXED: Before toggling completed→incomplete, preserve cart data
+        if (newStatus === false) { // Going from completed to incomplete
+            preserveWasteCartBeforeToggle(wasteId);
+        }
+        
+        // Use toggle endpoint for status changes (with transaction deletion)
+        fetch(`/wastes/${wasteId}/toggle-status/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': window.getCsrfToken()
+            },
+            body: JSON.stringify({})
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // After successful status toggle, update other fields if needed
+                if (formData.report_date || formData.notes) {
+                    updateWasteReportFields(wasteId, formData, saveButton, data.message);
+                } else {
+                    handleWasteUpdateSuccess(saveButton, data.message);
+                }
+            } else {
+                handleWasteUpdateError(saveButton, data.error || 'Failed to update waste report status');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            handleWasteUpdateError(saveButton, 'Error updating waste report status');
+        });
+    } else {
+        // Use edit endpoint for normal field updates (no status change)
+        updateWasteReportFields(wasteId, formData, saveButton, null);
+    }
+}
+
+// ===== PART 1: Fix for waste_management.html (Management Page) =====
+
+// FIXED: Modified performWasteReportUpdate to preserve cart data during toggle
+function performWasteReportUpdate(wasteId, formData, statusChanged, newStatus) {
+    const saveButton = document.querySelector('#editWasteReportModal .btn-primary');
+    window.standardizeLoadingStates(saveButton, true);
+
+    if (statusChanged) {
+        // FIXED: Before toggling completed→incomplete, preserve cart data
+        if (newStatus === false) { // Going from completed to incomplete
+            preserveWasteCartBeforeToggle(wasteId);
+        }
+        
+        // Use toggle endpoint for status changes (with transaction deletion)
+        fetch(`/wastes/${wasteId}/toggle-status/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': window.getCsrfToken()
+            },
+            body: JSON.stringify({})
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // After successful status toggle, update other fields if needed
+                if (formData.report_date || formData.notes) {
+                    updateWasteReportFields(wasteId, formData, saveButton, data.message);
+                } else {
+                    handleWasteUpdateSuccess(saveButton, data.message);
+                }
+            } else {
+                handleWasteUpdateError(saveButton, data.error || 'Failed to update waste report status');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            handleWasteUpdateError(saveButton, 'Error updating waste report status');
+        });
+    } else {
+        // Use edit endpoint for normal field updates (no status change)
+        updateWasteReportFields(wasteId, formData, saveButton, null);
+    }
+}
+
+// FIXED: New function to preserve cart data before toggle
+function preserveWasteCartBeforeToggle(wasteId) {
+    try {
+        // Extract current waste items from the current waste report data
+        // This data comes from the modal when we opened it
+        const currentWasteData = window.currentWasteReportData;
+        
+        if (currentWasteData && currentWasteData.waste_items) {
+            // Store the items in localStorage with special preservation key
+            const preserveKey = `waste_toggle_preserve_${wasteId}`;
+            const cartData = currentWasteData.waste_items.map(item => ({
+                product_id: item.product_id,
+                product_name: item.product_name,
+                product_item_id: item.product_item_id,
+                quantity: item.quantity,
+                unit_cost: item.unit_cost || item.unit_price || 0,
+                total_cost: item.total_cost || 0,
+                damage_reason: item.damage_reason,
+                notes: item.notes || ''
+            }));
+            
+            localStorage.setItem(preserveKey, JSON.stringify({
+                items: cartData,
+                timestamp: Date.now(),
+                preserved_from: 'toggle_operation'
+            }));
+            
+            console.log(`🔄 TOGGLE PRESERVE: Saved ${cartData.length} items for waste ${wasteId}`);
+        }
+    } catch (error) {
+        console.error('Error preserving cart data before toggle:', error);
+        // Don't block the toggle operation if preservation fails
+    }
+}
+
+function updateWasteReportFields(wasteId, formData, saveButton, previousMessage) {
+    fetch(`/wastes/${wasteId}/edit/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': window.getCsrfToken()
+        },
+        body: JSON.stringify(formData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Combine messages if there was a previous status change
+            const finalMessage = previousMessage 
+                ? `${previousMessage} Report details updated successfully.`
+                : data.message;
+            handleWasteUpdateSuccess(saveButton, finalMessage);
+        } else {
+            handleWasteUpdateError(saveButton, data.error || 'Failed to update waste report');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        handleWasteUpdateError(saveButton, 'Error updating waste report');
+    });
+}
+
+function handleWasteUpdateSuccess(saveButton, message) {
+    window.standardizeLoadingStates(saveButton, false);
+    window.showAlert(message, 'success');
+    bootstrap.Modal.getInstance(document.getElementById('editWasteReportModal')).hide();
+    setTimeout(() => location.reload(), 1000); // Refresh to show updated data
+}
+
+function handleWasteUpdateError(saveButton, errorMessage) {
+    window.standardizeLoadingStates(saveButton, false);
+    window.showAlert(errorMessage, 'danger');
 }
 
 function performWasteReportSave(wasteId, formData) {

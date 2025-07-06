@@ -190,9 +190,32 @@ def edit_waste_report(request, waste_id):
             'transaction_count': waste_report.transaction_count,
         }
         
+        waste_items = []
+        if waste_report.is_completed:
+            # Get waste transactions for completed reports
+            waste_transactions = Transaction.objects.filter(
+                waste_report=waste_report,
+                transaction_type='WASTE'
+            ).select_related('product').order_by('created_at')
+            
+            for waste in waste_transactions:
+                waste_items.append({
+                    'id': waste.id,
+                    'product_id': waste.product.id,
+                    'product_name': waste.product.name,
+                    'product_item_id': waste.product.item_id,
+                    'quantity': int(waste.quantity),
+                    'unit_price': float(waste.unit_price),
+                    'total_cost': float(waste.total_amount),
+                    'damage_reason': waste.damage_reason,
+                    'notes': waste.notes or '',
+                    'created_at': waste.created_at.strftime('%H:%M')
+                })
+        
         return JsonResponse({
             'success': True,
-            'waste_report': waste_data
+            'waste_report': waste_data,
+            'waste_items': waste_items  # FIXED: Include waste items for preservation
         })
 
     if request.method == 'POST':

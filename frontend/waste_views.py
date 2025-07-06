@@ -301,7 +301,7 @@ def waste_available_products(request):
 
 @login_required
 def waste_bulk_complete(request):
-    '''Complete waste report with multiple waste items'''
+    '''Complete waste report with multiple items from cart'''
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
@@ -313,20 +313,17 @@ def waste_bulk_complete(request):
         if not waste_id or not items:
             return JsonResponse({'success': False, 'error': 'Waste ID and items required'})
         
+        # Get waste report
         waste_report = WasteReport.objects.select_related('vessel').get(id=waste_id)
         
         if waste_report.is_completed:
-            return JsonResponse({'success': False, 'error': 'Waste report is already completed'})
+            return JsonResponse({'success': False, 'error': 'Waste report already completed'})
         
         created_transactions = []
-        total_cost = 0
+        total_cost = Decimal('0')
         
-        # FIXED: Use select_for_update to prevent database locks
         with transaction.atomic():
-            # Lock the waste report to prevent concurrent updates
-            waste_report = WasteReport.objects.select_for_update().get(id=waste_id)
-            
-            # Clear existing transactions for this waste report
+            # Delete existing waste transactions to re-create from cart
             existing_waste_transactions = Transaction.objects.filter(
                 waste_report=waste_report, 
                 transaction_type='WASTE'
@@ -346,7 +343,7 @@ def waste_bulk_complete(request):
                 product_id = item.get('product_id')
                 quantity = Decimal(str(item.get('quantity', 0)))
                 damage_reason = item.get('damage_reason', '')
-                notes = item.get('notes', '').strip()
+                raw_user_notes = item.get('notes', '').strip()
                 
                 if quantity <= 0:
                     continue
@@ -366,6 +363,15 @@ def waste_bulk_complete(request):
                     
                     unit_cost = oldest_lot.purchase_price
                     
+                    # SIMPLE FIX: Check if notes are already formatted to prevent duplication
+                    if raw_user_notes.startswith(f"Waste Report: {waste_report.report_number}"):
+                        formatted_notes = raw_user_notes  # Already formatted, use as-is
+                    else:
+                        # Apply formatting to raw user notes
+                        formatted_notes = f"Waste Report: {waste_report.report_number}. Reason: {damage_reason}."
+                        if raw_user_notes:
+                            formatted_notes += f" {raw_user_notes}"
+                    
                     # Create waste transaction
                     waste_transaction = Transaction.objects.create(
                         vessel=waste_report.vessel,
@@ -376,7 +382,7 @@ def waste_bulk_complete(request):
                         transaction_date=waste_report.report_date,
                         waste_report=waste_report,
                         damage_reason=damage_reason,
-                        notes=f"Waste Report: {waste_report.report_number}. Reason: {damage_reason}. {notes}",
+                        notes=formatted_notes,  # Use properly formatted notes
                         created_by=request.user
                     )
                     
