@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, date
 from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
 import calendar
+from django.db.models.functions import Extract
 from django.db.models import Avg, Sum, Count, F, Q, Prefetch
 from frontend.utils.cache_helpers import VesselCacheHelper
 from .utils.aggregators import TransactionAggregator, ProductAnalytics
@@ -647,11 +648,9 @@ def monthly_report(request):
     trend_data = Transaction.objects.filter(
         transaction_date__gte=trend_first_month,
         transaction_date__lte=trend_last_month
-    ).extra(
-        select={
-            'month': "CAST(strftime('%%m', transaction_date) AS INTEGER)",
-            'year': "CAST(strftime('%%Y', transaction_date) AS INTEGER)"
-        }
+    ).annotate(
+        month=Extract('transaction_date', 'month'),
+        year=Extract('transaction_date', 'year')
     ).values('month', 'year', 'transaction_type').annotate(
         revenue=Sum(
             F('unit_price') * F('quantity'),
@@ -870,11 +869,9 @@ def analytics_report(request):
     monthly_trends_raw = Transaction.objects.filter(
         transaction_type='SALE',
         transaction_date__gte=today - timedelta(days=365)
-    ).extra(
-        select={
-            'month': "CAST(strftime('%%m', transaction_date) AS INTEGER)",
-            'year': "CAST(strftime('%%Y', transaction_date) AS INTEGER)"
-        }
+    ).annotate(
+        month=Extract('transaction_date', 'month'),
+        year=Extract('transaction_date', 'year')
     ).values('month', 'year').annotate(
         revenue=Sum(F('unit_price') * F('quantity'), output_field=models.DecimalField())
     ).order_by('year', 'month')

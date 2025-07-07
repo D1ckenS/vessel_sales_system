@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.db.models import Count, Q, Sum
-from django.db.models.functions import Coalesce
+from django.db.models import Count, Q, Case, When, IntegerField, Sum
+from django.db.models.functions import Coalesce, Cast
 from django.core.cache import cache
 from frontend.utils.cache_helpers import PerfectPagination, ProductCacheHelper
 from .permissions import is_admin_or_manager, is_superuser_only
@@ -74,47 +74,42 @@ def product_list_view(request):
     ultimate_static_cache = cache.get('perfect_static_v2')  # Change cache version
     if ultimate_static_cache is None:
         
-        with connection.cursor() as cursor:
-            cursor.execute("""
-                SELECT 
-                    COUNT(*) as total_products,
-                    SUM(CASE WHEN active = 1 THEN 1 ELSE 0 END) as active_products,
-                    SUM(CASE WHEN active = 0 THEN 1 ELSE 0 END) as inactive_products,
-                    SUM(CASE WHEN active = 1 AND is_duty_free = 1 THEN 1 ELSE 0 END) as duty_free_products,
-                    SUM(CASE WHEN active = 1 AND is_duty_free = 0 THEN 1 ELSE 0 END) as general_products,
-                    (SELECT COUNT(DISTINCT p2.id) FROM products_product p2 
-                     INNER JOIN transactions_inventorylot il ON p2.id = il.product_id 
-                     WHERE il.remaining_quantity > 0) as products_with_inventory,
-                    (SELECT COUNT(*) FROM vessels_vessel WHERE active = 1 AND has_duty_free = 0) as touristic_vessels_count,
-                    (SELECT COUNT(*) FROM (
-                        SELECT p3.id, COUNT(vpp.id) as pricing_count
-                        FROM products_product p3 
-                        LEFT JOIN transactions_vesselproductprice vpp ON p3.id = vpp.product_id 
-                        LEFT JOIN vessels_vessel v ON vpp.vessel_id = v.id AND v.active = 1 AND v.has_duty_free = 0
-                        WHERE p3.active = 1 AND p3.is_duty_free = 0 
-                        GROUP BY p3.id 
-                        HAVING pricing_count < (SELECT COUNT(*) FROM vessels_vessel WHERE active = 1 AND has_duty_free = 0)
-                    ) incomplete_products) as incomplete_pricing_count
-                FROM products_product
-            """)
-            row = cursor.fetchone()
-            
-            # Get categories in same cache
-            categories = list(Category.objects.filter(active=True).only('id', 'name').order_by('name'))
-            
-            ultimate_static_cache = {
-                'stats': {
-                    'total_products': row[0],
-                    'active_products': row[1], 
-                    'inactive_products': row[2],
-                    'duty_free_products': row[3],
-                    'general_products': row[4],
-                    'products_with_inventory': row[5]
-                },
-                'touristic_vessels_count': row[6],
-                'incomplete_pricing_count': row[7],  # NEW: Include incomplete pricing
-                'categories': categories
-            }
+        stats_query = Product.objects.aggregate(
+            total_products=Count('id'),
+            active_products=Sum(Case(When(active=True, then=1), default=0, output_field=IntegerField())),
+            inactive_products=Sum(Case(When(active=False, then=1), default=0, output_field=IntegerField())),
+            duty_free_products=Sum(Case(When(active=True, is_duty_free=True, then=1), default=0, output_field=IntegerField())),
+            general_products=Sum(Case(When(active=True, is_duty_free=False, then=1), default=0, output_field=IntegerField())),
+        )
+
+        products_with_inventory = Product.objects.filter(
+            inventory_lots__remaining_quantity__gt=0
+        ).distinct().count()
+
+        touristic_vessels_count = Vessel.objects.filter(active=True, has_duty_free=False).count()
+
+        incomplete_pricing_count = Product.objects.filter(
+            active=True, 
+            is_duty_free=False
+        ).annotate(
+            pricing_count=Count('vessel_prices', filter=Q(vessel_prices__vessel__active=True, vessel_prices__vessel__has_duty_free=False))
+        ).filter(pricing_count__lt=touristic_vessels_count).count()
+
+        categories = list(Category.objects.filter(active=True).only('id', 'name').order_by('name'))
+        
+        ultimate_static_cache = {
+            'stats': {
+                'total_products': stats_query['total_products'],
+                'active_products': stats_query['active_products'],
+                'inactive_products': stats_query['inactive_products'],
+                'duty_free_products': stats_query['duty_free_products'],
+                'general_products': stats_query['general_products'],
+                'products_with_inventory': products_with_inventory
+            },
+            'touristic_vessels_count': touristic_vessels_count,
+            'incomplete_pricing_count': incomplete_pricing_count,
+            'categories': categories
+        }
         cache.set('perfect_static_v2', ultimate_static_cache, 7200)
         print("🔥 PERFECT STATIC DATA V2 CACHED")
 
@@ -168,8 +163,8 @@ def product_list_view(request):
     
     # Sorting
     try:
-        products_base = products_base.extra(
-            select={'item_id_int': 'CAST(item_id AS SIGNED)'}
+        products_base = products_base.annotate(
+            item_id_int=Cast('item_id', IntegerField())
         ).order_by('item_id_int', 'id')
     except:
         products_base = products_base.order_by('item_id', 'id')
