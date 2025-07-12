@@ -919,8 +919,8 @@ class EnhancedPerfectPagination:
         self._estimate_total = estimate_total
         
         # Determine if we have a next page (look-ahead method)
-        self.has_next = len(object_list) > page_size
-        if self.has_next:
+        self._has_next_page = len(object_list) > page_size
+        if self._has_next_page:
             self.object_list = object_list[:page_size]  # Trim extra item
         
         # Calculate properties based on mode
@@ -928,11 +928,13 @@ class EnhancedPerfectPagination:
             # COUNT mode - exact calculations
             self.count = total_count
             self.num_pages = max(1, (total_count + page_size - 1) // page_size)
+            # Set has_next as ATTRIBUTE for COUNT mode (Django compatibility)
+            self._has_next_attr = self.number < self.num_pages
         else:
             # COUNT-FREE mode - smart estimation
             if estimate_total:
                 # Estimate total based on current position
-                if self.has_next:
+                if self._has_next_page:
                     # Conservative estimate: at least current page + 1
                     self.count = (page_num * page_size) + 1
                     self.num_pages = page_num + 1
@@ -943,7 +945,10 @@ class EnhancedPerfectPagination:
             else:
                 # Minimal mode: no count estimation
                 self.count = "Many"  # Template-friendly
-                self.num_pages = page_num + (1 if self.has_next else 0)
+                self.num_pages = page_num + (1 if self._has_next_page else 0)
+            
+            # Set has_next as ATTRIBUTE for COUNT-free mode
+            self._has_next_attr = self._has_next_page
         
         # Template compatibility
         self.paginator = self
@@ -952,11 +957,15 @@ class EnhancedPerfectPagination:
     def has_previous(self):
         return self.number > 1
     
+    def has_next(self):
+        """Method version of has_next for template compatibility"""
+        return self._has_next_attr
+    
     def previous_page_number(self):
         return self.number - 1 if self.has_previous() else None
     
     def next_page_number(self):
-        return self.number + 1 if self.has_next else None
+        return self.number + 1 if self._has_next_attr else None
     
     def start_index(self):
         return (self.number - 1) * self.per_page + 1 if len(self.object_list) > 0 else 0

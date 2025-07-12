@@ -34,14 +34,21 @@ def trip_management(request):
     date_to = request.GET.get('date_to')
     min_revenue = request.GET.get('min_revenue')
     
-    # OPTIMIZED: Simple base query
+    # Use EXACT working pattern from trip_reports
     trips_query = Trip.objects.select_related(
         'vessel', 'created_by'
     ).prefetch_related(
-        'sales_transactions'
+        Prefetch(
+            'sales_transactions',
+            queryset=Transaction.objects.select_related('product', 'product__category')
+        )
+    ).annotate(
+        # Add the WORKING annotation for revenue calculation
+        annotated_revenue=Sum(F('sales_transactions__unit_price') * F('sales_transactions__quantity')),
+        annotated_transaction_count=Count('sales_transactions')
     ).order_by('-trip_date', '-created_at')
     
-    # Apply filters (same as before)
+    # Apply filters
     if vessel_filter:
         trips_query = trips_query.filter(vessel_id=vessel_filter)
     if status_filter == 'completed':
@@ -66,30 +73,27 @@ def trip_management(request):
     page_obj = get_optimized_pagination(trips_query, page_number, page_size=25, use_count=False)
     
     # Process trips list
-    trips_list = page_obj.object_list  # Use optimized pagination object list
+    trips_list = page_obj.object_list
     
-    # Calculate stats and performance metrics for current page
+    # Initialize variables
     total_revenue = 0
     completed_count = 0
     total_passengers = 0
     
+    # Process each trip
     for trip in trips_list:
-        # Calculate revenue using prefetched sales_transactions
-        trip_revenue = sum(
-            float(txn.quantity or 0) * float(txn.unit_price or 0)  # ✅ Add float() and handle None
-            for txn in trip.sales_transactions.all()
-        )
-        trip_transaction_count = len(trip.sales_transactions.all())
+        # Set values for template (CORRECT FIELD NAMES)
+        trip_revenue = trip.annotated_revenue or 0
+        trip_transaction_count = trip.annotated_transaction_count or 0
         
-        # Add calculated fields to trip object for template
-        trip.annotated_revenue = trip_revenue
+        trip.annotated_total_revenue = trip_revenue    # ✅ Template expects this field name
         trip.annotated_transaction_count = trip_transaction_count
         
         # Accumulate stats
         total_revenue += trip_revenue
         total_passengers += trip.passenger_count or 0
         
-        # Performance classification for template
+        # Performance classification (use the revenue value directly)
         if trip_revenue > 2000:
             trip.revenue_performance_class = 'high-revenue'
         elif trip_revenue > 1000:
@@ -105,7 +109,7 @@ def trip_management(request):
     if min_revenue:
         try:
             min_rev = float(min_revenue)
-            trips_list = [trip for trip in trips_list if trip.annotated_revenue >= min_rev]
+            trips_list = [trip for trip in trips_list if trip.annotated_total_revenue >= min_rev]
         except ValueError:
             pass
     
@@ -128,7 +132,7 @@ def trip_management(request):
                 'total_passengers': 0
             }
         vessel_stats[vessel_name]['trip_count'] += 1
-        vessel_stats[vessel_name]['total_revenue'] += trip.annotated_revenue
+        vessel_stats[vessel_name]['total_revenue'] += trip.annotated_total_revenue
         vessel_stats[vessel_name]['total_passengers'] += trip.passenger_count or 0
     
     # Top performing vessels
@@ -140,7 +144,7 @@ def trip_management(request):
     
     context = {
         'trips': trips_list,
-        'page_obj': page_obj,  # Optimized pagination object
+        'page_obj': page_obj,
         'active_vessels': VesselCacheHelper.get_active_vessels(),
         'top_vessels': top_vessels,
         'stats': {
