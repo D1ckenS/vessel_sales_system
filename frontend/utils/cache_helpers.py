@@ -891,37 +891,115 @@ class WasteCacheHelper:
         return cache_status
 
 # 🚀 PERFECT PAGINATION - Full template compatibility
-class PerfectPagination:
-    def __init__(self, products, page_num, total_count, page_size):
-        self.object_list = products
-        self.number = page_num
-        self.count = total_count
-        self.num_pages = max(1, (total_count + page_size - 1) // page_size)
+# 🚀 ENHANCED PERFECT PAGINATION - Universal Count-Optimized Solution
+class EnhancedPerfectPagination:
+    """
+    Universal pagination class supporting both COUNT-based and COUNT-free modes.
+    
+    Modes:
+    1. COUNT mode (product_views.py): Full accuracy with total count
+    2. COUNT-FREE mode (all other views): Fast performance with estimation
+    """
+    
+    def __init__(self, object_list, page_num, page_size, total_count=None, estimate_total=True):
+        """
+        Initialize pagination with optional count optimization.
+        
+        Args:
+            object_list: List of objects for current page
+            page_num: Current page number  
+            page_size: Items per page
+            total_count: Exact total (None for COUNT-free mode)
+            estimate_total: Whether to estimate total when count not provided
+        """
+        self.object_list = object_list
+        self.number = max(1, int(page_num))
         self.per_page = page_size
+        self._total_count = total_count
+        self._estimate_total = estimate_total
         
-        # Add paginator property for templates
+        # Determine if we have a next page (look-ahead method)
+        self.has_next = len(object_list) > page_size
+        if self.has_next:
+            self.object_list = object_list[:page_size]  # Trim extra item
+        
+        # Calculate properties based on mode
+        if total_count is not None:
+            # COUNT mode - exact calculations
+            self.count = total_count
+            self.num_pages = max(1, (total_count + page_size - 1) // page_size)
+        else:
+            # COUNT-FREE mode - smart estimation
+            if estimate_total:
+                # Estimate total based on current position
+                if self.has_next:
+                    # Conservative estimate: at least current page + 1
+                    self.count = (page_num * page_size) + 1
+                    self.num_pages = page_num + 1
+                else:
+                    # Last page: calculate exact total
+                    self.count = ((page_num - 1) * page_size) + len(self.object_list)
+                    self.num_pages = page_num
+            else:
+                # Minimal mode: no count estimation
+                self.count = "Many"  # Template-friendly
+                self.num_pages = page_num + (1 if self.has_next else 0)
+        
+        # Template compatibility
         self.paginator = self
-        
-        # Add page_range for template loops
-        self.page_range = range(1, self.num_pages + 1)
-        
+        self.page_range = range(1, max(self.num_pages, page_num) + 1)
+    
     def has_previous(self):
         return self.number > 1
-        
-    def has_next(self):
-        return self.number < self.num_pages
-        
+    
     def previous_page_number(self):
         return self.number - 1 if self.has_previous() else None
-        
+    
     def next_page_number(self):
-        return self.number + 1 if self.has_next() else None
-        
+        return self.number + 1 if self.has_next else None
+    
     def start_index(self):
-        return (self.number - 1) * self.per_page + 1 if self.count > 0 else 0
-        
+        return (self.number - 1) * self.per_page + 1 if len(self.object_list) > 0 else 0
+    
     def end_index(self):
-        return min(self.number * self.per_page, self.count)
+        return self.start_index() + len(self.object_list) - 1 if len(self.object_list) > 0 else 0
+
+# 🚀 HELPER FUNCTION - Universal Pagination Creator
+def get_optimized_pagination(queryset, page_num, page_size=25, use_count=False):
+    """
+    Universal pagination helper that automatically chooses optimal strategy.
+    
+    Args:
+        queryset: Django queryset
+        page_num: Page number from request
+        page_size: Items per page  
+        use_count: True for exact count (product view), False for optimization
+    
+    Returns:
+        EnhancedPerfectPagination object
+    """
+    page_num = max(1, int(page_num or 1))
+    
+    if use_count:
+        # COUNT mode - for views requiring exact totals (product management)
+        total_count = queryset.count()
+        start_index = (page_num - 1) * page_size
+        objects = list(queryset[start_index:start_index + page_size])
+        return EnhancedPerfectPagination(objects, page_num, page_size, total_count)
+    else:
+        # COUNT-FREE mode - for fast performance (transactions, etc.)
+        start_index = (page_num - 1) * page_size
+        # Fetch page_size + 1 to check for next page
+        objects = list(queryset[start_index:start_index + page_size + 1])
+        return EnhancedPerfectPagination(objects, page_num, page_size)
+
+# 🚀 BACKWARD COMPATIBILITY - Keep original PerfectPagination
+class PerfectPagination(EnhancedPerfectPagination):
+    """
+    Backward compatibility wrapper for existing product_views.py
+    """
+    def __init__(self, products, page_num, total_count, page_size):
+        super().__init__(products, page_num, page_size, total_count=total_count)
 
 
 # 🚀 VESSEL CACHE HELPER - Unchanged

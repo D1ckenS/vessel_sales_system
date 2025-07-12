@@ -5,7 +5,7 @@ from django.db import transaction, models
 from django.db.models import Sum, F, Count, Prefetch
 from django.db.models.functions import Round
 from django.urls import reverse
-from frontend.utils.cache_helpers import TripCacheHelper, VesselCacheHelper
+from frontend.utils.cache_helpers import TripCacheHelper, VesselCacheHelper, get_optimized_pagination
 from transactions.models import Transaction, Trip
 from vessels.models import Vessel
 from django.views.decorators.http import require_http_methods
@@ -25,7 +25,7 @@ from .permissions import (
 @login_required
 @user_passes_test(is_admin_or_manager)
 def trip_management(request):
-    """OPTIMIZED: Trip management with pagination following transactions_list pattern"""
+    """OPTIMIZED: Trip management with COUNT-free pagination"""
     
     # Get filter parameters
     vessel_filter = request.GET.get('vessel')
@@ -34,7 +34,7 @@ def trip_management(request):
     date_to = request.GET.get('date_to')
     min_revenue = request.GET.get('min_revenue')
     
-    # OPTIMIZED: Simple base query like inventory_views.py
+    # OPTIMIZED: Simple base query
     trips_query = Trip.objects.select_related(
         'vessel', 'created_by'
     ).prefetch_related(
@@ -49,91 +49,109 @@ def trip_management(request):
     elif status_filter == 'in_progress':
         trips_query = trips_query.filter(is_completed=False)
     if date_from:
-        trips_query = trips_query.filter(trip_date__gte=date_from)
+        try:
+            date_from_parsed = datetime.strptime(date_from, '%Y-%m-%d').date()
+            trips_query = trips_query.filter(trip_date__gte=date_from_parsed)
+        except ValueError:
+            pass
     if date_to:
-        trips_query = trips_query.filter(trip_date__lte=date_to)
-        
-    paginator = Paginator(trips_query, 25)
-    page_number = request.GET.get('page')
+        try:
+            date_to_parsed = datetime.strptime(date_to, '%Y-%m-%d').date()
+            trips_query = trips_query.filter(trip_date__lte=date_to_parsed)
+        except ValueError:
+            pass
     
-    try:
-        page_obj = paginator.get_page(page_number)
-    except PageNotAnInteger:
-        page_obj = paginator.page(1)
-    except EmptyPage:
-        page_obj = paginator.page(paginator.num_pages)
+    # ✅ REPLACE Django Paginator with optimized pagination
+    page_number = request.GET.get('page', 1)
+    page_obj = get_optimized_pagination(trips_query, page_number, page_size=25, use_count=False)
     
-    # OPTIMIZED: Get trips from paginated results instead of [:50]
-    trips_list = list(page_obj)
+    # Process trips list
+    trips_list = page_obj.object_list  # Use optimized pagination object list
     
-    # OPTIMIZED: Calculate everything in Python using prefetched data
+    # Calculate stats and performance metrics for current page
     total_revenue = 0
     completed_count = 0
-    vessel_revenues = {}
+    total_passengers = 0
     
     for trip in trips_list:
-        # Calculate revenue using prefetched sales_transactions (no additional queries)
+        # Calculate revenue using prefetched sales_transactions
         trip_revenue = sum(
-            float(txn.quantity) * float(txn.unit_price) 
+            float(txn.quantity or 0) * float(txn.unit_price or 0)  # ✅ Add float() and handle None
             for txn in trip.sales_transactions.all()
         )
         trip_transaction_count = len(trip.sales_transactions.all())
         
         # Add calculated fields to trip object for template
-        trip.annotated_total_revenue = trip_revenue
+        trip.annotated_revenue = trip_revenue
         trip.annotated_transaction_count = trip_transaction_count
-        trip.revenue_per_passenger = round(
-            trip_revenue / max(trip.passenger_count, 1), 2
-        ) if trip.passenger_count > 0 else 0
         
-        # Performance classification in Python
-        if trip.revenue_per_passenger >= 50:
-            trip.revenue_performance_class = 'high'
-        elif trip.revenue_per_passenger >= 25:
-            trip.revenue_performance_class = 'medium'
-        else:
-            trip.revenue_performance_class = 'low'
-        
-        # Apply min_revenue filter in Python
-        if min_revenue and trip_revenue < float(min_revenue):
-            continue
-            
         # Accumulate stats
         total_revenue += trip_revenue
-        if trip_revenue > 1000:  # Use trip_revenue, not total_revenue
-            trip.cost_performance_class = 'low-cost'
-        elif trip_revenue > 500:
-            trip.cost_performance_class = 'medium-cost'
-        else:
-            trip.cost_performance_class = 'high-cost'
+        total_passengers += trip.passenger_count or 0
         
+        # Performance classification for template
+        if trip_revenue > 2000:
+            trip.revenue_performance_class = 'high-revenue'
+        elif trip_revenue > 1000:
+            trip.revenue_performance_class = 'medium-revenue'
+        else:
+            trip.revenue_performance_class = 'low-revenue'
+            
         # Count completed trips
         if trip.is_completed:
             completed_count += 1
-        
-        # Vessel performance tracking
-        vessel_key = trip.vessel.name
-        if vessel_key not in vessel_revenues:
-            vessel_revenues[vessel_key] = 0
-        vessel_revenues[vessel_key] += trip_revenue
     
-    # OPTIMIZED: Calculate derived stats from filtered results 
-    in_progress_count = len(trips_list) - completed_count
+    # Filter by minimum revenue if specified
+    if min_revenue:
+        try:
+            min_rev = float(min_revenue)
+            trips_list = [trip for trip in trips_list if trip.annotated_revenue >= min_rev]
+        except ValueError:
+            pass
+    
+    # Calculate summary stats
     total_trips = len(trips_list)
+    in_progress_trips = total_trips - completed_count
+    completion_rate = (completed_count / max(total_trips, 1)) * 100
+    avg_revenue_per_trip = total_revenue / max(total_trips, 1)
+    avg_passengers_per_trip = total_passengers / max(total_trips, 1)
     
-    # Context with pagination object added
+    # Vessel performance analysis
+    vessel_stats = {}
+    for trip in trips_list:
+        vessel_name = trip.vessel.name
+        if vessel_name not in vessel_stats:
+            vessel_stats[vessel_name] = {
+                'vessel': trip.vessel,
+                'trip_count': 0,
+                'total_revenue': 0,
+                'total_passengers': 0
+            }
+        vessel_stats[vessel_name]['trip_count'] += 1
+        vessel_stats[vessel_name]['total_revenue'] += trip.annotated_revenue
+        vessel_stats[vessel_name]['total_passengers'] += trip.passenger_count or 0
+    
+    # Top performing vessels
+    top_vessels = sorted(
+        vessel_stats.values(), 
+        key=lambda x: x['total_revenue'], 
+        reverse=True
+    )[:5]
+    
     context = {
         'trips': trips_list,
-        'page_obj': page_obj,  # ADD: Pagination object for template
+        'page_obj': page_obj,  # Optimized pagination object
         'active_vessels': VesselCacheHelper.get_active_vessels(),
-        'page_title': 'Trip Management',
+        'top_vessels': top_vessels,
         'stats': {
             'total_trips': total_trips,
             'completed_trips': completed_count,
-            'in_progress_trips': in_progress_count,
+            'in_progress_trips': in_progress_trips,
+            'completion_rate': round(completion_rate, 1),
             'total_revenue': total_revenue,
-            'daily_average': round(total_trips / 30.0, 1),
-            'completion_rate': round((completed_count / max(total_trips, 1)) * 100, 1),
+            'avg_revenue_per_trip': round(avg_revenue_per_trip, 2),
+            'total_passengers': total_passengers,
+            'avg_passengers_per_trip': round(avg_passengers_per_trip, 1),
         },
         'filters': {
             'vessel': vessel_filter,

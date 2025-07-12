@@ -2,7 +2,7 @@ from django.urls import reverse
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.views.decorators.http import require_http_methods
-from frontend.utils.cache_helpers import VesselCacheHelper, WasteCacheHelper
+from frontend.utils.cache_helpers import VesselCacheHelper, WasteCacheHelper, get_optimized_pagination
 from .utils.query_helpers import TransactionQueryHelper
 from .utils.response_helpers import JsonResponseHelper
 from .utils.crud_helpers import CRUDHelper, AdminActionHelper
@@ -21,7 +21,7 @@ from django.db import transaction
 @login_required
 @user_passes_test(is_admin_or_manager)
 def waste_management(request):
-    """Waste report management with pagination following transactions_list pattern"""
+    """OPTIMIZED: Waste report management with COUNT-free pagination"""
     
     # Base queryset with template-required annotations
     waste_reports = WasteReport.objects.select_related(
@@ -40,37 +40,27 @@ def waste_management(request):
     # Order for consistent results
     waste_reports = waste_reports.order_by('-report_date', '-created_at')
     
-    paginator = Paginator(waste_reports, 25)
-    page_number = request.GET.get('page')
-    
-    try:
-        page_obj = paginator.get_page(page_number)
-    except PageNotAnInteger:
-        page_obj = paginator.page(1)
-    except EmptyPage:
-        page_obj = paginator.page(paginator.num_pages)
+    # ✅ REPLACE Django Paginator with optimized pagination
+    page_number = request.GET.get('page', 1)
+    page_obj = get_optimized_pagination(waste_reports, page_number, page_size=25, use_count=False)
     
     # Add cost performance class to each waste report (for template)
-    waste_reports_list = list(page_obj)  # Changed from [:50] to use paginated results
+    waste_reports_list = page_obj.object_list  # Use optimized pagination object list
     
     # OPTIMIZED: Calculate stats in Python using prefetched data
     total_cost = 0
     completed_count = 0
-    total_transactions = 0
     total_waste_items = 0
+    total_transactions = 0
     
-    # Add template-required annotations for each waste report
     for waste_report in waste_reports_list:
         # Calculate cost using prefetched waste_transactions (no additional queries)
         waste_cost = sum(
-            float(txn.quantity) * float(txn.unit_price) 
+            float(txn.quantity or 0) * float(txn.unit_price or 0)  # ✅ Add float() and handle None
             for txn in waste_report.waste_transactions.all()
         )
         waste_transaction_count = len(waste_report.waste_transactions.all())
-        waste_item_count = sum(
-            int(txn.quantity) 
-            for txn in waste_report.waste_transactions.all()
-        )
+        waste_item_count = sum(float(txn.quantity or 0) for txn in waste_report.waste_transactions.all())  # ✅ Add float()
         
         # Add calculated fields to waste report object for template
         waste_report.annotated_total_cost = waste_cost
@@ -82,13 +72,13 @@ def waste_management(request):
         total_transactions += waste_transaction_count
         total_waste_items += waste_item_count
         
-        # Calculate cost performance class for template styling
+        # Performance classification for template styling
         if waste_cost > 500:
-            waste_report.cost_performance_class = 'high-cost'
+            waste_report.cost_performance_class = 'high-waste'
         elif waste_cost > 200:
-            waste_report.cost_performance_class = 'medium-cost'
+            waste_report.cost_performance_class = 'medium-waste'
         else:
-            waste_report.cost_performance_class = 'low-cost'
+            waste_report.cost_performance_class = 'low-waste'
         
         # Count completed waste reports
         if waste_report.is_completed:
@@ -138,7 +128,7 @@ def waste_management(request):
     
     context = {
         'waste_reports': waste_reports_list,
-        'page_obj': page_obj,  # ADD: Pagination object for template
+        'page_obj': page_obj,  # Optimized pagination object
         'active_vessels': VesselCacheHelper.get_active_vessels(),
         'page_title': 'Waste Management',
         'stats': {

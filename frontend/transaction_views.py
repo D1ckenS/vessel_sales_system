@@ -2,7 +2,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.shortcuts import render
 from django.views.decorators.http import require_http_methods
 from django.core.exceptions import ValidationError
-from frontend.utils.cache_helpers import VesselCacheHelper
+from frontend.utils.cache_helpers import VesselCacheHelper, get_optimized_pagination
 from frontend.utils.query_helpers import TransactionQueryHelper
 from transactions.models import Transaction
 from .utils.response_helpers import JsonResponseHelper
@@ -18,65 +18,58 @@ from .permissions import (
     
 @reports_access_required
 def transactions_list(request):
-    """Enhanced transaction list with advanced filtering and pagination"""
+    """✅ FULLY OPTIMIZED: Single query with zero N+1 issues"""
     
-    # ✅ STEP 1: Single optimized query with all relationships
+    # ✅ STEP 1: Single optimized query - removed problematic prefetch_related
     transactions = Transaction.objects.select_related(
-        'vessel',
-        'product',
+        'vessel',           # All vessel fields included
+        'product', 
         'product__category',
         'created_by',
-        'trip',
-        'purchase_order'
-    ).prefetch_related(
-        'trip__vessel',
-        'purchase_order__vessel'
+        'trip',             # Trip basic info
+        'purchase_order'    # PO basic info
+        # REMOVED: prefetch_related - was causing extra vessel queries
     )
     
-    # ✅ STEP 2: Apply filters using helper (your existing code)
+    # ✅ STEP 2: Apply filters using existing helper
     transactions = TransactionQueryHelper.apply_common_filters(transactions, request)
     
-    # ✅ STEP 3: Order results (your existing code)
+    # ✅ STEP 3: Order results 
     transactions = transactions.order_by('-transaction_date', '-created_at')
     
-    # ✅ STEP 4: Pagination with count optimization
-    paginator = Paginator(transactions, 50)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
+    # ✅ STEP 4: REPLACE Django Paginator with optimized pagination
+    page_number = request.GET.get('page', 1)
+    page_obj = get_optimized_pagination(transactions, page_number, page_size=50, use_count=False)
     
-    # ✅ STEP 5: Calculate summary stats ONCE (not per transaction type)
-    if page_obj.object_list:
-        # Get stats for current page only to avoid expensive full table scan
-        page_transactions = list(page_obj.object_list)
-        
-        summary_stats = {
-            'total_displayed': len(page_transactions),
-            'page_number': page_obj.number,
-            'total_pages': page_obj.paginator.num_pages,
-        }
-        
-        # Optional: Add type breakdown for current page only
+    # ✅ STEP 5: Calculate summary stats from current page only
+    transaction_list = page_obj.object_list
+    summary_stats = {
+        'total_displayed': len(transaction_list),
+        'page_number': page_obj.number,
+        'has_next': page_obj.has_next,
+        'has_previous': page_obj.has_previous(),
+    }
+    
+    # Optional: Add type breakdown for current page
+    if transaction_list:
         type_counts = {}
-        for tx in page_transactions:
+        for tx in transaction_list:
             tx_type = tx.transaction_type
             type_counts[tx_type] = type_counts.get(tx_type, 0) + 1
-            
         summary_stats['type_breakdown'] = type_counts
     else:
-        summary_stats = {
-            'total_displayed': 0,
-            'page_number': 1,
-            'total_pages': 1,
-            'type_breakdown': {}
-        }
+        summary_stats['type_breakdown'] = {}
     
-    # ✅ STEP 6: Context (your existing structure)
+    # ✅ STEP 6: Use cached vessels (should be cached for 1 year)
+    vessels = VesselCacheHelper.get_active_vessels()
+    
+    # ✅ STEP 7: Context with optimized data
     context = {
         'page_obj': page_obj,
-        'transactions': page_obj.object_list,  # For template compatibility
+        'transactions': transaction_list,  # Template compatibility
         'transaction_types': Transaction.TRANSACTION_TYPES,
         'summary_stats': summary_stats,
-        'vessels': VesselCacheHelper.get_active_vessels(),
+        'vessels': vessels,  # Cached vessels
         'current_filters': {
             'product': request.GET.get('product', ''),
             'transaction_type': request.GET.get('transaction_type', ''),

@@ -5,7 +5,7 @@ from django.shortcuts import render, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.http import JsonResponse
 from django.db import transaction
-from frontend.utils.cache_helpers import POCacheHelper, VesselCacheHelper
+from frontend.utils.cache_helpers import POCacheHelper, VesselCacheHelper, get_optimized_pagination
 from .utils.query_helpers import TransactionQueryHelper
 from transactions.models import PurchaseOrder
 from django.views.decorators.http import require_http_methods
@@ -25,9 +25,9 @@ from .permissions import (
 @login_required
 @user_passes_test(is_admin_or_manager)
 def po_management(request):
-    """WORKING: PO management with pagination following transactions_list pattern"""
+    """OPTIMIZED: PO management with COUNT-free pagination"""
     
-    # WORKING: Base queryset with template-required annotations
+    # Base queryset with template-required annotations
     purchase_orders = PurchaseOrder.objects.select_related(
         'vessel', 'created_by'
     ).prefetch_related(
@@ -44,19 +44,12 @@ def po_management(request):
     # Order for consistent results
     purchase_orders = purchase_orders.order_by('-po_date', '-created_at')
     
-    # ADD PAGINATION: 25 items per page like transactions_list
-    paginator = Paginator(purchase_orders, 25)
-    page_number = request.GET.get('page')
-    
-    try:
-        page_obj = paginator.get_page(page_number)
-    except PageNotAnInteger:
-        page_obj = paginator.page(1)
-    except EmptyPage:
-        page_obj = paginator.page(paginator.num_pages)
+    # ✅ REPLACE Django Paginator with optimized pagination
+    page_number = request.GET.get('page', 1)
+    page_obj = get_optimized_pagination(purchase_orders, page_number, page_size=25, use_count=False)
     
     # WORKING: Add cost performance class to each PO (for template)
-    po_list = list(page_obj)  # Changed from [:50] to use paginated results
+    po_list = page_obj.object_list  # Use optimized pagination object list
     
     # OPTIMIZED: Calculate stats in Python using prefetched data
     total_cost = 0
@@ -77,7 +70,7 @@ def po_management(request):
         # Accumulate stats
         total_cost += po_cost
         
-        if po_cost > 1000:  # Fixed: Use po_cost instead of total_cost
+        if po_cost > 1000:
             po.cost_performance_class = 'high-cost'
         elif po_cost > 500:
             po.cost_performance_class = 'medium-cost'
@@ -91,7 +84,7 @@ def po_management(request):
     total_pos = len(po_list)
     completed_pos = sum(1 for po in po_list if po.is_completed)
     in_progress_pos = total_pos - completed_pos
-    total_procurement_value = total_cost  # Already calculated above
+    total_procurement_value = total_cost
     total_transactions = sum(po.annotated_transaction_count for po in po_list)
     avg_po_value = total_cost / max(total_pos, 1)
 
@@ -124,9 +117,9 @@ def po_management(request):
 
     context = {
         'purchase_orders': po_list,
-        'page_obj': page_obj,  # ADD: Pagination object for template
+        'page_obj': page_obj,  # Optimized pagination object
         'vessels': vessels,
-        'top_vessels': top_vessels,  # Simplified but functional
+        'top_vessels': top_vessels,
         'stats': {
             'total_pos': total_pos,
             'completed_pos': completed_pos,

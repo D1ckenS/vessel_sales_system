@@ -7,7 +7,7 @@ from django.shortcuts import render, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.http import JsonResponse
 from django.db import transaction
-from frontend.utils.cache_helpers import TransferCacheHelper, VesselCacheHelper
+from frontend.utils.cache_helpers import TransferCacheHelper, VesselCacheHelper, get_optimized_pagination
 from .utils.query_helpers import TransactionQueryHelper
 from transactions.models import Transfer
 from django.views.decorators.http import require_http_methods
@@ -28,30 +28,44 @@ import json
 @login_required
 @user_passes_test(is_admin_or_manager)
 def transfer_management(request):
-    """Transfer management with pagination following transactions_list pattern"""
+    """OPTIMIZED: Transfer management with COUNT-free pagination"""
     
-    # Base queryset with template-required annotations
+    # Get filter parameters
+    from_vessel_filter = request.GET.get('from_vessel')
+    to_vessel_filter = request.GET.get('to_vessel')
+    status_filter = request.GET.get('status')
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    search_filter = request.GET.get('search', '').strip()
+    
+    # Base queryset with prefetched transactions
     transfers = Transfer.objects.select_related(
         'from_vessel', 'to_vessel', 'created_by'
     ).prefetch_related(
-        'transactions'  # Use 'transactions' not 'transfer_transactions'
-    ).order_by('-transfer_date', '-created_at')
-    
-    # Apply all filters using helper with custom field mappings
-    transfers = TransactionQueryHelper.apply_common_filters(
-        transfers, request,
-        date_field='transfer_date',        # Transfers use transfer_date
-        status_field='is_completed'        # Enable status filtering for transfers
+        'transactions'
     )
     
-    from_vessel_filter = request.GET.get('from_vessel')
-    to_vessel_filter = request.GET.get('to_vessel')
-    search_filter = request.GET.get('search')
-    
+    # Apply filters
     if from_vessel_filter:
         transfers = transfers.filter(from_vessel_id=from_vessel_filter)
     if to_vessel_filter:
         transfers = transfers.filter(to_vessel_id=to_vessel_filter)
+    if status_filter == 'completed':
+        transfers = transfers.filter(is_completed=True)
+    elif status_filter == 'in_progress':
+        transfers = transfers.filter(is_completed=False)
+    if date_from:
+        try:
+            date_from_parsed = datetime.strptime(date_from, '%Y-%m-%d').date()
+            transfers = transfers.filter(transfer_date__gte=date_from_parsed)
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            date_to_parsed = datetime.strptime(date_to, '%Y-%m-%d').date()
+            transfers = transfers.filter(transfer_date__lte=date_to_parsed)
+        except ValueError:
+            pass
     if search_filter:
         transfers = transfers.filter(
             Q(from_vessel__name__icontains=search_filter) |
@@ -62,18 +76,12 @@ def transfer_management(request):
     # Order for consistent results
     transfers = transfers.order_by('-transfer_date', '-created_at')
     
-    paginator = Paginator(transfers, 25)
-    page_number = request.GET.get('page')
-    
-    try:
-        page_obj = paginator.get_page(page_number)
-    except PageNotAnInteger:
-        page_obj = paginator.page(1)
-    except EmptyPage:
-        page_obj = paginator.page(paginator.num_pages)
+    # ✅ REPLACE Django Paginator with optimized pagination
+    page_number = request.GET.get('page', 1)
+    page_obj = get_optimized_pagination(transfers, page_number, page_size=25, use_count=False)
     
     # Add cost performance class to each transfer (for template)
-    transfer_list = list(page_obj)  # Changed from [:50] to use paginated results
+    transfer_list = page_obj.object_list  # Use optimized pagination object list
     
     # OPTIMIZED: Calculate stats in Python using prefetched data
     total_cost = 0
@@ -84,7 +92,7 @@ def transfer_management(request):
     for transfer in transfer_list:
         # Calculate cost using prefetched transactions (no additional queries)
         transfer_cost = sum(
-            float(txn.quantity) * float(txn.unit_price) 
+            float(txn.quantity or 0) * float(txn.unit_price or 0)  # ✅ Add float() and handle None
             for txn in transfer.transactions.all()
             if txn.transaction_type == 'TRANSFER_OUT'  # Only count TRANSFER_OUT to avoid double counting
         )
@@ -120,7 +128,6 @@ def transfer_management(request):
     avg_transfer_cost = total_cost / max(total_transfers, 1)
     
     # Calculate recent activity from existing data
-    
     week_ago = timezone.now() - timedelta(days=7)
     recent_transfers_count = sum(1 for transfer in transfer_list if transfer.created_at >= week_ago)
     recent_value = sum(transfer.annotated_total_cost for transfer in transfer_list if transfer.created_at >= week_ago)
@@ -161,7 +168,7 @@ def transfer_management(request):
     
     context = {
         'transfers': transfer_list,
-        'page_obj': page_obj,  # ADD: Pagination object for template
+        'page_obj': page_obj,  # Optimized pagination object
         'active_vessels': VesselCacheHelper.get_active_vessels(),
         'page_title': 'Transfer Management',
         'stats': {
@@ -180,12 +187,12 @@ def transfer_management(request):
         },
         'top_vessels': top_vessels,
         'current_filters': {
-            'search': request.GET.get('search', ''),
-            'from_vessel': request.GET.get('from_vessel', ''),
-            'to_vessel': request.GET.get('to_vessel', ''),
-            'status': request.GET.get('status', ''),
-            'date_from': request.GET.get('date_from', ''),
-            'date_to': request.GET.get('date_to', ''),
+            'search': search_filter,
+            'from_vessel': from_vessel_filter,
+            'to_vessel': to_vessel_filter,
+            'status': status_filter,
+            'date_from': date_from,
+            'date_to': date_to,
         }
     }
     
