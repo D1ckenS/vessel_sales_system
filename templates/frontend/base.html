@@ -51,22 +51,22 @@
                         </a>
                     </li>
                     
-                    <!-- Sales Entry - Administrators & Vessel Operators Only -->
-                    {% if user_permissions.can_access_operations %}
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.resolver_match.url_name == 'sales_entry' %}active{% endif %}" 
-                           href="{% url 'frontend:sales_entry' %}">
-                            <i class="bi bi-cart-plus"></i> <span data-translate="sales_entry">Sales Entry</span>
-                        </a>
-                    </li>
-                    {% endif %}
-                    
                     <!-- Receive Stock - Administrators & Vessel Operators Only -->
                     {% if user_permissions.can_access_operations %}
                     <li class="nav-item">
                         <a class="nav-link {% if request.resolver_match.url_name == 'supply_entry' %}active{% endif %}" 
                         href="{% url 'frontend:supply_entry' %}">
                             <i class="bi bi-box-seam"></i> <span data-translate="receive_stock">Receive Stock</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    
+                    <!-- Sales Entry - Administrators & Vessel Operators Only -->
+                    {% if user_permissions.can_access_operations %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.resolver_match.url_name == 'sales_entry' %}active{% endif %}" 
+                           href="{% url 'frontend:sales_entry' %}">
+                            <i class="bi bi-cart-plus"></i> <span data-translate="sales_entry">Sales Entry</span>
                         </a>
                     </li>
                     {% endif %}
