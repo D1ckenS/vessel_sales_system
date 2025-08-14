@@ -48,9 +48,14 @@
     z-index: 10;
 }
 
-.inventory-section {
+/* =============================================================================
+   Z-INDEX STACKING FIX FOR DROPDOWN MENU (Same as transactions_list.html)
+   ============================================================================= */
+
+/* Filter card z-index boost when dropdown is active */
+.card.filter-active {
+    z-index: 1100 !important;
     position: relative;
-    min-height: 300px;
 }
 
 .show-inventory-btn {
@@ -229,12 +234,32 @@
                             <label class="form-label fw-bold">
                                 <i class="bi bi-speedometer2"></i> <span data-translate="stock_level">Stock Level</span>
                             </label>
-                            <select class="form-select" id="stockFilter" onchange="handleFilterChange()">
-                                <option value="" data-translate="all_stock_levels">All Stock Levels</option>
-                                <option value="out" data-translate="out_of_stock">Out of Stock</option>
-                                <option value="low" data-translate="low_stock_only">Low Stock Only</option>
-                                <option value="good" data-translate="good_stock">Good Stock</option>
-                            </select>
+                            <div class="dropdown w-100">
+                                <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start" type="button" 
+                                        id="stockFilterDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <span id="selectedStockFilterText">
+                                        <span data-translate="all_stock_levels">All Stock Levels</span>
+                                    </span>
+                                </button>
+                                <ul class="dropdown-menu w-100" aria-labelledby="stockFilterDropdown">
+                                    <li><a class="dropdown-item active" href="#" data-value="" onclick="selectStockFilter('', this)">
+                                        <span data-translate="all_stock_levels">All Stock Levels</span>
+                                    </a></li>
+                                    <li><a class="dropdown-item" href="#" data-value="out" onclick="selectStockFilter('out', this)">
+                                        <i class="bi bi-x-circle me-2 text-danger"></i>
+                                        <span data-translate="out_of_stock">Out of Stock</span>
+                                    </a></li>
+                                    <li><a class="dropdown-item" href="#" data-value="low" onclick="selectStockFilter('low', this)">
+                                        <i class="bi bi-exclamation-triangle me-2 text-warning"></i>
+                                        <span data-translate="low_stock_only">Low Stock Only</span>
+                                    </a></li>
+                                    <li><a class="dropdown-item" href="#" data-value="good" onclick="selectStockFilter('good', this)">
+                                        <i class="bi bi-check-circle me-2 text-success"></i>
+                                        <span data-translate="good_stock">Good Stock</span>
+                                    </a></li>
+                                </ul>
+                                <input type="hidden" id="stockFilterInput" value="">
+                            </div>
                         </div>
                         
                         <!-- Clear Button -->

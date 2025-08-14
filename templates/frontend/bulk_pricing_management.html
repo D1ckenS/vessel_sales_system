@@ -160,24 +160,45 @@
                 <div class="row">
                     <div class="col-md-4">
                         <label class="form-label fw-bold"><span data-translate="copy_pricing_from">Copy Pricing From:</span></label>
-                        <select class="form-select" id="sourceVessel">
-                            <option value=""><span data-translate="select_vessel">Select vessel...</span></option>
-                            {% for vessel in touristic_vessels %}
-                            <option value="{{ vessel.id }}">
-                                <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
-                            </option>
-                            {% endfor %}
-                        </select>
+                        <div class="dropdown w-100">
+                            <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start" type="button" 
+                                    id="sourceVesselDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                <span id="selectedSourceVesselText">
+                                    <span data-translate="select_vessel">Select vessel...</span>
+                                </span>
+                            </button>
+                            <ul class="dropdown-menu w-100" aria-labelledby="sourceVesselDropdown">
+                                {% for vessel in touristic_vessels %}
+                                <li><a class="dropdown-item" href="#" data-value="{{ vessel.id }}" onclick="selectSourceVessel('{{ vessel.id }}', this)">
+                                    <i class="bi bi-ship me-2"></i>
+                                    <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
+                                </a></li>
+                                {% endfor %}
+                            </ul>
+                            <input type="hidden" id="sourceVesselInput" value="">
+                        </div>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label fw-bold"><span data-translate="to_vessels">To Vessels:</span></label>
-                        <select class="form-select" id="targetVessels" multiple>
-                            {% for vessel in touristic_vessels %}
-                            <option value="{{ vessel.id }}">
-                                <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
-                            </option>
-                            {% endfor %}
-                        </select>
+                        <div class="dropdown w-100">
+                            <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start" type="button" 
+                                    id="targetVesselsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                <span id="selectedTargetVesselsText">
+                                    <span data-translate="select_vessels">Select vessels...</span>
+                                </span>
+                            </button>
+                            <ul class="dropdown-menu w-100" aria-labelledby="targetVesselsDropdown">
+                                {% for vessel in touristic_vessels %}
+                                <li><a class="dropdown-item" href="#" data-value="{{ vessel.id }}" onclick="toggleTargetVessel('{{ vessel.id }}', this, '{{ vessel.name }}')">
+                                    <i class="bi bi-ship me-2"></i>
+                                    <input type="checkbox" class="me-2" id="target-{{ vessel.id }}">
+                                    <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
+                                </a></li>
+                                {% endfor %}
+                            </ul>
+                            <input type="hidden" id="targetVesselsInput" value="">
+                        </div>
+                        <small class="text-muted"><span data-translate="click_select_multiple">Click to select multiple</span></small>
                     </div>
                     <div class="col-md-4 d-flex align-items-end">
                         <div>

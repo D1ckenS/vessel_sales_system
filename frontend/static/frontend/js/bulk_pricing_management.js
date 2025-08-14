@@ -94,9 +94,71 @@ function saveAllChanges() {
     });
 }
 
+// Source vessel dropdown selection handler
+function selectSourceVessel(vesselId, element) {
+    // Update hidden input
+    document.getElementById('sourceVesselInput').value = vesselId;
+    
+    // Update button text
+    const buttonText = document.getElementById('selectedSourceVesselText');
+    buttonText.innerHTML = element.innerHTML;
+    
+    // Update active state
+    document.querySelectorAll('#sourceVesselDropdown + .dropdown-menu .dropdown-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    element.classList.add('active');
+    
+    // Close dropdown
+    const dropdown = bootstrap.Dropdown.getInstance(document.getElementById('sourceVesselDropdown'));
+    if (dropdown) {
+        dropdown.hide();
+    }
+    
+    // Prevent default link behavior
+    event.preventDefault();
+    return false;
+}
+
+// Target vessels multi-select dropdown handler
+let selectedTargetVessels = new Set();
+
+function toggleTargetVessel(vesselId, element, vesselName) {
+    const checkbox = document.getElementById(`target-${vesselId}`);
+    
+    // Toggle selection
+    if (selectedTargetVessels.has(vesselId)) {
+        selectedTargetVessels.delete(vesselId);
+        checkbox.checked = false;
+        element.classList.remove('active');
+    } else {
+        selectedTargetVessels.add(vesselId);
+        checkbox.checked = true;
+        element.classList.add('active');
+    }
+    
+    // Update hidden input with comma-separated values
+    document.getElementById('targetVesselsInput').value = Array.from(selectedTargetVessels).join(',');
+    
+    // Update button text
+    const buttonText = document.getElementById('selectedTargetVesselsText');
+    if (selectedTargetVessels.size === 0) {
+        buttonText.innerHTML = '<span data-translate="select_vessels">Select vessels...</span>';
+    } else if (selectedTargetVessels.size === 1) {
+        buttonText.innerHTML = `<i class="bi bi-ship me-2"></i>${vesselName}`;
+    } else {
+        buttonText.innerHTML = `<i class="bi bi-ship me-2"></i>${selectedTargetVessels.size} vessels selected`;
+    }
+    
+    // Don't close dropdown for multi-select
+    event.preventDefault();
+    event.stopPropagation();
+    return false;
+}
+
 function copyPricing() {
-    const sourceVessel = document.getElementById('sourceVessel').value;
-    const targetVessels = Array.from(document.getElementById('targetVessels').selectedOptions).map(opt => opt.value);
+    const sourceVessel = document.getElementById('sourceVesselInput').value;
+    const targetVessels = document.getElementById('targetVesselsInput').value.split(',').filter(id => id);
     const overwrite = document.getElementById('overwriteExisting').checked;
     
     if (!sourceVessel) {
@@ -114,7 +176,6 @@ function copyPricing() {
         headers: {
             'Content-Type': 'application/json',
             'X-CSRFToken': window.getCsrfToken(),
-
         },
         body: JSON.stringify({
             source_vessel_id: sourceVessel,
@@ -142,4 +203,6 @@ function copyPricing() {
 window.updatePrice = updatePrice;
 window.saveAllChanges = saveAllChanges;
 window.copyPricing = copyPricing;
+window.selectSourceVessel = selectSourceVessel;
+window.toggleTargetVessel = toggleTargetVessel;
 })();

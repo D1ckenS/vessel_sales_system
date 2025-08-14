@@ -13,6 +13,9 @@ from transactions.models import InventoryLot, Transaction, PurchaseOrder
 from .utils import BilingualMessages
 from django.core.exceptions import ValidationError
 from datetime import datetime
+import logging
+
+logger = logging.getLogger('frontend')
 import json
 from decimal import Decimal
 import decimal
@@ -60,10 +63,10 @@ def supply_entry(request):
         cached_pos = POCacheHelper.get_recent_pos_with_cost()
         
         if cached_pos:
-            print(f"🚀 CACHE HIT: Recent POs ({len(cached_pos)} POs)")
+            logger.debug(f"Cache hit: Recent POs ({len(cached_pos)} POs)")
             recent_pos = cached_pos
         else:
-            print(f"🔍 CACHE MISS: Building recent POs")
+            logger.debug("Cache miss: Building recent POs")
             
             # 🚀 OPTIMIZED: Single query with proper prefetching
             recent_pos_query = PurchaseOrder.objects.select_related(
@@ -94,7 +97,7 @@ def supply_entry(request):
             
             # 🚀 CACHE: Store processed POs for future requests
             POCacheHelper.cache_recent_pos_with_cost(recent_pos)
-            print(f"🔥 CACHED: Recent POs ({len(recent_pos)} POs) - 1 hour timeout")
+            logger.debug(f"Cached: Recent POs ({len(recent_pos)} POs) - 1 hour timeout")
         
         context = {
             'vessels': vessels,
@@ -159,7 +162,7 @@ def po_supply(request, po_id):
     # 🚀 OPTIMIZED: Check cache first for completed POs (no DB query needed)
     cached_data = POCacheHelper.get_completed_po_data(po_id)
     if cached_data:
-        print(f"🚀 CACHE HIT: Completed PO {po_id}")
+        logger.debug(f"Cache hit: Completed PO {po_id}")
         return render(request, 'frontend/po_supply.html', cached_data)
     
     try:
@@ -204,10 +207,10 @@ def po_supply(request, po_id):
             })
     else:
         # 🚀 OPTIMIZED: Process completed PO using prefetched data
-        print(f"🔍 DEBUG: PO {po.po_number} is completed, processing {len(supply_transactions)} transactions")
+        logger.debug(f"PO {po.po_number} is completed, processing {len(supply_transactions)} transactions")
         
         for supply in supply_transactions:
-            print(f"🔍 DEBUG: Transaction {supply.id}: {supply.product.name}, Qty: {supply.quantity}, Price: {supply.unit_price}")
+            logger.debug(f"Transaction {supply.id}: {supply.product.name}, Qty: {supply.quantity}, Price: {supply.unit_price}")
             completed_supplies.append({
                 'product_name': supply.product.name,
                 'product_item_id': supply.product.item_id,
@@ -224,7 +227,7 @@ def po_supply(request, po_id):
     existing_supplies_json = json.dumps(existing_supplies)
     completed_supplies_json = json.dumps(completed_supplies)
     
-    print(f"🔍 DEBUG: completed_supplies_json length: {len(completed_supplies_json)}")
+    logger.debug(f"Completed supplies JSON length: {len(completed_supplies_json)}")
     
     # Build final context
     context = {
@@ -237,7 +240,7 @@ def po_supply(request, po_id):
     # 🚀 CACHE: Store completed PO data for future requests
     if po.is_completed:
         POCacheHelper.cache_completed_po_data(po_id, context)
-        print(f"🚀 CACHED COMPLETED PO: {po_id}")
+        logger.debug(f"Cached completed PO: {po_id}")
     
     return render(request, 'frontend/po_supply.html', context)
 
@@ -396,13 +399,13 @@ def po_bulk_complete(request):
             )
 
             if existing_supply_transactions.exists():
-                print(f"🔄 PO EDIT: Deleting {existing_supply_transactions.count()} existing supply transactions individually for inventory restoration")
+                logger.info(f"PO edit: Deleting {existing_supply_transactions.count()} existing supply transactions for inventory restoration")
                 
                 # Delete each transaction individually to trigger inventory restoration
                 for txn in existing_supply_transactions:
                     txn.delete()  # This calls the individual delete() method with inventory restoration
                 
-                print(f"✅ PO EDIT: Inventory restored for {existing_supply_transactions.count()} transactions")
+                logger.info(f"PO edit: Inventory restored for {existing_supply_transactions.count()} transactions")
             
             # Process each supply item
             for item_data in validated_items:

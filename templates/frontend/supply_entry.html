@@ -41,15 +41,24 @@
                             <label class="form-label fw-bold">
                                 <i class="bi bi-ship"></i> <span data-translate="receiving_vessel">Receiving Vessel</span> *
                             </label>
-                            <select class="form-select form-select-lg" name="vessel" required>
-                                <option value=""><span data-translate="choose_vessel">Choose vessel...</span></option>
-                                {% for vessel in vessels %}
-                                <option value="{{ vessel.id }}" data-name="{{ vessel.name }}" data-duty-free="{{ vessel.has_duty_free }}">
-                                    <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
-                                    {% if vessel.has_duty_free %}<span class="text-success">(<span dir="ltr" data-translate="duty_free">Duty-Free</span>)</span>{% endif %}
-                                </option>
-                                {% endfor %}
-                            </select>
+                            <div class="dropdown w-100">
+                                <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start btn-lg" type="button" 
+                                        id="vesselDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <span id="selectedVesselText">
+                                        <span data-translate="choose_vessel">Choose vessel...</span>
+                                    </span>
+                                </button>
+                                <ul class="dropdown-menu w-100" aria-labelledby="vesselDropdown">
+                                    {% for vessel in vessels %}
+                                    <li><a class="dropdown-item" href="#" data-value="{{ vessel.id }}" onclick="selectVessel('{{ vessel.id }}', this, '{{ vessel.name }}', '{{ vessel.name_ar }}', {{ vessel.has_duty_free|yesno:'true,false' }})">
+                                        <i class="bi bi-ship me-2"></i>
+                                        <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
+                                        {% if vessel.has_duty_free %}<span class="badge bg-success ms-2"><span data-translate="duty_free">Duty-Free</span></span>{% endif %}
+                                    </a></li>
+                                    {% endfor %}
+                                </ul>
+                                <input type="hidden" name="vessel" id="vesselInput" required>
+                            </div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-bold">
@@ -186,8 +195,41 @@
 
 {% block extra_js %}
 <script>
+// Vessel dropdown selection handler
+function selectVessel(vesselId, element, vesselNameEn, vesselNameAr, hasDutyFree) {
+    // Update hidden input
+    document.getElementById('vesselInput').value = vesselId;
+    
+    // Update button text
+    const buttonText = document.getElementById('selectedVesselText');
+    buttonText.innerHTML = element.innerHTML;
+    
+    // Update active state
+    document.querySelectorAll('#vesselDropdown + .dropdown-menu .dropdown-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    element.classList.add('active');
+    
+    // Close dropdown
+    const dropdown = bootstrap.Dropdown.getInstance(document.getElementById('vesselDropdown'));
+    if (dropdown) {
+        dropdown.hide();
+    }
+    
+    // Prevent default link behavior
+    event.preventDefault();
+    return false;
+}
+
 function clearForm() {
     document.getElementById('poForm').reset();
+    
+    // Reset vessel dropdown
+    document.getElementById('vesselInput').value = '';
+    document.getElementById('selectedVesselText').innerHTML = '<span data-translate="choose_vessel">Choose vessel...</span>';
+    document.querySelectorAll('#vesselDropdown + .dropdown-menu .dropdown-item').forEach(item => {
+        item.classList.remove('active');
+    });
 }
 
 function resumePO(poId) {

@@ -5,7 +5,7 @@ from datetime import date
 from frontend.utils.cache_helpers import VesselCacheHelper, TripCacheHelper
 from vessels.models import Vessel
 from products.models import Product
-from transactions.models import Transaction, InventoryLot, Trip, get_vessel_product_price, get_vessel_pricing_warnings, get_available_inventory
+from transactions.models import Transaction, InventoryLot, Trip, get_vessel_product_price, get_vessel_pricing_warnings, get_available_inventory, get_available_inventory_at_date
 from .utils import BilingualMessages
 from django.core.exceptions import ValidationError
 import json
@@ -13,6 +13,9 @@ from decimal import Decimal
 from django.db import transaction
 import re
 from datetime import datetime
+import logging
+
+logger = logging.getLogger('frontend')
 from .permissions import (
     operations_access_required,
     reports_access_required,
@@ -26,12 +29,12 @@ def sales_entry(request):
     """Step 1: Create new trip for sales transactions - OPTIMIZED"""
     
     if request.method == 'GET':
-        print(f"🔍 REQUEST INFO:")
-        print(f"   Method: {request.method}")
-        print(f"   Headers: {dict(request.headers)}")
-        print(f"   User Agent: {request.META.get('HTTP_USER_AGENT', 'Unknown')}")
-        print(f"   Referer: {request.META.get('HTTP_REFERER', 'None')}")
-        print(f"   Cache-Control: {request.META.get('HTTP_CACHE_CONTROL', 'None')}")
+        logger.debug("Sales entry request info:")
+        logger.debug(f"Method: {request.method}")
+        logger.debug(f"Headers: {dict(request.headers)}")
+        logger.debug(f"User Agent: {request.META.get('HTTP_USER_AGENT', 'Unknown')}")
+        logger.debug(f"Referer: {request.META.get('HTTP_REFERER', 'None')}")
+        logger.debug(f"Cache-Control: {request.META.get('HTTP_CACHE_CONTROL', 'None')}")
         
         vessels = VesselCacheHelper.get_active_vessels()
                 
@@ -45,10 +48,10 @@ def sales_entry(request):
         cached_trips = TripCacheHelper.get_recent_trips_with_revenue_robust(str(user_role), today)
         
         if cached_trips:
-            print(f"🚀 ROBUST CACHE HIT: Recent trips for {user_role} ({len(cached_trips)} trips)")
+            logger.debug(f"Cache hit: Recent trips for {user_role} ({len(cached_trips)} trips)")
             recent_trips = cached_trips
         else:
-            print(f"🔍 ROBUST CACHE MISS: Building recent trips for {user_role}")
+            logger.debug(f"Cache miss: Building recent trips for {user_role}")
             
             # 🚀 OPTIMIZED: Single query with proper prefetching
             base_query = Trip.objects.select_related(
@@ -158,7 +161,7 @@ def trip_sales(request, trip_id):
     
     cached_data = TripCacheHelper.get_completed_trip_data(trip_id)
     if cached_data:
-        print(f"🚀 CACHE HIT: Completed trip {trip_id}")
+        logger.debug(f"Cache hit: Completed trip {trip_id}")
         return render(request, 'frontend/trip_sales.html', cached_data)
     
     try:
@@ -458,13 +461,13 @@ def trip_bulk_complete(request):
             )
 
             if existing_sales_transactions.exists():
-                print(f"🔄 TRIP EDIT: Deleting {existing_sales_transactions.count()} existing sales transactions individually for inventory restoration")
+                logger.info(f"Trip edit: Deleting {existing_sales_transactions.count()} existing sales transactions for inventory restoration")
                 
                 # Delete each transaction individually to trigger inventory restoration
                 for txn in existing_sales_transactions:
                     txn.delete()  # This calls the individual delete() method with inventory restoration
                 
-                print(f"✅ TRIP EDIT: Inventory restored for {existing_sales_transactions.count()} transactions")
+                logger.info(f"Trip edit: Inventory restored for {existing_sales_transactions.count()} transactions")
             
             # Process each sales item
             for item in sales_items:
@@ -478,6 +481,23 @@ def trip_bulk_complete(request):
                 
                 # Get product
                 product = Product.objects.get(id=product_id)
+                
+                # Check available inventory at trip date (point-in-time validation)
+                from django.utils import timezone
+                today = timezone.now().date()
+                
+                if trip.trip_date < today:
+                    # Historical trip - use point-in-time inventory balance
+                    available_quantity, _ = get_available_inventory_at_date(trip.vessel, product, trip.trip_date)
+                else:
+                    # Current or future trip - use current inventory balance
+                    available_quantity, _ = get_available_inventory(trip.vessel, product)
+                
+                if quantity > available_quantity:
+                    return JsonResponse({
+                        'success': False, 
+                        'error': f'Insufficient inventory for {product.name}. Available at {trip.trip_date}: {available_quantity}, Requested: {quantity}'
+                    })
                 
                 # Check vessel-specific pricing
                 vessel_price = get_vessel_product_price(trip.vessel, product)
@@ -507,7 +527,7 @@ def trip_bulk_complete(request):
             # 🚀 CACHE: Clear cache after adding transactions (before completion)
             if created_transactions:
                 TripCacheHelper.clear_recent_trips_cache_only_when_needed()
-                print(f"🔥 Cache cleared after adding {len(created_transactions)} transactions")
+                logger.debug(f"Cache cleared after adding {len(created_transactions)} transactions")
             
             # Mark trip as completed
             trip.is_completed = True
@@ -593,13 +613,14 @@ def trip_cancel(request):
     
 @operations_access_required
 def sales_available_products(request):
-    """AJAX endpoint to get available products for sales with vessel-specific pricing"""
+    """AJAX endpoint to get available products for sales with vessel-specific pricing and historical inventory support"""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
     try:
         data = json.loads(request.body)
         vessel_id = data.get('vessel_id')
+        trip_date_str = data.get('trip_date')  # Optional trip date for historical inventory
         
         if not vessel_id:
             return JsonResponse({'success': False, 'error': 'Vessel ID required'})
@@ -607,32 +628,39 @@ def sales_available_products(request):
         # Get vessel
         vessel = Vessel.objects.get(id=vessel_id, active=True)
         
-        # Get products with available inventory on this vessel
-        available_lots = InventoryLot.objects.filter(
-            vessel=vessel,
-            remaining_quantity__gt=0,
-            product__active=True
-        ).select_related('product')
+        # Parse trip date if provided
+        from django.utils import timezone
+        trip_date = None
+        use_historical_inventory = False
+        
+        if trip_date_str:
+            try:
+                trip_date = datetime.strptime(trip_date_str, '%Y-%m-%d').date()
+                today = timezone.now().date()
+                use_historical_inventory = trip_date < today
+            except ValueError:
+                pass  # Invalid date format, use current inventory
+        
+        # Get all active products for this vessel type
+        products_query = Product.objects.filter(active=True)
         
         # Filter duty-free products if vessel doesn't support them
         if not vessel.has_duty_free:
-            available_lots = available_lots.filter(product__is_duty_free=False)
-        
-        # Group by product and calculate totals
-        product_summaries = available_lots.values(
-            'product__id', 'product__name', 'product__item_id', 
-            'product__barcode', 'product__is_duty_free',
-            'product__selling_price'
-        ).annotate(
-            total_quantity=Sum('remaining_quantity')
-        ).order_by('product__item_id')
+            products_query = products_query.filter(is_duty_free=False)
         
         products = []
         pricing_warnings = []
         
-        for summary in product_summaries:
-            product_id = summary['product__id']
-            product = Product.objects.get(id=product_id)
+        for product in products_query:
+            # Calculate available inventory (current or historical)
+            if use_historical_inventory and trip_date:
+                available_quantity, _ = get_available_inventory_at_date(vessel, product, trip_date)
+            else:
+                available_quantity, _ = get_available_inventory(vessel, product)
+            
+            # Only include products with available inventory
+            if available_quantity <= 0:
+                continue
             
             # Get vessel-specific pricing
             actual_price, is_custom_price, warning_message = get_vessel_product_price(vessel, product)
@@ -640,21 +668,21 @@ def sales_available_products(request):
             # Collect warnings for non-duty-free vessels using default pricing
             if warning_message:
                 pricing_warnings.append({
-                    'product_id': product_id,
+                    'product_id': product.id,
                     'product_name': product.name,
                     'message': warning_message
                 })
             
             products.append({
-                'id': product_id,
-                'name': summary['product__name'],
-                'item_id': summary['product__item_id'],
-                'barcode': summary['product__barcode'] or '',
-                'is_duty_free': summary['product__is_duty_free'],
+                'id': product.id,
+                'name': product.name,
+                'item_id': product.item_id,
+                'barcode': product.barcode or '',
+                'is_duty_free': product.is_duty_free,
                 'selling_price': float(actual_price),  # Use vessel-specific price
                 'default_price': float(product.selling_price),  # Include default for comparison
                 'is_custom_price': is_custom_price,
-                'total_quantity': summary['total_quantity'],
+                'total_quantity': available_quantity,  # Use calculated historical/current quantity
             })
         
         # Get overall vessel pricing warnings
@@ -794,17 +822,25 @@ def sales_execute(request):
                 'error': f'Cannot sell duty-free product on {vessel.name} (vessel does not support duty-free items)'
             })
         
-        # Check available inventory
-        available_quantity, lots = get_available_inventory(vessel, product)
+        # Parse sale date first
+        sale_date_obj = datetime.strptime(sale_date, '%Y-%m-%d').date()
+        
+        # Check available inventory at the sale date (point-in-time)
+        from django.utils import timezone
+        today = timezone.now().date()
+        
+        if sale_date_obj < today:
+            # Historical transaction - use point-in-time inventory balance
+            available_quantity, lots = get_available_inventory_at_date(vessel, product, sale_date_obj)
+        else:
+            # Current or future transaction - use current inventory balance
+            available_quantity, lots = get_available_inventory(vessel, product)
         
         if quantity > available_quantity:
             return JsonResponse({
                 'success': False, 
                 'error': f'Insufficient inventory. Available: {available_quantity}, Requested: {quantity}'
             })
-        
-        # Parse sale date
-        sale_date_obj = datetime.strptime(sale_date, '%Y-%m-%d').date()
         
         # Create SALE transaction (your existing system handles FIFO consumption!)
         sale_transaction = Transaction.objects.create(

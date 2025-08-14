@@ -194,9 +194,9 @@
                         </button>
                     </div>
                     <div class="col-md-3 mb-2">
-                        <a href="{% url 'frontend:inventory_check' %}" class="btn btn-outline-warning w-100">
+                        <button class="btn btn-outline-warning w-100" onclick="exportInventoryData()">
                             <i class="bi bi-boxes"></i> <span data-translate="inventory_check">Inventory Check</span>
-                        </a>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -228,4 +228,5 @@ document.addEventListener('DOMContentLoaded', function() {
 
 const showComingSoon = (feature) => window.templateUtils.showComingSoonAlert(feature);
 </script>
+<script src="{% static 'frontend/js/inventory_check.js' %}"></script>
 {% endblock %}

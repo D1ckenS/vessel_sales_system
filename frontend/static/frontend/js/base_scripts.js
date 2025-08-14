@@ -219,6 +219,70 @@ class MonthTranslator {
 window.monthTranslator = new MonthTranslator();
 
 /* =============================================================================
+   Universal Dropdown Z-Index Management System
+   ============================================================================= */
+
+/**
+ * Universal function to setup dropdown z-index management with counter system
+ * Prevents filter-active class removal when switching between dropdowns
+ * 
+ * @param {Array|string} dropdownIds - Array of dropdown IDs or single ID string
+ * @param {string} cardSelector - CSS selector for the target card (default: '.card')
+ * @returns {Object} - Object with add/remove functions for external dropdowns
+ */
+function setupUniversalDropdownZIndex(dropdownIds, cardSelector = '.card') {
+    // Convert single ID to array
+    const ids = Array.isArray(dropdownIds) ? dropdownIds : [dropdownIds];
+    const filterCard = document.querySelector(cardSelector);
+    
+    if (!filterCard) {
+        console.warn('setupUniversalDropdownZIndex: Card not found with selector:', cardSelector);
+        return null;
+    }
+    
+    // Counter to track active dropdowns
+    let activeDropdownCount = 0;
+    
+    function addFilterActive() {
+        activeDropdownCount++;
+        filterCard.classList.add('filter-active');
+    }
+    
+    function removeFilterActive() {
+        activeDropdownCount--;
+        // Only remove if NO dropdowns are active
+        if (activeDropdownCount <= 0) {
+            activeDropdownCount = 0; // Prevent negative values
+            filterCard.classList.remove('filter-active');
+        }
+    }
+    
+    // Setup Bootstrap dropdown events for each ID
+    ids.forEach(id => {
+        const dropdown = document.getElementById(id);
+        if (dropdown) {
+            const dropdownMenu = dropdown.nextElementSibling; // Get the .dropdown-menu
+            
+            dropdown.addEventListener('show.bs.dropdown', addFilterActive);
+            
+            dropdown.addEventListener('hide.bs.dropdown', removeFilterActive);
+        } else {
+            console.warn('setupUniversalDropdownZIndex: Dropdown not found with ID:', id);
+        }
+    });
+    
+    // Return object for external dropdown integration (like custom search fields)
+    return {
+        add: addFilterActive,
+        remove: removeFilterActive,
+        getCount: () => activeDropdownCount
+    };
+}
+
+// Make function globally available
+window.setupUniversalDropdownZIndex = setupUniversalDropdownZIndex;
+
+/* =============================================================================
    Global Instances & Shorthand Functions
    ============================================================================= */
 

@@ -148,6 +148,7 @@
                     <input type="hidden" id="wasteId" value="{{ waste_report.id }}">
                     <input type="hidden" id="reportNumber" value="{{ waste_report.report_number }}">
                     <input type="hidden" id="vesselId" value="{{ waste_report.vessel.id }}">
+                    <input type="hidden" id="wasteDate" value="{{ waste_report.report_date|date:'Y-m-d' }}">
                     <input type="hidden" id="editIndex" value="-1">
                     <!-- Product Search -->
                     <div class="mb-3">
@@ -433,7 +434,8 @@ function loadAvailableProducts() {
             'X-CSRFToken': window.getCsrfToken()
         },
         body: JSON.stringify({
-            vessel_id: document.getElementById('vesselId').value
+            vessel_id: document.getElementById('vesselId').value,
+            waste_date: document.getElementById('wasteDate').value  // Add waste date for historical inventory
         })
     })
     .then(response => response.json())

@@ -34,10 +34,8 @@ SECRET_KEY = os.environ.get(
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
-# APPEND_SLASH = False
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
-# DEBUG = os.environ.get('DJANGO_DEBUG', 'True').lower() == 'true'
 
 # Production hosts configuration
 ALLOWED_HOSTS = [
@@ -136,33 +134,33 @@ TEMPLATES = [
 # =============================================================================
 
 # Environment-dependent database configuration
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#         # SQLite optimizations
-#         'OPTIONS': {
-#             'timeout': 20,
-#             'check_same_thread': False,
-#         }
-#     }
-# }
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+        # SQLite optimizations
+        'OPTIONS': {
+            'timeout': 20,
+            'check_same_thread': False,
+        }
+    }
+}
 
 SILENCED_SYSTEM_CHECKS = ['models.E034']
 # For production, you can override with PostgreSQL:
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME'),
-        'USER': os.environ.get('DB_USER'),
-        'PASSWORD': os.environ.get('DB_PASSWORD'),
-        'HOST': os.environ.get('DB_HOST', 'localhost'),
-        'PORT': os.environ.get('DB_PORT', '5432'),
-        'OPTIONS': {
-            'connect_timeout': 60,
-        },
-    }
-}
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': os.environ.get('DB_NAME'),
+#         'USER': os.environ.get('DB_USER'),
+#         'PASSWORD': os.environ.get('DB_PASSWORD'),
+#         'HOST': os.environ.get('DB_HOST', 'localhost'),
+#         'PORT': os.environ.get('DB_PORT', '5432'),
+#         'OPTIONS': {
+#             'connect_timeout': 60,
+#         },
+#     }
+# }
 
 # =============================================================================
 # CACHING CONFIGURATION
@@ -246,6 +244,21 @@ LOGGING = {
             'level': 'DEBUG' if DEBUG else 'INFO',
             'propagate': False,
         },
+        'transactions': {
+            'handlers': ['file', 'console'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        'products': {
+            'handlers': ['file', 'console'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        'vessels': {
+            'handlers': ['file', 'console'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
     },
 }
 
@@ -254,10 +267,7 @@ LOGGING = {
 # =============================================================================
 
 STATIC_URL = '/static/'
-STATIC_ROOT = BASE_DIR / 'staticfiles'
-# STATICFILES_DIRS = [
-#     BASE_DIR / 'frontend' / 'static',
-# ]
+STATIC_ROOT = BASE_DIR / 'static'
 
 # =============================================================================
 # MEDIA FILES CONFIGURATION
@@ -312,4 +322,3 @@ WSGI_APPLICATION = 'vessel_sales.wsgi.application'
 # Create logs directory if it doesn't exist
 os.makedirs(BASE_DIR / 'logs', exist_ok=True)
 
-# print("DEBUG:", DEBUG)

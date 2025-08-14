@@ -16,7 +16,10 @@ from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from datetime import timedelta
 from django.utils import timezone
 import json
+import logging
 from django.db import transaction
+
+logger = logging.getLogger('frontend')
 
 @login_required
 @user_passes_test(is_admin_or_manager)
@@ -326,7 +329,7 @@ def delete_waste_report(request, waste_id):
                 waste_transactions = waste_report.waste_transactions.select_related('product')
                 
                 for waste_txn in waste_transactions:
-                    print(f"🗑️ DELETING WASTE: {waste_txn.product.name} x{waste_txn.quantity} (ID: {waste_txn.id})")
+                    logger.info(f"🗑️ DELETING WASTE: {waste_txn.product.name} x{waste_txn.quantity} (ID: {waste_txn.id})")
                     waste_txn.delete()  # This calls _restore_inventory_for_waste()
                 
                 # Delete the empty waste report
@@ -397,13 +400,13 @@ def toggle_waste_status(request, waste_id):
                 transaction_count = waste_transactions.count()
                 
                 if transaction_count > 0:
-                    print(f"🔄 WASTE RESTART: Deleting {transaction_count} waste transactions for report {waste_report.report_number}")
+                    logger.info(f"🔄 WASTE RESTART: Deleting {transaction_count} waste transactions for report {waste_report.report_number}")
                     
                     # Delete each transaction (triggers inventory restoration via Transaction.delete())
                     for txn in waste_transactions:
                         txn.delete()
                     
-                    print(f"✅ WASTE RESTART: Inventory restored for {transaction_count} items")
+                    logger.info(f"✅ WASTE RESTART: Inventory restored for {transaction_count} items")
                 
                 # Mark as incomplete
                 waste_report.is_completed = False
@@ -412,7 +415,7 @@ def toggle_waste_status(request, waste_id):
                 # Clear waste cache
                 WasteCacheHelper.clear_cache_after_waste_update(waste_id)
                 
-                print(f"🔄 WASTE RESTART: Report {waste_report.report_number} reopened for editing")
+                logger.info(f"🔄 WASTE RESTART: Report {waste_report.report_number} reopened for editing")
             
             # Return redirect response to restart workflow at waste_items
             return JsonResponse({

@@ -1,8 +1,11 @@
+import logging
 from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import User, Group
 from django.db import transaction
+
+logger = logging.getLogger('frontend')
 from frontend.utils.validation_helpers import ValidationHelper
 from .utils import BilingualMessages
 from django.views.decorators.http import require_http_methods
@@ -82,7 +85,7 @@ def create_user(request):
                     
                     UserManagementCacheHelper.clear_user_management_cache()
                 except Exception as e:
-                    print(f"⚠️ Cache clear error: {e}")
+                    logger.warning(f"⚠️ Cache clear error: {e}")
                 if data['group_ids']:
                     groups = Group.objects.filter(id__in=data['group_ids'])
                     user.groups.set(groups)
@@ -161,7 +164,7 @@ def edit_user(request, user_id):
             try:
                 UserManagementCacheHelper.clear_user_management_cache()
             except Exception as e:
-                print(f"⚠️ Cache clear error: {e}")
+                logger.warning(f"⚠️ Cache clear error: {e}")
                 
             group_names = list(user.groups.values_list('name', flat=True))
             group_info = f" and assigned to groups: {', '.join(group_names)}" if group_names else ""
@@ -201,7 +204,7 @@ def reset_user_password(request, user_id):
         try:
             UserManagementCacheHelper.clear_user_management_cache()
         except Exception as e:
-            print(f"⚠️ Cache clear error: {e}")
+            logger.warning(f"⚠️ Cache clear error: {e}")
             
         return JsonResponseHelper.success(
             message=f'Password reset for user "{user.username}"',
@@ -226,7 +229,7 @@ def toggle_user_status(request, user_id):
     try:
         UserManagementCacheHelper.clear_user_management_cache()
     except Exception as e:
-        print(f"⚠️ Cache clear error: {e}")
+        logger.warning(f"⚠️ Cache clear error: {e}")
         
     return CRUDHelper.toggle_boolean_field(user, 'is_active', 'User')
 
@@ -277,10 +280,10 @@ def user_management(request):
     cached_data = cache.get(cache_key)
 
     if cached_data:
-        print("🚀 USER MANAGEMENT CACHE HIT")
+        logger.debug("🚀 USER MANAGEMENT CACHE HIT")
         return render(request, 'frontend/auth/user_management.html', cached_data)
 
-    print("🚀 USER MANAGEMENT CACHE MISS - Building fresh data")
+    logger.info("🚀 USER MANAGEMENT CACHE MISS - Building fresh data")
 
     # 📦 Fetch users and prefetch groups
     users = User.objects.prefetch_related('groups').order_by('username')
@@ -333,5 +336,5 @@ def user_management(request):
     # 💾 Cache for 30 minutes
     cache.set(cache_key, context, 1800)
 
-    print(f"🚀 Cached {total_users} users & {total_groups} groups")
+    logger.info(f"🚀 Cached {total_users} users & {total_groups} groups")
     return render(request, 'frontend/auth/user_management.html', context)

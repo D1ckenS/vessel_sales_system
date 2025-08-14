@@ -24,6 +24,9 @@ from .permissions import (
     admin_or_manager_required
 )
 import json
+import logging
+
+logger = logging.getLogger('frontend')
 
 @login_required
 @user_passes_test(is_admin_or_manager)
@@ -274,13 +277,13 @@ def edit_transfer(request, transfer_id):
                     transfer_in_transactions = transfer.transactions.filter(transaction_type='TRANSFER_IN')
                     
                     if transfer_in_transactions.exists():
-                        print(f"🔄 EDIT REOPENING: Removing {transfer_in_transactions.count()} TRANSFER_IN transactions")
+                        logger.info(f"🔄 EDIT REOPENING: Removing {transfer_in_transactions.count()} TRANSFER_IN transactions")
                         
                         # Delete each TRANSFER_IN transaction (this removes inventory via Transaction.delete())
                         for txn in transfer_in_transactions:
                             txn.delete()
                         
-                        print(f"✅ EDIT REOPENED: All TRANSFER_IN inventory removed from {transfer.to_vessel.name}")
+                        logger.info(f"✅ EDIT REOPENED: All TRANSFER_IN inventory removed from {transfer.to_vessel.name}")
             
             # Update transfer fields
             transfer.transfer_date = transfer_date
@@ -296,10 +299,10 @@ def edit_transfer(request, transfer_id):
                     completed_cache_key = TransferCacheHelper.get_completed_transfer_cache_key(transfer_id)
                     
                     cache.delete(completed_cache_key)
-                    print(f"🔥 DELETED SPECIFIC CACHE: {completed_cache_key}")
+                    logger.debug(f"🔥 DELETED SPECIFIC CACHE: {completed_cache_key}")
                 
                 TransferCacheHelper.clear_all_transfer_cache()
-                print("🔥 Enhanced cache cleared due to status change")
+                logger.debug("🔥 Enhanced cache cleared due to status change")
             else:
                 TransferCacheHelper.clear_cache_after_transfer_update(transfer_id)
             
@@ -387,14 +390,14 @@ def delete_transfer(request, transfer_id):
                 # Step 1: Delete TRANSFER_OUT transactions (they auto-delete linked TRANSFER_IN via related_transfer)
                 transfer_out_txns = transfer.transactions.filter(transaction_type='TRANSFER_OUT')
                 for txn in transfer_out_txns:
-                    print(f"🗑️ DELETING TRANSFER_OUT: {txn.product.name} x{txn.quantity} (ID: {txn.id})")
+                    logger.info(f"🗑️ DELETING TRANSFER_OUT: {txn.product.name} x{txn.quantity} (ID: {txn.id})")
                     # This will automatically delete the linked TRANSFER_IN via Transaction.delete()
                     txn.delete()
                 
                 # Step 2: Delete any remaining TRANSFER_IN transactions (orphaned ones)
                 remaining_transfer_in = transfer.transactions.filter(transaction_type='TRANSFER_IN')
                 for txn in remaining_transfer_in:
-                    print(f"🗑️ DELETING REMAINING TRANSFER_IN: {txn.product.name} x{txn.quantity} (ID: {txn.id})")
+                    logger.info(f"🗑️ DELETING REMAINING TRANSFER_IN: {txn.product.name} x{txn.quantity} (ID: {txn.id})")
                     # This will validate consumption and raise ValidationError if consumed
                     txn.delete()
                 
@@ -405,9 +408,9 @@ def delete_transfer(request, transfer_id):
             try:
                 ProductCacheHelper.clear_cache_after_product_update()
                 TransferCacheHelper.clear_cache_after_transfer_delete(transfer_id)
-                print("🔥 Cache cleared after transfer deletion")
+                logger.debug("🔥 Cache cleared after transfer deletion")
             except Exception as e:
-                print(f"⚠️ Cache clear error: {e}")
+                logger.warning(f"⚠️ Cache clear error: {e}")
 
             return JsonResponseHelper.success(
                 message=f'{transfer_number} and all {actual_transaction_count} linked transactions deleted successfully. Inventory updated.'
@@ -491,13 +494,13 @@ def toggle_transfer_status(request, transfer_id):
                 transaction_count = transfer_in_transactions.count()
                 
                 if transaction_count > 0:
-                    print(f"🔄 TRANSFER RESTART: Removing {transaction_count} TRANSFER_IN transactions for transfer {transfer.id}")
+                    logger.info(f"🔄 TRANSFER RESTART: Removing {transaction_count} TRANSFER_IN transactions for transfer {transfer.id}")
                     
                     # Delete each TRANSFER_IN transaction (this removes inventory via Transaction.delete())
                     for txn in transfer_in_transactions:
                         txn.delete()
                     
-                    print(f"✅ TRANSFER RESTART: All TRANSFER_IN inventory removed from {transfer.to_vessel.name}")
+                    logger.info(f"✅ TRANSFER RESTART: All TRANSFER_IN inventory removed from {transfer.to_vessel.name}")
                 
                 # Mark as incomplete
                 transfer.is_completed = False
@@ -506,7 +509,7 @@ def toggle_transfer_status(request, transfer_id):
                 # Clear transfer cache
                 TransferCacheHelper.clear_cache_after_transfer_update(transfer_id)
                 
-                print(f"🔄 TRANSFER RESTART: Transfer {transfer.id} reopened for editing")
+                logger.info(f"🔄 TRANSFER RESTART: Transfer {transfer.id} reopened for editing")
             
             # Return redirect response to restart workflow at transfer_items
             return JsonResponse({

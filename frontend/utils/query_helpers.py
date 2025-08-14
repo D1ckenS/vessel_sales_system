@@ -146,6 +146,33 @@ class TransactionQueryHelper:
         return queryset
     
     @staticmethod
+    def apply_product_filter(queryset, request, product_field='product_id'):
+        """
+        Apply product filtering.
+        
+        Args:
+            queryset: Django queryset to filter
+            request: HTTP request object with GET parameters
+            product_field: Field name for product filtering (default: 'product_id')
+            
+        Returns:
+            Filtered queryset
+            
+        Usage:
+            # Apply product filter:
+            queryset = TransactionQueryHelper.apply_product_filter(queryset, request)
+            
+            # Or with custom field name:
+            queryset = TransactionQueryHelper.apply_product_filter(queryset, request, 'product_id')
+        """
+        product_filter = request.GET.get('product')
+        if product_filter:
+            filter_kwargs = {product_field: product_filter}
+            queryset = queryset.filter(**filter_kwargs)
+        
+        return queryset
+    
+    @staticmethod
     def apply_common_filters(queryset, request, **field_mappings):
         """
         Apply all common filters in one call.
@@ -156,6 +183,7 @@ class TransactionQueryHelper:
             **field_mappings: Optional field name mappings for custom fields
                 - date_field: 'transaction_date' (default)
                 - vessel_field: 'vessel_id' (default)
+                - product_field: 'product_id' (default)
                 - status_field: 'is_completed' (default)
         
         Returns:
@@ -169,17 +197,23 @@ class TransactionQueryHelper:
             queryset = TransactionQueryHelper.apply_common_filters(
                 queryset, request, 
                 date_field='po_date',
-                vessel_field='vessel_id'
+                vessel_field='vessel_id',
+                product_field='product_id'
             )
         """
         # Get field mappings with defaults
         date_field = field_mappings.get('date_field', 'transaction_date')
         vessel_field = field_mappings.get('vessel_field', 'vessel_id')
+        product_field = field_mappings.get('product_field', 'product_id')
         status_field = field_mappings.get('status_field', 'is_completed')
         
         # Apply filters
         queryset = TransactionQueryHelper.apply_date_filters(queryset, request, date_field)
         queryset = TransactionQueryHelper.apply_vessel_filter(queryset, request, vessel_field)
+        
+        # Apply product filter if this is a Transaction queryset or has product field
+        if hasattr(queryset.model, 'product') or hasattr(queryset.model, 'product_id'):
+            queryset = TransactionQueryHelper.apply_product_filter(queryset, request, product_field)
         
         # Only apply status filter if the field exists and status parameter is present
         if request.GET.get('status') and 'status_field' in field_mappings:

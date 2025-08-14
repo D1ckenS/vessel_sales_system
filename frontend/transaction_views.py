@@ -2,9 +2,11 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.shortcuts import render
 from django.views.decorators.http import require_http_methods
 from django.core.exceptions import ValidationError
+import logging
 from frontend.utils.cache_helpers import VesselCacheHelper, get_optimized_pagination
 from frontend.utils.query_helpers import TransactionQueryHelper
 from transactions.models import Transaction
+from products.models import Product
 from .utils.response_helpers import JsonResponseHelper
 from .utils.crud_helpers import CRUDHelper
 from .permissions import is_admin_or_manager
@@ -15,6 +17,8 @@ from .permissions import (
     reports_access_required,
     admin_or_manager_required
 )
+
+logger = logging.getLogger('frontend')
     
 @reports_access_required
 def transactions_list(request):
@@ -63,6 +67,9 @@ def transactions_list(request):
     # ✅ STEP 6: Use cached vessels (should be cached for 1 year)
     vessels = VesselCacheHelper.get_active_vessels()
     
+    # ✅ STEP 6.1: Get active products for filter dropdown
+    products = Product.objects.filter(active=True).select_related('category').order_by('name')
+    
     # ✅ STEP 7: Context with optimized data
     context = {
         'page_obj': page_obj,
@@ -70,6 +77,7 @@ def transactions_list(request):
         'transaction_types': Transaction.TRANSACTION_TYPES,
         'summary_stats': summary_stats,
         'vessels': vessels,  # Cached vessels
+        'products': products,  # Active products for filter dropdown
         'current_filters': {
             'product': request.GET.get('product', ''),
             'transaction_type': request.GET.get('transaction_type', ''),
@@ -112,7 +120,7 @@ def delete_transaction(request, transaction_id):
             # Check if there's a linked TRANSFER_IN
             linked_transfer_in = transaction_obj.related_transfer
             if linked_transfer_in:
-                print(f"🔗 TRANSFER_OUT deletion will auto-delete linked TRANSFER_IN: {linked_transfer_in.id}")
+                logger.info(f"🔗 TRANSFER_OUT deletion will auto-delete linked TRANSFER_IN: {linked_transfer_in.id}")
                 
         elif transaction_type == 'TRANSFER_IN':
             # Find the TRANSFER_OUT that points to this TRANSFER_IN
@@ -122,14 +130,14 @@ def delete_transaction(request, transaction_id):
             ).first()
             
             if linked_transfer_out:
-                print(f"🔗 TRANSFER_IN deletion will auto-delete linked TRANSFER_OUT: {linked_transfer_out.id}")
+                logger.info(f"🔗 TRANSFER_IN deletion will auto-delete linked TRANSFER_OUT: {linked_transfer_out.id}")
                 # Delete the TRANSFER_OUT, which will cascade delete this TRANSFER_IN
                 linked_transfer_out.delete()
                 return JsonResponseHelper.success(
                     message=f'Transfer In transaction for {product_name} deleted successfully. Linked Transfer Out also deleted and inventory restored.'
                 )
             else:
-                print(f"🔍 ORPHANED: TRANSFER_IN {transaction_obj.id} has no linked TRANSFER_OUT")
+                logger.warning(f"🔍 ORPHANED: TRANSFER_IN {transaction_obj.id} has no linked TRANSFER_OUT")
         
         # Delete transaction (this triggers the enhanced delete method with proper linking)
         transaction_obj.delete()

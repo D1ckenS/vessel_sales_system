@@ -508,18 +508,18 @@ def export_inventory_logic(request, data, export_format):
         # OPTIMIZED: Aggregate by product and vessel in the database
         inventory_aggregated = inventory_query.values(
             'product__id',
-            'product__name', 
+            'product__name',
             'product__item_id',
             'product__category__name',
             'vessel__id',
-            'vessel__name', 
+            'vessel__name',
             'vessel__name_ar'
         ).annotate(
             total_quantity=Sum('remaining_quantity'),
             fifo_cost=Min('purchase_price'),  # FIFO: oldest (cheapest) cost
             latest_update=Max('created_at'),
             total_value=Sum(F('remaining_quantity') * F('purchase_price'), output_field=models.DecimalField())
-        ).order_by('-total_quantity', 'product__id')
+        ).order_by('vessel__name', '-total_quantity')
         
         # OPTIMIZED: Calculate summary statistics in the database
         summary_stats = inventory_aggregated.aggregate(
@@ -538,8 +538,8 @@ def export_inventory_logic(request, data, export_format):
         for item in inventory_aggregated:
             # Get vessel name in appropriate language
             vessel_name = get_vessel_name_by_language_data(
-                item['vessel__name'], 
-                item['vessel__name_ar'], 
+                item['vessel__name'],
+                item['vessel__name_ar'],
                 language
             )
             

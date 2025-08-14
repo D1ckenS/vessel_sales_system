@@ -33,6 +33,21 @@ document.addEventListener('DOMContentLoaded', function() {
         updateInventorySpecificTranslations();
     });
 
+    // ✅ Z-INDEX FIX: Handle dropdown show/hide events (same as transactions_list.html)
+    const stockFilterDropdown = document.getElementById('stockFilterDropdown');
+    const filterCard = stockFilterDropdown?.closest('.card');
+    
+    if (stockFilterDropdown && filterCard) {
+        // Bootstrap 5 dropdown events
+        stockFilterDropdown.addEventListener('show.bs.dropdown', function () {
+            filterCard.classList.add('filter-active');
+        });
+        
+        stockFilterDropdown.addEventListener('hide.bs.dropdown', function () {
+            filterCard.classList.remove('filter-active');
+        });
+    }
+
     function updateInventorySpecificTranslations() {
         // Handle product IDs in the table
         document.querySelectorAll('.product-id[data-number]').forEach(element => {
@@ -170,7 +185,7 @@ function loadInventoryData() {
     
     // Get current filter values
     const searchTerm = document.getElementById('productSearch').value.trim();
-    const stockFilter = document.getElementById('stockFilter').value;
+    const stockFilter = document.getElementById('stockFilterInput')?.value || '';
     
     // Make AJAX request
     fetch(window.inventoryDataUrl, {
@@ -312,7 +327,7 @@ function updateInventoryTable() {
     
     // Update table stats
     const searchTerm = document.getElementById('productSearch').value.trim();
-    const stockFilter = document.getElementById('stockFilter').value;
+    const stockFilter = document.getElementById('stockFilterInput')?.value || '';
     const hasFilters = searchTerm || stockFilter;
     
     tableStats.innerHTML = `
@@ -346,13 +361,42 @@ function handleSearchInput() {
     }, 300);
 }
 
+// Stock filter dropdown selection handler
+function selectStockFilter(filterValue, element) {
+    // Update hidden input
+    document.getElementById('stockFilterInput').value = filterValue;
+    
+    // Update button text
+    const buttonText = document.getElementById('selectedStockFilterText');
+    buttonText.innerHTML = element.innerHTML;
+    
+    // Update active state
+    document.querySelectorAll('#stockFilterDropdown + .dropdown-menu .dropdown-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    element.classList.add('active');
+    
+    // Close dropdown
+    const dropdown = bootstrap.Dropdown.getInstance(document.getElementById('stockFilterDropdown'));
+    if (dropdown) {
+        dropdown.hide();
+    }
+    
+    // Apply filters
+    applyFilters();
+    
+    // Prevent default link behavior
+    event.preventDefault();
+    return false;
+}
+
 function handleFilterChange() {
     applyFilters();
 }
 
 function applyFilters() {
     const searchTerm = document.getElementById('productSearch').value.trim().toLowerCase();
-    const stockFilter = document.getElementById('stockFilter').value;
+    const stockFilter = document.getElementById('stockFilterInput').value;
     
     filteredData = currentInventoryData.filter(item => {
         // Apply search filter
@@ -377,8 +421,33 @@ function applyFilters() {
 }
 
 function clearFilters() {
-    document.getElementById('productSearch').value = '';
-    document.getElementById('stockFilter').value = '';
+    const productSearch = document.getElementById('productSearch');
+    if (productSearch) {
+        productSearch.value = '';
+    }
+    
+    // Reset stock filter dropdown with null checks
+    const stockFilterInput = document.getElementById('stockFilterInput');
+    const stockFilterText = document.getElementById('selectedStockFilterText');
+    const stockFilterDropdown = document.querySelector('#stockFilterDropdown + .dropdown-menu');
+    
+    if (stockFilterInput) {
+        stockFilterInput.value = '';
+    }
+    
+    if (stockFilterText) {
+        stockFilterText.innerHTML = '<span data-translate="all_stock_levels">All Stock Levels</span>';
+    }
+    
+    if (stockFilterDropdown) {
+        stockFilterDropdown.querySelectorAll('.dropdown-item').forEach(item => {
+            item.classList.remove('active');
+        });
+        const firstItem = stockFilterDropdown.querySelector('.dropdown-item[data-value=""]');
+        if (firstItem) {
+            firstItem.classList.add('active');
+        }
+    }
     
     if (currentInventoryData.length > 0) {
         filteredData = [...currentInventoryData];
@@ -531,15 +600,9 @@ function urgentRestock(productId, vessel) {
 }
 
 function exportInventoryData() {
-    // Check if vessel is selected
-    if (!currentVessel) {
-        alertTranslated('please_select_vessel');
-        return;
-    }
-    
     // Get current filters
-    const stockFilter = document.getElementById('stockFilter')?.value || '';
-    const searchFilter = document.getElementById('searchInput')?.value || '';
+    const stockFilter = document.getElementById('stockFilterInput')?.value || '';
+    const searchFilter = document.getElementById('productSearch')?.value || '';
     
     // Get current language
     const currentLanguage = window.translator ? window.translator.currentLanguage : 
@@ -547,14 +610,18 @@ function exportInventoryData() {
     
     // Extract vessel ID properly
     let vesselId;
-    if (typeof currentVessel === 'object' && currentVessel.id) {
-        vesselId = currentVessel.id;
-    } else if (typeof currentVessel === 'string' || typeof currentVessel === 'number') {
-        vesselId = currentVessel;
+    if (currentVessel) {
+        if (typeof currentVessel === 'object' && currentVessel.id) {
+            vesselId = currentVessel.id;
+        } else if (typeof currentVessel === 'string' || typeof currentVessel === 'number') {
+            vesselId = currentVessel;
+        } else {
+            console.error('Invalid currentVessel format:', currentVessel);
+            alertTranslated('please_select_vessel');
+            return;
+        }
     } else {
-        console.error('Invalid currentVessel format:', currentVessel);
-        alertTranslated('please_select_vessel');
-        return;
+        vesselId = '';
     }
     
     // Prepare additional data with filters (REMOVED min level logic)
@@ -577,6 +644,7 @@ const printInventory = () => window.templateUtils.showPrintComingSoon();
 
 window.switchVessel = switchVessel;
 window.handleFilterChange = handleFilterChange;
+window.selectStockFilter = selectStockFilter;
 window.loadInventoryData = loadInventoryData;
 window.handleSearchInput = handleSearchInput;
 window.viewDetails = viewDetails;

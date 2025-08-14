@@ -58,6 +58,38 @@ class Product(models.Model):
             models.Index(fields=['barcode'], name='product_barcode_idx'),
             models.Index(fields=['created_by'], name='product_created_by_idx'),
         ]
+        constraints = [
+            # Ensure product name is not empty
+            models.CheckConstraint(
+                check=~models.Q(name=''),
+                name='product_name_not_empty'
+            ),
+            # Ensure item_id is not empty
+            models.CheckConstraint(
+                check=~models.Q(item_id=''),
+                name='product_item_id_not_empty'
+            ),
+            # Ensure purchase_price is positive
+            models.CheckConstraint(
+                check=models.Q(purchase_price__gt=0),
+                name='product_positive_purchase_price'
+            ),
+            # Ensure selling_price is positive
+            models.CheckConstraint(
+                check=models.Q(selling_price__gt=0),
+                name='product_positive_selling_price'
+            ),
+            # Ensure selling price is greater than or equal to purchase price
+            models.CheckConstraint(
+                check=models.Q(selling_price__gte=models.F('purchase_price')),
+                name='product_selling_price_gte_purchase_price'
+            ),
+            # Ensure barcode is unique when provided (handled by unique constraint if needed)
+            models.CheckConstraint(
+                check=models.Q(barcode__isnull=True) | ~models.Q(barcode=''),
+                name='product_barcode_not_empty_string'
+            ),
+        ]
     
     def __str__(self):
         return f"{self.item_id} - {self.name}"

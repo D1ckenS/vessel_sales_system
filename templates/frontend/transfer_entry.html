@@ -41,23 +41,44 @@
                             <label class="form-label fw-bold">
                                 <i class="bi bi-ship text-danger"></i> <span data-translate="from_vessel_source">From Vessel (Source)</span> *
                             </label>
-                            <select class="form-select form-select-lg" name="from_vessel" id="fromVessel" required>
-                                <option value="" data-translate="choose_source_vessel">Choose source vessel...</option>
-                                {% for vessel in vessels %}
-                                <option value="{{ vessel.id }}" data-name="{{ vessel.name }}" data-name-ar="{{ vessel.name_ar }}" data-duty-free="{{ vessel.has_duty_free }}">
-                                    <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
-                                    {% if vessel.has_duty_free %}<span data-translate="duty_free_available">(Duty-Free Available)</span>{% endif %}
-                                </option>
-                                {% endfor %}
-                            </select>
+                            <div class="dropdown w-100">
+                                <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start btn-lg" type="button" 
+                                        id="fromVesselDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <span id="selectedFromVesselText">
+                                        <span data-translate="choose_source_vessel">Choose source vessel...</span>
+                                    </span>
+                                </button>
+                                <ul class="dropdown-menu w-100" aria-labelledby="fromVesselDropdown">
+                                    {% for vessel in vessels %}
+                                    <li><a class="dropdown-item" href="#" data-value="{{ vessel.id }}" 
+                                           data-name="{{ vessel.name }}" data-name-ar="{{ vessel.name_ar }}" 
+                                           data-duty-free="{{ vessel.has_duty_free }}" 
+                                           onclick="selectFromVessel('{{ vessel.id }}', this, '{{ vessel.name }}', '{{ vessel.name_ar }}', {{ vessel.has_duty_free|yesno:'true,false' }})">
+                                        <i class="bi bi-ship me-2 text-danger"></i>
+                                        <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
+                                        {% if vessel.has_duty_free %}<span class="badge bg-success ms-2"><span data-translate="duty_free">Duty-Free</span></span>{% endif %}
+                                    </a></li>
+                                    {% endfor %}
+                                </ul>
+                                <input type="hidden" name="from_vessel" id="fromVesselInput" required>
+                            </div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-bold">
                                 <i class="bi bi-ship text-success"></i> <span data-translate="to_vessel_destination">To Vessel (Destination)</span> *
                             </label>
-                            <select class="form-select form-select-lg" name="to_vessel" id="toVessel" required disabled>
-                                <option value="" data-translate="first_select_source_vessel">First select source vessel...</option>
-                            </select>
+                            <div class="dropdown w-100">
+                                <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start btn-lg" type="button" 
+                                        id="toVesselDropdown" data-bs-toggle="dropdown" aria-expanded="false" disabled>
+                                    <span id="selectedToVesselText">
+                                        <span data-translate="first_select_source_vessel">First select source vessel...</span>
+                                    </span>
+                                </button>
+                                <ul class="dropdown-menu w-100" aria-labelledby="toVesselDropdown" id="toVesselDropdownMenu">
+                                    <!-- Dynamically populated -->
+                                </ul>
+                                <input type="hidden" name="to_vessel" id="toVesselInput" required>
+                            </div>
                         </div>
                     </div>
 
@@ -199,51 +220,126 @@ document.addEventListener('DOMContentLoaded', function() {
     updatePageTranslations();
 });
 
-// Populate destination vessel when source is selected
-document.getElementById('fromVessel').addEventListener('change', function() {
-    const fromVesselId = this.value;
-    const toVesselSelect = document.getElementById('toVessel');
+// From Vessel dropdown selection handler
+function selectFromVessel(vesselId, element, vesselNameEn, vesselNameAr, hasDutyFree) {
+    // Update hidden input
+    document.getElementById('fromVesselInput').value = vesselId;
     
-    if (fromVesselId) {
-        // Enable destination vessel
-        toVesselSelect.disabled = false;
-        
-        // Populate destination options (exclude source vessel)
-        toVesselSelect.innerHTML = `<option value="">${_('choose_destination_vessel')}</option>`;
-        
-        // Get all vessel options from the source select
-        const sourceOptions = document.getElementById('fromVessel').options;
-        for (let i = 1; i < sourceOptions.length; i++) { // Skip first "Choose..." option
-            const option = sourceOptions[i];
-            if (option.value !== fromVesselId) {
-                const newOption = document.createElement('option');
-                newOption.value = option.value;
-                newOption.dataset.name = option.dataset.name;
-                newOption.dataset.nameAr = option.dataset.nameAr;
-                newOption.dataset.dutyFree = option.dataset.dutyFree;
-                
-                // Set option text based on current language
-                const currentLang = window.translator.currentLanguage;
-                const vesselName = (currentLang === 'ar' && option.dataset.nameAr) ? option.dataset.nameAr : option.dataset.name;
-                
-                // 🔧 FIX: Django outputs "True"/"False", not "true"/"false"
-                const dutyFreeText = option.dataset.dutyFree === 'True' ? ` (${_('duty_free_supported')})` : ` (${_('no_duty_free')})`;
-                newOption.textContent = vesselName + dutyFreeText;
-                
-                toVesselSelect.appendChild(newOption);
-            }
-        }
-    } else {
-        // Disable everything
-        toVesselSelect.disabled = true;
-        toVesselSelect.innerHTML = `<option value="">${_('first_select_source_vessel')}</option>`;
+    // Update button text
+    const buttonText = document.getElementById('selectedFromVesselText');
+    buttonText.innerHTML = element.innerHTML;
+    
+    // Update active state
+    document.querySelectorAll('#fromVesselDropdown + .dropdown-menu .dropdown-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    element.classList.add('active');
+    
+    // Close dropdown
+    const dropdown = bootstrap.Dropdown.getInstance(document.getElementById('fromVesselDropdown'));
+    if (dropdown) {
+        dropdown.hide();
     }
-});
+    
+    // Populate destination vessel dropdown (exclude source vessel)
+    populateToVesselDropdown(vesselId);
+    
+    // Clear any previous selection for destination
+    document.getElementById('toVesselInput').value = '';
+    document.getElementById('selectedToVesselText').innerHTML = '<span data-translate="choose_destination_vessel">Choose destination vessel...</span>';
+    
+    // Prevent default link behavior
+    event.preventDefault();
+    return false;
+}
+
+// To Vessel dropdown selection handler
+function selectToVessel(vesselId, element, vesselNameEn, vesselNameAr, hasDutyFree) {
+    // Update hidden input
+    document.getElementById('toVesselInput').value = vesselId;
+    
+    // Update button text
+    const buttonText = document.getElementById('selectedToVesselText');
+    buttonText.innerHTML = element.innerHTML;
+    
+    // Update active state
+    document.querySelectorAll('#toVesselDropdown + .dropdown-menu .dropdown-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    element.classList.add('active');
+    
+    // Close dropdown
+    const dropdown = bootstrap.Dropdown.getInstance(document.getElementById('toVesselDropdown'));
+    if (dropdown) {
+        dropdown.hide();
+    }
+    
+    // Prevent default link behavior
+    event.preventDefault();
+    return false;
+}
+
+function populateToVesselDropdown(excludeVesselId) {
+    const toVesselMenu = document.getElementById('toVesselDropdownMenu');
+    const toVesselButton = document.getElementById('toVesselDropdown');
+    
+    // Clear existing options
+    toVesselMenu.innerHTML = '';
+    
+    // Get all vessels from the from vessel dropdown
+    const fromVesselItems = document.querySelectorAll('#fromVesselDropdown + .dropdown-menu .dropdown-item');
+    
+    fromVesselItems.forEach(item => {
+        const vesselId = item.getAttribute('data-value');
+        const vesselName = item.getAttribute('data-name');
+        const vesselNameAr = item.getAttribute('data-name-ar');
+        const hasDutyFree = item.getAttribute('data-duty-free') === 'True';
+        
+        // Exclude the selected source vessel
+        if (vesselId !== excludeVesselId) {
+            const li = document.createElement('li');
+            const a = document.createElement('a');
+            a.className = 'dropdown-item';
+            a.href = '#';
+            a.setAttribute('data-value', vesselId);
+            a.setAttribute('data-name', vesselName);
+            a.setAttribute('data-name-ar', vesselNameAr);
+            a.setAttribute('data-duty-free', hasDutyFree);
+            a.setAttribute('onclick', `selectToVessel('${vesselId}', this, '${vesselName}', '${vesselNameAr}', ${hasDutyFree})`);
+            
+            a.innerHTML = `
+                <i class="bi bi-ship me-2 text-success"></i>
+                <span class="vessel-name" data-en="${vesselName}" data-ar="${vesselNameAr}">${vesselName}</span>
+                ${hasDutyFree ? '<span class="badge bg-success ms-2"><span data-translate="duty_free">Duty-Free</span></span>' : ''}
+            `;
+            
+            li.appendChild(a);
+            toVesselMenu.appendChild(li);
+        }
+    });
+    
+    // Enable the destination dropdown
+    toVesselButton.disabled = false;
+}
 
 function clearForm() {
     document.getElementById('transferForm').reset();
-    document.getElementById('toVessel').disabled = true;
-    document.getElementById('toVessel').innerHTML = `<option value="">${_('first_select_source_vessel')}</option>`;
+    
+    // Reset from vessel dropdown
+    document.getElementById('fromVesselInput').value = '';
+    document.getElementById('selectedFromVesselText').innerHTML = '<span data-translate="choose_source_vessel">Choose source vessel...</span>';
+    document.querySelectorAll('#fromVesselDropdown + .dropdown-menu .dropdown-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    
+    // Reset to vessel dropdown
+    document.getElementById('toVesselInput').value = '';
+    document.getElementById('selectedToVesselText').innerHTML = '<span data-translate="first_select_source_vessel">First select source vessel...</span>';
+    document.getElementById('toVesselDropdown').disabled = true;
+    document.getElementById('toVesselDropdownMenu').innerHTML = '';
+    document.querySelectorAll('#toVesselDropdown + .dropdown-menu .dropdown-item').forEach(item => {
+        item.classList.remove('active');
+    });
 }
 
 function viewTransferDetails(transferId) {

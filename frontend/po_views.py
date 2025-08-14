@@ -2,6 +2,7 @@ from django.urls import reverse
 from django.utils import timezone
 from datetime import timedelta
 from django.shortcuts import render, get_object_or_404
+import logging
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.http import JsonResponse
 from django.db import transaction
@@ -21,6 +22,8 @@ from .permissions import (
     reports_access_required,
     admin_or_manager_required
 )
+
+logger = logging.getLogger('frontend')
 
 @login_required
 @user_passes_test(is_admin_or_manager)
@@ -201,14 +204,14 @@ def edit_po(request, po_id):
                     
                     # Log the status change
                     action = "completed" if new_status else "reopened"
-                    print(f"🔄 PO STATUS CHANGE: PO {po.po_number} {action} by {request.user.username}")
+                    logger.info(f"🔄 PO STATUS CHANGE: PO {po.po_number} {action} by {request.user.username}")
             
             po.save()
             
             # 🚀 ENHANCED: Clear cache if status changed or always for consistency
             if status_changed:
                 POCacheHelper.clear_cache_after_po_update(po_id)
-                print(f"🔥 Enhanced cache cleared due to status change")
+                logger.debug(f"🔥 Enhanced cache cleared due to status change")
             else:
                 POCacheHelper.clear_cache_after_po_update(po_id)
             
@@ -275,9 +278,9 @@ def delete_po(request, po_id):
             
             try:
                 ProductCacheHelper.clear_cache_after_product_update()
-                print("🔥 Product cache cleared after PO deletion")
+                logger.debug("🔥 Product cache cleared after PO deletion")
             except Exception as e:
-                print(f"⚠️ Cache clear error: {e}")
+                logger.warning(f"⚠️ Cache clear error: {e}")
 
             return JsonResponseHelper.success(
                 message=f'PO {po_number} and all {transaction_count} transactions deleted successfully. Inventory removed.'

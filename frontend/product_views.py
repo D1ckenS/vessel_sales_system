@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Count, Q, Case, When, IntegerField, Sum
 from django.db.models.functions import Coalesce, Cast
 from django.core.cache import cache
+import logging
 from frontend.utils.cache_helpers import PerfectPagination, ProductCacheHelper
 from .permissions import is_admin_or_manager, is_superuser_only
 from .utils import BilingualMessages
@@ -18,13 +19,15 @@ from django.views.decorators.http import require_GET
 from django.db import connection
 import hashlib
 
+logger = logging.getLogger('frontend')
+
 @login_required
 @user_passes_test(is_admin_or_manager)
 def product_list_view(request):
     """PERFECT NUCLEAR: 6 queries maximum, full pagination compatibility"""
     
     # 🔍 DEBUG: Check cache version at start
-    print(f"🔍 Cache version at START: {ProductCacheHelper._get_cache_version()}")
+    logger.debug(f"🔍 Cache version at START: {ProductCacheHelper._get_cache_version()}")
     
     # Get filter parameters
     search_query = request.GET.get('search', '').strip()
@@ -34,7 +37,7 @@ def product_list_view(request):
     page_size = int(request.GET.get('per_page', 30))
     
     # 🔍 DEBUG: Check if filters trigger cache clearing
-    print(f"🔍 Filters applied: search='{search_query}', category='{category_filter}', department='{department_filter}'")
+    logger.debug(f"🔍 Filters applied: search='{search_query}', category='{category_filter}', department='{department_filter}'")
     
     # Validate inputs
     if page_size not in [30, 50, 100]:
@@ -61,14 +64,14 @@ def product_list_view(request):
         page_size=page_size
     )
     
-    print(f"🔍 Generated cache key: {cache_key}")
+    logger.debug(f"🔍 Generated cache key: {cache_key}")
     
     cached_data = cache.get(cache_key)
     if cached_data:
-        print("🚀 PERFECT CACHE HIT!")
+        logger.debug("🚀 PERFECT CACHE HIT!")
         return render(request, 'frontend/product_list.html', cached_data)
     
-    print("🔥 PERFECT CACHE MISS - ULTIMATE OPTIMIZATION")
+    logger.debug("🔥 PERFECT CACHE MISS - ULTIMATE OPTIMIZATION")
     
     # 🚀 QUERY 1: ULTIMATE STATIC DATA - Combines 4 queries into 1 RAW SQL
     ultimate_static_cache = cache.get('perfect_static_v2')  # Change cache version
@@ -111,7 +114,7 @@ def product_list_view(request):
             'categories': categories
         }
         cache.set('perfect_static_v2', ultimate_static_cache, 7200)
-        print("🔥 PERFECT STATIC DATA V2 CACHED")
+        logger.debug("🔥 PERFECT STATIC DATA V2 CACHED")
 
     # Extract from ultimate cache
     stats = ultimate_static_cache['stats']
@@ -273,13 +276,13 @@ def product_list_view(request):
     
     # 🚀 PERFECT CACHE
     cache.set(cache_key, context, ProductCacheHelper.PRODUCT_MANAGEMENT_CACHE_TIMEOUT)
-    print(f"🔥 PERFECT CACHED: {cache_key}")
-    print(f"🔥 Vessel count: {touristic_vessels_count}")
-    print(f"🔥 Incomplete pricing: {incomplete_pricing_cache}")
-    print(f"🔥 Categories source check:")
-    print(f"🔥 Cache categories count: {len(ultimate_static_cache['categories'])}")
-    print(f"🔥 Using cached categories: {len(categories)}")
-    print(f"🔍 Cache version at END (miss): {ProductCacheHelper._get_cache_version()}")
+    logger.debug(f"🔥 PERFECT CACHED: {cache_key}")
+    logger.debug(f"🔥 Vessel count: {touristic_vessels_count}")
+    logger.debug(f"🔥 Incomplete pricing: {incomplete_pricing_cache}")
+    logger.debug(f"🔥 Categories source check:")
+    logger.debug(f"🔥 Cache categories count: {len(ultimate_static_cache['categories'])}")
+    logger.debug(f"🔥 Using cached categories: {len(categories)}")
+    logger.debug(f"🔍 Cache version at END (miss): {ProductCacheHelper._get_cache_version()}")
     
     return render(request, 'frontend/product_list.html', context)
 @login_required
@@ -405,9 +408,9 @@ def product_edit_view(request, product_id):
     """Edit existing product view"""
     try:
         ProductCacheHelper.clear_product_management_cache()
-        print("🔥 Cache cleared before edit form load")
+        logger.debug("🔥 Cache cleared before edit form load")
     except Exception as e:
-        print(f"⚠️ Cache clear warning: {e}")
+        logger.warning(f"⚠️ Cache clear warning: {e}")
         
     product = get_object_or_404(Product, id=product_id)
     
@@ -437,7 +440,7 @@ def product_edit_view(request, product_id):
     
     elif request.method == 'POST':
         try:
-            print(f"🔥 Starting product update for ID: {product_id}")
+            logger.debug(f"🔥 Starting product update for ID: {product_id}")
             
             # Get form data
             name = request.POST.get('name', '').strip()
@@ -449,26 +452,26 @@ def product_edit_view(request, product_id):
             is_duty_free = request.POST.get('is_duty_free') == 'on'
             active = request.POST.get('active') == 'on'
             
-            print(f"🔥 Form data received: {name}, {item_id}")
+            logger.debug(f"🔥 Form data received: {name}, {item_id}")
             
             # Validation
             if not all([name, item_id, category_id, purchase_price, selling_price]):
-                print("🔥 Validation failed: missing required fields")
+                logger.warning("🔥 Validation failed: missing required fields")
                 BilingualMessages.error(request, 'required_fields_missing')
                 return redirect('frontend:product_edit', product_id=product_id)
             
             # Check unique item_id (excluding current product)
             if Product.objects.filter(item_id=item_id).exclude(id=product_id).exists():
-                print(f"🔥 Validation failed: item_id {item_id} already exists")
+                logger.warning(f"🔥 Validation failed: item_id {item_id} already exists")
                 BilingualMessages.error(request, 'product_already_exists', item_id=item_id)
                 return redirect('frontend:product_edit', product_id=product_id)
             
             # Get category
             try:
                 category = Category.objects.get(id=category_id, active=True)
-                print(f"🔥 Category found: {category.name}")
+                logger.debug(f"🔥 Category found: {category.name}")
             except Category.DoesNotExist:
-                print(f"🔥 Category not found: {category_id}")
+                logger.warning(f"🔥 Category not found: {category_id}")
                 BilingualMessages.error(request, 'invalid_category')
                 return redirect('frontend:product_edit', product_id=product_id)
             
@@ -482,15 +485,15 @@ def product_edit_view(request, product_id):
                         try:
                             vessel_prices_data[vessel.id] = Decimal(vessel_price)
                         except (ValueError, decimal.InvalidOperation):
-                            print(f"🔥 Invalid vessel price for {vessel.name}: {vessel_price}")
+                            logger.warning(f"🔥 Invalid vessel price for {vessel.name}: {vessel_price}")
                             BilingualMessages.error(request, 'invalid_vessel_price', vessel_name=vessel.name)
                             return redirect('frontend:product_edit', product_id=product_id)
             
-            print(f"🔥 Vessel prices: {vessel_prices_data}")
+            logger.debug(f"🔥 Vessel prices: {vessel_prices_data}")
             
             # Update product
             with transaction.atomic():
-                print("🔥 Starting database transaction")
+                logger.debug("🔥 Starting database transaction")
                 
                 product.name = name
                 product.item_id = item_id
@@ -502,7 +505,7 @@ def product_edit_view(request, product_id):
                 product.active = active
                 product.save()
                 
-                print(f"🔥 Product saved: {product.name}")
+                logger.debug(f"🔥 Product saved: {product.name}")
                 
                 # Update vessel prices
                 VesselProductPrice.objects.filter(product=product).delete()
@@ -514,22 +517,22 @@ def product_edit_view(request, product_id):
                         selling_price=price
                     )
                 
-                print(f"🔥 Vessel prices updated: {len(vessel_prices_data)} prices")
+                logger.debug(f"🔥 Vessel prices updated: {len(vessel_prices_data)} prices")
         
             # Clear caches AFTER successful transaction
             try:
                 ProductCacheHelper.clear_cache_after_product_update()
-                print("🔥 All cache cleared")
+                logger.debug("🔥 All cache cleared")
             except Exception as cache_error:
-                print(f"⚠️ Cache clear error: {cache_error}")
+                logger.warning(f"⚠️ Cache clear error: {cache_error}")
                         
-            print(f"🔥 Product update completed successfully")
+            logger.info(f"🔥 Product update completed successfully")
             BilingualMessages.success(request, 'product_updated_successfully', product_name=name)
             
             return redirect('frontend:product_list')
                 
         except Exception as e:
-            print(f"🔥 CRITICAL ERROR in product update: {str(e)}")
+            logger.error(f"🔥 CRITICAL ERROR in product update: {str(e)}")
             
             BilingualMessages.error(request, 'error_updating_product')
             return redirect('frontend:product_edit', product_id=product_id)
@@ -559,7 +562,7 @@ def delete_product(request, product_id):
             try:
                 ProductCacheHelper.clear_cache_after_product_delete()
             except Exception as cache_error:
-                print(f"⚠️ Cache clear error after deletion: {cache_error}")
+                logger.warning(f"⚠️ Cache clear error after deletion: {cache_error}")
             
             return redirect('frontend:product_list')
     
@@ -608,18 +611,18 @@ def debug_cache_status(request):
 def test_cache_clearing():
     """Test function to verify cache clearing works"""
     
-    print("🧪 TESTING CACHE CLEARING...")
+    logger.debug("🧪 TESTING CACHE CLEARING...")
     
     # Check initial status
     status_before = ProductCacheHelper.debug_cache_status()
-    print(f"📊 Before: {sum(1 for v in status_before.values() if v)} active keys")
+    logger.debug(f"📊 Before: {sum(1 for v in status_before.values() if v)} active keys")
     
     # Clear cache
     success, count = ProductCacheHelper.clear_all_product_cache()
-    print(f"🔥 Cleared: {count} keys, success: {success}")
+    logger.debug(f"🔥 Cleared: {count} keys, success: {success}")
     
     # Check after status
     status_after = ProductCacheHelper.debug_cache_status()
-    print(f"📊 After: {sum(1 for v in status_after.values() if v)} active keys")
+    logger.debug(f"📊 After: {sum(1 for v in status_after.values() if v)} active keys")
     
     return success

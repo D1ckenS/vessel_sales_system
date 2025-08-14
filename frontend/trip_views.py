@@ -2,6 +2,7 @@ from django.http import JsonResponse
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db import transaction, models
+import logging
 from django.db.models import Sum, F, Count, Prefetch
 from django.db.models.functions import Round
 from django.urls import reverse
@@ -21,6 +22,8 @@ from .permissions import (
     admin_or_manager_required,
     is_admin_or_manager
 )
+
+logger = logging.getLogger('frontend')
 
 @login_required
 @user_passes_test(is_admin_or_manager)
@@ -259,7 +262,7 @@ def edit_trip(request, trip_id):
                     
                     # Log the status change
                     action = "completed" if new_status else "reopened"
-                    print(f"🔄 TRIP STATUS CHANGE: Trip {trip.trip_number} {action} by {request.user.username}")
+                    logger.info(f"🔄 TRIP STATUS CHANGE: Trip {trip.trip_number} {action} by {request.user.username}")
             
             trip.save()
             
@@ -268,7 +271,7 @@ def edit_trip(request, trip_id):
                 TripCacheHelper.clear_cache_after_trip_update(trip_id)
                 # Also clear robust cache for status changes
                 TripCacheHelper.clear_recent_trips_cache_only_when_needed()
-                print(f"🔥 Enhanced cache cleared due to status change")
+                logger.debug(f"🔥 Enhanced cache cleared due to status change")
             else:
                 TripCacheHelper.clear_cache_after_trip_delete(trip_id)
                 TripCacheHelper.clear_recent_trips_cache_only_when_needed()
@@ -424,13 +427,13 @@ def toggle_trip_status(request, trip_id):
                 transaction_count = sales_transactions.count()
                 
                 if transaction_count > 0:
-                    print(f"🔄 TRIP RESTART: Deleting {transaction_count} sales transactions for trip {trip.trip_number}")
+                    logger.info(f"🔄 TRIP RESTART: Deleting {transaction_count} sales transactions for trip {trip.trip_number}")
                     
                     # Delete each transaction (triggers inventory restoration via Transaction.delete())
                     for txn in sales_transactions:
                         txn.delete()
                     
-                    print(f"✅ TRIP RESTART: Inventory restored for {transaction_count} items")
+                    logger.info(f"✅ TRIP RESTART: Inventory restored for {transaction_count} items")
                 
                 # Mark as incomplete
                 trip.is_completed = False
@@ -439,7 +442,7 @@ def toggle_trip_status(request, trip_id):
                 # Clear trip cache
                 TripCacheHelper.clear_cache_after_trip_update(trip_id)
                 
-                print(f"🔄 TRIP RESTART: Trip {trip.trip_number} reopened for editing")
+                logger.info(f"🔄 TRIP RESTART: Trip {trip.trip_number} reopened for editing")
             
             # Return redirect response to restart workflow at trip_sales
             return JsonResponse({

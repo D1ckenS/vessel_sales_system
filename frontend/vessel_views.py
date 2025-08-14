@@ -1,4 +1,7 @@
+import logging
 from django.utils import timezone
+
+logger = logging.getLogger('frontend')
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.http import JsonResponse
@@ -35,7 +38,7 @@ def vessel_management(request):
     cached_data = cache.get(cache_key)
     
     if cached_data:
-        print("🚀 VESSEL MANAGEMENT CACHE HIT!")
+        logger.debug("🚀 VESSEL MANAGEMENT CACHE HIT!")
         return render(request, 'frontend/auth/vessel_management.html', cached_data)
     
     # 🚀 QUERY 1: Get ALL vessels with only essential statistics - NO pricing annotations
@@ -178,16 +181,16 @@ def vessel_management(request):
     # 🚀 CACHE: Store data for 1 hour (vessels rarely change, but revenue/trips do)
     cache.set(cache_key, context, 3600)  # 1 hour timeout
     
-    print(f"🚀 VESSEL MANAGEMENT CACHE MISS: {len(vessel_data)} vessels cached for 1 hour")
-    print(f"🔍 Total general products: {total_general_products}")
-    print(f"🔍 Vessels with incomplete pricing: {vessels_with_incomplete_pricing}")
+    logger.info(f"🚀 VESSEL MANAGEMENT CACHE MISS: {len(vessel_data)} vessels cached for 1 hour")
+    logger.debug(f"🔍 Total general products: {total_general_products}")
+    logger.debug(f"🔍 Vessels with incomplete pricing: {vessels_with_incomplete_pricing}")
     
     # Debug first few vessels
     for vessel_info in vessel_data[:3]:
         vessel = vessel_info['vessel']
         pricing = vessel_info['pricing_data']
         status = "ACTIVE" if vessel.active else "INACTIVE"
-        print(f"🔍 {vessel.name} ({status}): {pricing['products_priced']}/{pricing['total_products']} ({pricing['completion_percentage']}%)")
+        logger.debug(f"🔍 {vessel.name} ({status}): {pricing['products_priced']}/{pricing['total_products']} ({pricing['completion_percentage']}%)")
     
     return render(request, 'frontend/auth/vessel_management.html', context)
 
@@ -297,7 +300,7 @@ def create_vessel(request):
             try:
                 VesselManagementCacheHelper.clear_vessel_management_cache()
             except Exception as e:
-                print(f"⚠️ Cache clear error: {e}")
+                logger.warning(f"⚠️ Cache clear error: {e}")
             
             return JsonResponseHelper.success(
                 message=f'Vessel "{vessel.name}" created successfully',
@@ -345,7 +348,7 @@ def edit_vessel(request, vessel_id):
             try:
                 VesselManagementCacheHelper.clear_vessel_management_cache()
             except Exception as e:
-                print(f"⚠️ Cache clear error: {e}")
+                logger.warning(f"⚠️ Cache clear error: {e}")
                 
             return JsonResponseHelper.success(
                 message=f'Vessel "{vessel.name}" updated successfully',
@@ -383,7 +386,7 @@ def toggle_vessel_status(request, vessel_id):
         from frontend.utils.cache_helpers import VesselManagementCacheHelper
         VesselManagementCacheHelper.clear_vessel_management_cache()
     except Exception as e:
-        print(f"⚠️ Cache clear error: {e}")
+        logger.warning(f"⚠️ Cache clear error: {e}")
     
     return CRUDHelper.toggle_boolean_field(vessel, 'active', 'Vessel')
 

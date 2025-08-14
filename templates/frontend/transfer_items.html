@@ -135,6 +135,7 @@
                     <input type="hidden" id="editIndex" value="-1">
                     <input type="hidden" id="fromVesselId" value="{{ transfer.from_vessel.id }}">
                     <input type="hidden" id="toVesselId" value="{{ transfer.to_vessel.id }}">
+                    <input type="hidden" id="transferDate" value="{{ transfer.transfer_date|date:'Y-m-d' }}">
                     
                     <!-- Product Search -->
                     <div class="mb-3">
@@ -463,7 +464,8 @@ function loadAvailableProducts() {
             'X-CSRFToken': window.getCsrfToken()
         },
         body: JSON.stringify({
-            vessel_id: parseInt(fromVesselId)
+            vessel_id: parseInt(fromVesselId),
+            transfer_date: document.getElementById('transferDate').value  // Add transfer date for historical inventory
         })
     })
     .then(response => {

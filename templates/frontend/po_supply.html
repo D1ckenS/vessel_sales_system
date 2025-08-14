@@ -597,7 +597,18 @@ function displayCompletedSupplies(completedSupplies) {
     
     // Build table rows that match the current table structure
     const rows = completedSupplies.map((item, index) => {
-        
+    const quantityDisplay = item.boxes && item.items_per_box 
+            ? `
+                <div class="box-info text-primary fw-bold">
+                    ${item.numBoxes} boxes × ${item.items_per_box} = ${item.quantity}
+                </div>
+                <small class="text-muted"><span data-translate="total_units">total units</span></small>
+              `
+            : `
+                <div class="total-units fw-bold text-primary">${item.quantity}</div>
+                <small class="text-muted"><span data-translate="total_units">total units</span></small>
+              `;
+
         return `
             <tr>
                 <td><small class="text-muted" data-number data-original="${item.created_at}">${item.created_at}</small></td>
@@ -607,10 +618,7 @@ function displayCompletedSupplies(completedSupplies) {
                     ${item.is_duty_free ? '<span class="badge bg-warning text-dark">' + _('duty_free') + '</span>' : ''}
                 </td>
                 <td class="text-center quantity-breakdown">
-                    <div class="total-units fw-bold text-primary">
-                        <span class="fw-bold" data-number data-original="${item.quantity}">${translateNumber(item.quantity.toString())}</span>
-                    </div>
-                    <small class="text-muted"><span data-translate="total_units">total units</span></small>
+                    ${quantityDisplay}
                 </td>
                 <td class="text-end unit-cost-calculated">
                     <div class="main-cost">
@@ -1121,6 +1129,8 @@ async function completePOSupplies() {
     // Prepare data - make sure all fields are present
     const itemsToSend = poSuppliesCart.map(item => ({
         product_id: item.product_id,
+        boxes: item.num_boxes,
+        items_per_box: item.items_per_box,
         quantity: item.quantity,
         unit_price: item.unit_price,
         notes: item.notes || ''

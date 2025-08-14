@@ -2,6 +2,7 @@ from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import User, Group, Permission
 from django.db import transaction
+import logging
 from frontend.utils.validation_helpers import ValidationHelper
 from django.views.decorators.http import require_http_methods
 from django.db.models import Count, Q
@@ -15,6 +16,8 @@ from .permissions import (
     reports_access_required,
     admin_or_manager_required
 )
+
+logger = logging.getLogger('frontend')
 
 @login_required
 @user_passes_test(is_admin_or_manager)
@@ -39,7 +42,7 @@ def manage_user_groups(request, user_id):
             try:
                 UserManagementCacheHelper.clear_user_management_cache()
             except Exception as e:
-                print(f"⚠️ Cache clear error: {e}")
+                logger.warning(f"⚠️ Cache clear error: {e}")
                 
             return FormResponseHelper.success_redirect(
                 request, 'frontend:user_management',
@@ -134,10 +137,10 @@ def group_management(request):
     cached_data = cache.get(cache_key)
 
     if cached_data:
-        print("🚀 GROUP MGMT CACHE HIT")
+        logger.debug("🚀 GROUP MGMT CACHE HIT")
         return render(request, 'frontend/auth/group_management.html', cached_data)
 
-    print("🚀 GROUP MGMT CACHE MISS — Building data")
+    logger.debug("🚀 GROUP MGMT CACHE MISS — Building data")
     
     groups = Group.objects.annotate(
         user_count=Count('user'),
@@ -181,7 +184,7 @@ def create_group(request):
                 
                 UserManagementCacheHelper.clear_user_management_cache()
             except Exception as e:
-                print(f"⚠️ Cache clear error: {e}")
+                logger.warning(f"⚠️ Cache clear error: {e}")
                 
             return JsonResponseHelper.success(
                 message=f'Group "{group.name}" created successfully',
@@ -237,7 +240,7 @@ def edit_group(request, group_id):
         try:
             UserManagementCacheHelper.clear_user_management_cache()
         except Exception as e:
-            print(f"⚠️ Cache clear error: {e}")
+            logger.warning(f"⚠️ Cache clear error: {e}")
         
         return JsonResponseHelper.success(
             message=f'Group renamed from "{old_name}" to "{group.name}"',
@@ -285,7 +288,7 @@ def delete_group(request, group_id):
         try:
             UserManagementCacheHelper.clear_user_management_cache()
         except Exception as e:
-            print(f"⚠️ Cache clear error: {e}")
+            logger.warning(f"⚠️ Cache clear error: {e}")
         
         return JsonResponseHelper.success(
             message=f'Group "{group_name}" and user assignments deleted successfully'

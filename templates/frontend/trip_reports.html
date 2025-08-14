@@ -64,14 +64,35 @@
                     <div class="row">
                         <div class="col-md-3">
                             <label class="form-label fw-bold"><span data-translate="vessel">Vessel</span></label>
-                            <select class="form-select" name="vessel">
-                                <option value=""><span data-translate="all_vessels">All Vessels</span></option>
-                                {% for vessel in vessels %}
-                                <option value="{{ vessel.id }}" {% if filters.vessel == vessel.id|stringformat:"s" %}selected{% endif %}>
-                                    <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
-                                </option>
-                                {% endfor %}
-                            </select>
+                            <div class="dropdown w-100">
+                                <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start" type="button" 
+                                        id="vesselTripDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <span id="selectedVesselTripText">
+                                        {% if filters.vessel %}
+                                            {% for vessel in vessels %}
+                                                {% if vessel.id|stringformat:"s" == filters.vessel %}
+                                                    <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
+                                                {% endif %}
+                                            {% endfor %}
+                                        {% else %}
+                                            <span data-translate="all_vessels">All Vessels</span>
+                                        {% endif %}
+                                    </span>
+                                </button>
+                                <ul class="dropdown-menu w-100" aria-labelledby="vesselTripDropdown">
+                                    <li><a class="dropdown-item {% if not filters.vessel %}active{% endif %}" href="#" data-value="" onclick="selectVesselTrip('', this)">
+                                        <span data-translate="all_vessels">All Vessels</span>
+                                    </a></li>
+                                    {% for vessel in vessels %}
+                                    <li><a class="dropdown-item {% if vessel.id|stringformat:'s' == filters.vessel %}active{% endif %}" 
+                                           href="#" data-value="{{ vessel.id }}" onclick="selectVesselTrip('{{ vessel.id }}', this)">
+                                        <i class="bi bi-ship me-2"></i>
+                                        <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
+                                    </a></li>
+                                    {% endfor %}
+                                </ul>
+                                <input type="hidden" name="vessel" id="vesselTripInput" value="{{ filters.vessel|default:'' }}">
+                            </div>
                         </div>
                         <div class="col-md-2">
                             <label class="form-label fw-bold"><span data-translate="from_date">From Date</span></label>
@@ -83,11 +104,36 @@
                         </div>
                         <div class="col-md-3">
                             <label class="form-label fw-bold"><span data-translate="status">Status</span></label>
-                            <select class="form-select" name="status">
-                                <option value=""><span data-translate="all_status">All Status</span></option>
-                                <option value="completed" {% if filters.status == 'completed' %}selected{% endif %}><span data-translate="completed">Completed</span></option>
-                                <option value="in_progress" {% if filters.status == 'in_progress' %}selected{% endif %}><span data-translate="in_progress">In Progress</span></option>
-                            </select>
+                            <div class="dropdown w-100">
+                                <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start" type="button" 
+                                        id="statusTripDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <span id="selectedStatusTripText">
+                                        {% if filters.status == 'completed' %}
+                                            <span data-translate="completed">Completed</span>
+                                        {% elif filters.status == 'in_progress' %}
+                                            <span data-translate="in_progress">In Progress</span>
+                                        {% else %}
+                                            <span data-translate="all_status">All Status</span>
+                                        {% endif %}
+                                    </span>
+                                </button>
+                                <ul class="dropdown-menu w-100" aria-labelledby="statusTripDropdown">
+                                    <li><a class="dropdown-item {% if not filters.status %}active{% endif %}" href="#" data-value="" onclick="selectStatusTrip('', this)">
+                                        <span data-translate="all_status">All Status</span>
+                                    </a></li>
+                                    <li><a class="dropdown-item {% if filters.status == 'completed' %}active{% endif %}" 
+                                           href="#" data-value="completed" onclick="selectStatusTrip('completed', this)">
+                                        <i class="bi bi-check-circle me-2 text-success"></i>
+                                        <span data-translate="completed">Completed</span>
+                                    </a></li>
+                                    <li><a class="dropdown-item {% if filters.status == 'in_progress' %}active{% endif %}" 
+                                           href="#" data-value="in_progress" onclick="selectStatusTrip('in_progress', this)">
+                                        <i class="bi bi-clock me-2 text-warning"></i>
+                                        <span data-translate="in_progress">In Progress</span>
+                                    </a></li>
+                                </ul>
+                                <input type="hidden" name="status" id="statusTripInput" value="{{ filters.status|default:'' }}">
+                            </div>
                         </div>
                         <div class="col-md-2 d-flex align-items-end">
                             <button type="submit" class="btn btn-primary w-100">
@@ -230,6 +276,31 @@
 
 {% endblock %}
 
+{% block extra_css %}
+<style>
+/* =============================================================================
+   Z-INDEX STACKING FIX FOR DROPDOWN MENU
+   ============================================================================= */
+
+/* Ensure proper stacking context */
+.card-body {
+    position: relative;
+    z-index: 1;
+}
+
+/* Fix z-index issues when dropdown overlaps table */
+.table-responsive {
+    z-index: 1;
+}
+
+/* Filter card z-index boost when dropdown is active */
+.card.filter-active {
+    z-index: 1100 !important;
+    position: relative;
+}
+</style>
+{% endblock %}
+
 {% block extra_js %}
 <script>
 // Enhanced translation for trip reports
@@ -336,6 +407,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // Make function available globally
     window.calculateRevenuePerPassenger = calculateRevenuePerPassenger;
     
+    // Use universal dropdown z-index function from base_scripts.js
+    window.setupUniversalDropdownZIndex([
+        'vesselTripDropdown',
+        'statusTripDropdown'
+    ]);
+    
     // Initial call
     setTimeout(() => {
         updateTripPageTranslations();
@@ -343,6 +420,58 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 0);
 
 });
+
+// Vessel dropdown selection handler
+function selectVesselTrip(vesselId, element) {
+    // Update hidden input
+    document.getElementById('vesselTripInput').value = vesselId;
+    
+    // Update button text
+    const buttonText = document.getElementById('selectedVesselTripText');
+    buttonText.innerHTML = element.innerHTML;
+    
+    // Update active state
+    document.querySelectorAll('#vesselTripDropdown + .dropdown-menu .dropdown-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    element.classList.add('active');
+    
+    // Close dropdown
+    const dropdown = bootstrap.Dropdown.getInstance(document.getElementById('vesselTripDropdown'));
+    if (dropdown) {
+        dropdown.hide();
+    }
+    
+    // Prevent default link behavior
+    event.preventDefault();
+    return false;
+}
+
+// Status dropdown selection handler
+function selectStatusTrip(statusValue, element) {
+    // Update hidden input
+    document.getElementById('statusTripInput').value = statusValue;
+    
+    // Update button text
+    const buttonText = document.getElementById('selectedStatusTripText');
+    buttonText.innerHTML = element.innerHTML;
+    
+    // Update active state
+    document.querySelectorAll('#statusTripDropdown + .dropdown-menu .dropdown-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    element.classList.add('active');
+    
+    // Close dropdown
+    const dropdown = bootstrap.Dropdown.getInstance(document.getElementById('statusTripDropdown'));
+    if (dropdown) {
+        dropdown.hide();
+    }
+    
+    // Prevent default link behavior
+    event.preventDefault();
+    return false;
+}
 
 function exportTripReports() {
     const urlParams = new URLSearchParams(window.location.search);  

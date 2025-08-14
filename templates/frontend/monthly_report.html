@@ -40,16 +40,47 @@
             <div class="card-body">
                 <form method="GET" class="d-flex align-items-center gap-3">
                     <label class="form-label fw-bold mb-0" data-translate="select_month">Select Month:</label>
-                    <select class="form-control" name="month" style="max-width: 150px;">
-                        {% for month, value in months.items %}
-                            <option value="{{ month }}" {% if selected_month == month %} selected {% endif %}> {{ value }} </option>
-                        {% endfor %}
-                    </select>
-                    <select class="form-control" name="year" style="max-width: 100px;">
-                        {% for year in year_range %}
-                        <option value="{{ year }}" {% if year == selected_year %}selected{% endif %}>{{ year }}</option>
-                        {% endfor %}
-                    </select>
+                    
+                    <!-- Month Dropdown -->
+                    <div class="dropdown" style="max-width: 150px;">
+                        <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start" type="button" 
+                                id="monthDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span id="selectedMonthText">
+                                {% for month, value in months.items %}
+                                    {% if selected_month == month %}{{ value }}{% endif %}
+                                {% endfor %}
+                            </span>
+                        </button>
+                        <ul class="dropdown-menu w-100" aria-labelledby="monthDropdown">
+                            {% for month, value in months.items %}
+                            <li><a class="dropdown-item {% if selected_month == month %}active{% endif %}" 
+                                   href="#" data-value="{{ month }}" onclick="selectMonth('{{ month }}', this, '{{ value }}')">
+                                <i class="bi bi-calendar-month me-2"></i>
+                                {{ value }}
+                            </a></li>
+                            {% endfor %}
+                        </ul>
+                        <input type="hidden" name="month" id="monthInput" value="{{ selected_month }}">
+                    </div>
+                    
+                    <!-- Year Dropdown -->
+                    <div class="dropdown" style="max-width: 100px;">
+                        <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start" type="button" 
+                                id="yearDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span id="selectedYearText">{{ selected_year }}</span>
+                        </button>
+                        <ul class="dropdown-menu w-100" aria-labelledby="yearDropdown">
+                            {% for year in year_range %}
+                            <li><a class="dropdown-item {% if year == selected_year %}active{% endif %}" 
+                                   href="#" data-value="{{ year }}" onclick="selectYear('{{ year }}', this)">
+                                <i class="bi bi-calendar me-2"></i>
+                                {{ year }}
+                            </a></li>
+                            {% endfor %}
+                        </ul>
+                        <input type="hidden" name="year" id="yearInput" value="{{ selected_year }}">
+                    </div>
+                    
                     <button type="submit" class="btn btn-primary">
                         <i class="bi bi-calendar-check"></i> <span data-translate="view_report">View Report</span>
                     </button>
@@ -597,12 +628,70 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    // Use universal dropdown z-index function from base_scripts.js
+    window.setupUniversalDropdownZIndex([
+        'monthDropdown',
+        'yearDropdown'
+    ]);
+    
     // Initial call
     setTimeout(() => {
         updateMonthlyReportTranslations();
         updatePageTranslations(); // Call global translation update
     }, 100);
 });
+
+// Month dropdown selection handler
+function selectMonth(monthValue, element, monthName) {
+    // Update hidden input
+    document.getElementById('monthInput').value = monthValue;
+    
+    // Update button text
+    const buttonText = document.getElementById('selectedMonthText');
+    buttonText.textContent = monthName;
+    
+    // Update active state
+    document.querySelectorAll('#monthDropdown + .dropdown-menu .dropdown-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    element.classList.add('active');
+    
+    // Close dropdown
+    const dropdown = bootstrap.Dropdown.getInstance(document.getElementById('monthDropdown'));
+    if (dropdown) {
+        dropdown.hide();
+    }
+    
+    // Prevent default link behavior
+    event.preventDefault();
+    return false;
+}
+
+// Year dropdown selection handler
+function selectYear(yearValue, element) {
+    // Update hidden input
+    document.getElementById('yearInput').value = yearValue;
+    
+    // Update button text
+    const buttonText = document.getElementById('selectedYearText');
+    buttonText.textContent = yearValue;
+    
+    // Update active state
+    document.querySelectorAll('#yearDropdown + .dropdown-menu .dropdown-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    element.classList.add('active');
+    
+    // Close dropdown
+    const dropdown = bootstrap.Dropdown.getInstance(document.getElementById('yearDropdown'));
+    if (dropdown) {
+        dropdown.hide();
+    }
+    
+    // Prevent default link behavior
+    event.preventDefault();
+    return false;
+}
 
 function exportMonthlyReport() {
     const urlParams = new URLSearchParams(window.location.search);

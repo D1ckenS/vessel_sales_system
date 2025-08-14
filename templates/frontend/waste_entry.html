@@ -6,13 +6,12 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <!-- Page Header -->
+<!-- Page Header -->
     <div class="row mb-4">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
-                    <h2 class="mb-0">
+                    <h2>
                         <i class="bi bi-trash me-2" style="color: var(--danger-red);"></i>
                         <span data-translate="waste_entry">Waste Entry</span>
                     </h2>
@@ -22,7 +21,7 @@
                 </div>
                 <div>
                     <a href="{% url 'frontend:dashboard' %}" class="btn btn-outline-secondary">
-                        <i class="bi bi-arrow-left me-2"></i>
+                        <i class="bi bi-arrow-left"></i>
                         <span data-translate="back_to_dashboard">Back to Dashboard</span>
                     </a>
                 </div>
@@ -31,8 +30,8 @@
     </div>
 
     <!-- Create Waste Report Form -->
-    <div class="row mb-4">
-        <div class="col-lg-8 col-md-10 mx-auto">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
             <div class="card">
                 <div class="card-header">
                     <h5 class="mb-0">
@@ -45,55 +44,62 @@
                         {% csrf_token %}
                         
                         <!-- Vessel Selection -->
-                        <div class="row mb-3">
+                        <div class="row mb-4">
                             <div class="col-md-6">
                                 <label for="vessel" class="form-label fw-bold">
-                                    <i class="bi bi-ship me-1"></i> <span data-translate="select_vessel">Select Vessel</span>
+                                    <span data-translate="select_vessel">Select Vessel</span> *
                                 </label>
-                                <select class="form-select" name="vessel" required>
-                                    <option value="" data-translate="choose_vessel">Choose vessel...</option>
-                                    {% for vessel in vessels %}
-                                    <option value="{{ vessel.id }}" data-name="{{ vessel.name }}" data-duty-free="{{ vessel.has_duty_free }}">
-                                        <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
-                                        {% if vessel.has_duty_free %} (<span class="text-success" data-translate="duty_free">Duty-Free</span>){% endif %}
-                                    </option>
-                                    {% endfor %}
-                                </select>
+                                <div class="dropdown w-100">
+                                    <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start btn-lg" type="button" 
+                                            id="vesselDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <span id="selectedVesselText">
+                                            <span data-translate="choose_vessel">Choose vessel...</span>
+                                        </span>
+                                    </button>
+                                    <ul class="dropdown-menu w-100" aria-labelledby="vesselDropdown">
+                                        {% for vessel in vessels %}
+                                        <li><a class="dropdown-item" href="#" data-value="{{ vessel.id }}" onclick="selectVessel('{{ vessel.id }}', this, '{{ vessel.name }}', '{{ vessel.name_ar }}', {{ vessel.has_duty_free|yesno:'true,false' }})">
+                                            <i class="bi bi-ship me-2"></i>
+                                            <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
+                                            {% if vessel.has_duty_free %}<span class="badge bg-success ms-2"><span data-translate="duty_free">Duty-Free</span></span>{% endif %}
+                                        </a></li>
+                                        {% endfor %}
+                                    </ul>
+                                    <input type="hidden" name="vessel" id="vesselInput" required>
+                                </div>
                             </div>
                             <div class="col-md-6">
                                 <label for="report_date" class="form-label fw-bold">
-                                    <i class="bi bi-calendar me-1"></i> <span data-translate="report_date">Waste Date</span>
+                                    <i class="bi bi-calendar"></i> <span data-translate="report_date">Waste Date</span> *
                                 </label>
-                                <input type="date" class="form-control" name="report_date" value="{{ today|date:'Y-m-d' }}" required>
+                                <input type="date" class="form-control form-control-lg" name="report_date" value="{{ today|date:'Y-m-d' }}" required>
                             </div>
                         </div>
 
                         <!-- Waste Report Number -->
-                        <div class="row mb-3">
+                        <div class="row mb-4">
                             <div class="col-md-6">
                                 <label for="report_number" class="form-label fw-bold">
-                                    <i class="bi bi-hash me-1"></i> <span data-translate="waste_report_number">Waste Report Number</span>
+                                    <i class="bi bi-hash"></i> <span data-translate="waste_report_number">Waste Report Number</span>
                                 </label>
-                                <input type="text" class="form-control" name="report_number" 
+                                <input type="text" class="form-control form-control-lg" name="report_number" 
                                        placeholder="e.g., WR-001, WASTE-2025-001" required>
                                 <div class="form-text">
-                                    <span data-translate="unique_identifier_help">Must be unique across all waste reports</span>
+                                    <span data-translate="waste_report_help">Must be unique across all waste reports</span>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Notes -->
-                        <div class="row mb-3">
-                            <div class="col-12">
-                                <label for="notes" class="form-label fw-bold">
-                                    <i class="bi bi-chat-left-text me-1"></i> <span data-translate="waste_notes">Waste Notes (Optional)</span>
-                                </label>
-                                <textarea class="form-control" name="notes" rows="3" 
-                                          placeholder="Additional notes about this waste report..."
-                                          data-placeholder-en="Additional notes about this waste report..."
-                                          data-placeholder-ar="ملاحظات إضافية حول تقرير المهدر...">
-                                </textarea>
-                            </div>
+                        <div class="mb-4">
+                            <label for="notes" class="form-label fw-bold">
+                                <i class="bi bi-chat-left-text"></i> <span data-translate="waste_notes">Waste Notes (Optional)</span>
+                            </label>
+                            <textarea class="form-control" name="notes" rows="3" 
+                                      placeholder="Additional notes about this waste report..."
+                                      data-placeholder-en="Additional notes about this waste report..."
+                                      data-placeholder-ar="ملاحظات إضافية حول تقرير المهدر...">
+                            </textarea>
                         </div>
 
                         <!-- Action Buttons -->
@@ -196,13 +202,45 @@
             </div>
         </div>
     </div>
-</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
+// Vessel dropdown selection handler
+function selectVessel(vesselId, element, vesselNameEn, vesselNameAr, hasDutyFree) {
+    // Update hidden input
+    document.getElementById('vesselInput').value = vesselId;
+    
+    // Update button text
+    const buttonText = document.getElementById('selectedVesselText');
+    buttonText.innerHTML = element.innerHTML;
+    
+    // Update active state
+    document.querySelectorAll('#vesselDropdown + .dropdown-menu .dropdown-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    element.classList.add('active');
+    
+    // Close dropdown
+    const dropdown = bootstrap.Dropdown.getInstance(document.getElementById('vesselDropdown'));
+    if (dropdown) {
+        dropdown.hide();
+    }
+    
+    // Prevent default link behavior
+    event.preventDefault();
+    return false;
+}
+
 function clearForm() {
     document.getElementById('wasteForm').reset();
+    
+    // Reset vessel dropdown
+    document.getElementById('vesselInput').value = '';
+    document.getElementById('selectedVesselText').innerHTML = '<span data-translate="choose_vessel">Choose vessel...</span>';
+    document.querySelectorAll('#vesselDropdown + .dropdown-menu .dropdown-item').forEach(item => {
+        item.classList.remove('active');
+    });
 }
 
 // Form validation with correct field names

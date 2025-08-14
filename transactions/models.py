@@ -11,6 +11,9 @@ from django.db import transaction
 from frontend.utils.cache_helpers import ProductCacheHelper, TripCacheHelper, WasteCacheHelper
 from frontend.utils.error_helpers import InventoryErrorHelper
 from django.core.cache import cache
+import logging
+
+logger = logging.getLogger('transactions')
 
 class InventoryLot(models.Model):
     """Tracks individual purchase batches for FIFO inventory management"""
@@ -47,6 +50,33 @@ class InventoryLot(models.Model):
             models.Index(fields=['vessel', 'product', 'purchase_date'], name='inventorylot_fifo_idx'),
             models.Index(fields=['product'], name='inventorylot_product_idx'),
         ]
+        constraints = [
+            # Ensure purchase_price is positive
+            models.CheckConstraint(
+                check=models.Q(purchase_price__gt=0),
+                name='inventorylot_positive_purchase_price'
+            ),
+            # Ensure original_quantity is positive
+            models.CheckConstraint(
+                check=models.Q(original_quantity__gt=0),
+                name='inventorylot_positive_original_quantity'
+            ),
+            # Ensure remaining_quantity is non-negative
+            models.CheckConstraint(
+                check=models.Q(remaining_quantity__gte=0),
+                name='inventorylot_non_negative_remaining_quantity'
+            ),
+            # Ensure remaining_quantity never exceeds original_quantity
+            models.CheckConstraint(
+                check=models.Q(remaining_quantity__lte=models.F('original_quantity')),
+                name='inventorylot_remaining_not_exceed_original'
+            ),
+            # Prevent unreasonable purchase dates (not more than 1 year in the future)
+            models.CheckConstraint(
+                check=models.Q(purchase_date__gte='1900-01-01'),
+                name='inventorylot_purchase_date_reasonable'
+            ),
+        ]
     
     def __str__(self):
         return f"{self.vessel.name} - {self.product.item_id} - {self.purchase_date} ({self.remaining_quantity}/{self.original_quantity})"
@@ -55,6 +85,198 @@ class InventoryLot(models.Model):
     def is_consumed(self):
         """Check if this lot is completely consumed"""
         return self.remaining_quantity == 0
+
+
+class FIFOConsumption(models.Model):
+    """
+    Dedicated table for tracking FIFO consumption details
+    Replaces fragile string parsing from transaction notes
+    """
+    transaction = models.ForeignKey('Transaction', on_delete=models.CASCADE, related_name='fifo_consumptions')
+    inventory_lot = models.ForeignKey(InventoryLot, on_delete=models.PROTECT)
+    consumed_quantity = models.DecimalField(
+        max_digits=10,
+        decimal_places=3,
+        validators=[MinValueValidator(Decimal('0.001'))],
+        help_text="Exact quantity consumed from this lot"
+    )
+    unit_cost = models.DecimalField(
+        max_digits=20,
+        decimal_places=6,
+        validators=[MinValueValidator(Decimal('0.001'))],
+        help_text="Exact unit cost from the lot at time of consumption"
+    )
+    sequence = models.PositiveIntegerField(help_text="Order of consumption within the transaction")
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['sequence']
+        unique_together = ['transaction', 'sequence']
+        indexes = [
+            models.Index(fields=['transaction', 'sequence'], name='fifo_consumption_tx_seq_idx'),
+            models.Index(fields=['inventory_lot'], name='fifo_consumption_lot_idx'),
+        ]
+        verbose_name = 'FIFO Consumption Detail'
+        verbose_name_plural = 'FIFO Consumption Details'
+        constraints = [
+            # Ensure consumed_quantity is positive
+            models.CheckConstraint(
+                check=models.Q(consumed_quantity__gt=0),
+                name='fifo_consumption_positive_quantity'
+            ),
+            # Ensure unit_cost is positive
+            models.CheckConstraint(
+                check=models.Q(unit_cost__gt=0),
+                name='fifo_consumption_positive_unit_cost'
+            ),
+            # Ensure sequence is positive
+            models.CheckConstraint(
+                check=models.Q(sequence__gt=0),
+                name='fifo_consumption_positive_sequence'
+            ),
+        ]
+    
+    def __str__(self):
+        return f"FIFO: {self.transaction} - {self.consumed_quantity} units @ {self.unit_cost}"
+
+
+class InventoryEvent(models.Model):
+    """
+    Event sourcing table for comprehensive audit trails of all inventory changes
+    Enables full reconstruction of inventory state at any point in time
+    """
+    EVENT_TYPES = [
+        ('LOT_CREATED', 'Inventory Lot Created'),
+        ('LOT_CONSUMED', 'Inventory Lot Consumed'),
+        ('LOT_RESTORED', 'Inventory Lot Restored'),
+        ('TRANSFER_SENT', 'Inventory Transferred Out'),
+        ('TRANSFER_RECEIVED', 'Inventory Transferred In'),
+        ('WASTE_REMOVED', 'Inventory Wasted/Removed'),
+    ]
+    
+    event_type = models.CharField(max_length=20, choices=EVENT_TYPES)
+    vessel = models.ForeignKey(Vessel, on_delete=models.PROTECT)
+    product = models.ForeignKey(Product, on_delete=models.PROTECT)
+    inventory_lot = models.ForeignKey(InventoryLot, on_delete=models.PROTECT, null=True, blank=True)
+    transaction = models.ForeignKey('Transaction', on_delete=models.CASCADE)
+    
+    quantity_change = models.DecimalField(
+        max_digits=10,
+        decimal_places=3,
+        help_text="Quantity change (positive for additions, negative for consumption)"
+    )
+    unit_cost = models.DecimalField(
+        max_digits=20,
+        decimal_places=6,
+        validators=[MinValueValidator(Decimal('0.001'))],
+        help_text="Unit cost associated with this change"
+    )
+    lot_remaining_after = models.IntegerField(
+        help_text="Remaining quantity in lot after this event"
+    )
+    
+    # Metadata
+    timestamp = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    notes = models.TextField(blank=True, help_text="Additional context about this event")
+    
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['vessel', 'product', 'timestamp'], name='inventory_event_vpt_idx'),
+            models.Index(fields=['event_type', 'timestamp'], name='inventory_event_type_time_idx'),
+            models.Index(fields=['transaction'], name='inventory_event_tx_idx'),
+            models.Index(fields=['inventory_lot'], name='inventory_event_lot_idx'),
+        ]
+        verbose_name = 'Inventory Event'
+        verbose_name_plural = 'Inventory Events'
+    
+    def __str__(self):
+        return f"{self.event_type}: {self.vessel.name} - {self.product.item_id} ({self.quantity_change})"
+
+
+class TransferOperation(models.Model):
+    """
+    Ensures atomic transfer operations between vessels
+    Prevents orphaned TRANSFER_IN or TRANSFER_OUT transactions
+    """
+    STATUS_CHOICES = [
+        ('PENDING', 'Pending'),
+        ('COMPLETED', 'Completed'),
+        ('FAILED', 'Failed'),
+        ('ROLLED_BACK', 'Rolled Back'),
+    ]
+    
+    transfer_group = models.ForeignKey('Transfer', on_delete=models.CASCADE, related_name='operations')
+    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='PENDING')
+    
+    # Transaction references for atomic operations
+    transfer_out_transaction = models.ForeignKey(
+        'Transaction', 
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='transfer_out_operations'
+    )
+    transfer_in_transaction = models.ForeignKey(
+        'Transaction',
+        on_delete=models.SET_NULL, 
+        null=True,
+        blank=True,
+        related_name='transfer_in_operations'
+    )
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    error_message = models.TextField(blank=True, help_text="Error details if operation failed")
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['transfer_group', 'status'], name='transfer_op_group_status_idx'),
+            models.Index(fields=['status', 'created_at'], name='transfer_op_status_time_idx'),
+        ]
+        verbose_name = 'Transfer Operation'
+        verbose_name_plural = 'Transfer Operations'
+    
+    def __str__(self):
+        return f"TransferOp: {self.transfer_group} - {self.status}"
+
+
+class CacheVersion(models.Model):
+    """
+    Cache versioning for detecting inconsistencies
+    Enables reliable cache invalidation across distributed systems
+    """
+    cache_key = models.CharField(max_length=100, unique=True, help_text="Unique cache key identifier")
+    version = models.BigIntegerField(default=1, help_text="Current version number")
+    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-updated_at']
+        indexes = [
+            models.Index(fields=['cache_key'], name='cache_version_key_idx'),
+            models.Index(fields=['updated_at'], name='cache_version_updated_idx'),
+        ]
+        verbose_name = 'Cache Version'
+        verbose_name_plural = 'Cache Versions'
+    
+    def __str__(self):
+        return f"Cache: {self.cache_key} v{self.version}"
+    
+    @classmethod
+    def increment_version(cls, cache_key):
+        """Atomically increment cache version"""
+        version_obj, created = cls.objects.get_or_create(cache_key=cache_key)
+        if not created:
+            cls.objects.filter(pk=version_obj.pk).update(version=F('version') + 1)
+            version_obj.refresh_from_db()
+        return version_obj.version
+
 
 class Trip(models.Model):
     """Tracks vessel trips with passenger counts for sales grouping"""
@@ -86,6 +308,23 @@ class Trip(models.Model):
             models.Index(fields=['trip_date'], name='trip_date_idx'),
             models.Index(fields=['is_completed'], name='trip_completed_idx'),
             models.Index(fields=['created_by'], name='trip_created_by_idx'),
+        ]
+        constraints = [
+            # Ensure trip_number is not empty
+            models.CheckConstraint(
+                check=~models.Q(trip_number=''),
+                name='trip_number_not_empty'
+            ),
+            # Ensure passenger_count is positive
+            models.CheckConstraint(
+                check=models.Q(passenger_count__gt=0),
+                name='trip_positive_passenger_count'
+            ),
+            # Prevent unreasonable trip dates (not before 2020)
+            models.CheckConstraint(
+                check=models.Q(trip_date__gte='2020-01-01'),
+                name='trip_date_reasonable'
+            ),
         ]
     
     def __str__(self):
@@ -492,6 +731,66 @@ class Transaction(models.Model):
             models.Index(fields=['transfer_to_vessel'], name='transaction_transfer_to_idx'),
             models.Index(fields=['transfer_from_vessel'], name='transaction_transfer_from_idx'),
         ]
+        constraints = [
+            # Ensure quantity is always positive
+            models.CheckConstraint(
+                check=models.Q(quantity__gt=0),
+                name='transaction_positive_quantity'
+            ),
+            # Ensure unit_price is positive when provided
+            models.CheckConstraint(
+                check=models.Q(unit_price__isnull=True) | models.Q(unit_price__gt=0),
+                name='transaction_positive_unit_price'
+            ),
+            # Ensure boxes and items_per_box are positive when provided
+            models.CheckConstraint(
+                check=models.Q(boxes__isnull=True) | models.Q(boxes__gt=0),
+                name='transaction_positive_boxes'
+            ),
+            models.CheckConstraint(
+                check=models.Q(items_per_box__isnull=True) | models.Q(items_per_box__gt=0),
+                name='transaction_positive_items_per_box'
+            ),
+            # Ensure transfer vessels are different from source vessel
+            models.CheckConstraint(
+                check=models.Q(transfer_to_vessel__isnull=True) | ~models.Q(transfer_to_vessel=models.F('vessel')),
+                name='transaction_different_transfer_to_vessel'
+            ),
+            models.CheckConstraint(
+                check=models.Q(transfer_from_vessel__isnull=True) | ~models.Q(transfer_from_vessel=models.F('vessel')),
+                name='transaction_different_transfer_from_vessel'
+            ),
+            # Ensure transfer_to_vessel is only set for TRANSFER_OUT
+            models.CheckConstraint(
+                check=models.Q(transfer_to_vessel__isnull=True) | models.Q(transaction_type='TRANSFER_OUT'),
+                name='transaction_transfer_to_only_for_out'
+            ),
+            # Ensure transfer_from_vessel is only set for TRANSFER_IN
+            models.CheckConstraint(
+                check=models.Q(transfer_from_vessel__isnull=True) | models.Q(transaction_type='TRANSFER_IN'),
+                name='transaction_transfer_from_only_for_in'
+            ),
+            # Ensure damage_reason is only set for WASTE transactions
+            models.CheckConstraint(
+                check=models.Q(damage_reason='') | models.Q(transaction_type='WASTE'),
+                name='transaction_damage_reason_only_for_waste'
+            ),
+            # Ensure trip is only set for SALE transactions
+            models.CheckConstraint(
+                check=models.Q(trip__isnull=True) | models.Q(transaction_type='SALE'),
+                name='transaction_trip_only_for_sale'
+            ),
+            # Ensure purchase_order is only set for SUPPLY transactions
+            models.CheckConstraint(
+                check=models.Q(purchase_order__isnull=True) | models.Q(transaction_type='SUPPLY'),
+                name='transaction_po_only_for_supply'
+            ),
+            # Ensure waste_report is only set for WASTE transactions
+            models.CheckConstraint(
+                check=models.Q(waste_report__isnull=True) | models.Q(transaction_type='WASTE'),
+                name='transaction_waste_report_only_for_waste'
+            ),
+        ]
     
     def __str__(self):
         return f"{self.transaction_type} - {self.vessel.name} - {self.product.item_id} - {self.quantity} units"
@@ -562,16 +861,27 @@ class Transaction(models.Model):
             # Save transaction only after successful inventory operations
             super().save(*args, **kwargs)
             
+            # Create FIFO and event records after transaction is saved
+            if hasattr(self, '_fifo_records_to_create'):
+                FIFOConsumption.objects.bulk_create(self._fifo_records_to_create)
+                delattr(self, '_fifo_records_to_create')
+                logger.debug(f"Created FIFO consumption records for transaction {self.id}")
+                
+            if hasattr(self, '_inventory_events_to_create'):
+                InventoryEvent.objects.bulk_create(self._inventory_events_to_create)
+                delattr(self, '_inventory_events_to_create')
+                logger.debug(f"Created inventory event records for transaction {self.id}")
+            
             # Handle post-save operations that don't affect inventory
             if self.transaction_type == 'SUPPLY':
                 self._handle_supply()
             elif self.transaction_type == 'TRANSFER_OUT' and not self.related_transfer:
-                self._complete_transfer()
+                self._complete_transfer_idempotent()
     
     def _validate_and_consume_inventory(self):
         """
         🔥 ATOMIC: Validate and consume inventory for sales with database locking
-        ENHANCED: Always store FIFO consumption details in notes
+        NEW: Uses FIFOConsumption table and InventoryEvent logging for reliability
         """
         # Lock inventory lots for this vessel/product combination
         inventory_lots = InventoryLot.objects.filter(
@@ -591,46 +901,69 @@ class Transaction(models.Model):
             )
         
         # Consume inventory using FIFO within the lock
-        remaining_to_consume = int(self.quantity)
-        consumption_details = []
+        remaining_to_consume = self.quantity  # Keep as Decimal
+        lot_updates = []
+        fifo_records = []
+        inventory_events = []
+        sequence = 0
+        
+        logger.info(f"Starting FIFO consumption: {self.product.name} on {self.vessel.name}, Qty: {self.quantity}")
         
         for lot in inventory_lots:
             if remaining_to_consume <= 0:
                 break
                 
             # How much can we consume from this lot?
-            consume_from_lot = min(remaining_to_consume, lot.remaining_quantity)
+            consume_from_lot = min(remaining_to_consume, Decimal(str(lot.remaining_quantity)))
+            new_remaining = lot.remaining_quantity - int(consume_from_lot)
             
-            # Update the lot
-            lot.remaining_quantity -= consume_from_lot
-            lot.save()
-            
-            # Track consumption details
-            consumption_details.append({
+            # Collect updates for atomic application
+            lot_updates.append({
                 'lot': lot,
-                'consumed_quantity': consume_from_lot,
-                'unit_cost': lot.purchase_price
+                'new_remaining': new_remaining,
+                'consumed': consume_from_lot
             })
             
+            # Prepare FIFO consumption record
+            fifo_records.append(FIFOConsumption(
+                transaction=self,
+                inventory_lot=lot,
+                consumed_quantity=consume_from_lot,
+                unit_cost=lot.purchase_price,
+                sequence=sequence
+            ))
+            
+            # Prepare inventory event
+            inventory_events.append(InventoryEvent(
+                event_type='LOT_CONSUMED',
+                vessel=self.vessel,
+                product=self.product,
+                inventory_lot=lot,
+                transaction=self,
+                quantity_change=-consume_from_lot,
+                unit_cost=lot.purchase_price,
+                lot_remaining_after=new_remaining,
+                created_by=self.created_by,
+                notes=f"Sale consumption: {consume_from_lot} units from lot {lot.id}"
+            ))
+            
             remaining_to_consume -= consume_from_lot
+            sequence += 1
         
-        # 🚀 ENHANCED: ALWAYS append FIFO consumption details to notes
-        if consumption_details:
-            cost_breakdown = []
-            for detail in consumption_details:
-                cost_breakdown.append(
-                    f"{detail['consumed_quantity']} units @ {detail['unit_cost']} JOD"
-                )
-            
-            fifo_details = f"FIFO consumption: {'; '.join(cost_breakdown)}"
-            
-            # Append to existing notes or set if empty
-            if self.notes and self.notes.strip():
-                self.notes = f"{self.notes}. {fifo_details}"
-            else:
-                self.notes = fifo_details
-            
-            print(f"✅ FIFO STORED: {fifo_details}")
+        # Apply all updates atomically
+        lots_to_update = []
+        for update in lot_updates:
+            update['lot'].remaining_quantity = update['new_remaining']
+            lots_to_update.append(update['lot'])
+        
+        # Bulk update all inventory lots
+        InventoryLot.objects.bulk_update(lots_to_update, ['remaining_quantity'])
+        
+        # Store the records for post-save creation (transaction needs to be saved first)
+        self._fifo_records_to_create = fifo_records
+        self._inventory_events_to_create = inventory_events
+        
+        logger.info(f"FIFO consumption prepared: {len(fifo_records)} lots to process, total: {self.quantity}")
     
     def _validate_and_consume_for_transfer(self):
         """
@@ -662,7 +995,7 @@ class Transaction(models.Model):
         remaining_to_consume = int(self.quantity)
         consumption_details = []
         
-        print(f"🔄 STARTING TRANSFER CONSUMPTION: {self.product.name} from {self.vessel.name}, Qty: {self.quantity}")
+        logger.info(f"Starting transfer consumption: {self.product.name} from {self.vessel.name}, Qty: {self.quantity}")
         
         for lot in inventory_lots:
             if remaining_to_consume <= 0:
@@ -678,7 +1011,7 @@ class Transaction(models.Model):
                 'purchase_date': lot.purchase_date,  # Preserve original purchase date
             })
             
-            print(f"  📦 Consuming {consumed_from_lot} units @ {lot.purchase_price} from lot {lot.id}")
+            logger.debug(f"Consuming {consumed_from_lot} units @ {lot.purchase_price} from lot {lot.id}")
             
             # Reduce the lot's remaining quantity
             lot.remaining_quantity -= consumed_from_lot
@@ -696,12 +1029,12 @@ class Transaction(models.Model):
                 total_fifo_cost = sum(Decimal(str(detail['consumed_quantity'])) * Decimal(str(detail['unit_cost'])) for detail in consumption_details)
                 self.unit_price = total_fifo_cost / Decimal(str(self.quantity)) if self.quantity > 0 else Decimal('0.001')
                 avg_cost_per_unit = float(self.unit_price)
-                print(f"✅ TRANSFER CONSUMPTION COMPLETE: Total FIFO cost: {total_fifo_cost}, Avg per unit: {avg_cost_per_unit}")
+                logger.info(f"Transfer consumption complete - Total FIFO cost: {total_fifo_cost}, Avg per unit: {avg_cost_per_unit}")
             except Exception as e:
-                print(f"❌ ERROR calculating FIFO cost: {e}")
+                logger.error(f"Error calculating FIFO cost: {e}")
                 self.unit_price = Decimal('0.001')
         else:
-            print(f"⚠️ WARNING: No consumption details generated for transfer {self.id}")
+            logger.warning(f"No consumption details generated for transfer {self.id}")
             self.unit_price = Decimal('0.001')
         
         # Build FIFO breakdown for notes (same format as sales)
@@ -783,6 +1116,109 @@ class Transaction(models.Model):
             created_by=self.created_by
         )
     
+    def _complete_transfer_idempotent(self):
+        """
+        NEW: Idempotent transfer completion using TransferOperation tracking
+        Ensures atomic operations and prevents orphaned transactions
+        """
+        if not hasattr(self, 'transfer') or not self.transfer:
+            logger.error(f"Transfer operation requires a Transfer group object")
+            return
+        
+        # Create or get transfer operation record
+        transfer_operation, created = TransferOperation.objects.get_or_create(
+            transfer_group=self.transfer,
+            defaults={'status': 'PENDING'}
+        )
+        
+        # If operation is already completed, skip
+        if transfer_operation.status == 'COMPLETED':
+            logger.info(f"Transfer operation already completed: {transfer_operation.id}")
+            return
+        
+        # If operation failed before, reset it
+        if transfer_operation.status == 'FAILED':
+            transfer_operation.status = 'PENDING'
+            transfer_operation.error_message = ''
+            transfer_operation.save()
+        
+        try:
+            with transaction.atomic():
+                # Update operation record with TRANSFER_OUT reference
+                transfer_operation.transfer_out_transaction = self
+                transfer_operation.save()
+                
+                # Get FIFO consumption details from FIFOConsumption table
+                fifo_consumptions = self.fifo_consumptions.select_related('inventory_lot').order_by('sequence')
+                
+                if not fifo_consumptions.exists():
+                    raise ValidationError("No FIFO consumption records found for transfer")
+                
+                # Calculate weighted average unit price for TRANSFER_IN
+                total_cost = sum(f.consumed_quantity * f.unit_cost for f in fifo_consumptions)
+                avg_unit_price = total_cost / self.quantity
+                
+                # Create TRANSFER_IN transaction
+                transfer_in = Transaction.objects.create(
+                    vessel=self.transfer_to_vessel,
+                    product=self.product,
+                    transaction_type='TRANSFER_IN',
+                    transaction_date=self.transaction_date,
+                    quantity=self.quantity,
+                    unit_price=avg_unit_price,
+                    transfer_from_vessel=self.vessel,
+                    transfer=self.transfer,
+                    notes=f"Transfer from {self.vessel.name}",
+                    created_by=self.created_by
+                )
+                
+                # Create inventory lots on receiving vessel preserving FIFO costs
+                for fifo_consumption in fifo_consumptions:
+                    InventoryLot.objects.create(
+                        vessel=self.transfer_to_vessel,
+                        product=self.product,
+                        purchase_date=self.transaction_date,
+                        purchase_price=fifo_consumption.unit_cost,
+                        original_quantity=int(fifo_consumption.consumed_quantity),
+                        remaining_quantity=int(fifo_consumption.consumed_quantity),
+                        created_by=self.created_by
+                    )
+                    
+                    # Create inventory event for transfer receipt
+                    InventoryEvent.objects.create(
+                        event_type='TRANSFER_RECEIVED',
+                        vessel=self.transfer_to_vessel,
+                        product=self.product,
+                        transaction=transfer_in,
+                        quantity_change=fifo_consumption.consumed_quantity,
+                        unit_cost=fifo_consumption.unit_cost,
+                        lot_remaining_after=int(fifo_consumption.consumed_quantity),
+                        created_by=self.created_by,
+                        notes=f"Transfer receipt from {self.vessel.name}: lot {fifo_consumption.inventory_lot.id}"
+                    )
+                
+                # Link transactions
+                self.related_transfer = transfer_in
+                transfer_in.related_transfer = self
+                transfer_in.save()
+                self.save()
+                
+                # Update operation record
+                transfer_operation.transfer_in_transaction = transfer_in
+                transfer_operation.status = 'COMPLETED'
+                transfer_operation.save()
+                
+                logger.info(f"Transfer completed successfully: {self.vessel.name} → {self.transfer_to_vessel.name}, Qty: {self.quantity}")
+                
+        except Exception as e:
+            # Mark operation as failed
+            transfer_operation.status = 'FAILED'
+            transfer_operation.error_message = str(e)
+            transfer_operation.save()
+            
+            logger.error(f"Transfer operation failed: {e}")
+            raise
+    
     def _complete_transfer(self):
         """Complete transfer by creating TRANSFER_IN and inventory lots on receiving vessel preserving exact FIFO costs"""
         from frontend.utils.helpers import get_fifo_cost_for_transfer
@@ -793,14 +1229,14 @@ class Transaction(models.Model):
         
         # ✅ FIX: Better error handling and validation
         if not hasattr(self, '_transfer_consumption_details'):
-            print(f"⚠️ WARNING: No consumption details found for transfer {self.id}")
+            logger.warning(f"No consumption details found for transfer {self.id}")
             # Try to recalculate FIFO cost as fallback
             try:
                 fifo_cost_per_unit = get_fifo_cost_for_transfer(self.vessel, self.product, self.quantity)
                 self.unit_price = Decimal(str(fifo_cost_per_unit)) if fifo_cost_per_unit else Decimal('0.001')
-                print(f"🔄 FALLBACK: Using calculated FIFO cost {fifo_cost_per_unit} for transfer {self.id}")
+                logger.info(f"Fallback: Using calculated FIFO cost {fifo_cost_per_unit} for transfer {self.id}")
             except Exception as e:
-                print(f"❌ ERROR: Could not calculate FIFO cost for transfer {self.id}: {e}")
+                logger.error(f"Could not calculate FIFO cost for transfer {self.id}: {e}")
                 self.unit_price = Decimal('0.001')  # Last resort fallback
             
             # Create a basic TRANSFER_IN without lot details
@@ -836,7 +1272,7 @@ class Transaction(models.Model):
         
         # ✅ FIX: Validate consumption details structure but don't return early
         if not self._transfer_consumption_details or len(self._transfer_consumption_details) == 0:
-            print(f"⚠️ WARNING: Empty consumption details for transfer {self.id}")
+            logger.warning(f"Empty consumption details for transfer {self.id}")
             # Don't return early - continue with fallback logic
             self.unit_price = Decimal('0.001')
         else:
@@ -845,7 +1281,7 @@ class Transaction(models.Model):
                 total_cost = Decimal('0')
                 for detail in self._transfer_consumption_details:
                     if 'consumed_quantity' not in detail or 'unit_cost' not in detail:
-                        print(f"⚠️ WARNING: Invalid consumption detail structure for transfer {self.id}: {detail}")
+                        logger.warning(f"Invalid consumption detail structure for transfer {self.id}: {detail}")
                         continue
                     detail_cost = Decimal(str(detail['consumed_quantity'])) * Decimal(str(detail['unit_cost']))
                     total_cost += detail_cost
@@ -856,16 +1292,16 @@ class Transaction(models.Model):
                 else:
                     self.unit_price = Decimal('0.001')
                 
-                print(f"✅ SUCCESS: Transfer {self.id} FIFO cost calculated: {self.unit_price} per unit (total: {total_cost})")
+                logger.info(f"Transfer {self.id} FIFO cost calculated: {self.unit_price} per unit (total: {total_cost})")
                 
             except Exception as e:
-                print(f"❌ ERROR: Failed to calculate transfer cost for {self.id}: {e}")
+                logger.error(f"Failed to calculate transfer cost for {self.id}: {e}")
                 self.unit_price = Decimal('0.001')
         
         # ✅ ENSURE: unit_price is never None before creating TRANSFER_IN
         if self.unit_price is None:
             self.unit_price = Decimal('0.001')
-            print(f"🔧 FALLBACK: Set unit_price to 0.001 for transfer {self.id}")
+            logger.info(f"Fallback: Set unit_price to 0.001 for transfer {self.id}")
         
         # Create corresponding TRANSFER_IN transaction with same aggregated cost
         transfer_in = Transaction.objects.create(
@@ -888,7 +1324,7 @@ class Transaction(models.Model):
                 # Use FIFO details if available
                 for detail in self._transfer_consumption_details:
                     if not all(key in detail for key in ['consumed_quantity', 'unit_cost', 'purchase_date']):
-                        print(f"⚠️ WARNING: Skipping invalid detail for transfer {self.id}: {detail}")
+                        logger.warning(f"Skipping invalid detail for transfer {self.id}: {detail}")
                         continue
                         
                     # Create separate inventory lot for each FIFO lot consumed - preserve exact costs
@@ -916,7 +1352,7 @@ class Transaction(models.Model):
                 lot_details = [f"{self.quantity} units @ {self.unit_price} JOD (single lot)"]
                 
         except Exception as e:
-            print(f"❌ ERROR: Failed to create inventory lots for transfer {self.id}: {e}")
+            logger.error(f"Failed to create inventory lots for transfer {self.id}: {e}")
             # Create fallback single lot
             InventoryLot.objects.create(
                 vessel=self.transfer_to_vessel,
@@ -939,7 +1375,7 @@ class Transaction(models.Model):
         self.notes = f"Transferred to {self.transfer_to_vessel.name}. FIFO consumption: {fifo_breakdown}"
         transfer_in.notes = f"Received from {self.vessel.name}. FIFO details: {fifo_breakdown}"
         
-        print(f"✅ TRANSFER COMPLETED: {self.vessel.name} → {self.transfer_to_vessel.name}, Cost: {self.unit_price}/unit")
+        logger.info(f"Transfer completed: {self.vessel.name} → {self.transfer_to_vessel.name}, Cost: {self.unit_price}/unit")
         
     def delete(self, *args, **kwargs):
         """Enhanced delete with comprehensive safety validation and inventory restoration"""
@@ -955,11 +1391,25 @@ class Transaction(models.Model):
         elif self.transaction_type == 'TRANSFER_IN':
             self._remove_transferred_inventory()
         
-        # Clear product cache since inventory changed
+        # Clear product cache since inventory changed using versioned cache
         try:
+            from frontend.utils.cache_helpers import VersionedCache
+            # Invalidate specific cache keys for this transaction
+            cache_keys = [
+                f'product_{self.product_id}',
+                f'vessel_{self.vessel_id}',
+                f'inventory_{self.vessel_id}_{self.product_id}',
+                'product_stats',
+                'vessel_pricing_summary'
+            ]
+            
+            for cache_key in cache_keys:
+                VersionedCache.invalidate_version(cache_key)
+            
+            # Also clear the old way as fallback
             ProductCacheHelper.clear_cache_after_product_update()
-        except:
-            pass
+        except Exception as e:
+            logger.warning(f"Cache invalidation error in transaction delete: {e}")
 
         # 🚀 CACHE: Clear trip cache if this affects trip data
         try:
@@ -970,15 +1420,15 @@ class Transaction(models.Model):
                 if self.trip.is_completed:
                     completed_cache_key = TripCacheHelper.get_completed_trip_cache_key(self.trip.id)
                     cache.delete(completed_cache_key)
-                    print(f"🔥 Completed trip cache cleared: Trip {self.trip.id}")
+                    logger.debug(f"Completed trip cache cleared: Trip {self.trip.id}")
                 
-                print(f"🔥 Trip cache cleared after transaction deletion: Trip {self.trip.id}")
+                logger.debug(f"Trip cache cleared after transaction deletion: Trip {self.trip.id}")
             else:
                 # Clear general trip cache for any transaction changes
                 TripCacheHelper.clear_recent_trips_cache_only_when_needed()
-                print(f"🔥 Recent trips cache cleared after transaction deletion")
+                logger.debug("Recent trips cache cleared after transaction deletion")
         except Exception as e:
-            print(f"⚠️ Trip cache clear error: {e}")
+            logger.warning(f"Trip cache clear error: {e}")
         
         try:
             if self.transaction_type == 'WASTE' and hasattr(self, 'waste_report') and self.waste_report:
@@ -989,74 +1439,85 @@ class Transaction(models.Model):
                 if self.waste_report.is_completed:
                     completed_cache_key = WasteCacheHelper.get_completed_waste_cache_key(self.waste_report.id)
                     cache.delete(completed_cache_key)
-                    print(f"🔥 Completed waste cache cleared: Waste {self.waste_report.id}")
+                    logger.debug(f"Completed waste cache cleared: Waste {self.waste_report.id}")
                 
-                print(f"🔥 Waste cache cleared after transaction deletion: Waste {self.waste_report.id}")
+                logger.debug(f"Waste cache cleared after transaction deletion: Waste {self.waste_report.id}")
             else:
                 # Clear general waste cache for any transaction changes that might affect waste calculations
                 WasteCacheHelper.clear_cache_after_waste_update()
-                print(f"🔥 General waste cache cleared after transaction deletion")
+                logger.debug("General waste cache cleared after transaction deletion")
         except Exception as e:
-            print(f"⚠️ Waste cache clear error: {e}")
+            logger.warning(f"Waste cache clear error: {e}")
         
         super().delete(*args, **kwargs)
 
     def _restore_inventory_for_sale(self):
         """
         🔄 RESTORE INVENTORY: Reverse FIFO consumption when deleting a sale transaction
+        NEW: Uses FIFOConsumption table for reliable restoration
         """
         
-        print(f"🔄 RESTORING: Sale deletion for {self.product.name} on {self.vessel.name}, Qty: {self.quantity}")
+        logger.info(f"Restoring inventory for sale deletion: {self.product.name} on {self.vessel.name}, Qty: {self.quantity}")
         
-        if not self.notes or "FIFO consumption:" not in self.notes:
-            # Fallback: Try to restore using product's purchase price
-            print(f"⚠️ WARNING: No FIFO details found, using fallback restoration")
+        # Get FIFO consumption records for this transaction
+        fifo_consumptions = self.fifo_consumptions.select_related('inventory_lot').order_by('sequence')
+        
+        if not fifo_consumptions.exists():
+            logger.warning("No FIFO consumption records found, using fallback restoration")
             self._restore_inventory_fallback()
             return
         
-        # Parse FIFO consumption details from notes
-        # Expected format: "User notes. FIFO consumption: 25 units @ 0.208333 JOD; 23 units @ 0.300000 JOD"
-        try:
-            fifo_part = self.notes.split("FIFO consumption: ")[1]
-            consumption_entries = fifo_part.split("; ")
+        # Atomic restoration using structured data
+        with transaction.atomic():
+            lot_updates = []
+            inventory_events = []
+            total_restored = Decimal('0')
             
-            restoration_details = []
-            
-            for entry in consumption_entries:
-                # Parse "25 units @ 0.208333 JOD"
-                parts = entry.split(" units @ ")
-                if len(parts) != 2:
-                    continue
-                    
-                consumed_qty = int(float(parts[0]))
-                unit_cost = float(parts[1].replace(" JOD", ""))
+            for consumption in fifo_consumptions:
+                lot = consumption.inventory_lot
+                restore_quantity = consumption.consumed_quantity
                 
-                restoration_details.append({
-                    'quantity': consumed_qty,
-                    'unit_cost': unit_cost
+                # Collect lot updates for atomic application
+                new_remaining = lot.remaining_quantity + int(restore_quantity)
+                lot_updates.append({
+                    'lot': lot,
+                    'new_remaining': new_remaining,
+                    'restored': restore_quantity
                 })
-            
-            print(f"🔍 PARSED FIFO: {len(restoration_details)} consumption entries")
-            
-            # Restore inventory to the original lots
-            total_restored = 0
-            for detail in restoration_details:
-                restored_qty = self._restore_to_matching_lot(
-                    detail['quantity'], 
-                    detail['unit_cost']
-                )
-                total_restored += restored_qty
                 
-            print(f"✅ RESTORED: {total_restored} units to inventory lots")
-            
-            # Verify we restored the correct total
-            if abs(total_restored - int(self.quantity)) > 0.001:
-                print(f"⚠️ WARNING: Restoration mismatch: restored {total_restored}, expected {self.quantity}")
+                # Prepare inventory event
+                inventory_events.append(InventoryEvent(
+                    event_type='LOT_RESTORED',
+                    vessel=self.vessel,
+                    product=self.product,
+                    inventory_lot=lot,
+                    transaction=self,
+                    quantity_change=restore_quantity,
+                    unit_cost=consumption.unit_cost,
+                    lot_remaining_after=new_remaining,
+                    created_by=self.created_by,
+                    notes=f"Sale deletion restoration: {restore_quantity} units to lot {lot.id}"
+                ))
                 
-        except Exception as e:
-            print(f"❌ ERROR: Failed to parse FIFO details: {e}")
-            print(f"🔄 FALLBACK: Using basic restoration")
-            self._restore_inventory_fallback()
+                total_restored += restore_quantity
+            
+            # Apply all updates atomically
+            lots_to_update = []
+            for update in lot_updates:
+                update['lot'].remaining_quantity = update['new_remaining']
+                lots_to_update.append(update['lot'])
+            
+            # Bulk update all inventory lots
+            InventoryLot.objects.bulk_update(lots_to_update, ['remaining_quantity'])
+            
+            # Create inventory event records atomically  
+            InventoryEvent.objects.bulk_create(inventory_events)
+            
+            logger.info(f"Restored {total_restored} units to {len(lot_updates)} inventory lots")
+            
+            # Verify restoration accuracy
+            if abs(total_restored - self.quantity) > Decimal('0.001'):
+                logger.warning(f"Restoration mismatch: restored {total_restored}, expected {self.quantity}")
 
     def _restore_to_matching_lot(self, quantity, unit_cost):
         """
@@ -1072,10 +1533,10 @@ class Transaction(models.Model):
             purchase_price__lte=unit_cost + tolerance
         ).order_by('purchase_date', 'created_at')
         
-        print(f"🔍 SEARCHING: {matching_lots.count()} lots found for cost {unit_cost}")
+        logger.debug(f"Searching: {matching_lots.count()} lots found for cost {unit_cost}")
         
         if not matching_lots.exists():
-            print(f"⚠️ WARNING: No matching lot found for cost {unit_cost}, creating new lot")
+            logger.warning(f"No matching lot found for cost {unit_cost}, creating new lot")
             # Create a new lot if original doesn't exist (edge case)
             InventoryLot.objects.create(
                 vessel=self.vessel,
@@ -1093,7 +1554,7 @@ class Transaction(models.Model):
         lot.remaining_quantity += quantity
         lot.save()
         
-        print(f"✅ RESTORED: {quantity} units to lot {lot.id} (new remaining: {lot.remaining_quantity})")
+        logger.debug(f"Restored {quantity} units to lot {lot.id} (new remaining: {lot.remaining_quantity})")
         return quantity
 
     def _restore_inventory_fallback(self):
@@ -1102,11 +1563,11 @@ class Transaction(models.Model):
         Creates a new inventory lot with product's default purchase price
         """
         
-        print(f"🔄 FALLBACK: Creating restoration lot for {self.quantity} units")
+        logger.info(f"Fallback: Creating restoration lot for {self.quantity} units")
         
         # For SALE transactions, use product's default purchase price, NOT the selling price
         estimated_cost = self.product.purchase_price
-        print(f"💰 USING: Product purchase price {estimated_cost} (not sale price {self.unit_price})")
+        logger.debug(f"Using product purchase price {estimated_cost} (not sale price {self.unit_price})")
         
         InventoryLot.objects.create(
             vessel=self.vessel,
@@ -1118,27 +1579,54 @@ class Transaction(models.Model):
             created_by=self.created_by
         )
         
-        print(f"✅ FALLBACK: Created new lot with {self.quantity} units @ {estimated_cost} (purchase price)")
+        logger.info(f"Fallback: Created new lot with {self.quantity} units @ {estimated_cost} (purchase price)")
 
     def _restore_inventory_for_transfer_out(self):
-        """🔄 RESTORE INVENTORY: Handle TRANSFER_OUT deletion"""
-        print(f"🔄 RESTORING: Transfer out deletion for {self.product.name}")
+        """
+        🔄 RESTORE INVENTORY: Handle TRANSFER_OUT deletion with TransferOperation tracking
+        NEW: Uses TransferOperation table for proper cleanup
+        """
+        logger.info(f"Restoring inventory for transfer out deletion: {self.product.name}")
         
-        # Delete the related TRANSFER_IN first
+        # Find and update TransferOperation record
+        if hasattr(self, 'transfer') and self.transfer:
+            try:
+                transfer_operations = TransferOperation.objects.filter(
+                    transfer_group=self.transfer,
+                    transfer_out_transaction=self
+                )
+                
+                for operation in transfer_operations:
+                    # Delete related TRANSFER_IN transaction
+                    if operation.transfer_in_transaction:
+                        logger.debug(f"Deleting related TRANSFER_IN transaction: {operation.transfer_in_transaction.id}")
+                        operation.transfer_in_transaction.delete()
+                    
+                    # Mark operation as rolled back
+                    operation.status = 'ROLLED_BACK'
+                    operation.error_message = 'TRANSFER_OUT transaction deleted'
+                    operation.save()
+                    
+                    logger.info(f"Transfer operation {operation.id} marked as rolled back")
+                    
+            except Exception as e:
+                logger.warning(f"Error updating TransferOperation records: {e}")
+        
+        # Delete the related TRANSFER_IN using old method as fallback
         if self.related_transfer:
-            print(f"🔗 FOUND: Related transfer in transaction {self.related_transfer.id}")
+            logger.debug(f"Fallback: Found related transfer in transaction {self.related_transfer.id}")
             try:
                 self.related_transfer.delete()
-                print(f"✅ DELETED: Related transfer in transaction")
+                logger.info("Deleted related transfer in transaction (fallback)")
             except Exception as e:
-                print(f"⚠️ WARNING: Could not delete related transfer: {e}")
+                logger.warning(f"Could not delete related transfer: {e}")
         
         # Restore inventory using the same logic as sales
         self._restore_inventory_for_sale()
 
     def _restore_inventory_for_waste(self):
         """🔄 RESTORE INVENTORY: Handle WASTE transaction deletion"""
-        print(f"🔄 RESTORING: Waste deletion for {self.product.name} on {self.vessel.name}, Qty: {self.quantity}")
+        logger.info(f"Restoring inventory for waste deletion: {self.product.name} on {self.vessel.name}, Qty: {self.quantity}")
         
         # Create new inventory lot using the waste transaction's unit_price (original FIFO cost)
         InventoryLot.objects.create(
@@ -1151,11 +1639,11 @@ class Transaction(models.Model):
             created_by=self.created_by
         )
         
-        print(f"✅ WASTE RESTORED: Created lot with {self.quantity} units @ {self.unit_price} (original FIFO cost)")
+        logger.info(f"Waste restored: Created lot with {self.quantity} units @ {self.unit_price} (original FIFO cost)")
 
     def _remove_transferred_inventory(self):
         """🗑️ REMOVE INVENTORY: Handle TRANSFER_IN deletion"""
-        print(f"🗑️ REMOVING: Transfer in inventory for {self.product.name}")
+        logger.info(f"Removing transfer in inventory for {self.product.name}")
         
         # Find and remove the inventory lots created by this transfer
         lots_to_remove = InventoryLot.objects.filter(
@@ -1177,19 +1665,19 @@ class Transaction(models.Model):
                 lot.remaining_quantity -= remaining_to_remove
                 if lot.remaining_quantity == 0:
                     lot.delete()
-                    print(f"🗑️ DELETED: Empty lot {lot.id}")
+                    logger.debug(f"Deleted empty lot {lot.id}")
                 else:
                     lot.save()
-                    print(f"🔄 UPDATED: Lot {lot.id} remaining: {lot.remaining_quantity}")
+                    logger.debug(f"Updated lot {lot.id} remaining: {lot.remaining_quantity}")
                 remaining_to_remove = 0
             else:
                 # Remove this entire lot and continue
                 remaining_to_remove -= lot.remaining_quantity
-                print(f"🗑️ REMOVING: Entire lot {lot.id} ({lot.remaining_quantity} units)")
+                logger.debug(f"Removing entire lot {lot.id} ({lot.remaining_quantity} units)")
                 lot.delete()
         
         if remaining_to_remove > 0:
-            print(f"⚠️ WARNING: Could not remove all inventory. {remaining_to_remove} units remaining")
+            logger.warning(f"Could not remove all inventory. {remaining_to_remove} units remaining")
 
     def _validate_and_delete_supply_inventory(self):
         """
@@ -1197,8 +1685,8 @@ class Transaction(models.Model):
         Enhanced with user-friendly error messages and actionable guidance
         """
         
-        print(f"🔍 DEBUG: Checking supply deletion for {self.product.name} on {self.vessel.name}")
-        print(f"🔍 DEBUG: Looking for lots with date={self.transaction_date}, price={self.unit_price}")
+        logger.debug(f"Checking supply deletion for {self.product.name} on {self.vessel.name}")
+        logger.debug(f"Looking for lots with date={self.transaction_date}, price={self.unit_price}")
         
         # Find ALL inventory lots that match this supply transaction
         matching_lots = InventoryLot.objects.filter(
@@ -1208,7 +1696,7 @@ class Transaction(models.Model):
             purchase_price=self.unit_price
         )
         
-        print(f"🔍 DEBUG: Found {matching_lots.count()} matching lots")
+        logger.debug(f"Found {matching_lots.count()} matching lots")
         
         # Calculate total consumption across all matching lots
         total_supplied = 0
@@ -1221,7 +1709,7 @@ class Transaction(models.Model):
             total_supplied += lot.original_quantity
             total_remaining += lot.remaining_quantity
             
-            print(f"🔍 DEBUG: Lot {lot.id}: original={lot.original_quantity}, remaining={lot.remaining_quantity}, consumed={consumed_from_lot}")
+            logger.debug(f"Lot {lot.id}: original={lot.original_quantity}, remaining={lot.remaining_quantity}, consumed={consumed_from_lot}")
             
             if consumed_from_lot > 0:
                 consumption_details.append({
@@ -1238,11 +1726,11 @@ class Transaction(models.Model):
                 ])
         
         total_consumed = total_supplied - total_remaining
-        print(f"🔍 DEBUG: Total supplied={total_supplied}, remaining={total_remaining}, consumed={total_consumed}")
+        logger.debug(f"Total supplied={total_supplied}, remaining={total_remaining}, consumed={total_consumed}")
         
         # 🚨 BLOCK DELETION: If any consumption detected
         if total_consumed > 0:
-            print(f"❌ DEBUG: BLOCKING DELETION - {total_consumed} units consumed")
+            logger.warning(f"Blocking deletion - {total_consumed} units consumed")
             
             # Enhanced user-friendly error message
             
@@ -1258,11 +1746,11 @@ class Transaction(models.Model):
             )
         
         # ✅ SAFE TO DELETE: No consumption detected
-        print(f"✅ DEBUG: SAFE TO DELETE - no consumption detected")
+        logger.info("Safe to delete - no consumption detected")
         lots_deleted = matching_lots.count()
         matching_lots.delete()
         
-        print(f"✅ DEBUG: Deleted {lots_deleted} inventory lots")
+        logger.info(f"Deleted {lots_deleted} inventory lots")
 
 class VesselProductPrice(models.Model):
     """Custom pricing for specific vessel-product combinations (touristic vessels only)"""
@@ -1338,6 +1826,83 @@ def get_available_inventory(vessel, product):
     
     total_quantity = sum(lot.remaining_quantity for lot in lots)
     return total_quantity, lots
+
+def get_available_inventory_at_date(vessel, product, target_date):
+    """Get available inventory for a vessel-product combination at a specific date (point-in-time)
+    
+    This function calculates historical inventory by:
+    1. Finding all supply transactions (SUPPLY, TRANSFER_IN) up to target_date
+    2. Subtracting all consumption transactions (SALE, TRANSFER_OUT, WASTE) up to target_date
+    3. Simulating FIFO consumption to determine remaining quantities per lot
+    """
+    from django.utils import timezone
+    from datetime import datetime, date as date_type
+    
+    # Convert target_date to datetime for comparison if it's a date
+    if isinstance(target_date, date_type) and not isinstance(target_date, datetime):
+        # Set to end of day to include all transactions on that date
+        target_datetime = timezone.make_aware(
+            datetime.combine(target_date, datetime.max.time().replace(microsecond=0))
+        )
+    elif isinstance(target_date, datetime):
+        target_datetime = target_date if target_date.tzinfo else timezone.make_aware(target_date)
+    else:
+        raise ValueError("target_date must be a date or datetime object")
+    
+    # Get all supply transactions up to the target date
+    supply_transactions = Transaction.objects.filter(
+        vessel=vessel,
+        product=product,
+        transaction_type__in=['SUPPLY', 'TRANSFER_IN'],
+        transaction_date__lte=target_datetime
+    ).order_by('transaction_date', 'created_at')
+    
+    # Build historical inventory lots from supplies
+    historical_lots = []
+    for supply_txn in supply_transactions:
+        historical_lots.append({
+            'transaction_id': supply_txn.id,
+            'purchase_date': supply_txn.transaction_date,
+            'initial_quantity': float(supply_txn.quantity),
+            'remaining_quantity': float(supply_txn.quantity),
+            'purchase_price': float(supply_txn.unit_price),
+            'created_at': supply_txn.created_at
+        })
+    
+    # Sort lots by FIFO order (purchase date, then creation time)
+    historical_lots.sort(key=lambda x: (x['purchase_date'], x['created_at']))
+    
+    # Get all consumption transactions up to the target date
+    consumption_transactions = Transaction.objects.filter(
+        vessel=vessel,
+        product=product,
+        transaction_type__in=['SALE', 'TRANSFER_OUT', 'WASTE'],
+        transaction_date__lte=target_datetime
+    ).order_by('transaction_date', 'created_at')
+    
+    # Simulate FIFO consumption
+    for consumption_txn in consumption_transactions:
+        quantity_to_consume = float(consumption_txn.quantity)
+        
+        # Consume from lots in FIFO order
+        for lot in historical_lots:
+            if quantity_to_consume <= 0:
+                break
+            if lot['remaining_quantity'] <= 0:
+                continue
+                
+            # How much can we consume from this lot?
+            consume_from_lot = min(quantity_to_consume, lot['remaining_quantity'])
+            lot['remaining_quantity'] -= consume_from_lot
+            quantity_to_consume -= consume_from_lot
+    
+    # Calculate total available quantity
+    total_quantity = sum(lot['remaining_quantity'] for lot in historical_lots if lot['remaining_quantity'] > 0)
+    
+    # Return only lots with remaining inventory
+    available_lots = [lot for lot in historical_lots if lot['remaining_quantity'] > 0]
+    
+    return total_quantity, available_lots
 
 def consume_inventory_fifo(vessel, product, quantity_to_consume):
     """

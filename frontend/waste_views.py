@@ -6,14 +6,18 @@ from django.http import JsonResponse
 from datetime import date, datetime
 from decimal import Decimal
 import json
+import logging
 from frontend.utils.cache_helpers import VesselCacheHelper, WasteCacheHelper
 from vessels.models import Vessel
 from products.models import Product
-from transactions.models import Transaction, InventoryLot, WasteReport
+from transactions.models import Transaction, InventoryLot, WasteReport, get_available_inventory, get_available_inventory_at_date
 from .utils import BilingualMessages
 from .permissions import operations_access_required
 from django.core.exceptions import ValidationError
 from django.db import transaction
+
+logger = logging.getLogger('frontend')
+
 
 @login_required
 def waste_entry(request):
@@ -79,6 +83,7 @@ def waste_entry(request):
         except Exception as e:
             BilingualMessages.error(request, 'error_creating_waste_report')
             return redirect('frontend:waste_entry')
+
 
 @login_required
 def waste_items(request, waste_id):
@@ -149,6 +154,7 @@ def waste_items(request, waste_id):
     
     return render(request, 'frontend/waste_items.html', context)
 
+
 @login_required
 def waste_search_products(request):
     '''AJAX endpoint to search for products available on specific vessel'''
@@ -215,78 +221,97 @@ def waste_search_products(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
-@login_required
+@operations_access_required
 def waste_available_products(request):
-    """AJAX endpoint to get all products available for waste on specific vessel"""
+    """AJAX endpoint to get all products available for waste on specific vessel with historical inventory support"""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
     try:
         data = json.loads(request.body)
         vessel_id = data.get('vessel_id')
+        waste_date_str = data.get('waste_date')  # Optional waste date for historical inventory
         
         if not vessel_id:
             return JsonResponse({'success': False, 'error': 'Vessel ID required'})
         
         vessel = Vessel.objects.get(id=vessel_id, active=True)
         
-        # Get all products with available inventory on this vessel
-        available_lots = InventoryLot.objects.filter(
-            vessel=vessel,
-            remaining_quantity__gt=0,
-            product__active=True
-        ).select_related('product')
+        # Parse waste date if provided
+        from django.utils import timezone
+        waste_date = None
+        use_historical_inventory = False
         
-        # Group by product and calculate totals
-        product_summaries = available_lots.values(
-            'product__id', 'product__name', 'product__item_id', 
-            'product__barcode', 'product__is_duty_free',
-            'product__category__name'
-        ).annotate(
-            total_quantity=Sum('remaining_quantity')
-        ).order_by('product__item_id')
+        if waste_date_str:
+            try:
+                waste_date = datetime.strptime(waste_date_str, '%Y-%m-%d').date()
+                today = timezone.now().date()
+                use_historical_inventory = waste_date < today
+            except ValueError:
+                pass  # Invalid date format, use current inventory
+        
+        # Get all active products
+        products_query = Product.objects.filter(active=True)
         
         products = []
-        for summary in product_summaries:
-            product_id = summary['product__id']
+        
+        for product in products_query:
+            # Calculate available inventory (current or historical)
+            if use_historical_inventory and waste_date:
+                available_quantity, historical_lots = get_available_inventory_at_date(vessel, product, waste_date)
+            else:
+                available_quantity, lots = get_available_inventory(vessel, product)
             
-            # Get FIFO cost (oldest available lot)
-            oldest_lot = InventoryLot.objects.filter(
-                vessel=vessel,
-                product_id=product_id,
-                remaining_quantity__gt=0
-            ).order_by('purchase_date', 'created_at').first()
+            # Only include products with available inventory
+            if available_quantity <= 0:
+                continue
             
-            current_cost = oldest_lot.purchase_price if oldest_lot else 0
-            
-            # Get detailed lots information for this product
-            lots = InventoryLot.objects.filter(
-                vessel=vessel,
-                product_id=product_id,
-                remaining_quantity__gt=0
-            ).order_by('purchase_date', 'created_at')
-            
-            lots_data = []
-            for lot in lots:
-                lots_data.append({
-                    'id': lot.id,
-                    'purchase_date': lot.purchase_date.strftime('%d/%m/%Y'),
-                    'remaining_quantity': lot.remaining_quantity,
-                    'original_quantity': lot.original_quantity,
-                    'purchase_price': float(lot.purchase_price)
-                })
+            # Get FIFO cost and lots data
+            if use_historical_inventory and waste_date:
+                # For historical data, get cost from first lot with inventory
+                current_cost = historical_lots[0]['purchase_price'] if historical_lots else 0
+                lots_data = []
+                for lot_data in historical_lots:
+                    lots_data.append({
+                        'id': lot_data.get('transaction_id', 0),  # Use transaction_id as fallback
+                        'purchase_date': lot_data['purchase_date'].strftime('%d/%m/%Y'),
+                        'remaining_quantity': lot_data['remaining_quantity'],
+                        'original_quantity': lot_data['initial_quantity'],
+                        'purchase_price': float(lot_data['purchase_price'])
+                    })
+            else:
+                # Current inventory - get lots from database
+                actual_lots = InventoryLot.objects.filter(
+                    vessel=vessel,
+                    product=product,
+                    remaining_quantity__gt=0
+                ).order_by('purchase_date', 'created_at')
+                
+                current_cost = actual_lots.first().purchase_price if actual_lots.exists() else 0
+                lots_data = []
+                for lot in actual_lots:
+                    lots_data.append({
+                        'id': lot.id,
+                        'purchase_date': lot.purchase_date.strftime('%d/%m/%Y'),
+                        'remaining_quantity': lot.remaining_quantity,
+                        'original_quantity': lot.original_quantity,
+                        'purchase_price': float(lot.purchase_price)
+                    })
             
             products.append({
-                'id': product_id,
-                'name': summary['product__name'],
-                'item_id': summary['product__item_id'],
-                'barcode': summary['product__barcode'] or '',
-                'category': summary['product__category__name'],
-                'is_duty_free': summary['product__is_duty_free'],
-                'available_quantity': summary['total_quantity'],  # ← Fixed field name
+                'id': product.id,
+                'name': product.name,
+                'item_id': product.item_id,
+                'barcode': product.barcode or '',
+                'category': product.category.name if product.category else '',
+                'is_duty_free': product.is_duty_free,
+                'available_quantity': available_quantity,  # Use calculated historical/current quantity
                 'current_cost': float(current_cost),
                 'lots': lots_data
             })
+        
+        # Sort by item_id like the original
+        products.sort(key=lambda p: p['item_id'] or '')
         
         return JsonResponse({
             'success': True,
@@ -298,6 +323,7 @@ def waste_available_products(request):
         return JsonResponse({'success': False, 'error': 'Vessel not found'})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
+
 
 @login_required
 def waste_bulk_complete(request):
@@ -330,13 +356,13 @@ def waste_bulk_complete(request):
             )
 
             if existing_waste_transactions.exists():
-                print(f"🔄 WASTE EDIT: Deleting {existing_waste_transactions.count()} existing waste transactions individually for inventory restoration")
+                logger.info(f"🔄 WASTE EDIT: Deleting {existing_waste_transactions.count()} existing waste transactions individually for inventory restoration")
                 
                 # Delete each transaction individually to trigger inventory restoration
                 for txn in existing_waste_transactions:
                     txn.delete()  # This calls the individual delete() method with inventory restoration
                 
-                print(f"✅ WASTE EDIT: Inventory restored for {existing_waste_transactions.count()} transactions")
+                logger.info(f"✅ WASTE EDIT: Inventory restored for {existing_waste_transactions.count()} transactions")
             
             # Process each waste item
             for item in items:
@@ -350,6 +376,23 @@ def waste_bulk_complete(request):
                 
                 try:
                     product = Product.objects.select_for_update().get(id=product_id)
+                    
+                    # Check available inventory at waste report date (point-in-time validation)
+                    from django.utils import timezone
+                    today = timezone.now().date()
+                    
+                    if waste_report.report_date < today:
+                        # Historical waste report - use point-in-time inventory balance
+                        available_quantity, _ = get_available_inventory_at_date(waste_report.vessel, product, waste_report.report_date)
+                    else:
+                        # Current or future waste report - use current inventory balance
+                        available_quantity, _ = get_available_inventory(waste_report.vessel, product)
+                    
+                    if quantity > available_quantity:
+                        return JsonResponse({
+                            'success': False, 
+                            'error': f'Insufficient inventory for {product.name}. Available at {waste_report.report_date}: {available_quantity}, Requested: {quantity}'
+                        })
                     
                     # Get FIFO cost for waste tracking
                     oldest_lot = InventoryLot.objects.filter(
@@ -410,6 +453,7 @@ def waste_bulk_complete(request):
         
     except Exception as e:
         return JsonResponse({'success': False, 'error': f'Error completing waste report: {str(e)}'})
+
 
 @login_required
 def waste_cancel(request):

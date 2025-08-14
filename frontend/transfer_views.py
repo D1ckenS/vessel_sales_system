@@ -8,11 +8,14 @@ from frontend.utils.cache_helpers import ProductCacheHelper, VesselCacheHelper, 
 from frontend.utils.helpers import get_fifo_cost_for_transfer
 from vessels.models import Vessel
 from products.models import Product
-from transactions.models import Transaction, InventoryLot, Transfer, get_available_inventory
+from transactions.models import Transaction, InventoryLot, Transfer, get_available_inventory, get_available_inventory_at_date
 from .utils import BilingualMessages
 from products.models import Product
 from django.db import transaction
 import json
+import logging
+
+logger = logging.getLogger('frontend')
 from decimal import Decimal
 import uuid
 import time
@@ -111,10 +114,10 @@ def transfer_entry(request):
         cached_transfers = TransferCacheHelper.get_recent_transfers_with_cost()
         
         if cached_transfers:
-            print(f"🚀 CACHE HIT: Recent transfers ({len(cached_transfers)} transfers)")
+            logger.debug(f"Cache hit: Recent transfers ({len(cached_transfers)} transfers)")
             recent_transfers = cached_transfers
         else:
-            print(f"🔍 CACHE MISS: Building recent transfers")
+            logger.debug("Cache miss: Building recent transfers")
             
             # 🚀 OPTIMIZED: Single query with proper prefetching (like supply_entry)
             recent_transfers_query = Transfer.objects.select_related(
@@ -145,7 +148,7 @@ def transfer_entry(request):
             
             # 🚀 CACHE: Store processed transfers for future requests (like supply_entry)
             TransferCacheHelper.cache_recent_transfers_with_cost(recent_transfers)
-            print(f"🔥 CACHED: Recent transfers ({len(recent_transfers)} transfers) - 1 hour timeout")
+            logger.debug(f"Cached: Recent transfers ({len(recent_transfers)} transfers) - 1 hour timeout")
         
         context = {
             'vessels': vessels,
@@ -216,7 +219,7 @@ def transfer_items(request, transfer_id):
     # 🚀 OPTIMIZED: Check cache first for completed transfers (no DB query needed)
     cached_data = TransferCacheHelper.get_completed_transfer_data(transfer_id)
     if cached_data:
-        print(f"🚀 CACHE HIT: Completed transfer {transfer_id}")
+        logger.debug(f"Cache hit: Completed transfer {transfer_id}")
         return render(request, 'frontend/transfer_items.html', cached_data)
     
     try:
@@ -265,10 +268,10 @@ def transfer_items(request, transfer_id):
             })
     else:
         # 🚀 OPTIMIZED: Process completed transfer using prefetched data (like po_supply)
-        print(f"🔍 DEBUG: Transfer {transfer.id} is completed, processing {len(transfer_transactions)} transactions")
+        logger.debug(f"Transfer {transfer.id} is completed, processing {len(transfer_transactions)} transactions")
         
         for txn in transfer_transactions:
-            print(f"🔍 DEBUG: Transaction {txn.id}: {txn.product.name}, Qty: {txn.quantity}, Price: {txn.unit_price}")
+            logger.debug(f"Transaction {txn.id}: {txn.product.name}, Qty: {txn.quantity}, Price: {txn.unit_price}")
             completed_transfers.append({
                 'product_name': txn.product.name,
                 'product_item_id': txn.product.item_id,
@@ -285,7 +288,7 @@ def transfer_items(request, transfer_id):
     existing_transfers_json = json.dumps(existing_transfers)
     completed_transfers_json = json.dumps(completed_transfers)
     
-    print(f"🔍 DEBUG: completed_transfers_json length: {len(completed_transfers_json)}")
+    logger.debug(f"Completed transfers JSON length: {len(completed_transfers_json)}")
     
     # Build final context (follows trip_sales/po_supply pattern)
     context = {
@@ -298,19 +301,20 @@ def transfer_items(request, transfer_id):
     # 🚀 CACHE: Store completed transfer data for future requests (like trip_sales/po_supply)
     if transfer.is_completed:
         TransferCacheHelper.cache_completed_transfer_data(transfer_id, context)
-        print(f"🚀 CACHED COMPLETED TRANSFER: {transfer_id}")
+        logger.debug(f"Cached completed transfer: {transfer_id}")
     
     return render(request, 'frontend/transfer_items.html', context)
 
 @operations_access_required
 def transfer_available_products(request):
-    """AJAX endpoint to get available products for transfer"""
+    """AJAX endpoint to get available products for transfer with historical inventory support"""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'POST method required'})
     
     try:
         data = json.loads(request.body)
         vessel_id = data.get('vessel_id')
+        transfer_date_str = data.get('transfer_date')  # Optional transfer date for historical inventory
         
         if not vessel_id:
             return JsonResponse({'success': False, 'error': 'Vessel ID required'})
@@ -318,31 +322,46 @@ def transfer_available_products(request):
         # Get vessel
         vessel = Vessel.objects.get(id=vessel_id, active=True)
         
-        # Get products with available inventory on this vessel
-        available_lots = InventoryLot.objects.filter(
-            vessel=vessel,
-            remaining_quantity__gt=0,
-            product__active=True
-        ).select_related('product')
+        # Parse transfer date if provided
+        from django.utils import timezone
+        transfer_date = None
+        use_historical_inventory = False
         
-        # Group by product and calculate totals
-        product_summaries = available_lots.values(
-            'product__id', 'product__name', 'product__item_id', 
-            'product__barcode', 'product__is_duty_free'
-        ).annotate(
-            total_quantity=Sum('remaining_quantity')
-        ).order_by('product__item_id')
+        if transfer_date_str:
+            try:
+                transfer_date = datetime.strptime(transfer_date_str, '%Y-%m-%d').date()
+                today = timezone.now().date()
+                use_historical_inventory = transfer_date < today
+            except ValueError:
+                pass  # Invalid date format, use current inventory
+        
+        # Get all active products
+        products_query = Product.objects.filter(active=True)
         
         products = []
-        for summary in product_summaries:
+        
+        for product in products_query:
+            # Calculate available inventory (current or historical)
+            if use_historical_inventory and transfer_date:
+                available_quantity, _ = get_available_inventory_at_date(vessel, product, transfer_date)
+            else:
+                available_quantity, _ = get_available_inventory(vessel, product)
+            
+            # Only include products with available inventory
+            if available_quantity <= 0:
+                continue
+            
             products.append({
-                'id': summary['product__id'],
-                'name': summary['product__name'],
-                'item_id': summary['product__item_id'],
-                'barcode': summary['product__barcode'] or '',
-                'is_duty_free': summary['product__is_duty_free'],
-                'total_quantity': summary['total_quantity'],
+                'id': product.id,
+                'name': product.name,
+                'item_id': product.item_id,
+                'barcode': product.barcode or '',
+                'is_duty_free': product.is_duty_free,
+                'total_quantity': available_quantity,  # Use calculated historical/current quantity
             })
+        
+        # Sort by item_id like the original
+        products.sort(key=lambda p: p['item_id'] or '')
         
         return JsonResponse({
             'success': True,
@@ -388,7 +407,7 @@ def transfer_bulk_complete(request):
         transfer_date = transfer.transfer_date
         
         # 🚀 OPTIMIZATION 1: Batch validation and FIFO calculations
-        print(f"🚀 BATCH PROCESSING: Starting transfer completion for {len(items)} items")
+        logger.info(f"Batch processing: Starting transfer completion for {len(items)} items")
         
         with transaction.atomic():
             # 🚀 STEP 1: Clear existing transactions efficiently (single bulk operation)
@@ -398,13 +417,13 @@ def transfer_bulk_complete(request):
             )
 
             if existing_transactions.exists():
-                print(f"🔄 TRANSFER EDIT: Deleting {existing_transactions.count()} existing transfer transactions individually for inventory restoration")
+                logger.info(f"Transfer edit: Deleting {existing_transactions.count()} existing transfer transactions for inventory restoration")
                 
                 # Delete each transaction individually to trigger inventory restoration
                 for txn in existing_transactions:
                     txn.delete()  # This calls the individual delete() method with inventory restoration
                 
-                print(f"✅ TRANSFER EDIT: Inventory restored for {existing_transactions.count()} transactions")
+                logger.info(f"Transfer edit: Inventory restored for {existing_transactions.count()} transactions")
                 
             # 🚀 STEP 2: Batch product fetching and validation
             product_ids = [item.get('product_id') for item in items if item.get('product_id')]
@@ -416,7 +435,7 @@ def transfer_bulk_complete(request):
             fifo_calculations = {}
             total_calculations_time = 0
             
-            print(f"📊 BATCH FIFO: Calculating costs for {len(items)} items")
+            logger.debug(f"Batch FIFO: Calculating costs for {len(items)} items")
             fifo_start_time = time.time()
             
             for item in items:
@@ -441,7 +460,7 @@ def transfer_bulk_complete(request):
                     }
                     
                 except Exception as e:
-                    print(f"⚠️ FIFO calculation failed for {product.name}: {e}")
+                    logger.warning(f"FIFO calculation failed for {product.name}: {e}")
                     # Use fallback cost
                     fifo_calculations[product_id] = {
                         'product': product,
@@ -453,13 +472,34 @@ def transfer_bulk_complete(request):
             
             fifo_end_time = time.time()
             total_calculations_time = fifo_end_time - fifo_start_time
-            print(f"⚡ FIFO BATCH COMPLETED: {total_calculations_time:.2f} seconds for {len(items)} items")
+            logger.debug(f"FIFO batch completed: {total_calculations_time:.2f} seconds for {len(items)} items")
+            
+            # 🚀 STEP 3.5: Validate inventory availability at transfer date
+            from django.utils import timezone
+            today = timezone.now().date()
+            use_historical_inventory = transfer_date < today
+            
+            for product_id, calc_data in fifo_calculations.items():
+                product = calc_data['product']
+                quantity = calc_data['quantity']
+                
+                # Check available inventory at transfer date (point-in-time validation)
+                if use_historical_inventory:
+                    available_quantity, _ = get_available_inventory_at_date(from_vessel, product, transfer_date)
+                else:
+                    available_quantity, _ = get_available_inventory(from_vessel, product)
+                
+                if quantity > available_quantity:
+                    return JsonResponse({
+                        'success': False, 
+                        'error': f'Insufficient inventory for {product.name}. Available at {transfer_date}: {available_quantity}, Requested: {quantity}'
+                    })
             
             # 🚀 STEP 4: Bulk create TRANSFER_OUT transactions (disable auto-creation)
             transfer_out_transactions = []
             transfer_in_transactions = []
             
-            print(f"📦 BATCH CREATION: Creating TRANSFER_OUT transactions")
+            logger.debug("Batch creation: Creating TRANSFER_OUT transactions")
             
             for product_id, calc_data in fifo_calculations.items():
                 # Create TRANSFER_OUT transaction data
@@ -493,14 +533,14 @@ def transfer_bulk_complete(request):
                 transfer_in_transactions.append(transfer_in)
             
             # 🚀 STEP 5: Use bulk_create for maximum efficiency
-            print(f"⚡ BULK CREATE: Creating {len(transfer_out_transactions)} TRANSFER_OUT transactions")
+            logger.debug(f"Bulk create: Creating {len(transfer_out_transactions)} TRANSFER_OUT transactions")
             created_out_transactions = Transaction.objects.bulk_create(transfer_out_transactions)
             
-            print(f"⚡ BULK CREATE: Creating {len(transfer_in_transactions)} TRANSFER_IN transactions")  
+            logger.debug(f"Bulk create: Creating {len(transfer_in_transactions)} TRANSFER_IN transactions")  
             created_in_transactions = Transaction.objects.bulk_create(transfer_in_transactions)
             
             # 🚀 STEP 6: Batch inventory operations
-            print(f"📊 BATCH INVENTORY: Processing inventory for {len(fifo_calculations)} products")
+            logger.debug(f"Batch inventory: Processing inventory for {len(fifo_calculations)} products")
             
             # Handle TRANSFER_OUT inventory consumption in batch
             _batch_consume_inventory_for_transfer_out(
@@ -513,7 +553,7 @@ def transfer_bulk_complete(request):
             )
             
             # 🚀 STEP 7: Link transactions efficiently
-            print(f"🔗 BATCH LINKING: Linking {len(created_out_transactions)} transaction pairs")
+            logger.debug(f"Batch linking: Linking {len(created_out_transactions)} transaction pairs")
             
             # Link TRANSFER_OUT with TRANSFER_IN transactions
             for i, (out_txn, in_txn) in enumerate(zip(created_out_transactions, created_in_transactions)):
@@ -528,7 +568,7 @@ def transfer_bulk_complete(request):
             transfer.is_completed = True
             transfer.save(update_fields=['is_completed'])
             
-            print(f"✅ TRANSFER COMPLETED: {len(created_out_transactions)} items transferred")
+            logger.info(f"Transfer completed: {len(created_out_transactions)} items transferred")
             
         # 🚀 OPTIMIZATION 5: Targeted cache clearing (not nuclear option)
         _clear_transfer_cache_targeted(transfer_id, from_vessel.id, to_vessel.id)
@@ -550,7 +590,7 @@ def transfer_bulk_complete(request):
     except Transfer.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Transfer not found'})
     except Exception as e:
-        print(f"❌ BATCH TRANSFER ERROR: {str(e)}")
+        logger.error(f"Batch transfer error: {str(e)}")
         return JsonResponse({'success': False, 'error': f'Transfer failed: {str(e)}'})
 
 
@@ -558,7 +598,7 @@ def _batch_consume_inventory_for_transfer_out(fifo_calculations, from_vessel, tr
     """
     🚀 BATCH OPERATION: Consume inventory for all TRANSFER_OUT transactions efficiently
     """    
-    print(f"📊 BATCH CONSUME: Processing inventory consumption for {len(fifo_calculations)} products")
+    logger.debug(f"Batch consume: Processing inventory consumption for {len(fifo_calculations)} products")
     
     for product_id, calc_data in fifo_calculations.items():
         product = calc_data['product']
@@ -585,10 +625,10 @@ def _batch_consume_inventory_for_transfer_out(fifo_calculations, from_vessel, tr
                 
                 remaining_to_consume -= consume_from_lot
                 
-                print(f"📦 CONSUMED: {consume_from_lot} units of {product.name} from lot {lot.id}")
+                logger.debug(f"Consumed: {consume_from_lot} units of {product.name} from lot {lot.id}")
                 
         except Exception as e:
-            print(f"❌ CONSUME ERROR for {product.name}: {e}")
+            logger.error(f"Consume error for {product.name}: {e}")
             continue
 
 
@@ -596,7 +636,7 @@ def _batch_create_inventory_for_transfer_in(fifo_calculations, to_vessel, transf
     """
     🚀 BATCH OPERATION: Create inventory lots for all TRANSFER_IN transactions efficiently
     """    
-    print(f"📦 BATCH CREATE: Creating inventory lots for {len(fifo_calculations)} products")
+    logger.debug(f"Batch create: Creating inventory lots for {len(fifo_calculations)} products")
     
     inventory_lots_to_create = []
     
@@ -620,14 +660,14 @@ def _batch_create_inventory_for_transfer_in(fifo_calculations, to_vessel, transf
     # Bulk create all inventory lots
     if inventory_lots_to_create:
         InventoryLot.objects.bulk_create(inventory_lots_to_create)
-        print(f"✅ CREATED: {len(inventory_lots_to_create)} inventory lots for {to_vessel.name}")
+        logger.debug(f"Created: {len(inventory_lots_to_create)} inventory lots for {to_vessel.name}")
 
 
 def _clear_transfer_cache_targeted(transfer_id, from_vessel_id, to_vessel_id):
     """
     🚀 TARGETED CACHE CLEARING: Clear only relevant cache, not nuclear option
     """    
-    print(f"🔥 TARGETED CACHE: Clearing cache for transfer {transfer_id}")
+    logger.debug(f"Targeted cache: Clearing cache for transfer {transfer_id}")
     
     try:
         # Clear transfer-specific cache
@@ -640,10 +680,10 @@ def _clear_transfer_cache_targeted(transfer_id, from_vessel_id, to_vessel_id):
         # Clear product cache (inventory changed)
         ProductCacheHelper.clear_cache_after_product_update()
         
-        print(f"✅ TARGETED CACHE CLEARED: Transfer {transfer_id}, Vessels {from_vessel_id}/{to_vessel_id}")
+        logger.debug(f"Targeted cache cleared: Transfer {transfer_id}, Vessels {from_vessel_id}/{to_vessel_id}")
         
     except Exception as e:
-        print(f"⚠️ CACHE CLEAR WARNING: {e}")
+        logger.warning(f"Cache clear warning: {e}")
         # Fallback to nuclear option if targeted fails
         TransferCacheHelper.clear_all_transfer_cache()
     
@@ -761,7 +801,7 @@ def transfer_calculate_fifo_cost(request):
             })
             
         except Exception as e:
-            print(f"FIFO calculation error for vessel {vessel_id}, product {product_id}, quantity {quantity}: {e}")
+            logger.error(f"FIFO calculation error for vessel {vessel_id}, product {product_id}, quantity {quantity}: {e}")
             
             # Fallback calculation - only total cost
             fallback_unit_cost = Decimal('0.050')  # 50 fils per unit
@@ -780,7 +820,7 @@ def transfer_calculate_fifo_cost(request):
     except Product.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Product not found'})
     except Exception as e:
-        print(f"Endpoint error: {e}")
+        logger.error(f"Endpoint error: {e}")
         return JsonResponse({'success': False, 'error': str(e)})
     
 @operations_access_required  

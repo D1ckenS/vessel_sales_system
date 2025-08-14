@@ -151,6 +151,7 @@
                     <input type="hidden" id="editIndex" value="-1">
                     <input type="hidden" id="vesselId" value="{{ trip.vessel.id }}">
                     <input type="hidden" id="vesselHasDutyFree" value="{{ trip.vessel.has_duty_free|yesno:'true,false' }}">
+                    <input type="hidden" id="tripDate" value="{{ trip.trip_date|date:'Y-m-d' }}">
                     
                     <!-- Product Search -->
                     <div class="mb-3">
@@ -416,6 +417,7 @@ document.addEventListener('DOMContentLoaded', function() {
         id: document.getElementById('tripId').value,
         vesselId: document.getElementById('vesselId').value,
         vesselHasDutyFree: document.getElementById('vesselHasDutyFree').value === 'true',
+        tripDate: document.getElementById('tripDate').value,  // Add trip date for historical inventory
         canEdit: {{ can_edit|yesno:"true,false" }}
     };
     // Initialize for editable trips
@@ -516,7 +518,8 @@ function loadAvailableProducts() {
             'X-CSRFToken': window.getCsrfToken()
         },
         body: JSON.stringify({
-            vessel_id: tripData.vesselId
+            vessel_id: tripData.vesselId,
+            trip_date: tripData.tripDate  // Pass trip date for historical inventory calculation
         })
     })
     .then(response => response.json())

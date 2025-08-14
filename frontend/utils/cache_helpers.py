@@ -2,6 +2,62 @@ from django.core.cache import cache
 from datetime import date, timedelta
 import hashlib
 from vessels.models import Vessel
+from django.db.models import F
+import logging
+
+logger = logging.getLogger('frontend')
+
+
+class VersionedCache:
+    """
+    Cache versioning system for detecting inconsistencies
+    Prevents stale cache data by using version numbers
+    """
+    
+    @classmethod
+    def get_with_version(cls, key, default=None):
+        """Get cached value with version checking"""
+        from transactions.models import CacheVersion
+        try:
+            version_obj, _ = CacheVersion.objects.get_or_create(cache_key=key)
+            versioned_key = f"{key}:v{version_obj.version}"
+            return cache.get(versioned_key, default)
+        except Exception as e:
+            logger.warning(f"VersionedCache get error for {key}: {e}")
+            return default
+    
+    @classmethod
+    def set_with_version(cls, key, value, timeout=3600):
+        """Set cached value with current version"""
+        from transactions.models import CacheVersion
+        try:
+            version_obj, _ = CacheVersion.objects.get_or_create(cache_key=key)
+            versioned_key = f"{key}:v{version_obj.version}"
+            return cache.set(versioned_key, value, timeout)
+        except Exception as e:
+            logger.warning(f"VersionedCache set error for {key}: {e}")
+            return False
+    
+    @classmethod
+    def invalidate_version(cls, key):
+        """Atomically increment version to invalidate cache"""
+        from transactions.models import CacheVersion
+        try:
+            return CacheVersion.increment_version(key)
+        except Exception as e:
+            logger.error(f"VersionedCache invalidation error for {key}: {e}")
+            return None
+    
+    @classmethod
+    def get_version(cls, key):
+        """Get current version for a cache key"""
+        from transactions.models import CacheVersion
+        try:
+            version_obj, _ = CacheVersion.objects.get_or_create(cache_key=key)
+            return version_obj.version
+        except Exception as e:
+            logger.warning(f"VersionedCache version check error for {key}: {e}")
+            return 1
 
 class ProductCacheHelper:
     """🔥 ULTIMATE: Bulletproof cache management for product operations"""
@@ -38,7 +94,7 @@ class ProductCacheHelper:
         current_version = cls._get_cache_version()
         new_version = current_version + 1
         cache.set('product_list_cache_version', new_version, None)  # Never expires
-        print(f"🔥 CACHE VERSION BUMPED: {current_version} → {new_version}")
+        logger.debug(f"Cache version bumped: {current_version} → {new_version}")
         return new_version
     
     @classmethod
@@ -97,13 +153,13 @@ class ProductCacheHelper:
                                 if cache.delete(key_str):
                                     cleared_keys.append(key_str)
             except Exception as enum_error:
-                print(f"🔍 Key enumeration failed (using version bump): {enum_error}")
+                logger.warning(f"Key enumeration failed (using version bump): {enum_error}")
             
-            print(f"🔥 NUCLEAR CACHE CLEARED: {len(cleared_keys)} items affected")
+            logger.debug(f"Nuclear cache cleared: {len(cleared_keys)} items affected")
             return True, len(cleared_keys)
             
         except Exception as e:
-            print(f"🔥 NUCLEAR CACHE ERROR: {e}")
+            logger.error(f"Nuclear cache error: {e}")
             return False, 0
     
     @classmethod
@@ -118,7 +174,7 @@ class ProductCacheHelper:
             if cache.delete(key):
                 cleared_static += 1
         
-        print(f"📝 PRODUCT CACHE CLEARED: Version bumped + {cleared_static} static keys")
+        logger.debug(f"Product cache cleared: Version bumped + {cleared_static} static keys")
         return True, cleared_static + 1
     
     @classmethod
@@ -130,7 +186,7 @@ class ProductCacheHelper:
         cache.delete('category_cache')
         cache.delete('active_categories')
         
-        print(f"✅ PRODUCT CREATED - Cache cleared: {count} items")
+        logger.debug(f"Product created - Cache cleared: {count} items")
         return success, count
     
     @classmethod
@@ -138,7 +194,7 @@ class ProductCacheHelper:
         """🗑️ DELETION: Clear cache after product deletion"""
         success, count = cls.clear_cache_after_product_update()
         
-        print(f"🗑️ PRODUCT DELETED - Cache cleared: {count} items")
+        logger.debug(f"Product deleted - Cache cleared: {count} items")
         return success, count
     
     @classmethod
@@ -161,9 +217,9 @@ class ProductCacheHelper:
         # Count active cache entries
         active_count = sum(1 for exists in cache_status.values() if isinstance(exists, bool) and exists)
         
-        print(f"🔍 CACHE STATUS: {active_count}/{len(cls.STATIC_CACHE_KEYS)} static keys active")
-        print(f"🔍 Cache Version: {cache_status['cache_version']}")
-        print(f"🔍 Active keys: {[k for k, v in cache_status.items() if isinstance(v, bool) and v]}")
+        logger.debug(f"Cache status: {active_count}/{len(cls.STATIC_CACHE_KEYS)} static keys active")
+        logger.debug(f"Cache Version: {cache_status['cache_version']}")
+        logger.debug(f"Active keys: {[k for k, v in cache_status.items() if isinstance(v, bool) and v]}")
         
         return cache_status
     
@@ -211,7 +267,7 @@ class TripCacheHelper:
         current_version = cls._get_cache_version()
         new_version = current_version + 1
         cache.set('trip_cache_version', new_version, None)  # Never expires
-        print(f"🔥 TRIP CACHE VERSION BUMPED: {current_version} → {new_version}")
+        logger.debug(f"Trip cache version bumped: {current_version} → {new_version}")
         return new_version
     
     @classmethod
@@ -244,7 +300,7 @@ class TripCacheHelper:
         """Cache completed trip data (24 hour timeout)"""
         cache_key = cls.get_completed_trip_cache_key(trip_id)
         cache.set(cache_key, context_data, cls.COMPLETED_TRIP_CACHE_TIMEOUT)
-        print(f"🚀 CACHED COMPLETED TRIP: {trip_id}")
+        logger.debug(f"Cached completed trip: {trip_id}")
         return True
     
     # 🚀 RECENT TRIPS CACHING (for sales_entry page)
@@ -259,7 +315,7 @@ class TripCacheHelper:
         """Cache recent trips with revenue data (30 minute timeout)"""
         cache_key = cls.get_recent_trips_cache_key(user_role, date_filter)
         cache.set(cache_key, trips_data, cls.RECENT_TRIPS_CACHE_TIMEOUT)
-        print(f"🚀 CACHED RECENT TRIPS: {user_role}, {len(trips_data)} trips")
+        logger.debug(f"Cached recent trips: {user_role}, {len(trips_data)} trips")
         return True
     
     # 🚀 FINANCIAL CALCULATIONS CACHING
@@ -292,11 +348,11 @@ class TripCacheHelper:
                 if cache.delete(cache_key):
                     cleared_keys.append(cache_key)
             
-            print(f"🚀 TRIP CACHE CLEARED: {len(cleared_keys)} operations")
+            logger.debug(f"Trip cache cleared: {len(cleared_keys)} operations")
             return True, len(cleared_keys)
             
         except Exception as e:
-            print(f"❌ TRIP CACHE CLEAR FAILED: {e}")
+            logger.error(f"Trip cache clear failed: {e}")
             return False, 0
     
     @classmethod
@@ -318,7 +374,7 @@ class TripCacheHelper:
             if cache.delete(completed_cache_key):
                 cleared_keys.append(f'completed_trip_{trip_id}')
         
-        print(f"🚀 TRIP CACHE UPDATED: {len(cleared_keys)} operations")
+        logger.info(f"🚀 TRIP CACHE UPDATED: {len(cleared_keys)} operations")
         return True, len(cleared_keys)
     
     @classmethod
@@ -352,8 +408,8 @@ class TripCacheHelper:
         # Count active cache entries
         active_count = sum(1 for exists in cache_status.values() if isinstance(exists, bool) and exists)
         
-        print(f"🔍 TRIP CACHE STATUS: {active_count}/{len(cls.TRIP_CACHE_KEYS)} static keys active")
-        print(f"🔍 Trip Cache Version: {cache_status['trip_cache_version']}")
+        logger.debug(f"🔍 TRIP CACHE STATUS: {active_count}/{len(cls.TRIP_CACHE_KEYS)} static keys active")
+        logger.debug(f"🔍 Trip Cache Version: {cache_status['trip_cache_version']}")
         
         return cache_status
     
@@ -372,7 +428,7 @@ class TripCacheHelper:
         cache_key = cls.get_recent_trips_cache_key_robust(user_role, date_filter)
         cached_data = cache.get(cache_key)
         if cached_data:
-            print(f"🚀 ROBUST CACHE HIT: {cache_key}")
+            logger.debug(f"🚀 ROBUST CACHE HIT: {cache_key}")
         return cached_data
 
     @classmethod
@@ -381,7 +437,7 @@ class TripCacheHelper:
         cache_key = cls.get_recent_trips_cache_key_robust(user_role, date_filter)
         # Longer timeout to survive browser navigation
         cache.set(cache_key, trips_data, 7200)  # 2 hours
-        print(f"🚀 ROBUST CACHE SET: {cache_key}, {len(trips_data)} trips, 2hr timeout")
+        logger.info(f"🚀 ROBUST CACHE SET: {cache_key}, {len(trips_data)} trips, 2hr timeout")
         return True
 
     @classmethod
@@ -389,7 +445,7 @@ class TripCacheHelper:
         """Only clear recent trips cache when actually needed (new trips created)"""
         recent_trips_version = cache.get('recent_trips_version', 1)
         cache.set('recent_trips_version', recent_trips_version + 1, None)
-        print(f"🔥 RECENT TRIPS VERSION BUMP: {recent_trips_version} → {recent_trips_version + 1}")
+        logger.info(f"🔥 RECENT TRIPS VERSION BUMP: {recent_trips_version} → {recent_trips_version + 1}")
         return True
 
 # 🚀 PO CACHE HELPER - Following TripCacheHelper patterns
@@ -423,7 +479,7 @@ class POCacheHelper:
         current_version = cls._get_cache_version()
         new_version = current_version + 1
         cache.set('po_cache_version', new_version, None)  # Never expires
-        print(f"🔥 PO CACHE VERSION BUMPED: {current_version} → {new_version}")
+        logger.info(f"🔥 PO CACHE VERSION BUMPED: {current_version} → {new_version}")
         return new_version
     
     @classmethod
@@ -455,7 +511,7 @@ class POCacheHelper:
         """Cache completed PO data (24 hour timeout)"""
         cache_key = cls.get_completed_po_cache_key(po_id)
         cache.set(cache_key, context_data, cls.COMPLETED_PO_CACHE_TIMEOUT)
-        print(f"🚀 CACHED COMPLETED PO: {po_id}")
+        logger.info(f"🚀 CACHED COMPLETED PO: {po_id}")
         return True
     
     # 🚀 RECENT POS CACHING (for supply_entry page)
@@ -470,7 +526,7 @@ class POCacheHelper:
         """Cache recent POs with cost data (1 hour timeout)"""
         cache_key = cls.get_recent_pos_cache_key()
         cache.set(cache_key, pos_data, cls.RECENT_POS_CACHE_TIMEOUT)
-        print(f"🚀 CACHED RECENT POS: {len(pos_data)} POs")
+        logger.info(f"🚀 CACHED RECENT POS: {len(pos_data)} POs")
         return True
     
     # 🚀 FINANCIAL CALCULATIONS CACHING
@@ -503,11 +559,11 @@ class POCacheHelper:
                 if cache.delete(cache_key):
                     cleared_keys.append(cache_key)
             
-            print(f"🚀 PO CACHE CLEARED: {len(cleared_keys)} operations")
+            logger.info(f"🚀 PO CACHE CLEARED: {len(cleared_keys)} operations")
             return True, len(cleared_keys)
             
         except Exception as e:
-            print(f"❌ PO CACHE CLEAR FAILED: {e}")
+            logger.error(f"❌ PO CACHE CLEAR FAILED: {e}")
             return False, 0
     
     @classmethod
@@ -525,7 +581,7 @@ class POCacheHelper:
             if cache.delete(completed_cache_key):
                 cleared_keys.append(f'completed_po_{po_id}')
         
-        print(f"🚀 PO CACHE UPDATED: {len(cleared_keys)} operations")
+        logger.info(f"🚀 PO CACHE UPDATED: {len(cleared_keys)} operations")
         return True, len(cleared_keys)
     
     @classmethod
@@ -559,8 +615,8 @@ class POCacheHelper:
         # Count active cache entries
         active_count = sum(1 for exists in cache_status.values() if isinstance(exists, bool) and exists)
         
-        print(f"🔍 PO CACHE STATUS: {active_count}/{len(cls.PO_CACHE_KEYS)} static keys active")
-        print(f"🔍 PO Cache Version: {cache_status['po_cache_version']}")
+        logger.debug(f"🔍 PO CACHE STATUS: {active_count}/{len(cls.PO_CACHE_KEYS)} static keys active")
+        logger.debug(f"🔍 PO Cache Version: {cache_status['po_cache_version']}")
         
         return cache_status
 
@@ -591,7 +647,7 @@ class TransferCacheHelper:
         current_version = cls._get_cache_version()
         new_version = current_version + 1
         cache.set('transfer_cache_version', new_version, None)  # Never expires
-        print(f"🔥 TRANSFER CACHE VERSION BUMPED: {current_version} → {new_version}")
+        logger.info(f"🔥 TRANSFER CACHE VERSION BUMPED: {current_version} → {new_version}")
         return new_version
     
     @classmethod
@@ -613,10 +669,10 @@ class TransferCacheHelper:
         cached_data = cache.get(cache_key)
         
         if cached_data:
-            print(f"🚀 CACHE HIT: Completed transfer {transfer_id}")
+            logger.debug(f"🚀 CACHE HIT: Completed transfer {transfer_id}")
             return cached_data
         else:
-            print(f"🔍 CACHE MISS: Transfer {transfer_id} not in cache")
+            logger.debug(f"🔍 CACHE MISS: Transfer {transfer_id} not in cache")
             return None
     
     @classmethod
@@ -624,7 +680,7 @@ class TransferCacheHelper:
         """Cache completed transfer data (24 hour timeout)"""
         cache_key = cls.get_completed_transfer_cache_key(transfer_id)
         cache.set(cache_key, context_data, cls.COMPLETED_TRANSFER_CACHE_TIMEOUT)
-        print(f"🚀 CACHED COMPLETED TRANSFER: {transfer_id}")
+        logger.info(f"🚀 CACHED COMPLETED TRANSFER: {transfer_id}")
         return True
     
     # 🚀 RECENT TRANSFERS CACHING (for transfer_entry page - like supply_entry)
@@ -635,10 +691,10 @@ class TransferCacheHelper:
         cached_transfers = cache.get(cache_key)
         
         if cached_transfers:
-            print(f"🚀 CACHE HIT: Recent transfers")
+            logger.debug(f"🚀 CACHE HIT: Recent transfers")
             return cached_transfers
             
-        print(f"🔍 CACHE MISS: Recent transfers")
+        logger.debug(f"🔍 CACHE MISS: Recent transfers")
         return None
     
     @classmethod
@@ -646,7 +702,7 @@ class TransferCacheHelper:
         """Cache recent transfers with cost data (1 hour timeout)"""
         cache_key = cls.get_recent_transfers_cache_key()
         cache.set(cache_key, transfers_data, cls.RECENT_TRANSFERS_CACHE_TIMEOUT)
-        print(f"🚀 CACHED RECENT TRANSFERS: {len(transfers_data)} transfers")
+        logger.info(f"🚀 CACHED RECENT TRANSFERS: {len(transfers_data)} transfers")
         return True
     
     # 🚀 CACHE MANAGEMENT (simple pattern like POCacheHelper)
@@ -665,11 +721,11 @@ class TransferCacheHelper:
                 if cache.delete(cache_key):
                     cleared_keys.append(cache_key)
             
-            print(f"🚀 TRANSFER CACHE CLEARED: {len(cleared_keys)} operations")
+            logger.info(f"🚀 TRANSFER CACHE CLEARED: {len(cleared_keys)} operations")
             return True, len(cleared_keys)
             
         except Exception as e:
-            print(f"❌ TRANSFER CACHE CLEAR FAILED: {e}")
+            logger.error(f"❌ TRANSFER CACHE CLEAR FAILED: {e}")
             return False, 0
     
     @classmethod
@@ -687,7 +743,7 @@ class TransferCacheHelper:
             if cache.delete(completed_cache_key):
                 cleared_keys.append(f'completed_transfer_{transfer_id}')
         
-        print(f"🚀 TRANSFER CACHE UPDATED: {len(cleared_keys)} operations")
+        logger.info(f"🚀 TRANSFER CACHE UPDATED: {len(cleared_keys)} operations")
         return True, len(cleared_keys)
     
     @classmethod
@@ -735,7 +791,7 @@ class WasteCacheHelper:
         current_version = cls._get_cache_version()
         new_version = current_version + 1
         cache.set('waste_cache_version', new_version, None)  # Never expires
-        print(f"🔥 WASTE CACHE VERSION BUMPED: {current_version} → {new_version}")
+        logger.info(f"🔥 WASTE CACHE VERSION BUMPED: {current_version} → {new_version}")
         return new_version
     
     @classmethod
@@ -763,10 +819,10 @@ class WasteCacheHelper:
         cached_data = cache.get(cache_key)
         
         if cached_data:
-            print(f"🚀 CACHE HIT: Completed waste {waste_id}")
+            logger.debug(f"🚀 CACHE HIT: Completed waste {waste_id}")
             return cached_data
         else:
-            print(f"🔍 CACHE MISS: Waste {waste_id} not in cache")
+            logger.debug(f"🔍 CACHE MISS: Waste {waste_id} not in cache")
             return None
     
     @classmethod
@@ -774,7 +830,7 @@ class WasteCacheHelper:
         """Cache completed waste data (24 hour timeout)"""
         cache_key = cls.get_completed_waste_cache_key(waste_id)
         cache.set(cache_key, context_data, cls.COMPLETED_WASTE_CACHE_TIMEOUT)
-        print(f"🚀 CACHED COMPLETED WASTE: {waste_id}")
+        logger.info(f"🚀 CACHED COMPLETED WASTE: {waste_id}")
         return True
     
     # 🚀 RECENT WASTES CACHING (for waste_entry page - like supply_entry)
@@ -785,10 +841,10 @@ class WasteCacheHelper:
         cached_wastes = cache.get(cache_key)
         
         if cached_wastes:
-            print(f"🚀 CACHE HIT: Recent wastes")
+            logger.debug(f"🚀 CACHE HIT: Recent wastes")
             return cached_wastes
             
-        print(f"🔍 CACHE MISS: Recent wastes")
+        logger.debug(f"🔍 CACHE MISS: Recent wastes")
         return None
     
     @classmethod
@@ -796,7 +852,7 @@ class WasteCacheHelper:
         """Cache recent wastes with cost data (1 hour timeout)"""
         cache_key = cls.get_recent_wastes_cache_key()
         cache.set(cache_key, wastes_data, cls.RECENT_WASTES_CACHE_TIMEOUT)
-        print(f"🚀 CACHED RECENT WASTES: {len(wastes_data)} waste reports")
+        logger.info(f"🚀 CACHED RECENT WASTES: {len(wastes_data)} waste reports")
         return True
     
     # 🚀 FINANCIAL CALCULATIONS CACHING
@@ -829,11 +885,11 @@ class WasteCacheHelper:
                 if cache.delete(cache_key):
                     cleared_keys.append(cache_key)
             
-            print(f"🚀 WASTE CACHE CLEARED: {len(cleared_keys)} operations")
+            logger.info(f"🚀 WASTE CACHE CLEARED: {len(cleared_keys)} operations")
             return True, len(cleared_keys)
             
         except Exception as e:
-            print(f"❌ WASTE CACHE CLEAR FAILED: {e}")
+            logger.error(f"❌ WASTE CACHE CLEAR FAILED: {e}")
             return False, 0
     
     @classmethod
@@ -851,7 +907,7 @@ class WasteCacheHelper:
             if cache.delete(completed_cache_key):
                 cleared_keys.append(f'completed_waste_{waste_id}')
         
-        print(f"🚀 WASTE CACHE UPDATED: {len(cleared_keys)} operations")
+        logger.info(f"🚀 WASTE CACHE UPDATED: {len(cleared_keys)} operations")
         return True, len(cleared_keys)
     
     @classmethod
@@ -885,8 +941,8 @@ class WasteCacheHelper:
         # Count active cache entries
         active_count = sum(1 for exists in cache_status.values() if isinstance(exists, bool) and exists)
         
-        print(f"🔍 WASTE CACHE STATUS: {active_count}/{len(cls.WASTE_CACHE_KEYS)} static keys active")
-        print(f"🔍 Waste Cache Version: {cache_status['waste_cache_version']}")
+        logger.debug(f"🔍 WASTE CACHE STATUS: {active_count}/{len(cls.WASTE_CACHE_KEYS)} static keys active")
+        logger.debug(f"🔍 Waste Cache Version: {cache_status['waste_cache_version']}")
         
         return cache_status
 
@@ -1096,7 +1152,7 @@ class VesselManagementCacheHelper:
         # Also clear vessel dropdown cache since vessel list might have changed
         VesselCacheHelper.clear_cache()
         
-        print(f"🚀 VESSEL MANAGEMENT CACHE CLEARED: {len(cleared_keys)} keys")
+        logger.info(f"🚀 VESSEL MANAGEMENT CACHE CLEARED: {len(cleared_keys)} keys")
         return True, len(cleared_keys)
     
 class UserManagementCacheHelper:
@@ -1114,5 +1170,5 @@ class UserManagementCacheHelper:
             if cache.delete(key):
                 cleared_keys.append(key)
         
-        print(f"🚀 USER MANAGEMENT CACHE CLEARED: {len(cleared_keys)} keys")
+        logger.info(f"🚀 USER MANAGEMENT CACHE CLEARED: {len(cleared_keys)} keys")
         return True, len(cleared_keys)

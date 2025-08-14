@@ -33,36 +33,102 @@
             </div>
             <div class="card-body">
                 <form method="GET">
-                    <div class="row">
-                        <div class="col-md-3">
+                    <div class="row g-3">
+                        <div class="col-lg-2 col-md-4">
                             <label class="form-label fw-bold"><span data-translate="transaction_type">Transaction Type</span></label>
-                            <select class="form-select" name="transaction_type">
-                                <option value=""><span data-translate="all_types">All Types</span></option>
-                                {% for code, display in transaction_types %}
-                                <option value="{{ code }}" {% if filters.type == code %}selected{% endif %} data-transaction-type="{{ display }}">{{ display }}</option>
-                                {% endfor %}
-                            </select>
+                            <div class="dropdown">
+                                <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start" type="button" 
+                                        id="transactionTypeDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <span id="selectedTransactionTypeText">
+                                        {% if current_filters.transaction_type %}
+                                            {% for code, display in transaction_types %}
+                                                {% if code == current_filters.transaction_type %}
+                                                    {{ display }}
+                                                {% endif %}
+                                            {% endfor %}
+                                        {% else %}
+                                            <span data-translate="all_types">All Types</span>
+                                        {% endif %}
+                                    </span>
+                                </button>
+                                <ul class="dropdown-menu" aria-labelledby="transactionTypeDropdown">
+                                    <li><a class="dropdown-item" href="#" data-value="" onclick="selectTransactionType('', this)">
+                                        <span data-translate="all_types">All Types</span>
+                                    </a></li>
+                                    {% for code, display in transaction_types %}
+                                    <li><a class="dropdown-item {% if code == current_filters.transaction_type %}active{% endif %}" 
+                                           href="#" data-value="{{ code }}" onclick="selectTransactionType('{{ code }}', this)">
+                                        <i class="bi bi-arrow-repeat me-2"></i>
+                                        {{ display }}
+                                    </a></li>
+                                    {% endfor %}
+                                </ul>
+                                <input type="hidden" name="transaction_type" id="transactionTypeInput" value="{{ current_filters.transaction_type|default:'' }}">
+                            </div>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-lg-2 col-md-4">
                             <label class="form-label fw-bold"><span data-translate="vessel">Vessel</span></label>
-                            <select class="form-select" name="vessel">
-                                <option value=""><span data-translate="all_vessels">All Vessels</span></option>
-                                {% for vessel in vessels %}
-                                <option value="{{ vessel.id }}" {% if filters.vessel == vessel.id|stringformat:"s" %}selected{% endif %}>
-                                    <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
-                                </option>
-                                {% endfor %}
-                            </select>
+                            <div class="dropdown w-100">
+                                <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start" type="button" 
+                                        id="vesselDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <span id="selectedVesselText">
+                                        {% if current_filters.vessel %}
+                                            {% for vessel in vessels %}
+                                                {% if vessel.id|stringformat:"s" == current_filters.vessel %}
+                                                    <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
+                                                {% endif %}
+                                            {% endfor %}
+                                        {% else %}
+                                            <span data-translate="all_vessels">All Vessels</span>
+                                        {% endif %}
+                                    </span>
+                                </button>
+                                <ul class="dropdown-menu w-100" aria-labelledby="vesselDropdown">
+                                    <li><a class="dropdown-item" href="#" data-value="" onclick="selectVessel('', this)">
+                                        <span data-translate="all_vessels">All Vessels</span>
+                                    </a></li>
+                                    {% for vessel in vessels %}
+                                    <li><a class="dropdown-item {% if vessel.id|stringformat:'s' == current_filters.vessel %}active{% endif %}" 
+                                           href="#" data-value="{{ vessel.id }}" onclick="selectVessel('{{ vessel.id }}', this)">
+                                        <i class="bi bi-ship me-2"></i>
+                                        <span class="vessel-name" data-en="{{ vessel.name }}" data-ar="{{ vessel.name_ar }}">{{ vessel.name }}</span>
+                                    </a></li>
+                                    {% endfor %}
+                                </ul>
+                                <input type="hidden" name="vessel" id="vesselInput" value="{{ current_filters.vessel|default:'' }}">
+                            </div>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-lg-3 col-md-4">
+                            <label class="form-label fw-bold"><span data-translate="product">Product</span></label>
+                            <div class="search-dropdown-container position-relative">
+                                <input type="text" 
+                                       class="form-control" 
+                                       id="product-search" 
+                                       placeholder="Search by name or item ID..." 
+                                       autocomplete="off"
+                                       data-translate-placeholder="search_product_placeholder">
+                                <select class="form-select d-none" name="product" id="product-select">
+                                    <option value=""><span data-translate="all_products">All Products</span></option>
+                                    {% for product in products %}
+                                    <option value="{{ product.id }}" 
+                                            data-name="{{ product.name|lower }}" 
+                                            data-item-id="{{ product.item_id|lower }}"
+                                            {% if current_filters.product == product.id|stringformat:"s" %}selected{% endif %}>
+                                        {{ product.item_id }} - {{ product.name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-lg-2 col-md-6">
                             <label class="form-label fw-bold"><span data-translate="from_date">From Date</span></label>
-                            <input type="date" class="form-control" name="date_from" value="{{ filters.date_from }}">
+                            <input type="date" class="form-control" name="date_from" value="{{ current_filters.date_from }}">
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-lg-2 col-md-6">
                             <label class="form-label fw-bold"><span data-translate="to_date">To Date</span></label>
-                            <input type="date" class="form-control" name="date_to" value="{{ filters.date_to }}">
+                            <input type="date" class="form-control" name="date_to" value="{{ current_filters.date_to }}">
                         </div>
-                        <div class="col-md-2 d-flex align-items-end">
+                        <div class="col-lg-1 col-md-12 d-flex align-items-end">
                             <button type="submit" class="btn btn-primary w-100">
                                 <i class="bi bi-funnel"></i> <span data-translate="filter">Filter</span>
                             </button>
@@ -86,7 +152,7 @@
                     <button class="btn btn-outline-success btn-sm" onclick="exportTransactions(this)">
                         <i class="bi bi-file-earmark-excel"></i> <span data-translate="export">Export</span>
                     </button>
-                    <a href="?{% if filters.type %}type={{ filters.type }}&{% endif %}{% if filters.vessel %}vessel={{ filters.vessel }}&{% endif %}{% if filters.date_from %}date_from={{ filters.date_from }}&{% endif %}{% if filters.date_to %}date_to={{ filters.date_to }}&{% endif %}" class="btn btn-outline-secondary btn-sm">
+                    <a href="?{% if current_filters.transaction_type %}transaction_type={{ current_filters.transaction_type }}&{% endif %}{% if current_filters.vessel %}vessel={{ current_filters.vessel }}&{% endif %}{% if current_filters.product %}product={{ current_filters.product }}&{% endif %}{% if current_filters.date_from %}date_from={{ current_filters.date_from }}&{% endif %}{% if current_filters.date_to %}date_to={{ current_filters.date_to }}&{% endif %}" class="btn btn-outline-secondary btn-sm">
                         <i class="bi bi-arrow-clockwise"></i> <span data-translate="refresh">Refresh</span>
                     </a>
                 </div>
@@ -174,10 +240,10 @@
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="10" class="text-center text-muted py-4">  <!-- Updated colspan from 8 to 10 -->
-                                    <i class="bi bi-list-ul" style="font-size: 2rem;"></i>
-                                    <p class="mt-2 mb-0"><span data-translate="no_transactions_found">No transactions found</span></p>
-                                    <small><span data-translate="try_adjusting_filters">Try adjusting your filter criteria</span></small>
+                                <td colspan="10" class="text-center text-muted py-5">
+                                    <i class="bi bi-list-ul" style="font-size: 2.5rem; opacity: 0.5;"></i>
+                                    <p class="mt-3 mb-1 fw-bold"><span data-translate="no_transactions_found">No transactions found</span></p>
+                                    <small class="text-muted"><span data-translate="try_adjusting_filters">Try adjusting your filter criteria</span></small>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -191,12 +257,12 @@
                         <div>
                             <small class="text-muted">
                                 <span data-translate="showing_latest_200">Showing latest 200 transactions</span>
-                                {% if filters.type or filters.vessel or filters.date_from or filters.date_to %}
+                                {% if current_filters.transaction_type or current_filters.vessel or current_filters.product or current_filters.date_from or current_filters.date_to %}
                                 (<span dir="ltr" data-translate="filtered">filtered</span>)
                                 {% endif %}
                             </small>
                         </div>
-                        {% if filters.type or filters.vessel or filters.date_from or filters.date_to %}
+                        {% if current_filters.transaction_type or current_filters.vessel or current_filters.product or current_filters.date_from or current_filters.date_to %}
                         <div>
                             <a href="{% url 'frontend:transactions_list' %}" class="btn btn-outline-secondary btn-sm">
                                 <i class="bi bi-x-circle"></i> <span data-translate="clear_filters">Clear Filters</span>
@@ -256,10 +322,325 @@ document.addEventListener('DOMContentLoaded', function() {
         titleKey: 'transactions_list',
         fallbackTitle: 'Transactions List'
     })
+    
+    // Setup Bootstrap dropdown z-index management
+    setupDropdownZIndex();
+    
+    // Initialize product search functionality
+    initializeProductSearch();
+    
     // Update on language change
     window.addEventListener('languageChanged', function() {
         updateTransactionsPageTranslations();
     });
+    
+    function setupDropdownZIndex() {
+        // Use universal dropdown z-index function from base_scripts.js
+        const dropdownCounter = window.setupUniversalDropdownZIndex([
+            'transactionTypeDropdown',
+            'vesselDropdown'
+        ]);
+        
+        // Make counter available globally for product search
+        window.dropdownCounter = dropdownCounter;
+    }
+    
+    function initializeProductSearch() {
+        const searchInput = document.getElementById('product-search');
+        const hiddenSelect = document.getElementById('product-select');
+        const container = searchInput?.closest('.search-dropdown-container');
+        
+        if (!searchInput || !hiddenSelect || !container) return;
+        
+        // Create dropdown element
+        const dropdown = document.createElement('div');
+        dropdown.id = 'product-dropdown';
+        dropdown.className = 'search-dropdown';
+        container.appendChild(dropdown);
+        
+        // Get all product options  
+        const allProducts = Array.from(hiddenSelect.options).slice(1); // Skip "All Products"
+        let filteredProducts = [...allProducts];
+        let selectedIndex = -1;
+        
+        // Set initial value if there's a selected product
+        const selectedOption = hiddenSelect.options[hiddenSelect.selectedIndex];
+        if (selectedOption && selectedOption.value) {
+            searchInput.value = selectedOption.textContent.trim();
+        }
+        
+        function showDropdown() {
+            dropdown.classList.add('show');
+            container.classList.add('dropdown-active');
+            
+            // BOSS FIX: Use global counter system
+            if (window.dropdownCounter) {
+                window.dropdownCounter.add();
+            }
+        }
+        
+        function hideDropdown() {
+            dropdown.classList.remove('show');
+            container.classList.remove('dropdown-active');
+            selectedIndex = -1;
+            
+            // BOSS FIX: Use global counter system
+            if (window.dropdownCounter) {
+                window.dropdownCounter.remove();
+            }
+        }
+        
+        // Event listeners
+        searchInput.addEventListener('input', function() {
+            const term = this.value.toLowerCase().trim();
+            
+            if (!term) {
+                filteredProducts = [...allProducts];
+            } else {
+                filteredProducts = allProducts.filter(option => {
+                    const name = option.dataset.name;
+                    const itemId = option.dataset.itemId;
+                    return name.includes(term) || itemId.includes(term);
+                });
+            }
+            updateDropdown();
+            showDropdown();
+        });
+        
+        searchInput.addEventListener('focus', function() {
+            updateDropdown();
+            showDropdown();
+        });
+        
+        searchInput.addEventListener('blur', function() {
+            setTimeout(hideDropdown, 150);
+        });
+        
+        function updateDropdown() {
+            dropdown.innerHTML = '';
+            
+            if (filteredProducts.length === 0) {
+                dropdown.innerHTML = '<div class="search-item text-muted">No products found</div>';
+                return;
+            }
+            
+            // Add "All Products" option if no search term
+            if (!searchInput.value.trim()) {
+                const allItem = document.createElement('a');
+                allItem.href = '#';
+                allItem.className = 'search-item';
+                allItem.textContent = 'All Products';
+                allItem.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    selectProduct('', '');
+                });
+                dropdown.appendChild(allItem);
+            }
+            
+            filteredProducts.forEach(option => {
+                const item = document.createElement('a');
+                item.href = '#';
+                item.className = 'search-item';
+                item.textContent = option.textContent.trim();
+                
+                item.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    selectProduct(option.value, option.textContent.trim());
+                });
+                
+                dropdown.appendChild(item);
+            });
+        }
+        
+        function selectProduct(value, text) {
+            hiddenSelect.value = value;
+            searchInput.value = text;
+            hideDropdown();
+        }
+        
+        // Initialize
+        updateDropdown();
+        hideDropdown();
+    }
+    
+    function updateTransactionsPageTranslations() {
+        const searchInput = document.getElementById('product-search');
+        const hiddenSelect = document.getElementById('product-select');
+        const container = searchInput?.closest('.search-dropdown-container');
+        const filterCard = searchInput?.closest('.card');
+        
+        let dropdown = document.getElementById('product-dropdown');
+        
+        // Create dropdown if it doesn't exist
+        if (!dropdown) {
+            dropdown = document.createElement('div');
+            dropdown.id = 'product-dropdown';
+            dropdown.className = 'search-dropdown';
+            container.appendChild(dropdown);
+        } else {
+            // Ensure it has the correct class
+            dropdown.className = 'search-dropdown';
+        }
+        
+        if (!searchInput || !hiddenSelect || !dropdown || !container) return;
+        
+        // Get all product options
+        const allProducts = Array.from(hiddenSelect.options).slice(1); // Skip "All Products" option
+        let filteredProducts = [...allProducts];
+        let selectedIndex = -1;
+        
+        // Set initial value if there's a selected product
+        const selectedOption = hiddenSelect.querySelector('option[selected]');
+        if (selectedOption && selectedOption.value) {
+            searchInput.value = selectedOption.textContent.trim();
+        }
+        
+        function showDropdown() {
+            dropdown.classList.add('show');
+            container.classList.add('dropdown-active');
+        }
+        
+        function hideDropdown() {
+            dropdown.classList.remove('show');
+            container.classList.remove('dropdown-active');
+            selectedIndex = -1;
+        }
+        
+        function filterProducts(searchTerm) {
+            const term = searchTerm.toLowerCase().trim();
+            if (!term) {
+                filteredProducts = [...allProducts];
+            } else {
+                filteredProducts = allProducts.filter(option => {
+                    const name = option.getAttribute('data-name') || '';
+                    const itemId = option.getAttribute('data-item-id') || '';
+                    return name.includes(term) || itemId.includes(term);
+                });
+            }
+            updateDropdown();
+        }
+        
+        function updateDropdown() {
+            dropdown.innerHTML = '';
+            
+            const searchTerm = searchInput.value.toLowerCase().trim();
+            
+            // Always add "All Products" option first
+            const allOption = document.createElement('div');
+            allOption.className = 'search-item';
+            allOption.textContent = 'All Products';
+            allOption.setAttribute('data-value', '');
+            dropdown.appendChild(allOption);
+            
+            // Add filtered products
+            filteredProducts.forEach((option, index) => {
+                const item = document.createElement('div');
+                item.className = 'search-item';
+                item.textContent = option.textContent;
+                item.setAttribute('data-value', option.value);
+                item.setAttribute('data-index', index);
+                
+                // Highlight matching text only if there's a search term
+                if (searchTerm) {
+                    const text = item.textContent;
+                    const regex = new RegExp(`(${searchTerm})`, 'gi');
+                    item.innerHTML = text.replace(regex, '<mark>$1</mark>');
+                }
+                
+                dropdown.appendChild(item);
+            });
+            
+            // Show "No results" if no products found and user has searched
+            if (filteredProducts.length === 0 && searchTerm) {
+                const noResults = document.createElement('div');
+                noResults.className = 'search-item text-muted';
+                noResults.textContent = 'No products found';
+                dropdown.appendChild(noResults);
+            }
+        }
+        
+        // Event listeners
+        searchInput.addEventListener('input', function() {
+            filterProducts(this.value);
+            showDropdown();
+            selectedIndex = -1;
+        });
+        
+        searchInput.addEventListener('focus', function() {
+            // Always show dropdown on focus (click on empty field shows all products)
+            filterProducts(this.value);
+            showDropdown();
+        });
+        
+        searchInput.addEventListener('blur', function() {
+            // Delay hiding to allow click on dropdown items
+            setTimeout(hideDropdown, 150);
+        });
+        
+        searchInput.addEventListener('keydown', function(e) {
+            const items = dropdown.querySelectorAll('.search-item:not(.text-muted)');
+            
+            switch(e.key) {
+                case 'ArrowDown':
+                    e.preventDefault();
+                    selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+                    updateSelection(items);
+                    break;
+                case 'ArrowUp':
+                    e.preventDefault();
+                    selectedIndex = Math.max(selectedIndex - 1, -1);
+                    updateSelection(items);
+                    break;
+                case 'Enter':
+                    e.preventDefault();
+                    if (selectedIndex >= 0 && items[selectedIndex]) {
+                        selectProduct(items[selectedIndex]);
+                    }
+                    break;
+                case 'Escape':
+                    hideDropdown();
+                    searchInput.blur();
+                    break;
+            }
+        });
+        
+        function updateSelection(items) {
+            items.forEach((item, index) => {
+                item.classList.toggle('active', index === selectedIndex);
+            });
+        }
+        
+        function selectProduct(item) {
+            const value = item.getAttribute('data-value');
+            const text = item.textContent.replace(/\n/g, '').trim();
+            
+            hiddenSelect.value = value;
+            searchInput.value = value ? text : '';
+            hideDropdown();
+        }
+        
+        // Handle dropdown clicks
+        dropdown.addEventListener('click', function(e) {
+            if (e.target.classList.contains('search-item') && !e.target.classList.contains('text-muted')) {
+                selectProduct(e.target);
+            }
+        });
+        
+        // Hide dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!container.contains(e.target)) {
+                hideDropdown();
+            }
+        });
+        
+        // Initialize dropdown content but don't show it
+        updateDropdown();
+        
+        // Only show initial content if there's no existing search value
+        if (!searchInput.value.trim()) {
+            hideDropdown(); // Ensure dropdown is hidden initially
+        }
+    }
     
     function updateTransactionsPageTranslations() {
         // Update transaction dates
@@ -412,6 +793,59 @@ document.addEventListener('DOMContentLoaded', function() {
 
 });
 
+// Transaction Type dropdown selection handler
+function selectTransactionType(typeCode, element) {
+    // Update hidden input
+    document.getElementById('transactionTypeInput').value = typeCode;
+    
+    // Update button text
+    const buttonText = document.getElementById('selectedTransactionTypeText');
+    buttonText.innerHTML = element.innerHTML;
+    
+    // Update active state
+    document.querySelectorAll('#transactionTypeDropdown + .dropdown-menu .dropdown-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    element.classList.add('active');
+    
+    // Close dropdown
+    const dropdown = bootstrap.Dropdown.getInstance(document.getElementById('transactionTypeDropdown'));
+    if (dropdown) {
+        dropdown.hide();
+    }
+    
+    // Prevent default link behavior
+    event.preventDefault();
+    return false;
+}
+
+// Vessel dropdown selection handler
+function selectVessel(vesselId, element) {
+    // Update hidden input
+    document.getElementById('vesselInput').value = vesselId;
+    
+    // Update button text
+    const buttonText = document.getElementById('selectedVesselText');
+    const selectedText = element.textContent.trim();
+    buttonText.innerHTML = element.innerHTML;
+    
+    // Update active state
+    document.querySelectorAll('#vesselDropdown + .dropdown-menu .dropdown-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    element.classList.add('active');
+    
+    // Close dropdown
+    const dropdown = bootstrap.Dropdown.getInstance(document.getElementById('vesselDropdown'));
+    if (dropdown) {
+        dropdown.hide();
+    }
+    
+    // Prevent default link behavior
+    event.preventDefault();
+    return false;
+}
+
 //document.querySelector('[name="date_to"]')?.value || '',
 function exportTransactions(btn) {
     const urlParams = new URLSearchParams(window.location.search);
@@ -419,7 +853,7 @@ function exportTransactions(btn) {
     const additionalData = {
         transaction_type: urlParams.get('transaction_type') || '',
         vessel_id: urlParams.get('vessel') || '',
-        product_id: productId,
+        product_id: urlParams.get('product') || productId || '',
         start_date: urlParams.get('date_from') || '',
         end_date: urlParams.get('date_to') || ''
     };
