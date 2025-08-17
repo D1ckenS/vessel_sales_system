@@ -317,12 +317,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
-document.addEventListener("DOMContentLoaded", function() {
-    window.initializePage({
-        titleKey: 'user_profile',
-        fallbackTitle: 'User Profile'
-    })
-});
-</script>
+<script src="{% static 'frontend/js/user_profile.js' %}"></script>
 {% endblock %}

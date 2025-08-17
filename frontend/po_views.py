@@ -48,8 +48,9 @@ def po_management(request):
     purchase_orders = purchase_orders.order_by('-po_date', '-created_at')
     
     # ✅ REPLACE Django Paginator with optimized pagination
+    # Use accurate counts for management pages since accurate pagination is important
     page_number = request.GET.get('page', 1)
-    page_obj = get_optimized_pagination(purchase_orders, page_number, page_size=25, use_count=False)
+    page_obj = get_optimized_pagination(purchase_orders, page_number, page_size=25, use_count=True)
     
     # WORKING: Add cost performance class to each PO (for template)
     po_list = page_obj.object_list  # Use optimized pagination object list

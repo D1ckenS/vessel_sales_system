@@ -72,8 +72,9 @@ def trip_management(request):
             pass
     
     # ✅ REPLACE Django Paginator with optimized pagination
+    # Use accurate counts for management pages since accurate pagination is important
     page_number = request.GET.get('page', 1)
-    page_obj = get_optimized_pagination(trips_query, page_number, page_size=25, use_count=False)
+    page_obj = get_optimized_pagination(trips_query, page_number, page_size=25, use_count=True)
     
     # Process trips list
     trips_list = page_obj.object_list

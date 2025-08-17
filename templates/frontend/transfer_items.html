@@ -424,6 +424,11 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
     
+    // Translation helper function
+    function _(key) {
+        return window.translator ? window.translator._(key) : key;
+    }
+    
     if (!transferIdElement) {
         console.log('❌ ERROR: Transfer elements missing, skipping cart initialization');
         return;
@@ -1443,7 +1448,7 @@ async function completeTransfer() {
             localStorage.removeItem(storageKey);
             
             // Show success message
-            window.window.showAlert(data.message, 'success');
+            window.showAlert(data.message, 'success');
             
             // Redirect to transfer items page to show completed state
             setTimeout(() => {

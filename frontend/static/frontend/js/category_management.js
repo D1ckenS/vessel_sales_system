@@ -10,63 +10,80 @@ document.addEventListener('DOMContentLoaded', function() {
     updatePageTranslations();
 });
 
+// REFACTORED with ModalManager for standardized modal handling
 function showCreateCategoryModal() {
-    // Reset form for create mode
-    document.getElementById('categoryForm').action = '{% url "frontend:create_category" %}';
-    document.getElementById('categoryId').value = '';
-    document.getElementById('categoryName').value = '';
-    document.getElementById('categoryDescription').value = '';
-    document.getElementById('categoryActive').checked = true;
-    
-    // Update modal title
-    document.getElementById('modalTitle').innerHTML = '<i class="bi bi-collection"></i> <span data-translate="add_new_category">Add New Category</span>';
-    document.getElementById('submitBtn').innerHTML = '<i class="bi bi-check-circle"></i> <span data-translate="save_category">Save Category</span>';
-    
-    // Apply translations to modal content
-    updatePageTranslations();
-    
-    // Show modal
-    new bootstrap.Modal(document.getElementById('categoryModal')).show();
-}
-
-function editCategory(id, name, description, active) {
-    // Set form for edit mode
-    document.getElementById('categoryForm').action = `/categories/manage/${id}/edit/`;
-    document.getElementById('categoryId').value = id;
-    document.getElementById('categoryName').value = name;
-    document.getElementById('categoryDescription').value = description;
-    document.getElementById('categoryActive').checked = active;
-    
-    // Update modal title
-    document.getElementById('modalTitle').innerHTML = '<i class="bi bi-pencil"></i> <span data-translate="edit_category_title">Edit Category</span>';
-    document.getElementById('submitBtn').innerHTML = '<i class="bi bi-check-circle"></i> <span data-translate="save_category">Save Category</span>';
-    
-    // Apply translations to modal content
-    updatePageTranslations();
-    
-    // Show modal
-    new bootstrap.Modal(document.getElementById('categoryModal')).show();
-}
-
-function deleteCategory(id, name) {
-    confirmTranslated('confirm_delete_category', { name: name }).then(confirmed => {
-        if (confirmed) {
-            // Create form and submit
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = `/categories/${id}/delete/`;
-            
-            const csrfToken = window.getCsrfToken();
-            const csrfInput = document.createElement('input');
-            csrfInput.type = 'hidden';
-            csrfInput.name = 'csrfmiddlewaretoken';
-            csrfInput.value = csrfToken;
-            form.appendChild(csrfInput);
-            
-            document.body.appendChild(form);
-            form.submit();
+    window.ModalManager.showCrudModal({
+        modalId: 'categoryModal',
+        formId: 'categoryForm',
+        titleKey: 'add_new_category',
+        titleFallback: 'Add New Category',
+        action: '{% url "frontend:create_category" %}',
+        data: {
+            categoryId: '',
+            categoryName: '',
+            categoryDescription: '',
+            categoryActive: true,
+            icon: 'bi bi-collection'
         }
     });
+    
+    // Update submit button text
+    const submitBtn = document.getElementById('submitBtn');
+    if (submitBtn) {
+        submitBtn.innerHTML = '<i class="bi bi-check-circle"></i> <span data-translate="save_category">Save Category</span>';
+    }
+}
+
+// REFACTORED with ModalManager for standardized modal handling
+function editCategory(id, name, description, active) {
+    window.ModalManager.showCrudModal({
+        modalId: 'categoryModal',
+        formId: 'categoryForm',
+        titleKey: 'edit_category_title',
+        titleFallback: 'Edit Category',
+        action: `/categories/manage/${id}/edit/`,
+        data: {
+            categoryId: id,
+            categoryName: name,
+            categoryDescription: description,
+            categoryActive: active,
+            icon: 'bi bi-pencil'
+        }
+    });
+    
+    // Update submit button text
+    const submitBtn = document.getElementById('submitBtn');
+    if (submitBtn) {
+        submitBtn.innerHTML = '<i class="bi bi-check-circle"></i> <span data-translate="save_category">Save Category</span>';
+    }
+}
+
+// REFACTORED with ModalManager for standardized confirmation handling
+async function deleteCategory(id, name) {
+    const confirmed = await window.ModalManager.showConfirmation({
+        titleKey: 'confirm_delete',
+        messageKey: 'confirm_delete_category',
+        messageParams: { name: name },
+        confirmButtonKey: 'delete',
+        cancelButtonKey: 'cancel'
+    });
+
+    if (confirmed) {
+        // Create form and submit with standardized approach
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/categories/${id}/delete/`;
+        
+        const csrfToken = window.getCsrfToken();
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrfmiddlewaretoken';
+        csrfInput.value = csrfToken;
+        form.appendChild(csrfInput);
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
 }
 
 window.showCreateCategoryModal = showCreateCategoryModal;

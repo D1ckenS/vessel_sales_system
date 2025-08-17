@@ -450,7 +450,7 @@ document.addEventListener('DOMContentLoaded', function() {
         setupEventListeners();
     } catch (error) {
         console.error('Error initializing PO cart:', error);
-        window.window.showAlert(_('error_loading_cart'), 'warning');
+        window.showAlert(_('error_loading_cart'), 'warning');
         poSuppliesCart = [];
         updateCartDisplay();
     }
@@ -458,6 +458,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Apply translations
     updatePageTranslations();
 });
+
+// Translation helper function
+function _(key) {
+    return window.translator ? window.translator._(key) : key;
+}
 
 function initializePOCart() {
     const poId = document.getElementById('poId').value;
@@ -750,12 +755,12 @@ function setupEventListeners() {
                             selectProductFromCatalog(products[0]);
                         }
                     } else {
-                        window.window.showAlert(data.error, 'danger');
+                        window.showAlert(data.error, 'danger');
                     }
                 })
                 .catch(error => {
                     console.error('Error searching products:', error);
-                    window.window.showAlert(_('error_searching'), 'danger');
+                    window.showAlert(_('error_searching'), 'danger');
                 });
             }, 300);
         } else if (searchTerm.length === 0) {
@@ -881,7 +886,7 @@ function addToCart() {
     saveCartToStorage();
     updateCartDisplay();
     clearForm();
-    window.window.showAlert(_('item_added_success'), 'success');
+    window.showAlert(_('item_added_success'), 'success');
     
     // Focus back to search field for next item
     document.getElementById('productSearch').focus();
@@ -893,13 +898,13 @@ async function removeFromCart(index) {
         poSuppliesCart.splice(index, 1);
         saveCartToStorage();
         updateCartDisplay();
-        window.window.showAlert(_('item_removed'), 'info');
+        window.showAlert(_('item_removed'), 'info');
     }
 }
 
 function editCartItem(index) {
     if (index < 0 || index >= poSuppliesCart.length) {
-        window.window.showAlert(_('invalid_item_edit'), 'error');
+        window.showAlert(_('invalid_item_edit'), 'error');
         return;
     }
     
@@ -1108,7 +1113,7 @@ function updateCartDisplay() {
 
 async function completePOSupplies() {
     if (poSuppliesCart.length === 0) {
-        window.window.showAlert(_('add_one_item_first'), 'warning');
+        window.showAlert(_('add_one_item_first'), 'warning');
         return;
     }
     
@@ -1160,7 +1165,7 @@ async function completePOSupplies() {
         
         if (data.success) {
             // Show success message
-            window.window.showAlert(data.message, 'success');
+            window.showAlert(data.message, 'success');
             
             // AUTO-EXPORT: Export cart with box breakdown before redirect
             console.log('🚀 Auto-exporting cart verification report...');
@@ -1176,13 +1181,13 @@ async function completePOSupplies() {
                 window.location.href = `/supply/po/${poId}/`;
             }, 2000);
         } else {
-            window.window.showAlert(data.error || _('error_completing_po'), 'danger');
+            window.showAlert(data.error || _('error_completing_po'), 'danger');
             completePOBtn.innerHTML = originalText;
             completePOBtn.disabled = false;
         }
     } catch (error) {
         console.error('Error completing PO:', error);
-        window.window.showAlert(_('error_completing_po'), 'danger');
+        window.showAlert(_('error_completing_po'), 'danger');
         completePOBtn.innerHTML = originalText;
         completePOBtn.disabled = false;
     }

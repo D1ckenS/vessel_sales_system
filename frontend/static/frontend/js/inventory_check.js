@@ -361,29 +361,17 @@ function handleSearchInput() {
     }, 300);
 }
 
-// Stock filter dropdown selection handler
+// REFACTORED Stock filter dropdown selection handler with DropdownManager
 function selectStockFilter(filterValue, element) {
-    // Update hidden input
-    document.getElementById('stockFilterInput').value = filterValue;
-    
-    // Update button text
-    const buttonText = document.getElementById('selectedStockFilterText');
-    buttonText.innerHTML = element.innerHTML;
-    
-    // Update active state
-    document.querySelectorAll('#stockFilterDropdown + .dropdown-menu .dropdown-item').forEach(item => {
-        item.classList.remove('active');
+    window.DropdownManager.handleSelection({
+        dropdownId: 'stockFilterDropdown',
+        inputId: 'stockFilterInput',
+        buttonTextId: 'selectedStockFilterText',
+        selectedValue: filterValue,
+        selectedElement: element,
+        onSelectionChange: applyFilters, // Apply filters after selection
+        closeDropdown: true
     });
-    element.classList.add('active');
-    
-    // Close dropdown
-    const dropdown = bootstrap.Dropdown.getInstance(document.getElementById('stockFilterDropdown'));
-    if (dropdown) {
-        dropdown.hide();
-    }
-    
-    // Apply filters
-    applyFilters();
     
     // Prevent default link behavior
     event.preventDefault();
@@ -420,34 +408,20 @@ function applyFilters() {
     updateInventoryTable();
 }
 
+// REFACTORED clearFilters function with DropdownManager
 function clearFilters() {
     const productSearch = document.getElementById('productSearch');
     if (productSearch) {
         productSearch.value = '';
     }
     
-    // Reset stock filter dropdown with null checks
-    const stockFilterInput = document.getElementById('stockFilterInput');
-    const stockFilterText = document.getElementById('selectedStockFilterText');
-    const stockFilterDropdown = document.querySelector('#stockFilterDropdown + .dropdown-menu');
-    
-    if (stockFilterInput) {
-        stockFilterInput.value = '';
-    }
-    
-    if (stockFilterText) {
-        stockFilterText.innerHTML = '<span data-translate="all_stock_levels">All Stock Levels</span>';
-    }
-    
-    if (stockFilterDropdown) {
-        stockFilterDropdown.querySelectorAll('.dropdown-item').forEach(item => {
-            item.classList.remove('active');
-        });
-        const firstItem = stockFilterDropdown.querySelector('.dropdown-item[data-value=""]');
-        if (firstItem) {
-            firstItem.classList.add('active');
-        }
-    }
+    // Use DropdownManager to reset the stock filter dropdown
+    window.DropdownManager.resetDropdown({
+        dropdownId: 'stockFilterDropdown',
+        inputId: 'stockFilterInput',
+        buttonTextId: 'selectedStockFilterText',
+        defaultText: '<span data-translate="all_stock_levels">All Stock Levels</span>'
+    });
     
     if (currentInventoryData.length > 0) {
         filteredData = [...currentInventoryData];

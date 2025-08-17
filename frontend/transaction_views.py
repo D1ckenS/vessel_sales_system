@@ -68,7 +68,7 @@ def transactions_list(request):
     vessels = VesselCacheHelper.get_active_vessels()
     
     # ✅ STEP 6.1: Get active products for filter dropdown
-    products = Product.objects.filter(active=True).select_related('category').order_by('name')
+    products = Product.objects.filter(active=True).select_related('category').order_by('item_id')
     
     # ✅ STEP 7: Context with optimized data
     context = {

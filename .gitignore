@@ -136,7 +136,6 @@ venv.bak/
 
 # Django specific additions
 media/
-static
 staticfiles/
 static_root/
 collected_static/
@@ -328,20 +327,10 @@ backups/
 temp_original_dropdowns.css
 test_dropdown_fix.html
 
-# Development screenshots and images
-*.png
-!static/**/*.png  # Keep static assets
-!templates/**/*.png  # Keep template assets
-
 # Development notes and todos
 new_features.txt
 permissions.txt
-todos.txt
+todos.md
 
 # Development scripts
 scripts/
-
-# Development migrations (these should be reviewed before committing)
-**/migrations/0*_add_database_integrity_constraints_fixed.py
-**/migrations/0*_add_fifo_consistency_models.py
-**/migrations/0*_fix_inventory_event_cascade.py

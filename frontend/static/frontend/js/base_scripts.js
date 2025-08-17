@@ -639,7 +639,12 @@ window.updatePageTranslations = function() {
         const params = element.getAttribute('data-translate-params');
         const parsedParams = params ? JSON.parse(params) : {};
         const translation = window.translator._(key, parsedParams);
-        element.textContent = translation;
+        // Use innerHTML only if translation contains HTML entities
+        if (translation.includes('&')) {
+            element.innerHTML = translation;
+        } else {
+            element.textContent = translation;
+        }
     });
     
     // Update vessel names based on current language
@@ -804,9 +809,9 @@ window.updatePageTranslations = function() {
     const confirmSpan = document.querySelector('#confirmationConfirm span');
     const okSpan = document.querySelector('#alertOk span');
     
-    if (cancelSpan) cancelSpan.textContent = _('cancel');
-    if (confirmSpan) confirmSpan.textContent = _('confirm');
-    if (okSpan) okSpan.textContent = _('ok');
+    if (cancelSpan) cancelSpan.textContent = window.translator._('cancel');
+    if (confirmSpan) confirmSpan.textContent = window.translator._('confirm');
+    if (okSpan) okSpan.textContent = window.translator._('ok');
 };
 
 /* =============================================================================
@@ -867,7 +872,7 @@ window.universalExport = function(exportType, additionalData = {}, customEndpoin
 window.exportData = function(exportType, format, additionalData = {}) {
     const btn = event.target.closest('button');
     const originalHtml = btn.innerHTML;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> ' + window._('exporting');
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> ' + window.translator._('exporting');
     btn.disabled = true;
     
     const currentLanguage = window.translator ? window.translator.currentLanguage : 'en';
@@ -1438,3 +1443,797 @@ window.standardizeFormValidation = function(requiredFields) {
     }
     return { isValid: true };
 };
+
+/* =============================================================================
+   🎯 PHASE 1: BASE CLASSES FOR REFACTORING
+   ============================================================================= */
+
+/**
+ * DropdownManager - Universal dropdown selection and management
+ * Replaces 40+ lines of repetitive dropdown code with 5-10 lines
+ */
+class DropdownManager {
+    /**
+     * Handle dropdown selection with automatic UI updates
+     * @param {Object} config - Dropdown configuration
+     * @param {string} config.dropdownId - ID of the dropdown button
+     * @param {string} config.inputId - ID of the hidden input field
+     * @param {string} config.buttonTextId - ID of the button text element
+     * @param {string} config.selectedValue - Selected value
+     * @param {HTMLElement} config.selectedElement - Selected dropdown item element
+     * @param {Function} config.onSelectionChange - Callback after selection
+     */
+    static handleSelection(config) {
+        const {
+            dropdownId,
+            inputId,
+            buttonTextId,
+            selectedValue,
+            selectedElement,
+            onSelectionChange,
+            closeDropdown = true
+        } = config;
+
+        // Update hidden input
+        if (inputId) {
+            const input = document.getElementById(inputId);
+            if (input) input.value = selectedValue;
+        }
+
+        // Update button text
+        if (buttonTextId && selectedElement) {
+            const buttonText = document.getElementById(buttonTextId);
+            if (buttonText) buttonText.innerHTML = selectedElement.innerHTML;
+        }
+
+        // Update active states
+        const dropdown = document.getElementById(dropdownId);
+        if (dropdown) {
+            const menu = dropdown.nextElementSibling;
+            if (menu) {
+                menu.querySelectorAll('.dropdown-item').forEach(item => {
+                    item.classList.remove('active');
+                });
+                if (selectedElement) {
+                    selectedElement.classList.add('active');
+                }
+            }
+        }
+
+        // Close dropdown if requested
+        if (closeDropdown && dropdownId) {
+            const bsDropdown = bootstrap.Dropdown.getInstance(document.getElementById(dropdownId));
+            if (bsDropdown) bsDropdown.hide();
+        }
+
+        // Execute callback
+        if (typeof onSelectionChange === 'function') {
+            onSelectionChange(selectedValue, selectedElement);
+        }
+
+        return false; // Prevent default
+    }
+
+    /**
+     * Multi-select dropdown handler
+     * @param {Object} config - Multi-select configuration
+     */
+    static handleMultiSelection(config) {
+        const {
+            itemId,
+            selectedSet,
+            inputId,
+            buttonTextId,
+            itemName,
+            checkboxId
+        } = config;
+
+        const checkbox = document.getElementById(checkboxId);
+        
+        // Toggle selection
+        if (selectedSet.has(itemId)) {
+            selectedSet.delete(itemId);
+            if (checkbox) checkbox.checked = false;
+        } else {
+            selectedSet.add(itemId);
+            if (checkbox) checkbox.checked = true;
+        }
+
+        // Update hidden input
+        if (inputId) {
+            const input = document.getElementById(inputId);
+            if (input) input.value = Array.from(selectedSet).join(',');
+        }
+
+        // Update button text
+        if (buttonTextId) {
+            const buttonText = document.getElementById(buttonTextId);
+            if (buttonText) {
+                if (selectedSet.size === 0) {
+                    buttonText.innerHTML = '<span data-translate="select_items">Select items...</span>';
+                } else if (selectedSet.size === 1) {
+                    buttonText.innerHTML = `<i class="bi bi-check-square me-2"></i>${itemName}`;
+                } else {
+                    buttonText.innerHTML = `<i class="bi bi-check-square me-2"></i>${selectedSet.size} items selected`;
+                }
+            }
+        }
+
+        // Don't close dropdown for multi-select
+        return false;
+    }
+
+    /**
+     * Reset dropdown to default state
+     */
+    static resetDropdown(config) {
+        const { dropdownId, inputId, buttonTextId, defaultText } = config;
+
+        if (inputId) {
+            const input = document.getElementById(inputId);
+            if (input) input.value = '';
+        }
+
+        if (buttonTextId) {
+            const buttonText = document.getElementById(buttonTextId);
+            if (buttonText) {
+                buttonText.innerHTML = defaultText || '<span data-translate="select_option">Select option...</span>';
+            }
+        }
+
+        const dropdown = document.getElementById(dropdownId);
+        if (dropdown) {
+            const menu = dropdown.nextElementSibling;
+            if (menu) {
+                menu.querySelectorAll('.dropdown-item').forEach(item => {
+                    item.classList.remove('active');
+                });
+            }
+        }
+    }
+}
+
+/**
+ * FormHandler - Centralized form validation, submission, and loading states
+ * Replaces repetitive form handling across multiple files
+ */
+class FormHandler {
+    constructor(config) {
+        this.formId = config.formId;
+        this.submitButtonId = config.submitButtonId;
+        this.requiredFields = config.requiredFields || [];
+        this.submitEndpoint = config.submitEndpoint;
+        this.onSuccess = config.onSuccess;
+        this.onError = config.onError;
+        this.validationRules = config.validationRules || {};
+    }
+
+    /**
+     * Validate form fields according to rules
+     */
+    validate() {
+        // Check required fields
+        for (const fieldId of this.requiredFields) {
+            const field = document.getElementById(fieldId);
+            if (!field || !field.value.trim()) {
+                field?.focus();
+                return { isValid: false, fieldId, message: 'field_required' };
+            }
+        }
+
+        // Check custom validation rules
+        for (const [fieldId, rule] of Object.entries(this.validationRules)) {
+            const field = document.getElementById(fieldId);
+            if (field && field.value) {
+                const result = rule.validate(field.value);
+                if (!result.isValid) {
+                    field.focus();
+                    return { isValid: false, fieldId, message: result.message };
+                }
+            }
+        }
+
+        return { isValid: true };
+    }
+
+    /**
+     * Set loading state for form submission
+     */
+    setLoadingState(loading = true) {
+        const button = document.getElementById(this.submitButtonId);
+        if (!button) return;
+
+        if (loading) {
+            if (!button.dataset.originalText) {
+                button.dataset.originalText = button.innerHTML;
+            }
+            const loadingText = window.translator._('saving') || 'Saving...';
+            button.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>${loadingText}`;
+            button.disabled = true;
+        } else {
+            button.innerHTML = button.dataset.originalText || button.innerHTML;
+            button.disabled = false;
+            delete button.dataset.originalText;
+        }
+    }
+
+    /**
+     * Submit form with validation and loading states
+     */
+    async submit(additionalData = {}) {
+        // Validate form
+        const validation = this.validate();
+        if (!validation.isValid) {
+            const message = window.translator._(validation.message) || 'Please fill in all required fields';
+            window.showAlert(message, 'warning');
+            return false;
+        }
+
+        // Set loading state
+        this.setLoadingState(true);
+
+        try {
+            // Collect form data
+            const form = document.getElementById(this.formId);
+            const formData = new FormData(form);
+            
+            // Convert to object and merge with additional data
+            const data = Object.fromEntries(formData.entries());
+            Object.assign(data, additionalData);
+
+            // Submit to endpoint
+            const response = await window.standardizeFetchWithCSRF(this.submitEndpoint, data);
+            const result = await response.json();
+
+            if (result.success) {
+                if (typeof this.onSuccess === 'function') {
+                    this.onSuccess(result);
+                } else {
+                    window.showAlert(result.message || 'Operation completed successfully', 'success');
+                }
+                return true;
+            } else {
+                throw new Error(result.error || 'Operation failed');
+            }
+        } catch (error) {
+            if (typeof this.onError === 'function') {
+                this.onError(error);
+            } else {
+                window.showAlert(`Error: ${error.message}`, 'danger');
+            }
+            return false;
+        } finally {
+            this.setLoadingState(false);
+        }
+    }
+}
+
+/**
+ * ModalManager - Standardized modal creation and management
+ * Replaces repetitive modal setup code across templates
+ */
+class ModalManager {
+    /**
+     * Show CRUD modal (Create/Edit operations)
+     */
+    static showCrudModal(config) {
+        const {
+            modalId,
+            formId,
+            titleKey,
+            titleFallback,
+            action,
+            data = {},
+            onShow,
+            onHide
+        } = config;
+
+        const modal = document.getElementById(modalId);
+        if (!modal) {
+            console.error(`Modal ${modalId} not found`);
+            return;
+        }
+
+        // Set form action
+        const form = document.getElementById(formId);
+        if (form && action) {
+            form.action = action;
+        }
+
+        // Update modal title
+        const titleElement = modal.querySelector('.modal-title');
+        if (titleElement && titleKey) {
+            const title = window.translator._(titleKey) || titleFallback || 'Modal';
+            titleElement.innerHTML = `<i class="${data.icon || 'bi bi-pencil'}"></i> ${title}`;
+        }
+
+        // Populate form fields
+        Object.entries(data).forEach(([key, value]) => {
+            const field = document.getElementById(key);
+            if (field) {
+                if (field.type === 'checkbox') {
+                    field.checked = value;
+                } else {
+                    field.value = value;
+                }
+            }
+        });
+
+        // Apply translations
+        if (window.updatePageTranslations) {
+            window.updatePageTranslations();
+        }
+
+        // Show modal
+        const bsModal = new bootstrap.Modal(modal);
+        bsModal.show();
+
+        // Callbacks
+        if (typeof onShow === 'function') onShow(modal);
+        
+        if (typeof onHide === 'function') {
+            modal.addEventListener('hidden.bs.modal', onHide, { once: true });
+        }
+
+        return bsModal;
+    }
+
+    /**
+     * Show confirmation modal with custom message
+     */
+    static async showConfirmation(config) {
+        const {
+            titleKey = 'confirm_action',
+            messageKey,
+            messageParams = {},
+            confirmButtonKey = 'confirm',
+            cancelButtonKey = 'cancel'
+        } = config;
+
+        return new Promise((resolve) => {
+            const modalId = 'dynamicConfirmModal';
+            
+            // Remove existing modal
+            const existing = document.getElementById(modalId);
+            if (existing) existing.remove();
+
+            // Create modal HTML
+            const modalHtml = `
+                <div class="modal fade" id="${modalId}" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">
+                                    <i class="bi bi-question-circle"></i> 
+                                    <span data-translate="${titleKey}">${window.translator._(titleKey) || 'Confirm Action'}</span>
+                                </h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p>${window.translator._(messageKey, messageParams) || messageKey}</p>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                    <span data-translate="${cancelButtonKey}">${window.translator._(cancelButtonKey) || 'Cancel'}</span>
+                                </button>
+                                <button type="button" class="btn btn-danger" id="confirmAction">
+                                    <span data-translate="${confirmButtonKey}">${window.translator._(confirmButtonKey) || 'Confirm'}</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            const modal = document.getElementById(modalId);
+            
+            // Handle buttons
+            const confirmBtn = document.getElementById('confirmAction');
+            confirmBtn.addEventListener('click', () => {
+                resolve(true);
+                bootstrap.Modal.getInstance(modal).hide();
+            });
+
+            modal.addEventListener('hidden.bs.modal', () => {
+                resolve(false);
+                modal.remove();
+            }, { once: true });
+
+            new bootstrap.Modal(modal).show();
+        });
+    }
+}
+
+/**
+ * DataTableManager - Unified table rendering and filtering
+ * Replaces complex table update logic across templates
+ */
+class DataTableManager {
+    constructor(config) {
+        this.tableId = config.tableId;
+        this.columns = config.columns;
+        this.emptyMessage = config.emptyMessage || 'no_data_available';
+        this.onRowClick = config.onRowClick;
+        this.filters = new Map();
+        this.originalData = [];
+        this.filteredData = [];
+    }
+
+    /**
+     * Set data and render table
+     */
+    setData(data) {
+        this.originalData = [...data];
+        this.filteredData = [...data];
+        this.render();
+    }
+
+    /**
+     * Apply filter to data
+     */
+    applyFilter(filterName, filterFunction) {
+        this.filters.set(filterName, filterFunction);
+        this.filteredData = this.originalData.filter(item => {
+            return Array.from(this.filters.values()).every(filter => filter(item));
+        });
+        this.render();
+    }
+
+    /**
+     * Remove filter
+     */
+    removeFilter(filterName) {
+        this.filters.delete(filterName);
+        this.filteredData = this.originalData.filter(item => {
+            return Array.from(this.filters.values()).every(filter => filter(item));
+        });
+        this.render();
+    }
+
+    /**
+     * Clear all filters
+     */
+    clearFilters() {
+        this.filters.clear();
+        this.filteredData = [...this.originalData];
+        this.render();
+    }
+
+    /**
+     * Render table HTML
+     */
+    render() {
+        const table = document.getElementById(this.tableId);
+        if (!table) return;
+
+        const tbody = table.querySelector('tbody');
+        if (!tbody) return;
+
+        if (this.filteredData.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="${this.columns.length}" class="text-center text-muted py-4">
+                        <i class="bi bi-search" style="font-size: 2rem;"></i>
+                        <p class="mt-2 mb-0"><span data-translate="${this.emptyMessage}">No data available</span></p>
+                    </td>
+                </tr>
+            `;
+        } else {
+            tbody.innerHTML = this.filteredData.map((item, index) => {
+                const cells = this.columns.map(column => {
+                    if (typeof column.render === 'function') {
+                        return column.render(item, index);
+                    } else {
+                        return `<td>${item[column.key] || ''}</td>`;
+                    }
+                }).join('');
+
+                const rowClass = typeof this.onRowClick === 'function' ? 'cursor-pointer' : '';
+                const rowClick = typeof this.onRowClick === 'function' ? 
+                    `onclick="arguments[0].stopPropagation(); (${this.onRowClick.toString()})(arguments[0], ${JSON.stringify(item).replace(/"/g, '&quot;')}, ${index})"` : '';
+
+                return `<tr class="${rowClass}" ${rowClick}>${cells}</tr>`;
+            }).join('');
+        }
+
+        // Apply translations to dynamic content
+        if (window.updatePageTranslations) {
+            window.updatePageTranslations();
+        }
+    }
+
+    /**
+     * Update table statistics
+     */
+    updateStats(statsElementId) {
+        const statsElement = document.getElementById(statsElementId);
+        if (statsElement) {
+            const showing = this.filteredData.length;
+            const total = this.originalData.length;
+            const hasFilters = this.filters.size > 0;
+            
+            statsElement.innerHTML = `
+                <span data-translate="showing">Showing</span> 
+                <span data-number data-original="${showing}">${showing}</span> 
+                <span data-translate="of">of</span> 
+                <span data-number data-original="${total}">${total}</span> 
+                <span data-translate="results">results</span>
+                ${hasFilters ? '(<span data-translate="filtered">filtered</span>)' : ''}
+            `;
+
+            if (window.updatePageTranslations) {
+                window.updatePageTranslations();
+            }
+        }
+    }
+}
+
+/* =============================================================================
+   🎯 PHASE 3: ENHANCED UTILITIES - SPECIALIZED CLASSES
+   ============================================================================= */
+
+/**
+ * SpecializedTranslator - Handle complex translation scenarios
+ * Reduces repetitive translation logic across templates
+ */
+class SpecializedTranslator {
+    /**
+     * Update transaction type elements with proper translations
+     */
+    static updateTransactionTypes(selector = '.transaction-type[data-type]') {
+        document.querySelectorAll(selector).forEach(element => {
+            const type = element.getAttribute('data-type');
+            const currentLang = window.translator?.currentLanguage || 'en';
+            
+            // Standardized transaction type mapping
+            const typeTranslations = {
+                'sales': currentLang === 'ar' ? 'المبيعات' : 'Sales',
+                'supplies': currentLang === 'ar' ? 'التوريدات' : 'Supplies', 
+                'transfers': currentLang === 'ar' ? 'التحويلات' : 'Transfers',
+                'waste': currentLang === 'ar' ? 'النفايات' : 'Waste'
+            };
+            
+            if (typeTranslations[type]) {
+                element.textContent = typeTranslations[type];
+            }
+        });
+    }
+
+    /**
+     * Update badge numbers (trip numbers, PO numbers, etc.)
+     */
+    static updateBadgeNumbers(selector = '.badge') {
+        document.querySelectorAll(selector).forEach(element => {
+            const text = element.textContent.trim();
+            if (/^\d+$/.test(text) || /^[٠-٩]+$/.test(text)) {
+                let originalValue = element.getAttribute('data-original');
+                if (!originalValue) {
+                    // Convert Arabic numbers back to English for storage
+                    originalValue = text.replace(/[٠-٩]/g, (char) => {
+                        const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                        return arabicNumerals.indexOf(char).toString();
+                    });
+                    element.setAttribute('data-original', originalValue);
+                }
+                
+                if (window.translator?.currentLanguage === 'ar') {
+                    element.textContent = window.translateNumber(originalValue);
+                } else {
+                    element.textContent = originalValue;
+                }
+            }
+        });
+    }
+
+    /**
+     * Update passenger count elements with proper translation
+     */
+    static updatePassengerCounts(selector = 'small.text-muted') {
+        document.querySelectorAll(selector).forEach(element => {
+            const text = element.textContent;
+            if (text.includes('passengers') || text.includes('راكب')) {
+                const match = text.match(/(\d+)|([٠-٩]+)/);
+                if (match) {
+                    let originalNumber = match[0];
+                    // Convert Arabic to English if needed
+                    if (/[٠-٩]/.test(originalNumber)) {
+                        originalNumber = originalNumber.replace(/[٠-٩]/g, (char) => {
+                            const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+                            return arabicNumerals.indexOf(char).toString();
+                        });
+                    }
+                    
+                    const currentLang = window.translator?.currentLanguage || 'en';
+                    const vesselName = element.querySelector('.vessel-name')?.textContent || '';
+                    
+                    if (currentLang === 'ar') {
+                        const translatedNumber = window.translateNumber(originalNumber);
+                        element.innerHTML = `<span class="vessel-name" data-en="${element.querySelector('.vessel-name')?.getAttribute('data-en') || ''}" data-ar="${element.querySelector('.vessel-name')?.getAttribute('data-ar') || ''}">${vesselName}</span> - ${translatedNumber} راكب`;
+                    } else {
+                        element.innerHTML = `<span class="vessel-name" data-en="${element.querySelector('.vessel-name')?.getAttribute('data-en') || ''}" data-ar="${element.querySelector('.vessel-name')?.getAttribute('data-ar') || ''}">${vesselName}</span> - ${originalNumber} passengers`;
+                    }
+                }
+            }
+        });
+    }
+
+    /**
+     * Universal page-specific translation updater
+     * Combines common translation patterns
+     */
+    static updatePageSpecificTranslations(config = {}) {
+        const {
+            updateTransactionTypes = true,
+            updateBadgeNumbers = true,
+            updatePassengerCounts = false,
+            customSelectors = {}
+        } = config;
+
+        if (updateTransactionTypes) {
+            this.updateTransactionTypes(customSelectors.transactionTypes);
+        }
+
+        if (updateBadgeNumbers) {
+            this.updateBadgeNumbers(customSelectors.badgeNumbers);
+        }
+
+        if (updatePassengerCounts) {
+            this.updatePassengerCounts(customSelectors.passengerCounts);
+        }
+
+        // Call global translation update
+        if (window.updatePageTranslations) {
+            window.updatePageTranslations();
+        }
+    }
+}
+
+/**
+ * PageManager - Centralize page initialization patterns
+ * Reduces repetitive DOMContentLoaded setup code
+ */
+class PageManager {
+    /**
+     * Standard page initialization with common patterns
+     */
+    static initializePage(config) {
+        const {
+            titleKey,
+            fallbackTitle,
+            pageTranslations,
+            customInit,
+            specialTranslations = {},
+            setupLanguageHandlers = true
+        } = config;
+
+        // Use existing initializePage function
+        if (window.initializePage && typeof window.initializePage === 'function') {
+            window.initializePage({
+                titleKey,
+                fallbackTitle,
+                pageTranslations,
+                customInit
+            });
+        }
+
+        // Setup specialized translation handlers
+        if (setupLanguageHandlers) {
+            window.addEventListener('languageChanged', function() {
+                SpecializedTranslator.updatePageSpecificTranslations(specialTranslations);
+            });
+        }
+
+        // Initial specialized translation update
+        setTimeout(() => {
+            SpecializedTranslator.updatePageSpecificTranslations(specialTranslations);
+        }, 0);
+    }
+}
+
+/**
+ * FilterManager - Unified search/filter functionality
+ * Standardizes filtering patterns across templates
+ */
+class FilterManager {
+    constructor(config) {
+        this.searchInputId = config.searchInputId;
+        this.filterDropdowns = config.filterDropdowns || [];
+        this.dataArray = config.dataArray || [];
+        this.updateCallback = config.updateCallback;
+        this.searchFields = config.searchFields || [];
+        this.currentFilters = new Map();
+    }
+
+    /**
+     * Apply text search filter
+     */
+    applyTextSearch(searchTerm) {
+        if (!searchTerm) {
+            this.currentFilters.delete('text_search');
+        } else {
+            this.currentFilters.set('text_search', (item) => {
+                return this.searchFields.some(field => 
+                    item[field]?.toString().toLowerCase().includes(searchTerm.toLowerCase())
+                );
+            });
+        }
+        this.updateResults();
+    }
+
+    /**
+     * Apply dropdown filter
+     */
+    applyDropdownFilter(filterName, filterValue, filterFunction = null) {
+        if (!filterValue || filterValue === '') {
+            this.currentFilters.delete(filterName);
+        } else {
+            const filter = filterFunction || ((item) => item[filterName] === filterValue);
+            this.currentFilters.set(filterName, filter);
+        }
+        this.updateResults();
+    }
+
+    /**
+     * Clear all filters
+     */
+    clearAllFilters() {
+        this.currentFilters.clear();
+        
+        // Reset search input
+        if (this.searchInputId) {
+            const searchInput = document.getElementById(this.searchInputId);
+            if (searchInput) searchInput.value = '';
+        }
+
+        // Reset dropdowns
+        this.filterDropdowns.forEach(dropdown => {
+            if (dropdown.resetConfig) {
+                window.DropdownManager.resetDropdown(dropdown.resetConfig);
+            }
+        });
+
+        this.updateResults();
+    }
+
+    /**
+     * Update results based on current filters
+     */
+    updateResults() {
+        const filteredData = this.dataArray.filter(item => {
+            return Array.from(this.currentFilters.values()).every(filter => filter(item));
+        });
+
+        if (typeof this.updateCallback === 'function') {
+            this.updateCallback(filteredData);
+        }
+    }
+
+    /**
+     * Setup automatic filter bindings
+     */
+    setupBindings() {
+        // Bind search input
+        if (this.searchInputId) {
+            const searchInput = document.getElementById(this.searchInputId);
+            if (searchInput) {
+                let searchTimeout;
+                searchInput.addEventListener('input', (e) => {
+                    clearTimeout(searchTimeout);
+                    searchTimeout = setTimeout(() => {
+                        this.applyTextSearch(e.target.value.trim());
+                    }, 300);
+                });
+            }
+        }
+    }
+}
+
+// Export classes to global scope
+window.DropdownManager = DropdownManager;
+window.FormHandler = FormHandler;
+window.ModalManager = ModalManager;
+window.DataTableManager = DataTableManager;
+window.SpecializedTranslator = SpecializedTranslator;
+window.PageManager = PageManager;
+window.FilterManager = FilterManager;

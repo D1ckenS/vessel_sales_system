@@ -370,7 +370,11 @@
 {% endblock %}
 
 {% block extra_js %}
+<!-- Notes Display Script -->
+<script src="{% static 'frontend/js/notes-display.js' %}"></script>
+
 <!-- Enhanced Trip Sales with COGS -->
+<!-- language: javascript -->
 <script>
 // Global shopping cart state
 let tripSalesCart = [];
@@ -428,14 +432,20 @@ document.addEventListener('DOMContentLoaded', function() {
         setupEventListeners();
     } catch (error) {
         console.error('Error initializing trip cart:', error);
-        showAlert(_('error_loading_cart'), 'warning');
+        window.showAlert(_('error_loading_cart'), 'warning');
         tripSalesCart = [];
         updateCartDisplay();
     }
     
     // Apply translations
     updatePageTranslations();
+    updateTripTotals();
 });
+
+// Translation helper function
+function _(key) {
+    return window.translator ? window.translator._(key) : key;
+}
 
 function initializeTripCart() {
     const tripId = document.getElementById('tripId').value; // Adjust ID as needed
@@ -781,7 +791,7 @@ function setupEventListeners() {
                     selectProductFromList(filteredProducts[0]);
                 } else if (filteredProducts.length === 0) {
                     clearProductSelection();
-                    showAlert(_('no_products_found'), 'warning');
+                    window.showAlert(_('no_products_found'), 'warning');
                 } else {
                     // Update the available products list with filtered results
                     const tempProducts = availableProducts;
@@ -933,7 +943,7 @@ function addToCart() {
     saveCartToStorage();
     updateCartDisplay();
     clearForm();
-    showAlert(_('item_added_success'), 'success');
+    window.showAlert(_('item_added_success'), 'success');
     
     // Focus back to search field for next item
     document.getElementById('productSearch').focus();
@@ -945,13 +955,13 @@ async function removeFromCart(index) {
         tripSalesCart.splice(index, 1);
         saveCartToStorage();
         updateCartDisplay();
-        showAlert(_('item_removed'), 'info');
+        window.showAlert(_('item_removed'), 'info');
     }
 }
 
 function editCartItem(index) {
     if (index < 0 || index >= tripSalesCart.length) {
-        showAlert(_('invalid_item_edit'), 'error');
+        window.showAlert(_('invalid_item_edit'), 'error');
         return;
     }
     
@@ -1212,7 +1222,7 @@ function updateCartDisplay() {
 
 async function completeTripSales() {
     if (tripSalesCart.length === 0) {
-        showAlert(_('add_one_item_first'), 'warning');
+        window.showAlert(_('add_one_item_first'), 'warning');
         return;
     }
     
@@ -1264,47 +1274,22 @@ async function completeTripSales() {
             const tripId = document.getElementById('tripId').value;
             const storageKey = `trip_sales_${tripId}`;
             localStorage.removeItem(storageKey);
-            showAlert(data.message, 'success');
+            window.showAlert(data.message, 'success');
             setTimeout(() => {
                 window.location.href = `/sales/trip/${tripId}/`;
             }, 2000);
         } else {
-            showAlert(data.error || _('error_completing_trip'), 'danger');
+            window.showAlert(data.error || _('error_completing_trip'), 'danger');
             completeTripBtn.innerHTML = originalText;
             completeTripBtn.disabled = false;
         }
     })
     .catch(error => {
         console.error('Error completing trip:', error);
-        showAlert(_('error_completing_trip'), 'danger');
+        window.showAlert(_('error_completing_trip'), 'danger');
         completeTripBtn.innerHTML = originalText;
         completeTripBtn.disabled = false;
     });
-}
-
-
-function showAlert(message, type) {
-    const container = document.querySelector('.container') || document.querySelector('body');
-    const firstRow = container.querySelector('.row');
-    
-    const alertDiv = document.createElement('div');
-    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
-    alertDiv.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-    
-    if (firstRow) {
-        container.insertBefore(alertDiv, firstRow);
-    } else {
-        container.appendChild(alertDiv);
-    }
-    
-    setTimeout(() => {
-        if (alertDiv && alertDiv.parentNode) {
-            alertDiv.remove();
-        }
-    }, 5000);
 }
 
 function displayPricingWarnings(warnings) {
@@ -1330,8 +1315,10 @@ function renderPricingWarnings(warnings) {
     }
     
     const warningsHtml = warnings.map(warning => {
-        // Translate the warning message
+        // Translate the warning message and escape HTML
         let translatedMessage = translateWarningMessage(warning.message);
+        // Escape HTML entities to prevent syntax issues
+        translatedMessage = translatedMessage.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
         
         return `
             <div class="d-flex align-items-center mb-2">
@@ -1374,7 +1361,7 @@ function translateWarningMessage(message) {
         });
     }
     
-    // Check for "products missing custom pricing" pattern
+    // Check for products missing custom pricing pattern
     const missingPricingMatch = message.match(/(\d+)\s+products missing custom pricing/);
     if (missingPricingMatch) {
         const count = missingPricingMatch[1];
@@ -1479,13 +1466,8 @@ function updateTripTotals() {
     }
 }
 
-// Call this function when page loads and when cart changes
-document.addEventListener('DOMContentLoaded', function() {
-    updatePageTranslations();
-    updateTripTotals();
-});
+// Call updateTripTotals when cart changes (already called in main DOMContentLoaded above)
 </script>
 
-<!-- Notes Display Script -->
-<script src="{% static 'frontend/js/notes-display.js' %}"></script>
+<!-- End of JavaScript block -->
 {% endblock %}
