@@ -176,6 +176,7 @@ def vessel_management(request):
         'reference_date': reference_date,
         'thirty_days_ago': thirty_days_ago,
         'today': reference_date,
+        'timestamp': int(timezone.now().timestamp()),  # For cache busting
     }
     
     # 🚀 CACHE: Store data for 1 hour (vessels rarely change, but revenue/trips do)

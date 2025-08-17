@@ -23,7 +23,7 @@ class Product(models.Model):
     name = models.CharField(max_length=200)
     item_id = models.CharField(max_length=50, unique=True, help_text="Unique product identifier")
     barcode = models.CharField(max_length=100, blank=True, null=True)
-    category = models.ForeignKey(Category, on_delete=models.PROTECT)
+    category = models.ForeignKey(Category, on_delete=models.PROTECT, related_name='products')
     
     # Pricing Information
     purchase_price = models.DecimalField(

@@ -1,0 +1,4797 @@
+openapi: 3.0.3
+info:
+  title: Vessel Sales System API
+  version: 1.0.0
+  description: REST API for vessel sales management system with FIFO inventory tracking
+paths:
+  /api/v1/vessels/:
+    get:
+      operationId: api_v1_vessels_list
+      description: |-
+        Vessel Management API
+
+        Comprehensive vessel management system for maritime tourism operations.
+        Supports duty-free classification, multi-language vessel names, and detailed analytics.
+
+        ## Features
+        - Full CRUD operations for vessel management
+        - Duty-free vessel filtering and classification
+        - Real-time inventory summaries by category
+        - Activity tracking and statistics
+        - Multi-language support (English/Arabic)
+
+        ## Filtering & Search
+        - Filter by: `active`, `has_duty_free`
+        - Search in: `name`, `name_ar`
+        - Order by: `name`, `created_at`, `updated_at`
+      parameters:
+      - in: query
+        name: active
+        schema:
+          type: boolean
+      - in: query
+        name: has_duty_free
+        schema:
+          type: boolean
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedVesselList'
+          description: ''
+    post:
+      operationId: api_v1_vessels_create
+      description: |-
+        Vessel Management API
+
+        Comprehensive vessel management system for maritime tourism operations.
+        Supports duty-free classification, multi-language vessel names, and detailed analytics.
+
+        ## Features
+        - Full CRUD operations for vessel management
+        - Duty-free vessel filtering and classification
+        - Real-time inventory summaries by category
+        - Activity tracking and statistics
+        - Multi-language support (English/Arabic)
+
+        ## Filtering & Search
+        - Filter by: `active`, `has_duty_free`
+        - Search in: `name`, `name_ar`
+        - Order by: `name`, `created_at`, `updated_at`
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VesselCreateUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/VesselCreateUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/VesselCreateUpdateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VesselCreateUpdate'
+          description: ''
+  /api/v1/vessels/statistics/:
+    get:
+      operationId: api_v1_vessels_statistics_retrieve
+      description: |-
+        Get overall vessel statistics.
+
+        Returns system-wide vessel statistics and insights.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vessel'
+          description: ''
+  /api/v1/vessels/summary/:
+    get:
+      operationId: api_v1_vessels_summary_retrieve
+      description: |-
+        Vessel Summary Endpoint
+
+        Returns minimal vessel data optimized for dropdown menus and form references.
+        By default returns only active vessels unless explicitly requested otherwise.
+
+        ## Query Parameters
+        - `include_inactive` (bool): Include inactive vessels in response
+        - `active_only` (bool): Force only active vessels (default behavior)
+
+        ## Response Format
+        ```json
+        [
+            {
+                "id": 1,
+                "name": "Blue Pearl",
+                "name_ar": "اللؤلؤة الزرقاء",
+                "has_duty_free": true,
+                "active": true
+            }
+        ]
+        ```
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VesselSummary'
+          description: ''
+  /api/v1/vessels/{id}/:
+    put:
+      operationId: api_v1_vessels_update
+      description: |-
+        Vessel Management API
+
+        Comprehensive vessel management system for maritime tourism operations.
+        Supports duty-free classification, multi-language vessel names, and detailed analytics.
+
+        ## Features
+        - Full CRUD operations for vessel management
+        - Duty-free vessel filtering and classification
+        - Real-time inventory summaries by category
+        - Activity tracking and statistics
+        - Multi-language support (English/Arabic)
+
+        ## Filtering & Search
+        - Filter by: `active`, `has_duty_free`
+        - Search in: `name`, `name_ar`
+        - Order by: `name`, `created_at`, `updated_at`
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Vessel.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VesselCreateUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/VesselCreateUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/VesselCreateUpdateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VesselCreateUpdate'
+          description: ''
+    delete:
+      operationId: api_v1_vessels_destroy
+      description: |-
+        Override destroy to prevent deletion of vessels with transactions.
+
+        Instead of deleting, mark vessel as inactive if it has transaction history.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Vessel.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+    get:
+      operationId: api_v1_vessels_retrieve
+      description: |-
+        Vessel Management API
+
+        Comprehensive vessel management system for maritime tourism operations.
+        Supports duty-free classification, multi-language vessel names, and detailed analytics.
+
+        ## Features
+        - Full CRUD operations for vessel management
+        - Duty-free vessel filtering and classification
+        - Real-time inventory summaries by category
+        - Activity tracking and statistics
+        - Multi-language support (English/Arabic)
+
+        ## Filtering & Search
+        - Filter by: `active`, `has_duty_free`
+        - Search in: `name`, `name_ar`
+        - Order by: `name`, `created_at`, `updated_at`
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Vessel.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VesselDetail'
+          description: ''
+    patch:
+      operationId: api_v1_vessels_partial_update
+      description: |-
+        Vessel Management API
+
+        Comprehensive vessel management system for maritime tourism operations.
+        Supports duty-free classification, multi-language vessel names, and detailed analytics.
+
+        ## Features
+        - Full CRUD operations for vessel management
+        - Duty-free vessel filtering and classification
+        - Real-time inventory summaries by category
+        - Activity tracking and statistics
+        - Multi-language support (English/Arabic)
+
+        ## Filtering & Search
+        - Filter by: `active`, `has_duty_free`
+        - Search in: `name`, `name_ar`
+        - Order by: `name`, `created_at`, `updated_at`
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Vessel.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedVesselCreateUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedVesselCreateUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedVesselCreateUpdateRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VesselCreateUpdate'
+          description: ''
+  /api/v1/vessels/{id}/inventory_summary/:
+    get:
+      operationId: api_v1_vessels_inventory_summary_retrieve
+      description: |-
+        Get inventory summary for a specific vessel.
+
+        Returns current stock levels by product category.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Vessel.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vessel'
+          description: ''
+  /api/v1/vessels/{id}/recent_activity/:
+    get:
+      operationId: api_v1_vessels_recent_activity_retrieve
+      description: |-
+        Get recent activity summary for a specific vessel.
+
+        Returns transaction counts and revenue for the last 7 days.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Vessel.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vessel'
+          description: ''
+  /api/v1/products/:
+    get:
+      operationId: api_v1_products_list
+      description: |-
+        Product Management API
+
+        Advanced product catalog management with dynamic pricing, inventory tracking,
+        and comprehensive search capabilities for maritime retail operations.
+
+        ## Features
+        - Full CRUD operations with validation
+        - Advanced search and filtering
+        - Real-time inventory tracking across vessels
+        - Sales history and analytics
+        - Dynamic pricing support
+        - Barcode and category management
+
+        ## Filtering & Search
+        - Filter by: `category`, `is_duty_free`, `active`
+        - Search in: `name`, `item_id`, `barcode`
+        - Advanced filters: price range, stock availability, vessel-specific inventory
+
+        ## Special Endpoints
+        - `/search/` - Advanced product search with multiple criteria
+        - `/{id}/stock_levels/` - Detailed inventory across all vessels
+        - `/{id}/sales_history/` - Sales analytics and trends
+        - `/low_stock/` - Products requiring restocking
+      parameters:
+      - in: query
+        name: active
+        schema:
+          type: boolean
+      - in: query
+        name: category
+        schema:
+          type: integer
+      - in: query
+        name: is_duty_free
+        schema:
+          type: boolean
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedProductList'
+          description: ''
+    post:
+      operationId: api_v1_products_create
+      description: |-
+        Product Management API
+
+        Advanced product catalog management with dynamic pricing, inventory tracking,
+        and comprehensive search capabilities for maritime retail operations.
+
+        ## Features
+        - Full CRUD operations with validation
+        - Advanced search and filtering
+        - Real-time inventory tracking across vessels
+        - Sales history and analytics
+        - Dynamic pricing support
+        - Barcode and category management
+
+        ## Filtering & Search
+        - Filter by: `category`, `is_duty_free`, `active`
+        - Search in: `name`, `item_id`, `barcode`
+        - Advanced filters: price range, stock availability, vessel-specific inventory
+
+        ## Special Endpoints
+        - `/search/` - Advanced product search with multiple criteria
+        - `/{id}/stock_levels/` - Detailed inventory across all vessels
+        - `/{id}/sales_history/` - Sales analytics and trends
+        - `/low_stock/` - Products requiring restocking
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductCreateUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProductCreateUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProductCreateUpdateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductCreateUpdate'
+          description: ''
+  /api/v1/products/low_stock/:
+    get:
+      operationId: api_v1_products_low_stock_retrieve
+      description: |-
+        Get products with low stock levels.
+
+        Returns products that may need restocking.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
+  /api/v1/products/search/:
+    get:
+      operationId: api_v1_products_search_retrieve
+      description: |-
+        Advanced product search endpoint.
+
+        Supports search by name, barcode, category with stock information.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductSearch'
+          description: ''
+  /api/v1/products/{id}/:
+    put:
+      operationId: api_v1_products_update
+      description: |-
+        Product Management API
+
+        Advanced product catalog management with dynamic pricing, inventory tracking,
+        and comprehensive search capabilities for maritime retail operations.
+
+        ## Features
+        - Full CRUD operations with validation
+        - Advanced search and filtering
+        - Real-time inventory tracking across vessels
+        - Sales history and analytics
+        - Dynamic pricing support
+        - Barcode and category management
+
+        ## Filtering & Search
+        - Filter by: `category`, `is_duty_free`, `active`
+        - Search in: `name`, `item_id`, `barcode`
+        - Advanced filters: price range, stock availability, vessel-specific inventory
+
+        ## Special Endpoints
+        - `/search/` - Advanced product search with multiple criteria
+        - `/{id}/stock_levels/` - Detailed inventory across all vessels
+        - `/{id}/sales_history/` - Sales analytics and trends
+        - `/low_stock/` - Products requiring restocking
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Product.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductCreateUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProductCreateUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProductCreateUpdateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductCreateUpdate'
+          description: ''
+    delete:
+      operationId: api_v1_products_destroy
+      description: |-
+        Product Management API
+
+        Advanced product catalog management with dynamic pricing, inventory tracking,
+        and comprehensive search capabilities for maritime retail operations.
+
+        ## Features
+        - Full CRUD operations with validation
+        - Advanced search and filtering
+        - Real-time inventory tracking across vessels
+        - Sales history and analytics
+        - Dynamic pricing support
+        - Barcode and category management
+
+        ## Filtering & Search
+        - Filter by: `category`, `is_duty_free`, `active`
+        - Search in: `name`, `item_id`, `barcode`
+        - Advanced filters: price range, stock availability, vessel-specific inventory
+
+        ## Special Endpoints
+        - `/search/` - Advanced product search with multiple criteria
+        - `/{id}/stock_levels/` - Detailed inventory across all vessels
+        - `/{id}/sales_history/` - Sales analytics and trends
+        - `/low_stock/` - Products requiring restocking
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Product.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+    get:
+      operationId: api_v1_products_retrieve
+      description: |-
+        Product Management API
+
+        Advanced product catalog management with dynamic pricing, inventory tracking,
+        and comprehensive search capabilities for maritime retail operations.
+
+        ## Features
+        - Full CRUD operations with validation
+        - Advanced search and filtering
+        - Real-time inventory tracking across vessels
+        - Sales history and analytics
+        - Dynamic pricing support
+        - Barcode and category management
+
+        ## Filtering & Search
+        - Filter by: `category`, `is_duty_free`, `active`
+        - Search in: `name`, `item_id`, `barcode`
+        - Advanced filters: price range, stock availability, vessel-specific inventory
+
+        ## Special Endpoints
+        - `/search/` - Advanced product search with multiple criteria
+        - `/{id}/stock_levels/` - Detailed inventory across all vessels
+        - `/{id}/sales_history/` - Sales analytics and trends
+        - `/low_stock/` - Products requiring restocking
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Product.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductDetail'
+          description: ''
+    patch:
+      operationId: api_v1_products_partial_update
+      description: |-
+        Product Management API
+
+        Advanced product catalog management with dynamic pricing, inventory tracking,
+        and comprehensive search capabilities for maritime retail operations.
+
+        ## Features
+        - Full CRUD operations with validation
+        - Advanced search and filtering
+        - Real-time inventory tracking across vessels
+        - Sales history and analytics
+        - Dynamic pricing support
+        - Barcode and category management
+
+        ## Filtering & Search
+        - Filter by: `category`, `is_duty_free`, `active`
+        - Search in: `name`, `item_id`, `barcode`
+        - Advanced filters: price range, stock availability, vessel-specific inventory
+
+        ## Special Endpoints
+        - `/search/` - Advanced product search with multiple criteria
+        - `/{id}/stock_levels/` - Detailed inventory across all vessels
+        - `/{id}/sales_history/` - Sales analytics and trends
+        - `/low_stock/` - Products requiring restocking
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Product.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedProductCreateUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedProductCreateUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedProductCreateUpdateRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductCreateUpdate'
+          description: ''
+  /api/v1/products/{id}/pricing/:
+    get:
+      operationId: api_v1_products_pricing_retrieve
+      description: |-
+        Get dynamic pricing information for a product.
+
+        Calculates effective price based on vessel, quantity, and bulk pricing rules.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Product.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductPricing'
+          description: ''
+  /api/v1/products/{id}/sales_history/:
+    get:
+      operationId: api_v1_products_sales_history_retrieve
+      description: |-
+        Get sales history for a specific product.
+
+        Returns sales statistics and trends.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Product.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
+  /api/v1/products/{id}/stock_levels/:
+    get:
+      operationId: api_v1_products_stock_levels_retrieve
+      description: |-
+        Get stock levels across all vessels for a specific product.
+
+        Returns detailed inventory information by vessel and lot.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Product.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
+  /api/v1/categories/:
+    get:
+      operationId: api_v1_categories_list
+      description: |-
+        ViewSet for product category management.
+
+        Provides CRUD operations for product categories.
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCategoryList'
+          description: ''
+    post:
+      operationId: api_v1_categories_create
+      description: |-
+        ViewSet for product category management.
+
+        Provides CRUD operations for product categories.
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CategoryRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CategoryRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+          description: ''
+  /api/v1/categories/{id}/:
+    put:
+      operationId: api_v1_categories_update
+      description: |-
+        ViewSet for product category management.
+
+        Provides CRUD operations for product categories.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this category.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CategoryRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CategoryRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+          description: ''
+    delete:
+      operationId: api_v1_categories_destroy
+      description: |-
+        ViewSet for product category management.
+
+        Provides CRUD operations for product categories.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this category.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+    get:
+      operationId: api_v1_categories_retrieve
+      description: |-
+        ViewSet for product category management.
+
+        Provides CRUD operations for product categories.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this category.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+          description: ''
+    patch:
+      operationId: api_v1_categories_partial_update
+      description: |-
+        ViewSet for product category management.
+
+        Provides CRUD operations for product categories.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this category.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCategoryRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCategoryRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCategoryRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+          description: ''
+  /api/v1/categories/{id}/products/:
+    get:
+      operationId: api_v1_categories_products_retrieve
+      description: Get all products in this category.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this category.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+          description: ''
+  /api/v1/transactions/:
+    get:
+      operationId: api_v1_transactions_list
+      description: |-
+        ViewSet for transaction management.
+
+        Provides CRUD operations for transactions with FIFO processing.
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: product
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: transaction_date
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: transaction_type
+        schema:
+          type: string
+          enum:
+          - SALE
+          - SUPPLY
+          - TRANSFER_IN
+          - TRANSFER_OUT
+          - WASTE
+        description: |-
+          * `SUPPLY` - Supply (Stock Received)
+          * `SALE` - Sale (Sold to Customers)
+          * `TRANSFER_OUT` - Transfer Out (Sent to Another Vessel)
+          * `TRANSFER_IN` - Transfer In (Received from Another Vessel)
+          * `WASTE` - Waste (Items Removed from Inventory)
+      - in: query
+        name: vessel
+        schema:
+          type: integer
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedTransactionList'
+          description: ''
+    post:
+      operationId: api_v1_transactions_create
+      description: |-
+        ViewSet for transaction management.
+
+        Provides CRUD operations for transactions with FIFO processing.
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TransactionCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TransactionCreateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionCreate'
+          description: ''
+  /api/v1/transactions/bulk_create/:
+    post:
+      operationId: api_v1_transactions_bulk_create_create
+      description: |-
+        Create multiple transactions in a single request.
+
+        Useful for batch operations like trip sales or purchase orders.
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TransactionRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TransactionRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: ''
+  /api/v1/transactions/inventory_status/:
+    get:
+      operationId: api_v1_transactions_inventory_status_retrieve
+      description: |-
+        Get current inventory status across all vessels.
+
+        Returns stock levels and inventory value information.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: ''
+  /api/v1/transactions/sales_summary/:
+    get:
+      operationId: api_v1_transactions_sales_summary_retrieve
+      description: |-
+        Get sales summary for a date range.
+
+        Returns sales statistics and revenue information.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: ''
+  /api/v1/transactions/{id}/:
+    put:
+      operationId: api_v1_transactions_update
+      description: |-
+        ViewSet for transaction management.
+
+        Provides CRUD operations for transactions with FIFO processing.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Transaction.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TransactionCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TransactionCreateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionCreate'
+          description: ''
+    delete:
+      operationId: api_v1_transactions_destroy
+      description: |-
+        ViewSet for transaction management.
+
+        Provides CRUD operations for transactions with FIFO processing.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Transaction.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+    get:
+      operationId: api_v1_transactions_retrieve
+      description: |-
+        ViewSet for transaction management.
+
+        Provides CRUD operations for transactions with FIFO processing.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Transaction.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionDetail'
+          description: ''
+    patch:
+      operationId: api_v1_transactions_partial_update
+      description: |-
+        ViewSet for transaction management.
+
+        Provides CRUD operations for transactions with FIFO processing.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Transaction.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedTransactionCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedTransactionCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedTransactionCreateRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionCreate'
+          description: ''
+  /api/v1/inventory-lots/:
+    get:
+      operationId: api_v1_inventory_lots_list
+      description: |-
+        ViewSet for inventory lot management (read-only).
+
+        Provides read access to FIFO inventory lots.
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: product
+        schema:
+          type: integer
+      - in: query
+        name: purchase_date
+        schema:
+          type: string
+          format: date
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: vessel
+        schema:
+          type: integer
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedInventoryLotList'
+          description: ''
+  /api/v1/inventory-lots/fifo_order/:
+    get:
+      operationId: api_v1_inventory_lots_fifo_order_retrieve
+      description: |-
+        Get inventory lots in FIFO order for consumption.
+
+        Returns lots ordered by purchase date for FIFO consumption.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryLot'
+          description: ''
+  /api/v1/inventory-lots/{id}/:
+    get:
+      operationId: api_v1_inventory_lots_retrieve
+      description: |-
+        ViewSet for inventory lot management (read-only).
+
+        Provides read access to FIFO inventory lots.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Inventory Lot.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryLot'
+          description: ''
+  /api/v1/trips/:
+    get:
+      operationId: api_v1_trips_list
+      description: ViewSet for trip management.
+      parameters:
+      - in: query
+        name: is_completed
+        schema:
+          type: boolean
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: trip_date
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: vessel
+        schema:
+          type: integer
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedTripList'
+          description: ''
+    post:
+      operationId: api_v1_trips_create
+      description: ViewSet for trip management.
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TripRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TripRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TripRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trip'
+          description: ''
+  /api/v1/trips/{id}/:
+    put:
+      operationId: api_v1_trips_update
+      description: ViewSet for trip management.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Trip.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TripRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TripRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TripRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trip'
+          description: ''
+    delete:
+      operationId: api_v1_trips_destroy
+      description: ViewSet for trip management.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Trip.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+    get:
+      operationId: api_v1_trips_retrieve
+      description: ViewSet for trip management.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Trip.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trip'
+          description: ''
+    patch:
+      operationId: api_v1_trips_partial_update
+      description: ViewSet for trip management.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Trip.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedTripRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedTripRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedTripRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trip'
+          description: ''
+  /api/v1/purchase-orders/:
+    get:
+      operationId: api_v1_purchase_orders_list
+      description: ViewSet for purchase order management.
+      parameters:
+      - in: query
+        name: is_completed
+        schema:
+          type: boolean
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: po_date
+        schema:
+          type: string
+          format: date
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: vessel
+        schema:
+          type: integer
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPurchaseOrderList'
+          description: ''
+    post:
+      operationId: api_v1_purchase_orders_create
+      description: ViewSet for purchase order management.
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PurchaseOrderRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PurchaseOrderRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PurchaseOrderRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrder'
+          description: ''
+  /api/v1/purchase-orders/{id}/:
+    put:
+      operationId: api_v1_purchase_orders_update
+      description: ViewSet for purchase order management.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Purchase Order.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PurchaseOrderRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PurchaseOrderRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PurchaseOrderRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrder'
+          description: ''
+    delete:
+      operationId: api_v1_purchase_orders_destroy
+      description: ViewSet for purchase order management.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Purchase Order.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+    get:
+      operationId: api_v1_purchase_orders_retrieve
+      description: ViewSet for purchase order management.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Purchase Order.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrder'
+          description: ''
+    patch:
+      operationId: api_v1_purchase_orders_partial_update
+      description: ViewSet for purchase order management.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Purchase Order.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPurchaseOrderRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPurchaseOrderRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPurchaseOrderRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrder'
+          description: ''
+  /api/v1/transfers/:
+    get:
+      operationId: api_v1_transfers_list
+      description: ViewSet for transfer management.
+      parameters:
+      - in: query
+        name: from_vessel
+        schema:
+          type: integer
+      - in: query
+        name: is_completed
+        schema:
+          type: boolean
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: to_vessel
+        schema:
+          type: integer
+      - in: query
+        name: transfer_date
+        schema:
+          type: string
+          format: date
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedTransferList'
+          description: ''
+    post:
+      operationId: api_v1_transfers_create
+      description: ViewSet for transfer management.
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TransferRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TransferRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transfer'
+          description: ''
+  /api/v1/transfers/{id}/:
+    put:
+      operationId: api_v1_transfers_update
+      description: ViewSet for transfer management.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Transfer.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TransferRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TransferRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transfer'
+          description: ''
+    delete:
+      operationId: api_v1_transfers_destroy
+      description: ViewSet for transfer management.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Transfer.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+    get:
+      operationId: api_v1_transfers_retrieve
+      description: ViewSet for transfer management.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Transfer.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transfer'
+          description: ''
+    patch:
+      operationId: api_v1_transfers_partial_update
+      description: ViewSet for transfer management.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Transfer.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedTransferRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedTransferRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedTransferRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transfer'
+          description: ''
+  /api/v1/waste-reports/:
+    get:
+      operationId: api_v1_waste_reports_list
+      description: ViewSet for waste report management.
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: report_date
+        schema:
+          type: string
+          format: date
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: vessel
+        schema:
+          type: integer
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedWasteReportList'
+          description: ''
+    post:
+      operationId: api_v1_waste_reports_create
+      description: ViewSet for waste report management.
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WasteReportRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/WasteReportRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/WasteReportRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WasteReport'
+          description: ''
+  /api/v1/waste-reports/{id}/:
+    put:
+      operationId: api_v1_waste_reports_update
+      description: ViewSet for waste report management.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Waste Report.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WasteReportRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/WasteReportRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/WasteReportRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WasteReport'
+          description: ''
+    delete:
+      operationId: api_v1_waste_reports_destroy
+      description: ViewSet for waste report management.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Waste Report.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+    get:
+      operationId: api_v1_waste_reports_retrieve
+      description: ViewSet for waste report management.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Waste Report.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WasteReport'
+          description: ''
+    patch:
+      operationId: api_v1_waste_reports_partial_update
+      description: ViewSet for waste report management.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Waste Report.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedWasteReportRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedWasteReportRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedWasteReportRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WasteReport'
+          description: ''
+  /api/v1/users/:
+    get:
+      operationId: api_v1_users_list
+      description: |-
+        ViewSet for user management.
+
+        Provides CRUD operations for users with permission management.
+      parameters:
+      - in: query
+        name: is_active
+        schema:
+          type: boolean
+      - in: query
+        name: is_staff
+        schema:
+          type: boolean
+      - in: query
+        name: is_superuser
+        schema:
+          type: boolean
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedUserList'
+          description: ''
+    post:
+      operationId: api_v1_users_create
+      description: |-
+        ViewSet for user management.
+
+        Provides CRUD operations for users with permission management.
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserCreateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserCreate'
+          description: ''
+  /api/v1/users/change_password/:
+    post:
+      operationId: api_v1_users_change_password_create
+      description: |-
+        Change current user's password.
+
+        Requires old password verification.
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserPasswordChangeRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserPasswordChangeRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserPasswordChangeRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/users/profile/:
+    get:
+      operationId: api_v1_users_profile_retrieve
+      description: |-
+        Get current user's profile information.
+
+        Returns detailed profile for the authenticated user.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+          description: ''
+  /api/v1/users/statistics/:
+    get:
+      operationId: api_v1_users_statistics_retrieve
+      description: |-
+        Get overall user statistics.
+
+        Returns system-wide user statistics and insights.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+  /api/v1/users/summary/:
+    get:
+      operationId: api_v1_users_summary_retrieve
+      description: |-
+        Get user summary for dropdowns and references.
+
+        Returns minimal user data suitable for form dropdowns.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSummary'
+          description: ''
+  /api/v1/users/{id}/:
+    put:
+      operationId: api_v1_users_update
+      description: |-
+        ViewSet for user management.
+
+        Provides CRUD operations for users with permission management.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this user.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserUpdate'
+          description: ''
+    delete:
+      operationId: api_v1_users_destroy
+      description: |-
+        Override destroy to prevent deletion of users with transaction history.
+
+        Instead of deleting, mark user as inactive if they have transactions.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this user.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+    get:
+      operationId: api_v1_users_retrieve
+      description: |-
+        ViewSet for user management.
+
+        Provides CRUD operations for users with permission management.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this user.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDetail'
+          description: ''
+    patch:
+      operationId: api_v1_users_partial_update
+      description: |-
+        ViewSet for user management.
+
+        Provides CRUD operations for users with permission management.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this user.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedUserUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedUserUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedUserUpdateRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserUpdate'
+          description: ''
+  /api/v1/users/{id}/activity_summary/:
+    get:
+      operationId: api_v1_users_activity_summary_retrieve
+      description: |-
+        Get activity summary for a specific user.
+
+        Returns transaction counts and activity statistics.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this user.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+  /api/v1/users/{id}/assign_vessels/:
+    post:
+      operationId: api_v1_users_assign_vessels_create
+      description: |-
+        Assign vessels to a user.
+
+        This will be fully implemented when UserVesselAssignment model is created.
+        For now, returns a placeholder response.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this user.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+  /api/v1/users/{id}/assigned_vessels/:
+    get:
+      operationId: api_v1_users_assigned_vessels_retrieve
+      description: |-
+        Get vessels assigned to a user.
+
+        This will be fully implemented when UserVesselAssignment model is created.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this user.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+  /api/v1/groups/:
+    get:
+      operationId: api_v1_groups_list
+      description: |-
+        ViewSet for user groups (read-only).
+
+        Provides read access to user groups for permission management.
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedGroupList'
+          description: ''
+  /api/v1/groups/{id}/:
+    get:
+      operationId: api_v1_groups_retrieve
+      description: |-
+        ViewSet for user groups (read-only).
+
+        Provides read access to user groups for permission management.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this group.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+          description: ''
+  /api/auth/token/:
+    post:
+      operationId: api_auth_token_create
+      description: |-
+        Takes a set of user credentials and returns an access and refresh JSON web
+        token pair to prove the authentication of those credentials.
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPairRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPairRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPairRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenObtainPair'
+          description: ''
+  /api/auth/token/refresh/:
+    post:
+      operationId: api_auth_token_refresh_create
+      description: |-
+        Takes a refresh type JSON web token and returns an access type JSON web
+        token if the refresh token is valid.
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefresh'
+          description: ''
+  /api/auth/token/verify/:
+    post:
+      operationId: api_auth_token_verify_create
+      description: |-
+        Takes a token and indicates if it is valid.  This view provides no
+        information about a token's fitness for a particular use.
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenVerifyRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenVerifyRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenVerifyRequest'
+        required: true
+      responses:
+        '200':
+          description: No response body
+components:
+  schemas:
+    Category:
+      type: object
+      description: Category serializer for product categorization.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 50
+        description:
+          type: string
+        active:
+          type: boolean
+        product_count:
+          type: string
+          readOnly: true
+      required:
+      - id
+      - name
+      - product_count
+    CategoryRequest:
+      type: object
+      description: Category serializer for product categorization.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+        description:
+          type: string
+        active:
+          type: boolean
+      required:
+      - name
+    FIFOConsumption:
+      type: object
+      description: FIFO consumption tracking serializer.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        transaction:
+          type: integer
+        transaction_type:
+          type: string
+          readOnly: true
+        inventory_lot:
+          type: integer
+        vessel_name:
+          type: string
+          readOnly: true
+        product_name:
+          type: string
+          readOnly: true
+        consumed_quantity:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,7}(?:\.\d{0,3})?$
+          description: Exact quantity consumed from this lot
+        unit_cost:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,14}(?:\.\d{0,6})?$
+          description: Exact unit cost from the lot at time of consumption
+      required:
+      - consumed_quantity
+      - id
+      - inventory_lot
+      - product_name
+      - transaction
+      - transaction_type
+      - unit_cost
+      - vessel_name
+    Group:
+      type: object
+      description: Group serializer for user permissions.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 150
+      required:
+      - id
+      - name
+    GroupRequest:
+      type: object
+      description: Group serializer for user permissions.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 150
+      required:
+      - name
+    InventoryLot:
+      type: object
+      description: Inventory lot serializer for FIFO tracking.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        vessel:
+          type: integer
+        vessel_name:
+          type: string
+          readOnly: true
+        product:
+          type: integer
+        product_name:
+          type: string
+          readOnly: true
+        product_barcode:
+          type: string
+          readOnly: true
+        purchase_date:
+          type: string
+          format: date
+        purchase_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,14}(?:\.\d{0,6})?$
+          description: Cost price per unit when purchased (JOD)
+        original_quantity:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 1
+          format: int64
+          description: Original quantity purchased
+        remaining_quantity:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+          description: Quantity still available
+        consumed_quantity:
+          type: string
+          readOnly: true
+        lot_value:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        created_by:
+          type: integer
+          nullable: true
+        created_by_username:
+          type: string
+          readOnly: true
+      required:
+      - consumed_quantity
+      - created_at
+      - created_by_username
+      - id
+      - lot_value
+      - original_quantity
+      - product
+      - product_barcode
+      - product_name
+      - purchase_date
+      - purchase_price
+      - remaining_quantity
+      - vessel
+      - vessel_name
+    PaginatedCategoryList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Category'
+    PaginatedGroupList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Group'
+    PaginatedInventoryLotList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/InventoryLot'
+    PaginatedProductList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Product'
+    PaginatedPurchaseOrderList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PurchaseOrder'
+    PaginatedTransactionList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Transaction'
+    PaginatedTransferList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Transfer'
+    PaginatedTripList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Trip'
+    PaginatedUserList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+    PaginatedVesselList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Vessel'
+    PaginatedWasteReportList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/WasteReport'
+    PatchedCategoryRequest:
+      type: object
+      description: Category serializer for product categorization.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+        description:
+          type: string
+        active:
+          type: boolean
+    PatchedProductCreateUpdateRequest:
+      type: object
+      description: Serializer for creating and updating products.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        item_id:
+          type: string
+          minLength: 1
+          description: Unique product identifier
+          maxLength: 50
+        barcode:
+          type: string
+          nullable: true
+          maxLength: 100
+        category:
+          type: integer
+        purchase_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,14}(?:\.\d{0,6})?$
+          description: Cost price in JOD
+        selling_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,7}(?:\.\d{0,3})?$
+          description: Selling price in JOD
+        is_duty_free:
+          type: boolean
+          description: Available only on duty-free vessels
+        active:
+          type: boolean
+    PatchedPurchaseOrderRequest:
+      type: object
+      description: Purchase order serializer.
+      properties:
+        vessel:
+          type: integer
+        po_date:
+          type: string
+          format: date
+        po_number:
+          type: string
+          minLength: 1
+          description: Unique purchase order identifier (e.g., PO-AM-001-2024)
+          maxLength: 50
+        notes:
+          type: string
+        is_completed:
+          type: boolean
+    PatchedTransactionCreateRequest:
+      type: object
+      description: Serializer for creating transactions.
+      properties:
+        vessel:
+          type: integer
+        product:
+          type: integer
+        transaction_type:
+          $ref: '#/components/schemas/TransactionTypeEnum'
+        quantity:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,7}(?:\.\d{0,3})?$
+          description: Quantity involved in this transaction
+        unit_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,14}(?:\.\d{0,6})?$
+          description: Price per unit for this transaction (JOD)
+        transaction_date:
+          type: string
+          format: date
+        notes:
+          type: string
+          description: Additional notes or FIFO consumption details
+        trip:
+          type: integer
+          nullable: true
+        purchase_order:
+          type: integer
+          nullable: true
+        transfer:
+          type: integer
+          nullable: true
+        waste_report:
+          type: integer
+          nullable: true
+          description: Waste report this transaction belongs to (for WASTE transactions
+            only)
+    PatchedTransferRequest:
+      type: object
+      description: Transfer serializer for inter-vessel transfers.
+      properties:
+        from_vessel:
+          type: integer
+          description: Source vessel sending inventory
+        to_vessel:
+          type: integer
+          description: Destination vessel receiving inventory
+        transfer_date:
+          type: string
+          format: date
+          description: Date when transfer occurred
+        notes:
+          type: string
+        is_completed:
+          type: boolean
+    PatchedTripRequest:
+      type: object
+      description: Trip serializer for sales grouping.
+      properties:
+        vessel:
+          type: integer
+        trip_date:
+          type: string
+          format: date
+        notes:
+          type: string
+        trip_number:
+          type: string
+          minLength: 1
+          description: Unique trip identifier (e.g., AM-001-2024)
+          maxLength: 50
+        passenger_count:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 1
+          format: int64
+          description: Number of passengers on this trip
+        is_completed:
+          type: boolean
+    PatchedUserUpdateRequest:
+      type: object
+      description: Serializer for updating users.
+      properties:
+        email:
+          type: string
+          format: email
+          title: Email address
+          maxLength: 254
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        is_active:
+          type: boolean
+          title: Active
+          description: Designates whether this user should be treated as active. Unselect
+            this instead of deleting accounts.
+        group_ids:
+          type: array
+          items:
+            type: integer
+          writeOnly: true
+          description: List of group IDs to assign to the user
+    PatchedVesselCreateUpdateRequest:
+      type: object
+      description: Serializer for creating and updating vessels.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+        name_ar:
+          type: string
+          description: Arabic name of the vessel
+          maxLength: 100
+        has_duty_free:
+          type: boolean
+        active:
+          type: boolean
+    PatchedWasteReportRequest:
+      type: object
+      description: Waste report serializer.
+      properties:
+        vessel:
+          type: integer
+        report_date:
+          type: string
+          format: date
+        report_number:
+          type: string
+          minLength: 1
+          description: Unique waste report identifier (e.g., WR-AM-001-2024)
+          maxLength: 50
+        notes:
+          type: string
+    Product:
+      type: object
+      description: Basic product serializer for list views.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 200
+        item_id:
+          type: string
+          description: Unique product identifier
+          maxLength: 50
+        barcode:
+          type: string
+          nullable: true
+          maxLength: 100
+        category:
+          type: integer
+        category_name:
+          type: string
+          readOnly: true
+        purchase_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,14}(?:\.\d{0,6})?$
+          description: Cost price in JOD
+        selling_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,7}(?:\.\d{0,3})?$
+          description: Selling price in JOD
+        is_duty_free:
+          type: boolean
+          description: Available only on duty-free vessels
+        active:
+          type: boolean
+        current_stock:
+          type: string
+          readOnly: true
+        total_inventory_value:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - category
+      - category_name
+      - created_at
+      - current_stock
+      - id
+      - item_id
+      - name
+      - purchase_price
+      - selling_price
+      - total_inventory_value
+      - updated_at
+    ProductCreateUpdate:
+      type: object
+      description: Serializer for creating and updating products.
+      properties:
+        name:
+          type: string
+          maxLength: 200
+        item_id:
+          type: string
+          description: Unique product identifier
+          maxLength: 50
+        barcode:
+          type: string
+          nullable: true
+          maxLength: 100
+        category:
+          type: integer
+        purchase_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,14}(?:\.\d{0,6})?$
+          description: Cost price in JOD
+        selling_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,7}(?:\.\d{0,3})?$
+          description: Selling price in JOD
+        is_duty_free:
+          type: boolean
+          description: Available only on duty-free vessels
+        active:
+          type: boolean
+      required:
+      - category
+      - item_id
+      - name
+      - purchase_price
+      - selling_price
+    ProductCreateUpdateRequest:
+      type: object
+      description: Serializer for creating and updating products.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        item_id:
+          type: string
+          minLength: 1
+          description: Unique product identifier
+          maxLength: 50
+        barcode:
+          type: string
+          nullable: true
+          maxLength: 100
+        category:
+          type: integer
+        purchase_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,14}(?:\.\d{0,6})?$
+          description: Cost price in JOD
+        selling_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,7}(?:\.\d{0,3})?$
+          description: Selling price in JOD
+        is_duty_free:
+          type: boolean
+          description: Available only on duty-free vessels
+        active:
+          type: boolean
+      required:
+      - category
+      - item_id
+      - name
+      - purchase_price
+      - selling_price
+    ProductDetail:
+      type: object
+      description: Detailed product serializer with full information and relationships.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 200
+        item_id:
+          type: string
+          description: Unique product identifier
+          maxLength: 50
+        barcode:
+          type: string
+          nullable: true
+          maxLength: 100
+        category:
+          type: integer
+        category_name:
+          type: string
+          readOnly: true
+        purchase_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,14}(?:\.\d{0,6})?$
+          description: Cost price in JOD
+        selling_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,7}(?:\.\d{0,3})?$
+          description: Selling price in JOD
+        is_duty_free:
+          type: boolean
+          description: Available only on duty-free vessels
+        active:
+          type: boolean
+        current_stock:
+          type: string
+          readOnly: true
+        total_inventory_value:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        category_details:
+          allOf:
+          - $ref: '#/components/schemas/Category'
+          readOnly: true
+        created_by:
+          type: integer
+          nullable: true
+        created_by_username:
+          type: string
+          readOnly: true
+        stock_by_vessel:
+          type: string
+          readOnly: true
+        recent_transactions:
+          type: string
+          readOnly: true
+      required:
+      - category
+      - category_details
+      - category_name
+      - created_at
+      - created_by_username
+      - current_stock
+      - id
+      - item_id
+      - name
+      - purchase_price
+      - recent_transactions
+      - selling_price
+      - stock_by_vessel
+      - total_inventory_value
+      - updated_at
+    ProductPricing:
+      type: object
+      description: Serializer for product pricing information.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 200
+        selling_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,7}(?:\.\d{0,3})?$
+          description: Selling price in JOD
+        is_duty_free:
+          type: boolean
+          description: Available only on duty-free vessels
+        effective_price:
+          type: string
+          readOnly: true
+      required:
+      - effective_price
+      - id
+      - name
+      - selling_price
+    ProductSearch:
+      type: object
+      description: Minimal product serializer for search and autocomplete.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 200
+        item_id:
+          type: string
+          description: Unique product identifier
+          maxLength: 50
+        barcode:
+          type: string
+          nullable: true
+          maxLength: 100
+        category_name:
+          type: string
+          readOnly: true
+        selling_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,7}(?:\.\d{0,3})?$
+          description: Selling price in JOD
+        is_duty_free:
+          type: boolean
+          description: Available only on duty-free vessels
+        current_stock:
+          type: string
+          readOnly: true
+      required:
+      - category_name
+      - current_stock
+      - id
+      - item_id
+      - name
+      - selling_price
+    PurchaseOrder:
+      type: object
+      description: Purchase order serializer.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        vessel:
+          type: integer
+        vessel_name:
+          type: string
+          readOnly: true
+        po_date:
+          type: string
+          format: date
+        po_number:
+          type: string
+          description: Unique purchase order identifier (e.g., PO-AM-001-2024)
+          maxLength: 50
+        notes:
+          type: string
+        is_completed:
+          type: boolean
+        total_items:
+          type: string
+          readOnly: true
+        total_cost:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - po_date
+      - po_number
+      - total_cost
+      - total_items
+      - updated_at
+      - vessel
+      - vessel_name
+    PurchaseOrderRequest:
+      type: object
+      description: Purchase order serializer.
+      properties:
+        vessel:
+          type: integer
+        po_date:
+          type: string
+          format: date
+        po_number:
+          type: string
+          minLength: 1
+          description: Unique purchase order identifier (e.g., PO-AM-001-2024)
+          maxLength: 50
+        notes:
+          type: string
+        is_completed:
+          type: boolean
+      required:
+      - po_date
+      - po_number
+      - vessel
+    TokenObtainPair:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+          readOnly: true
+      required:
+      - access
+      - refresh
+    TokenObtainPairRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          writeOnly: true
+          minLength: 1
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - password
+      - username
+    TokenRefresh:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+      required:
+      - access
+      - refresh
+    TokenRefreshRequest:
+      type: object
+      properties:
+        refresh:
+          type: string
+          minLength: 1
+      required:
+      - refresh
+    TokenVerifyRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - token
+    Transaction:
+      type: object
+      description: Basic transaction serializer.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        vessel:
+          type: integer
+        vessel_name:
+          type: string
+          readOnly: true
+        product:
+          type: integer
+        product_name:
+          type: string
+          readOnly: true
+        product_barcode:
+          type: string
+          readOnly: true
+        transaction_type:
+          $ref: '#/components/schemas/TransactionTypeEnum'
+        quantity:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,7}(?:\.\d{0,3})?$
+          description: Quantity involved in this transaction
+        unit_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,14}(?:\.\d{0,6})?$
+          description: Price per unit for this transaction (JOD)
+        total_amount:
+          type: string
+          readOnly: true
+        profit_margin:
+          type: string
+          readOnly: true
+        transaction_date:
+          type: string
+          format: date
+        created_by:
+          type: integer
+          nullable: true
+        created_by_username:
+          type: string
+          readOnly: true
+        notes:
+          type: string
+          description: Additional notes or FIFO consumption details
+        trip:
+          type: integer
+          nullable: true
+        purchase_order:
+          type: integer
+          nullable: true
+        transfer:
+          type: integer
+          nullable: true
+        waste_report:
+          type: integer
+          nullable: true
+          description: Waste report this transaction belongs to (for WASTE transactions
+            only)
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - created_by_username
+      - id
+      - product
+      - product_barcode
+      - product_name
+      - profit_margin
+      - quantity
+      - total_amount
+      - transaction_date
+      - transaction_type
+      - vessel
+      - vessel_name
+    TransactionCreate:
+      type: object
+      description: Serializer for creating transactions.
+      properties:
+        vessel:
+          type: integer
+        product:
+          type: integer
+        transaction_type:
+          $ref: '#/components/schemas/TransactionTypeEnum'
+        quantity:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,7}(?:\.\d{0,3})?$
+          description: Quantity involved in this transaction
+        unit_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,14}(?:\.\d{0,6})?$
+          description: Price per unit for this transaction (JOD)
+        transaction_date:
+          type: string
+          format: date
+        notes:
+          type: string
+          description: Additional notes or FIFO consumption details
+        trip:
+          type: integer
+          nullable: true
+        purchase_order:
+          type: integer
+          nullable: true
+        transfer:
+          type: integer
+          nullable: true
+        waste_report:
+          type: integer
+          nullable: true
+          description: Waste report this transaction belongs to (for WASTE transactions
+            only)
+      required:
+      - product
+      - quantity
+      - transaction_date
+      - transaction_type
+      - vessel
+    TransactionCreateRequest:
+      type: object
+      description: Serializer for creating transactions.
+      properties:
+        vessel:
+          type: integer
+        product:
+          type: integer
+        transaction_type:
+          $ref: '#/components/schemas/TransactionTypeEnum'
+        quantity:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,7}(?:\.\d{0,3})?$
+          description: Quantity involved in this transaction
+        unit_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,14}(?:\.\d{0,6})?$
+          description: Price per unit for this transaction (JOD)
+        transaction_date:
+          type: string
+          format: date
+        notes:
+          type: string
+          description: Additional notes or FIFO consumption details
+        trip:
+          type: integer
+          nullable: true
+        purchase_order:
+          type: integer
+          nullable: true
+        transfer:
+          type: integer
+          nullable: true
+        waste_report:
+          type: integer
+          nullable: true
+          description: Waste report this transaction belongs to (for WASTE transactions
+            only)
+      required:
+      - product
+      - quantity
+      - transaction_date
+      - transaction_type
+      - vessel
+    TransactionDetail:
+      type: object
+      description: Detailed transaction serializer with FIFO information.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        vessel:
+          type: integer
+        vessel_name:
+          type: string
+          readOnly: true
+        product:
+          type: integer
+        product_name:
+          type: string
+          readOnly: true
+        product_barcode:
+          type: string
+          readOnly: true
+        transaction_type:
+          $ref: '#/components/schemas/TransactionTypeEnum'
+        quantity:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,7}(?:\.\d{0,3})?$
+          description: Quantity involved in this transaction
+        unit_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,14}(?:\.\d{0,6})?$
+          description: Price per unit for this transaction (JOD)
+        total_amount:
+          type: string
+          readOnly: true
+        profit_margin:
+          type: string
+          readOnly: true
+        transaction_date:
+          type: string
+          format: date
+        created_by:
+          type: integer
+          nullable: true
+        created_by_username:
+          type: string
+          readOnly: true
+        notes:
+          type: string
+          description: Additional notes or FIFO consumption details
+        trip:
+          type: integer
+          nullable: true
+        purchase_order:
+          type: integer
+          nullable: true
+        transfer:
+          type: integer
+          nullable: true
+        waste_report:
+          type: integer
+          nullable: true
+          description: Waste report this transaction belongs to (for WASTE transactions
+            only)
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        fifo_consumptions:
+          type: array
+          items:
+            $ref: '#/components/schemas/FIFOConsumption'
+          readOnly: true
+      required:
+      - created_at
+      - created_by_username
+      - fifo_consumptions
+      - id
+      - product
+      - product_barcode
+      - product_name
+      - profit_margin
+      - quantity
+      - total_amount
+      - transaction_date
+      - transaction_type
+      - vessel
+      - vessel_name
+    TransactionRequest:
+      type: object
+      description: Basic transaction serializer.
+      properties:
+        vessel:
+          type: integer
+        product:
+          type: integer
+        transaction_type:
+          $ref: '#/components/schemas/TransactionTypeEnum'
+        quantity:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,7}(?:\.\d{0,3})?$
+          description: Quantity involved in this transaction
+        unit_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,14}(?:\.\d{0,6})?$
+          description: Price per unit for this transaction (JOD)
+        transaction_date:
+          type: string
+          format: date
+        created_by:
+          type: integer
+          nullable: true
+        notes:
+          type: string
+          description: Additional notes or FIFO consumption details
+        trip:
+          type: integer
+          nullable: true
+        purchase_order:
+          type: integer
+          nullable: true
+        transfer:
+          type: integer
+          nullable: true
+        waste_report:
+          type: integer
+          nullable: true
+          description: Waste report this transaction belongs to (for WASTE transactions
+            only)
+      required:
+      - product
+      - quantity
+      - transaction_date
+      - transaction_type
+      - vessel
+    TransactionTypeEnum:
+      enum:
+      - SUPPLY
+      - SALE
+      - TRANSFER_OUT
+      - TRANSFER_IN
+      - WASTE
+      type: string
+      description: |-
+        * `SUPPLY` - Supply (Stock Received)
+        * `SALE` - Sale (Sold to Customers)
+        * `TRANSFER_OUT` - Transfer Out (Sent to Another Vessel)
+        * `TRANSFER_IN` - Transfer In (Received from Another Vessel)
+        * `WASTE` - Waste (Items Removed from Inventory)
+    Transfer:
+      type: object
+      description: Transfer serializer for inter-vessel transfers.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        from_vessel:
+          type: integer
+          description: Source vessel sending inventory
+        from_vessel_name:
+          type: string
+          readOnly: true
+        to_vessel:
+          type: integer
+          description: Destination vessel receiving inventory
+        to_vessel_name:
+          type: string
+          readOnly: true
+        transfer_date:
+          type: string
+          format: date
+          description: Date when transfer occurred
+        notes:
+          type: string
+        is_completed:
+          type: boolean
+        total_items:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - from_vessel
+      - from_vessel_name
+      - id
+      - to_vessel
+      - to_vessel_name
+      - total_items
+      - transfer_date
+      - updated_at
+    TransferRequest:
+      type: object
+      description: Transfer serializer for inter-vessel transfers.
+      properties:
+        from_vessel:
+          type: integer
+          description: Source vessel sending inventory
+        to_vessel:
+          type: integer
+          description: Destination vessel receiving inventory
+        transfer_date:
+          type: string
+          format: date
+          description: Date when transfer occurred
+        notes:
+          type: string
+        is_completed:
+          type: boolean
+      required:
+      - from_vessel
+      - to_vessel
+      - transfer_date
+    Trip:
+      type: object
+      description: Trip serializer for sales grouping.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        vessel:
+          type: integer
+        vessel_name:
+          type: string
+          readOnly: true
+        trip_date:
+          type: string
+          format: date
+        notes:
+          type: string
+        trip_number:
+          type: string
+          description: Unique trip identifier (e.g., AM-001-2024)
+          maxLength: 50
+        passenger_count:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 1
+          format: int64
+          description: Number of passengers on this trip
+        is_completed:
+          type: boolean
+        total_sales:
+          type: string
+          readOnly: true
+        total_revenue:
+          type: string
+          readOnly: true
+        transaction_count:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - passenger_count
+      - total_revenue
+      - total_sales
+      - transaction_count
+      - trip_date
+      - trip_number
+      - updated_at
+      - vessel
+      - vessel_name
+    TripRequest:
+      type: object
+      description: Trip serializer for sales grouping.
+      properties:
+        vessel:
+          type: integer
+        trip_date:
+          type: string
+          format: date
+        notes:
+          type: string
+        trip_number:
+          type: string
+          minLength: 1
+          description: Unique trip identifier (e.g., AM-001-2024)
+          maxLength: 50
+        passenger_count:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 1
+          format: int64
+          description: Number of passengers on this trip
+        is_completed:
+          type: boolean
+      required:
+      - passenger_count
+      - trip_date
+      - trip_number
+      - vessel
+    User:
+      type: object
+      description: Basic user serializer.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          title: Email address
+          maxLength: 254
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        is_active:
+          type: boolean
+          title: Active
+          description: Designates whether this user should be treated as active. Unselect
+            this instead of deleting accounts.
+        is_staff:
+          type: boolean
+          title: Staff status
+          description: Designates whether the user can log into this admin site.
+        is_superuser:
+          type: boolean
+          title: Superuser status
+          description: Designates that this user has all permissions without explicitly
+            assigning them.
+        last_login:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        last_login_formatted:
+          type: string
+          readOnly: true
+        is_active_display:
+          type: string
+          readOnly: true
+        date_joined:
+          type: string
+          format: date-time
+          readOnly: true
+        groups:
+          type: array
+          items:
+            $ref: '#/components/schemas/Group'
+          readOnly: true
+        group_names:
+          type: string
+          readOnly: true
+      required:
+      - date_joined
+      - group_names
+      - groups
+      - id
+      - is_active_display
+      - last_login
+      - last_login_formatted
+      - username
+    UserCreate:
+      type: object
+      description: Serializer for creating new users.
+      properties:
+        username:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          title: Email address
+          maxLength: 254
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        is_active:
+          type: boolean
+          title: Active
+          description: Designates whether this user should be treated as active. Unselect
+            this instead of deleting accounts.
+      required:
+      - username
+    UserCreateRequest:
+      type: object
+      description: Serializer for creating new users.
+      properties:
+        username:
+          type: string
+          minLength: 1
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          title: Email address
+          maxLength: 254
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+        password_confirm:
+          type: string
+          writeOnly: true
+          minLength: 1
+        is_active:
+          type: boolean
+          title: Active
+          description: Designates whether this user should be treated as active. Unselect
+            this instead of deleting accounts.
+        group_ids:
+          type: array
+          items:
+            type: integer
+          writeOnly: true
+          description: List of group IDs to assign to the user
+      required:
+      - password
+      - password_confirm
+      - username
+    UserDetail:
+      type: object
+      description: Detailed user serializer with vessel assignments and activity.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          title: Email address
+          maxLength: 254
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        is_active:
+          type: boolean
+          title: Active
+          description: Designates whether this user should be treated as active. Unselect
+            this instead of deleting accounts.
+        is_staff:
+          type: boolean
+          title: Staff status
+          description: Designates whether the user can log into this admin site.
+        is_superuser:
+          type: boolean
+          title: Superuser status
+          description: Designates that this user has all permissions without explicitly
+            assigning them.
+        last_login:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        last_login_formatted:
+          type: string
+          readOnly: true
+        is_active_display:
+          type: string
+          readOnly: true
+        date_joined:
+          type: string
+          format: date-time
+          readOnly: true
+        groups:
+          type: array
+          items:
+            $ref: '#/components/schemas/Group'
+          readOnly: true
+        group_names:
+          type: string
+          readOnly: true
+        assigned_vessels:
+          type: string
+          readOnly: true
+        recent_activity:
+          type: string
+          readOnly: true
+        permission_summary:
+          type: string
+          readOnly: true
+      required:
+      - assigned_vessels
+      - date_joined
+      - group_names
+      - groups
+      - id
+      - is_active_display
+      - last_login
+      - last_login_formatted
+      - permission_summary
+      - recent_activity
+      - username
+    UserPasswordChangeRequest:
+      type: object
+      description: Serializer for changing user password.
+      properties:
+        old_password:
+          type: string
+          writeOnly: true
+          minLength: 1
+        new_password:
+          type: string
+          writeOnly: true
+          minLength: 1
+        new_password_confirm:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - new_password
+      - new_password_confirm
+      - old_password
+    UserProfile:
+      type: object
+      description: Serializer for user profile information.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          readOnly: true
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+        email:
+          type: string
+          format: email
+          readOnly: true
+          title: Email address
+        first_name:
+          type: string
+          readOnly: true
+        last_name:
+          type: string
+          readOnly: true
+        full_name:
+          type: string
+          readOnly: true
+        is_staff:
+          type: boolean
+          readOnly: true
+          title: Staff status
+          description: Designates whether the user can log into this admin site.
+        is_superuser:
+          type: boolean
+          readOnly: true
+          title: Superuser status
+          description: Designates that this user has all permissions without explicitly
+            assigning them.
+        last_login:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        date_joined:
+          type: string
+          format: date-time
+          readOnly: true
+        group_names:
+          type: string
+          readOnly: true
+        assigned_vessels:
+          type: string
+          readOnly: true
+      required:
+      - assigned_vessels
+      - date_joined
+      - email
+      - first_name
+      - full_name
+      - group_names
+      - id
+      - is_staff
+      - is_superuser
+      - last_login
+      - last_name
+      - username
+    UserRequest:
+      type: object
+      description: Basic user serializer.
+      properties:
+        username:
+          type: string
+          minLength: 1
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          title: Email address
+          maxLength: 254
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        is_active:
+          type: boolean
+          title: Active
+          description: Designates whether this user should be treated as active. Unselect
+            this instead of deleting accounts.
+        is_staff:
+          type: boolean
+          title: Staff status
+          description: Designates whether the user can log into this admin site.
+        is_superuser:
+          type: boolean
+          title: Superuser status
+          description: Designates that this user has all permissions without explicitly
+            assigning them.
+      required:
+      - username
+    UserSummary:
+      type: object
+      description: Minimal user serializer for references and dropdowns.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        full_name:
+          type: string
+          readOnly: true
+        is_active:
+          type: boolean
+          title: Active
+          description: Designates whether this user should be treated as active. Unselect
+            this instead of deleting accounts.
+      required:
+      - full_name
+      - id
+      - username
+    UserUpdate:
+      type: object
+      description: Serializer for updating users.
+      properties:
+        email:
+          type: string
+          format: email
+          title: Email address
+          maxLength: 254
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        is_active:
+          type: boolean
+          title: Active
+          description: Designates whether this user should be treated as active. Unselect
+            this instead of deleting accounts.
+    UserUpdateRequest:
+      type: object
+      description: Serializer for updating users.
+      properties:
+        email:
+          type: string
+          format: email
+          title: Email address
+          maxLength: 254
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        is_active:
+          type: boolean
+          title: Active
+          description: Designates whether this user should be treated as active. Unselect
+            this instead of deleting accounts.
+        group_ids:
+          type: array
+          items:
+            type: integer
+          writeOnly: true
+          description: List of group IDs to assign to the user
+    Vessel:
+      type: object
+      description: Basic vessel serializer for list views and references.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 50
+        name_ar:
+          type: string
+          description: Arabic name of the vessel
+          maxLength: 100
+        has_duty_free:
+          type: boolean
+        active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        total_products:
+          type: string
+          readOnly: true
+        total_inventory_value:
+          type: string
+          readOnly: true
+        active_trips_count:
+          type: string
+          readOnly: true
+      required:
+      - active_trips_count
+      - created_at
+      - id
+      - name
+      - total_inventory_value
+      - total_products
+      - updated_at
+    VesselCreateUpdate:
+      type: object
+      description: Serializer for creating and updating vessels.
+      properties:
+        name:
+          type: string
+          maxLength: 50
+        name_ar:
+          type: string
+          description: Arabic name of the vessel
+          maxLength: 100
+        has_duty_free:
+          type: boolean
+        active:
+          type: boolean
+      required:
+      - name
+    VesselCreateUpdateRequest:
+      type: object
+      description: Serializer for creating and updating vessels.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+        name_ar:
+          type: string
+          description: Arabic name of the vessel
+          maxLength: 100
+        has_duty_free:
+          type: boolean
+        active:
+          type: boolean
+      required:
+      - name
+    VesselDetail:
+      type: object
+      description: Detailed vessel serializer with full information and relationships.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 50
+        name_ar:
+          type: string
+          description: Arabic name of the vessel
+          maxLength: 100
+        has_duty_free:
+          type: boolean
+        active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        total_products:
+          type: string
+          readOnly: true
+        total_inventory_value:
+          type: string
+          readOnly: true
+        active_trips_count:
+          type: string
+          readOnly: true
+        created_by:
+          type: integer
+          nullable: true
+        created_by_username:
+          type: string
+          readOnly: true
+        recent_transactions:
+          type: string
+          readOnly: true
+        inventory_summary:
+          type: string
+          readOnly: true
+      required:
+      - active_trips_count
+      - created_at
+      - created_by_username
+      - id
+      - inventory_summary
+      - name
+      - recent_transactions
+      - total_inventory_value
+      - total_products
+      - updated_at
+    VesselSummary:
+      type: object
+      description: Minimal vessel serializer for dropdown/reference use.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 50
+        name_ar:
+          type: string
+          description: Arabic name of the vessel
+          maxLength: 100
+        has_duty_free:
+          type: boolean
+        active:
+          type: boolean
+      required:
+      - id
+      - name
+    WasteReport:
+      type: object
+      description: Waste report serializer.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        vessel:
+          type: integer
+        vessel_name:
+          type: string
+          readOnly: true
+        report_date:
+          type: string
+          format: date
+        report_number:
+          type: string
+          description: Unique waste report identifier (e.g., WR-AM-001-2024)
+          maxLength: 50
+        notes:
+          type: string
+        total_waste_items:
+          type: string
+          readOnly: true
+        total_waste_value:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - report_date
+      - report_number
+      - total_waste_items
+      - total_waste_value
+      - updated_at
+      - vessel
+      - vessel_name
+    WasteReportRequest:
+      type: object
+      description: Waste report serializer.
+      properties:
+        vessel:
+          type: integer
+        report_date:
+          type: string
+          format: date
+        report_number:
+          type: string
+          minLength: 1
+          description: Unique waste report identifier (e.g., WR-AM-001-2024)
+          maxLength: 50
+        notes:
+          type: string
+      required:
+      - report_date
+      - report_number
+      - vessel
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

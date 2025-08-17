@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         try {
-            const response = await fetch('{% url "frontend:vessel_data_ajax" %}', {
+            const response = await fetch(window.vesselManagementUrls.vesselDataAjax, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -91,7 +91,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('editActive').checked = active;
         
         document.getElementById('editVesselForm').action = 
-            `{% url 'frontend:edit_vessel' 0 %}`.replace('0', vesselId);
+            window.vesselManagementUrls.editVessel.replace('0', vesselId);
         
         new bootstrap.Modal(document.getElementById('editVesselModal')).show();
         // OPTIMIZED: Single timeout for translations

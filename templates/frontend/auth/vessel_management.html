@@ -643,5 +643,13 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'frontend/js/vessel_management.js' %}"></script>
+<script>
+    // Pass Django URLs to JavaScript
+    window.vesselManagementUrls = {
+        vesselDataAjax: "{% url 'frontend:vessel_data_ajax' %}",
+        editVessel: "{% url 'frontend:edit_vessel' 0 %}"  // 0 will be replaced in JS
+    };
+    console.log('Vessel URLs loaded:', window.vesselManagementUrls); // Debug log
+</script>
+<script src="{% static 'frontend/js/vessel_management.js' %}?v={{ timestamp }}"></script>
 {% endblock %}
