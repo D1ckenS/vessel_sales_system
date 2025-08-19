@@ -321,6 +321,7 @@ CLAUDE.md
 DATABASE_INTEGRITY_GUIDE.md
 DROPDOWN_SYSTEM_SUMMARY.md
 DROPDOWN_FIX_SUMMARY.md
+PHASE_4_COMPLETION_SUMMARY.md
 
 # Development backup files
 backups/
@@ -330,6 +331,8 @@ test_dropdown_fix.html
 # Development notes and todos
 new_features.txt
 permissions.txt
+tests.txt
+test_results.txt
 todos.md
 
 # Development scripts
