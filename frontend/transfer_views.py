@@ -1,8 +1,8 @@
 from django.core.exceptions import ValidationError
-from django.shortcuts import render, redirect
+from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q, Sum, Prefetch
-from django.http import JsonResponse
+from django.http import JsonResponse, Http404
 from datetime import date, datetime
 from frontend.utils.cache_helpers import ProductCacheHelper, VesselCacheHelper, TransferCacheHelper
 from frontend.utils.helpers import get_fifo_cost_for_transfer
@@ -24,6 +24,8 @@ from .permissions import (
     reports_access_required,
     admin_or_manager_required
 )
+from vessel_management.utils import VesselAccessHelper, VesselOperationValidator, VesselFormHelper
+from vessel_management.models import TransferWorkflow, TransferNotification, UserVesselAssignment
 
 @operations_access_required
 def transfer_search_products(request):
@@ -42,6 +44,11 @@ def transfer_search_products(request):
         
         # Get vessel
         vessel = Vessel.objects.get(id=vessel_id, active=True)
+        
+        # Validate user has access to this vessel for transfer operations
+        can_access, error_msg = VesselOperationValidator.validate_transfer_initiation(request.user, vessel)
+        if not can_access:
+            return JsonResponse({'success': False, 'error': error_msg})
         
         # Search for products with available inventory on this vessel
         available_lots = InventoryLot.objects.filter(
@@ -108,7 +115,9 @@ def transfer_entry(request):
     """Step 1: Create new transfer (follows sales_entry/supply_entry pattern)"""
     
     if request.method == 'GET':
-        vessels = VesselCacheHelper.get_active_vessels()
+        # Get vessels user has access to
+        all_vessels_qs = Vessel.objects.filter(active=True)
+        vessels = VesselAccessHelper.filter_vessels_by_user_access(all_vessels_qs, request.user)
         
         # 🚀 OPTIMIZED: Check cache for recent transfers with cost data (like supply_entry)
         cached_transfers = TransferCacheHelper.get_recent_transfers_with_cost()
@@ -120,8 +129,9 @@ def transfer_entry(request):
             logger.debug("Cache miss: Building recent transfers")
             
             # 🚀 OPTIMIZED: Single query with proper prefetching (like supply_entry)
+            # Include workflow relationship for collaborative transfers
             recent_transfers_query = Transfer.objects.select_related(
-                'from_vessel', 'to_vessel', 'created_by'
+                'from_vessel', 'to_vessel', 'created_by', 'workflow__from_user', 'workflow__to_user'
             ).prefetch_related(
                 Prefetch(
                     'transactions',
@@ -150,158 +160,264 @@ def transfer_entry(request):
             TransferCacheHelper.cache_recent_transfers_with_cost(recent_transfers)
             logger.debug(f"Cached: Recent transfers ({len(recent_transfers)} transfers) - 1 hour timeout")
         
+        # Get workflow models for dashboard stats - Updated for vessel-based workflow
+        
+        # Get user's vessel assignments for filtering
+        if request.user.is_superuser:
+            user_vessel_ids = list(Vessel.objects.filter(active=True).values_list('id', flat=True))
+        else:
+            user_vessel_ids = list(UserVesselAssignment.objects.filter(
+                user=request.user, is_active=True
+            ).values_list('vessel_id', flat=True))
+        
+        # Get pending transfers where user has vessel access and needs to take action
+        pending_transfers = TransferWorkflow.objects.filter(
+            Q(base_transfer__from_vessel_id__in=user_vessel_ids, status='pending_confirmation') |
+            Q(base_transfer__to_vessel_id__in=user_vessel_ids, status__in=['pending_review', 'under_review']),
+        ).select_related(
+            'base_transfer__from_vessel',
+            'base_transfer__to_vessel',
+            'from_user',
+            'to_user'
+        )
+        
+        # Get unread notifications
+        unread_notifications = TransferNotification.objects.filter(
+            recipient=request.user,
+            is_read=False
+        )
+        
+        # Get user's vessel assignments for context
+        user_vessels = VesselAccessHelper.get_user_vessels(request.user)
+        
+        # Filter recent transfers to only show completed workflow transfers for count
+        completed_transfers = []
+        for transfer in recent_transfers:
+            if hasattr(transfer, 'workflow') and transfer.workflow:
+                # Only show as completed if workflow is actually completed
+                if transfer.workflow.status == 'completed':
+                    completed_transfers.append(transfer)
+            else:
+                # Non-workflow transfers (legacy) - consider completed if is_completed=True
+                if transfer.is_completed:
+                    completed_transfers.append(transfer)
+        
         context = {
             'vessels': vessels,
-            'recent_transfers': recent_transfers,
+            'recent_transfers': recent_transfers,  # All recent transfers for the list
+            'completed_transfers': completed_transfers,  # Only completed for the count
             'today': date.today(),
+            # Dashboard-style stats
+            'pending_transfers': pending_transfers,
+            'unread_notifications': unread_notifications[:10],
+            'user_vessels': user_vessels,
+            'pending_count': pending_transfers.count(),
+            'notification_count': unread_notifications.count(),
         }
+        
+        # Add vessel auto-population context for transfers
+        # For transfers, we need both from and to vessel context
+        context = VesselFormHelper.add_vessel_context_to_view(context, request.user, 'transfer_from')
+        
+        # Add transfer-to vessels separately
+        # For transfer destinations, show ALL active vessels (transfers can go to any vessel)
+        # The collaborative workflow system handles destination user approval
+        context['transfer_to_vessels'] = all_vessels_qs  # All active vessels, not user-filtered
+        context['transfer_from_vessels'] = VesselFormHelper.get_context_aware_vessels(request.user, 'transfer_from')
         
         return render(request, 'frontend/transfer_entry.html', context)
     
     elif request.method == 'POST':
         try:
-            # Get form data
-            from_vessel_id = request.POST.get('from_vessel')
-            to_vessel_id = request.POST.get('to_vessel')
-            transfer_date = request.POST.get('transfer_date')
-            notes = request.POST.get('notes', '').strip()
-            
-            # Validate required fields
-            if not all([from_vessel_id, to_vessel_id, transfer_date]):
-                BilingualMessages.error(request, 'required_fields_missing')
-                return redirect('frontend:transfer_entry')
-            
-            # Get vessels
-            from_vessel = Vessel.objects.get(id=from_vessel_id, active=True)
-            to_vessel = Vessel.objects.get(id=to_vessel_id, active=True)
-            
-            # Validate vessels are different
-            if from_vessel_id == to_vessel_id:
-                BilingualMessages.error(request, 'same_vessel_error')
-                return redirect('frontend:transfer_entry')
-            
-            transfer_date_obj = datetime.strptime(transfer_date, '%Y-%m-%d').date()
-            
-            # ✅ Create Transfer record immediately (like sales creates Trip, supply creates PO)
-            transfer = Transfer.objects.create(
-                from_vessel=from_vessel,
-                to_vessel=to_vessel,
-                transfer_date=transfer_date_obj,
-                notes=notes,
-                is_completed=False,  # Start as incomplete
-                created_by=request.user
-            )
-            
-            # Clear transfer cache
-            
-            TransferCacheHelper.clear_all_transfer_cache()
-            
-            BilingualMessages.success(request, 'transfer_created_success', transfer_number=transfer.id)
-            # ✅ Redirect to transfer_items with transfer_id (like sales/supply pattern)
-            return redirect('frontend:transfer_items', transfer_id=transfer.id)
-            
+            with transaction.atomic():
+                # Create workflow models
+                
+                # Get form data
+                from_vessel_id = request.POST.get('from_vessel')
+                to_vessel_id = request.POST.get('to_vessel')
+                transfer_date = request.POST.get('transfer_date')
+                notes = request.POST.get('notes', '').strip()
+                
+                # Validate required fields
+                if not all([from_vessel_id, to_vessel_id, transfer_date]):
+                    BilingualMessages.error(request, 'required_fields_missing')
+                    return redirect('frontend:transfer_entry')
+                
+                # Get vessels
+                from_vessel = Vessel.objects.get(id=from_vessel_id, active=True)
+                to_vessel = Vessel.objects.get(id=to_vessel_id, active=True)
+                
+                # Validate user can initiate transfers from from_vessel
+                can_initiate, error_msg = VesselOperationValidator.validate_transfer_initiation(
+                    request.user, from_vessel
+                )
+                if not can_initiate:
+                    BilingualMessages.error(request, 'vessel_access_denied', error=error_msg)
+                    return redirect('frontend:transfer_entry')
+                
+                # Validate vessels are different
+                if from_vessel_id == to_vessel_id:
+                    BilingualMessages.error(request, 'same_vessel_error')
+                    return redirect('frontend:transfer_entry')
+                
+                # Don't pre-assign TO user - let any authorized user for the vessel review
+                # This makes transfers vessel-based rather than user-specific
+                to_user = None  # Will be assigned when someone actually reviews the transfer
+                
+                # Parse transfer date
+                transfer_date_obj = datetime.strptime(transfer_date, '%Y-%m-%d').date()
+                
+                # Create base transfer record
+                base_transfer = Transfer.objects.create(
+                    from_vessel=from_vessel,
+                    to_vessel=to_vessel,
+                    transfer_date=transfer_date_obj,
+                    notes=notes,
+                    created_by=request.user,
+                    is_completed=False  # Will be completed through workflow
+                )
+                
+                # Create transfer workflow - both users pending until final approval
+                # Note: from_user and to_user will be set to final approvers only when confirmed
+                # Original creator is tracked in base_transfer.created_by
+                workflow = TransferWorkflow.objects.create(
+                    base_transfer=base_transfer,
+                    from_user=None,  # Will be set to final approver from FROM side
+                    to_user=None,    # Will be set to final approver from TO side  
+                    status='created',
+                    notes=notes
+                )
+                
+                # Clear transfer cache
+                TransferCacheHelper.clear_all_transfer_cache()
+                
+                BilingualMessages.success(request, 
+                    f'Transfer workflow created successfully. Transfer ID: {base_transfer.id}')
+                
+                # Redirect to transfer items page (now with workflow support)
+                return redirect('frontend:transfer_items', workflow_id=workflow.id)
+                
         except Vessel.DoesNotExist:
             BilingualMessages.error(request, 'invalid_vessel')
             return redirect('frontend:transfer_entry')
         except (ValueError, ValidationError) as e:
-            # Show actual error for debugging
             BilingualMessages.error(request, f'Validation error: {str(e)}')
             return redirect('frontend:transfer_entry')
         except Exception as e:
-            # Show actual error for debugging  
-            BilingualMessages.error(request, f'Actual error: {str(e)}')
+            logger.error(f"Error creating transfer workflow: {e}")
+            BilingualMessages.error(request, f'Error creating transfer: {str(e)}')
             return redirect('frontend:transfer_entry')
 
 @operations_access_required
-def transfer_items(request, transfer_id):
-    """Step 2: Multi-item transfer entry for a specific transfer (follows trip_sales/po_supply pattern)"""
+def transfer_items(request, workflow_id):
+    """Step 2: Multi-item transfer entry for workflow (collaborative transfer system)"""
     
-    # 🚀 OPTIMIZED: Check cache first for completed transfers (no DB query needed)
-    cached_data = TransferCacheHelper.get_completed_transfer_data(transfer_id)
-    if cached_data:
-        logger.debug(f"Cache hit: Completed transfer {transfer_id}")
-        return render(request, 'frontend/transfer_items.html', cached_data)
-    
+    # Try to get workflow by workflow ID first
     try:
-        # 🚀 SUPER OPTIMIZED: Single query with everything (like trip_sales/po_supply)
-        transfer = Transfer.objects.select_related(
-            'from_vessel', 'to_vessel', 'created_by'
-        ).prefetch_related(
-            Prefetch(
-                'transactions',
-                queryset=Transaction.objects.select_related(
-                    'product', 'product__category'
-                ).order_by('created_at')
-            )
-        ).get(id=transfer_id)
-        
-        # 🚀 FORCE: Get all transactions immediately to prevent additional queries
-        transfer_transactions = [
-            tx for tx in transfer.transactions.all() 
-            if tx.transaction_type == 'TRANSFER_OUT'
-        ]
-
-        
-    except Transfer.DoesNotExist:
-        BilingualMessages.error(request, 'Transfer not found.')
+        workflow = TransferWorkflow.objects.select_related(
+            'base_transfer__from_vessel',
+            'base_transfer__to_vessel', 
+            'from_user',
+            'to_user'
+        ).get(id=workflow_id)
+    except TransferWorkflow.DoesNotExist:
+        # If not found, maybe workflow_id is actually a Transfer ID
+        # Try to find TransferWorkflow by base_transfer__id
+        try:
+            workflow = TransferWorkflow.objects.select_related(
+                'base_transfer__from_vessel',
+                'base_transfer__to_vessel', 
+                'from_user',
+                'to_user'
+            ).get(base_transfer__id=workflow_id)
+            
+            # Redirect to the correct URL with the actual workflow ID
+            return redirect('frontend:transfer_items', workflow_id=workflow.id)
+        except TransferWorkflow.DoesNotExist:
+            raise Http404("No TransferWorkflow matches the given query.")
+    
+    # Access control for collaborative workflow:
+    # - FROM user can access during 'created' status (to add items)
+    # - Any user with operations access to TO vessel can review during 'submitted' status
+    # - TO user (if assigned) can access during review process
+    # - SuperUser can access anytime
+    from .permissions import can_access_operations
+    from vessel_management.models import UserVesselAssignment
+    
+    # Check if user has access to destination vessel
+    can_access_to_vessel = (
+        request.user.is_superuser or
+        UserVesselAssignment.can_user_access_vessel(request.user, workflow.base_transfer.to_vessel)
+    )
+    
+    # Check if user is original creator
+    is_original_creator = request.user == workflow.base_transfer.created_by
+    
+    # Check if user has vessel access for FROM vessel
+    can_access_from_vessel = (
+        request.user.is_superuser or
+        UserVesselAssignment.can_user_access_vessel(request.user, workflow.base_transfer.from_vessel)
+    )
+    
+    user_has_access = (
+        request.user.is_superuser or
+        # Original creator can always access their own transfers (especially for confirmation after edits)
+        is_original_creator or
+        # Any FROM vessel user with operations can access during creation and confirmations  
+        (can_access_from_vessel and can_access_operations(request.user) and workflow.status in ['created', 'submitted', 'pending_confirmation']) or
+        # Any TO vessel user with operations can access during review phases
+        (can_access_to_vessel and can_access_operations(request.user) and workflow.status in ['pending_review', 'submitted', 'under_review'])
+    )
+    
+    if not user_has_access:
+        BilingualMessages.error(request, 'You cannot modify this transfer at this time.')
         return redirect('frontend:transfer_entry')
     
-    # 🚀 OPTIMIZED: Use prefetched data for all calculations (no additional queries)
+    # Get the base transfer
+    transfer = workflow.base_transfer
+    
+    # Get existing transfer transactions (items already added)
+    existing_items = Transaction.objects.filter(
+        transfer=transfer,
+        transaction_type='TRANSFER_OUT'
+    ).select_related('product').order_by('created_at')
+    
+    # Calculate totals from existing items
+    total_cost = sum(float(item.total_amount) for item in existing_items)
+    transaction_count = existing_items.count()
+    
+    # Add calculated fields to transfer object for template compatibility
+    transfer.calculated_total_cost = total_cost
+    transfer.calculated_transaction_count = transaction_count
+    
+    # Process items for JSON (same structure as original transfer_items)
     existing_transfers = []
-    completed_transfers = []
+    for txn in existing_items:
+        existing_transfers.append({
+            'id': txn.id,
+            'product_id': txn.product.id,
+            'product_name': txn.product.name,
+            'product_item_id': txn.product.item_id,
+            'product_barcode': getattr(txn.product, 'barcode', '') or '',
+            'is_duty_free': getattr(txn.product, 'is_duty_free', False),
+            'quantity': int(txn.quantity),
+            'unit_price': float(txn.unit_price),
+            'total_amount': float(txn.total_amount),
+            'notes': txn.notes or '',
+            'created_at': txn.created_at.strftime('%H:%M')
+        })
     
-    if not transfer.is_completed:
-        # 🚀 OPTIMIZED: Process incomplete transfer using prefetched data (like trip_sales)
-        for txn in transfer_transactions:
-            existing_transfers.append({
-                'id': txn.id,
-                'product_id': txn.product.id,
-                'product_name': txn.product.name,
-                'product_item_id': txn.product.item_id,
-                'product_barcode': txn.product.barcode or '',
-                'is_duty_free': txn.product.is_duty_free,
-                'quantity': int(txn.quantity),
-                'unit_price': float(txn.unit_price),
-                'total_amount': float(txn.total_amount),
-                'notes': txn.notes or '',
-                'created_at': txn.created_at.strftime('%H:%M')
-            })
-    else:
-        # 🚀 OPTIMIZED: Process completed transfer using prefetched data (like po_supply)
-        logger.debug(f"Transfer {transfer.id} is completed, processing {len(transfer_transactions)} transactions")
-        
-        for txn in transfer_transactions:
-            logger.debug(f"Transaction {txn.id}: {txn.product.name}, Qty: {txn.quantity}, Price: {txn.unit_price}")
-            completed_transfers.append({
-                'product_name': txn.product.name,
-                'product_item_id': txn.product.item_id,
-                'product_barcode': txn.product.barcode or '',
-                'quantity': int(txn.quantity),
-                'unit_price': float(txn.unit_price),  # This is now the FIFO cost
-                'total_amount': float(txn.total_amount),
-                'is_duty_free': txn.product.is_duty_free,
-                'notes': txn.notes or '',
-                'created_at': txn.created_at.strftime('%H:%M')
-            })
-    
-    # Convert to JSON strings for safe template rendering (like trip_sales/po_supply)
+    # Convert to JSON for template
     existing_transfers_json = json.dumps(existing_transfers)
-    completed_transfers_json = json.dumps(completed_transfers)
     
-    logger.debug(f"Completed transfers JSON length: {len(completed_transfers_json)}")
-    
-    # Build final context (follows trip_sales/po_supply pattern)
     context = {
+        'workflow': workflow,
         'transfer': transfer,
         'existing_transfers_json': existing_transfers_json,
-        'completed_transfers_json': completed_transfers_json,
-        'can_edit': not transfer.is_completed,  # Key flag like trip_sales/po_supply
+        'completed_transfers_json': existing_transfers_json,  # For JavaScript compatibility
+        'can_edit': workflow.status == 'created',  # Can edit only during creation
+        'existing_items': existing_items,  # For template compatibility
     }
-    
-    # 🚀 CACHE: Store completed transfer data for future requests (like trip_sales/po_supply)
-    if transfer.is_completed:
-        TransferCacheHelper.cache_completed_transfer_data(transfer_id, context)
-        logger.debug(f"Cached completed transfer: {transfer_id}")
     
     return render(request, 'frontend/transfer_items.html', context)
 
@@ -564,9 +680,18 @@ def transfer_bulk_complete(request):
             Transaction.objects.bulk_update(created_out_transactions, ['related_transfer_id'])
             Transaction.objects.bulk_update(created_in_transactions, ['related_transfer_id'])
             
-            # 🚀 STEP 8: Mark transfer as completed
+            # 🚀 STEP 8: Mark transfer as completed and submit workflow for review
             transfer.is_completed = True
             transfer.save(update_fields=['is_completed'])
+            
+            # Submit workflow for review (move from 'created' to 'pending_review')
+            try:
+                workflow = transfer.workflow
+                if workflow and workflow.status == 'created':
+                    workflow.submit_for_review()
+                    logger.info(f"Workflow submitted for review: {workflow.id}")
+            except Exception as e:
+                logger.warning(f"Failed to submit workflow for review: {e}")
             
             logger.info(f"Transfer completed: {len(created_out_transactions)} items transferred")
             

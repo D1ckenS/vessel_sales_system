@@ -4,7 +4,8 @@ from django.urls import path
 from . import (views, auth_views, reports_views, export_views,
                product_views, category_views, supply_views, transfer_views, waste_views,
                sales_views, inventory_views, pricing_views, vessel_views, user_views,
-               group_views, trip_views, po_views, transaction_views, transfer_management_views, waste_management_views)
+               group_views, trip_views, po_views, transaction_views, transfer_management_views, 
+               waste_management_views, transfer_workflow_views)
 
 app_name = 'frontend'
 
@@ -34,6 +35,7 @@ urlpatterns = [
     path('users/<int:user_id>/reset-password/', user_views.reset_user_password, name='reset_user_password'),
     path('users/<int:user_id>/toggle-status/', user_views.toggle_user_status, name='toggle_user_status'),
     path('users/<int:user_id>/groups/', group_views.manage_user_groups, name='manage_user_groups'),
+    path('users/<int:user_id>/vessels/', user_views.manage_user_vessels, name='manage_user_vessels'),
     path('profile/', auth_views.user_profile, name='user_profile'),
     path('change-password/', user_views.change_password, name='change_password'),
     
@@ -123,7 +125,7 @@ urlpatterns = [
     
     # Transfer workflows
     path('transfer/', transfer_views.transfer_entry, name='transfer_entry'),  # Step 1: Create transfer
-    path('transfer/<int:transfer_id>/', transfer_views.transfer_items, name='transfer_items'),
+    path('transfer/<int:workflow_id>/', transfer_views.transfer_items, name='transfer_items'),
     path('transfer/bulk-complete/', transfer_views.transfer_bulk_complete, name='transfer_bulk_complete'),
     path('transfer/calculate-fifo-cost/', transfer_views.transfer_calculate_fifo_cost, name='transfer_calculate_fifo_cost'),
     path('transfer/cancel/', transfer_views.transfer_cancel, name='transfer_cancel'),
@@ -132,6 +134,16 @@ urlpatterns = [
     path('transfer/search-products/', transfer_views.transfer_search_products, name='transfer_search_products'),
     path('transfer/execute/', transfer_views.transfer_execute, name='transfer_execute'),
     path('transfer/available-products/', transfer_views.transfer_available_products, name='transfer_available_products'),
+    
+    # Transfer Workflow System (Collaborative Two-Party Approval) - These routes provide workflow-specific functionality
+    path('transfer-workflow/', transfer_workflow_views.transfer_workflow_dashboard, name='transfer_workflow_dashboard'),
+    path('transfer-workflow/<int:workflow_id>/review/', transfer_workflow_views.transfer_workflow_review, name='transfer_workflow_review'),
+    path('transfer-workflow/<int:workflow_id>/history/', transfer_workflow_views.transfer_workflow_history, name='transfer_workflow_history'),
+    path('transfer-workflow/submit/', transfer_workflow_views.transfer_workflow_submit, name='transfer_workflow_submit'),
+    path('transfer-workflow/edit-quantities/', transfer_workflow_views.transfer_workflow_edit_quantities, name='transfer_workflow_edit_quantities'),
+    path('transfer-workflow/confirm/', transfer_workflow_views.transfer_workflow_confirm, name='transfer_workflow_confirm'),
+    path('transfer-workflow/notifications/', transfer_workflow_views.transfer_notifications_list, name='transfer_notifications_list'),
+    path('transfer-workflow/notifications/mark-read/', transfer_workflow_views.transfer_notification_mark_read, name='transfer_notification_mark_read'),
     
     # Waste - Two-step workflow
     path('waste/', waste_views.waste_entry, name='waste_entry'),  # Step 1: Create waste report

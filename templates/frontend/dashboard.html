@@ -40,6 +40,36 @@
     </div>
 </div>
 
+<!-- 🔔 Transfer Workflow Notifications -->
+{% if transfer_notifications.show_notification %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="alert alert-danger d-flex align-items-center justify-content-between" role="alert">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-exclamation-triangle-fill fs-4 me-3"></i>
+                <div>
+                    <h5 class="alert-heading mb-1">
+                        <span data-translate="pending_transfers_attention">Pending Transfers - Attention Required</span>
+                    </h5>
+                    <p class="mb-0">
+                        <strong>{{ transfer_notifications.pending_count }}</strong> 
+                        <span data-translate="transfer{% if transfer_notifications.pending_count != 1 %}s{% endif %}_require_action">transfer{% if transfer_notifications.pending_count != 1 %}s{% endif %} require your action</span>
+                        {% if transfer_notifications.pending_to_user > 0 %}
+                            - <span data-translate="confirmation_required">Confirmation required</span>
+                        {% elif transfer_notifications.pending_from_user > 0 %}
+                            - <span data-translate="awaiting_your_response">Awaiting your response</span>
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+            <a href="{% url 'frontend:transfer_workflow_dashboard' %}" class="btn btn-light btn-lg">
+                <i class="bi bi-eye"></i> <span data-translate="view_transfers">View Transfers</span>
+            </a>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Quick Stats -->
 <div class="row mb-4">
     <div class="col-md-3 col-sm-6 mb-3">

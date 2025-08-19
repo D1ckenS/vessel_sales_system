@@ -118,6 +118,29 @@ function manageUserGroups(userId, username, userGroups) {
     new bootstrap.Modal(document.getElementById('manageGroupsModal')).show();
 }
 
+function moveUserVessels(userId, username, userVessels) {
+    // Set user info in modal
+    document.getElementById('manageVesselsUserId').value = userId;
+    document.getElementById('manageVesselsUsername').textContent = username;
+    
+    // Clear all checkboxes
+    document.querySelectorAll('#manageVesselsForm input[name="vessels"]').forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    
+    // Check boxes for user's current vessels
+    userVessels.forEach(vesselId => {
+        const checkbox = document.querySelector(`#manageVesselsForm input[name="vessels"][value="${vesselId}"]`);
+        if (checkbox) {
+            checkbox.checked = true;
+        }
+    });
+    
+    document.getElementById('manageVesselsForm').action = `/users/${userId}/vessels/`;
+    
+    new bootstrap.Modal(document.getElementById('manageVesselsModal')).show();
+}
+
 function resetPassword(userId, username) {
     confirmTranslated('confirm_reset_password', { username: username }).then(confirmed => {
         if (confirmed) {

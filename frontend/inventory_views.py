@@ -8,14 +8,16 @@ from products.models import Product
 from transactions.models import Transaction, InventoryLot
 from .utils import BilingualMessages
 from products.models import Product
+from vessel_management.utils import VesselAccessHelper, VesselOperationValidator
 import json
 
 @login_required
 def inventory_check(request):
     """OPTIMIZED: Inventory check with FIFO cost calculation"""
     
-    # Get all vessels for selection
-    vessels = VesselCacheHelper.get_active_vessels()
+    # Get vessels user has access to
+    all_vessels_qs = Vessel.objects.filter(active=True)
+    vessels = VesselAccessHelper.filter_vessels_by_user_access(all_vessels_qs, request.user)
     selected_vessel_id = request.GET.get('vessel')
     
     if not selected_vessel_id:
@@ -40,6 +42,11 @@ def inventory_check(request):
     
     # Get selected vessel
     selected_vessel = get_object_or_404(Vessel, id=selected_vessel_id, active=True)
+    
+    # Validate user has access to this vessel
+    if not VesselAccessHelper.can_user_access_vessel(request.user, selected_vessel):
+        BilingualMessages.error(request, 'vessel_access_denied', vessel=selected_vessel.name)
+        return redirect('frontend:inventory_check')
     
     # Get filter parameters
     product_search = request.GET.get('search', '').strip()

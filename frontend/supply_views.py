@@ -49,6 +49,7 @@ from .permissions import (
     reports_access_required,
     admin_or_manager_required
 )
+from vessel_management.utils import VesselAccessHelper, VesselOperationValidator, VesselFormHelper
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +58,9 @@ def supply_entry(request):
     """Step 1: Create new purchase order for supply transactions - OPTIMIZED"""
     
     if request.method == 'GET':
-        vessels = VesselCacheHelper.get_active_vessels()
+        # Get vessels user has access to
+        all_vessels_qs = Vessel.objects.filter(active=True)
+        vessels = VesselAccessHelper.filter_vessels_by_user_access(all_vessels_qs, request.user)
         
         # 🚀 OPTIMIZED: Check cache for recent POs with cost data
         cached_pos = POCacheHelper.get_recent_pos_with_cost()
@@ -105,6 +108,9 @@ def supply_entry(request):
             'today': date.today(),
         }
         
+        # Add vessel auto-population context
+        context = VesselFormHelper.add_vessel_context_to_view(context, request.user, 'supply')
+        
         return render(request, 'frontend/supply_entry.html', context)
     
     elif request.method == 'POST':
@@ -122,6 +128,12 @@ def supply_entry(request):
             
             # Get vessel
             vessel = Vessel.objects.get(id=vessel_id, active=True)
+            
+            # Validate user has access to this vessel for inventory operations
+            can_access, error_msg = VesselOperationValidator.validate_inventory_access(request.user, vessel)
+            if not can_access:
+                BilingualMessages.error(request, 'vessel_access_denied', error=error_msg)
+                return redirect('frontend:supply_entry')
             
             # Validate PO number uniqueness
             if PurchaseOrder.objects.filter(po_number=po_number).exists():

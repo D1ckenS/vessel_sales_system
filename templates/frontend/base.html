@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block title %}Vessel Sales System{% endblock %}</title>
     
     <!-- Bootstrap CSS -->
@@ -84,7 +85,7 @@
                     <!-- Transfers - Administrators & Vessel Operators Only -->
                     {% if user_permissions.can_access_operations %}
                     <li class="nav-item">
-                        <a class="nav-link {% if request.resolver_match.url_name == 'transfer_entry' %}active{% endif %}" 
+                        <a class="nav-link {% if request.resolver_match.url_name == 'transfer_entry' or request.resolver_match.url_name == 'transfer_items' or request.resolver_match.url_name == 'transfer_workflow_dashboard' %}active{% endif %}" 
                            href="{% url 'frontend:transfer_entry' %}">
                             <i class="bi bi-arrow-left-right"></i> <span data-translate="transfers">Transfers</span>
                         </a>
@@ -159,8 +160,8 @@
                             
                             <li><hr class="dropdown-divider"></li>
                             
-                            <!-- System Management (Superuser only) -->
-                            {% if user_permissions.is_superuser %}
+                            <!-- System Management (Admins, Managers & Superusers) -->
+                            {% if user_permissions.is_admin_or_manager %}
                             <li><h6 class="dropdown-header"><span data-translate="system_management">System Management</span></h6></li>
                             <li><a class="dropdown-item" href="{% url 'frontend:user_management' %}"><i class="bi bi-people"></i> <span data-translate="user_management">User Management</span></a></li>
                             <li><a class="dropdown-item" href="{% url 'frontend:vessel_management' %}"><i class="bi bi-gear-wide-connected"></i> <span data-translate="vessel_management">Vessel Management</span></a></li>

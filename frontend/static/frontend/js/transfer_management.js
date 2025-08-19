@@ -112,11 +112,25 @@ function performTransferUpdate(transferId, formData, statusChanged, newStatus) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // After successful status toggle, update other fields if needed
-                if (formData.transfer_date || formData.notes) {
-                    updateTransferFields(transferId, formData, saveButton, data.message);
+                // Check if this is a restart workflow action (completed → incomplete)
+                if (data.action === 'restart_workflow' && data.redirect_url) {
+                    // Show success message and redirect to transfer_items page
+                    window.standardizeLoadingStates(saveButton, false);
+                    window.showAlert(data.message, 'success');
+                    bootstrap.Modal.getInstance(document.getElementById('editTransferModal')).hide();
+                    
+                    // Redirect after a short delay to show the message
+                    setTimeout(() => {
+                        window.location.href = data.redirect_url;
+                    }, 1500);
                 } else {
-                    handleTransferUpdateSuccess(saveButton, data.message);
+                    // Normal status toggle or mark as completed
+                    // After successful status toggle, update other fields if needed
+                    if (formData.transfer_date || formData.notes) {
+                        updateTransferFields(transferId, formData, saveButton, data.message);
+                    } else {
+                        handleTransferUpdateSuccess(saveButton, data.message);
+                    }
                 }
             } else {
                 handleTransferUpdateError(saveButton, data.error || 'Failed to update transfer status');

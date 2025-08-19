@@ -1,0 +1,478 @@
+{% extends 'frontend/base.html' %}
+{% load static %}
+
+{% block title %}Transfer History - Workflow #{{ workflow.id }} - Vessel Sales System{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>
+                    <i class="bi bi-clock-history text-primary"></i> 
+                    <span data-translate="transfer_history">Transfer History</span>
+                </h2>
+                <p class="text-muted mb-0">
+                    <span data-translate="workflow_id">Workflow ID:</span> #{{ workflow.id }} - 
+                    <span class="badge bg-danger">{{ workflow.base_transfer.from_vessel.name }}</span>
+                    <i class="bi bi-arrow-right mx-1"></i>
+                    <span class="badge bg-success">{{ workflow.base_transfer.to_vessel.name }}</span>
+                </p>
+            </div>
+            <div class="d-flex gap-2">
+                {% if workflow.status == 'pending_confirmation' and workflow.current_pending_user == user %}
+                <button type="button" class="btn btn-success" onclick="confirmTransfer()">
+                    <i class="bi bi-check-circle"></i> <span data-translate="confirm_changes">Confirm Changes</span>
+                </button>
+                {% endif %}
+                <a href="{% url 'frontend:transfer_workflow_dashboard' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> <span data-translate="back_to_dashboard">Back to Dashboard</span>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Transfer Status Overview -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-info-circle"></i> 
+                    <span data-translate="transfer_overview">Transfer Overview</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-2">
+                        <strong><span data-translate="from_user">From User:</span></strong><br>
+                        <span class="badge bg-danger fs-6">{{ workflow.from_user.username }}</span>
+                    </div>
+                    <div class="col-md-2">
+                        <strong><span data-translate="to_user">To User:</span></strong><br>
+                        {% if workflow.to_user %}
+                            <span class="badge bg-success fs-6">{{ workflow.to_user.username }}</span>
+                        {% else %}
+                            <span class="badge bg-warning fs-6"><span data-translate="pending">Pending</span></span>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-2">
+                        <strong><span data-translate="current_status">Current Status:</span></strong><br>
+                        {% if workflow.status == 'created' %}
+                            <span class="badge bg-secondary">{{ workflow.get_status_display }}</span>
+                        {% elif workflow.status == 'pending_review' %}
+                            <span class="badge bg-warning">{{ workflow.get_status_display }}</span>
+                        {% elif workflow.status == 'under_review' %}
+                            <span class="badge bg-info">{{ workflow.get_status_display }}</span>
+                        {% elif workflow.status == 'pending_confirmation' %}
+                            <span class="badge bg-warning">{{ workflow.get_status_display }}</span>
+                        {% elif workflow.status == 'confirmed' %}
+                            <span class="badge bg-success">{{ workflow.get_status_display }}</span>
+                        {% elif workflow.status == 'completed' %}
+                            <span class="badge bg-success">{{ workflow.get_status_display }}</span>
+                        {% elif workflow.status == 'rejected' %}
+                            <span class="badge bg-danger">{{ workflow.get_status_display }}</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ workflow.get_status_display }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-2">
+                        <strong><span data-translate="transfer_date">Transfer Date:</span></strong><br>
+                        {{ transfer.transfer_date|date:"M d, Y" }}
+                    </div>
+                    <div class="col-md-2">
+                        <strong><span data-translate="mutual_agreement">Mutual Agreement:</span></strong><br>
+                        {% if workflow.mutual_agreement %}
+                            <span class="badge bg-success"><i class="bi bi-check-circle"></i> Yes</span>
+                        {% else %}
+                            <span class="badge bg-warning"><i class="bi bi-clock"></i> Pending</span>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-2">
+                        <strong><span data-translate="has_edits">Has Edits:</span></strong><br>
+                        {% if workflow.has_edits %}
+                            <span class="badge bg-info"><i class="bi bi-pencil"></i> Yes</span>
+                        {% else %}
+                            <span class="badge bg-secondary"><i class="bi bi-dash"></i> No</span>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Current Action Needed -->
+                {% if workflow.is_pending_action %}
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle"></i> 
+                            <strong><span data-translate="action_required">Action Required:</span></strong>
+                            {% if workflow.current_pending_user == user %}
+                                <span data-translate="you_need_to_act">You need to take action on this transfer.</span>
+                            {% else %}
+                                <span data-translate="waiting_for_user">Waiting for {{ workflow.current_pending_user.username }} to take action.</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Transfer Items -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-list-check"></i> 
+                    <span data-translate="transfer_items">Transfer Items</span>
+                    <span class="badge bg-secondary ms-2">{{ transfer_items|length }}</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if transfer_items %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th><span data-translate="product">Product</span></th>
+                                <th><span data-translate="quantity">Quantity</span></th>
+                                <th><span data-translate="unit_price">Unit Price</span></th>
+                                <th><span data-translate="total_amount">Total Amount</span></th>
+                                <th><span data-translate="notes">Notes</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in transfer_items %}
+                            <tr>
+                                <td>
+                                    <strong>{{ item.product.name }}</strong><br>
+                                    <small class="text-muted">{{ item.product.name_ar }}</small>
+                                </td>
+                                <td>
+                                    <span class="badge bg-primary">{{ item.quantity }} {{ item.product.unit }}</span>
+                                </td>
+                                <td>
+                                    ${{ item.unit_price|floatformat:2 }}
+                                </td>
+                                <td>
+                                    <strong>${{ item.total_amount|floatformat:2 }}</strong>
+                                </td>
+                                <td>
+                                    {% if item.notes %}
+                                        <small>{{ item.notes }}</small>
+                                    {% else %}
+                                        <em class="text-muted">-</em>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot>
+                            <tr class="table-secondary">
+                                <th colspan="3"><span data-translate="total">Total</span></th>
+                                <th>
+                                    <strong>${{ total_amount|floatformat:2 }}</strong>
+                                </th>
+                                <th></th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit History -->
+{% if item_edits %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-warning">
+            <div class="card-header bg-warning text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-pencil"></i> 
+                    <span data-translate="quantity_edits">Quantity Edit History</span>
+                    <span class="badge bg-light text-dark ms-2">{{ item_edits|length }}</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                {% for edit in item_edits %}
+                <div class="alert alert-warning">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <strong>{{ edit.product.name }}</strong><br>
+                            <small class="text-muted">{{ edit.product.name_ar }}</small>
+                        </div>
+                        <div class="col-md-3">
+                            <span data-translate="quantity_change">Quantity Change:</span><br>
+                            <span class="badge bg-secondary">{{ edit.original_quantity }}</span>
+                            <i class="bi bi-arrow-right"></i>
+                            <span class="badge bg-warning">{{ edit.edited_quantity }}</span>
+                            {% if edit.quantity_change > 0 %}
+                                <span class="badge bg-success">+{{ edit.quantity_change }}</span>
+                            {% elif edit.quantity_change < 0 %}
+                                <span class="badge bg-danger">{{ edit.quantity_change }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">
+                                <span data-translate="edited_by">Edited by:</span> {{ edit.edited_by.username }}<br>
+                                <span data-translate="on">On:</span> {{ edit.edited_at|date:"M d, Y H:i" }}
+                            </small>
+                        </div>
+                    </div>
+                    {% if edit.edit_reason %}
+                    <div class="row mt-2">
+                        <div class="col-12">
+                            <strong><span data-translate="reason">Reason:</span></strong> {{ edit.edit_reason }}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Process Timeline -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-clock-history"></i> 
+                    <span data-translate="process_timeline">Process Timeline</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="timeline">
+                    <!-- Created -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker bg-primary"></div>
+                        <div class="timeline-content">
+                            <h6><span data-translate="transfer_created">Transfer Created</span></h6>
+                            <p class="mb-1"><strong>{{ workflow.from_user.username }}</strong> created this transfer</p>
+                            <small class="text-muted">{{ workflow.created_at|date:"M d, Y H:i" }}</small>
+                        </div>
+                    </div>
+
+                    {% if workflow.submitted_at %}
+                    <!-- Submitted -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker bg-warning"></div>
+                        <div class="timeline-content">
+                            <h6><span data-translate="submitted_for_review">Submitted for Review</span></h6>
+                            <p class="mb-1">Transfer submitted to <strong>{{ workflow.to_user.username }}</strong></p>
+                            <small class="text-muted">{{ workflow.submitted_at|date:"M d, Y H:i" }}</small>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if workflow.reviewed_at %}
+                    <!-- Review Started -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker bg-info"></div>
+                        <div class="timeline-content">
+                            <h6><span data-translate="review_started">Review Started</span></h6>
+                            <p class="mb-1"><strong>{{ workflow.to_user.username }}</strong> started reviewing</p>
+                            <small class="text-muted">{{ workflow.reviewed_at|date:"M d, Y H:i" }}</small>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if workflow.has_edits and workflow.last_edited_at %}
+                    <!-- Edits Made -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker bg-warning"></div>
+                        <div class="timeline-content">
+                            <h6><span data-translate="quantities_edited">Quantities Edited</span></h6>
+                            <p class="mb-1"><strong>{{ workflow.last_edited_by.username }}</strong> made quantity changes</p>
+                            <small class="text-muted">{{ workflow.last_edited_at|date:"M d, Y H:i" }}</small>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if workflow.to_user_confirmed %}
+                    <!-- TO User Confirmed -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker bg-success"></div>
+                        <div class="timeline-content">
+                            <h6><span data-translate="to_user_confirmed">TO User Confirmed</span></h6>
+                            <p class="mb-1"><strong>{{ workflow.to_user.username }}</strong> confirmed the transfer</p>
+                            <small class="text-muted">
+                                {% if workflow.has_edits %}
+                                    <span data-translate="with_edits">With edits - awaiting FROM user confirmation</span>
+                                {% else %}
+                                    <span data-translate="no_edits">No edits - ready for execution</span>
+                                {% endif %}
+                            </small>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if workflow.from_user_confirmed %}
+                    <!-- FROM User Confirmed -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker bg-success"></div>
+                        <div class="timeline-content">
+                            <h6><span data-translate="from_user_confirmed">FROM User Confirmed Edits</span></h6>
+                            <p class="mb-1"><strong>{{ workflow.from_user.username }}</strong> confirmed the edited transfer</p>
+                            <small class="text-muted">{{ workflow.confirmed_at|date:"M d, Y H:i" }}</small>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if workflow.status == 'completed' %}
+                    <!-- Completed -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker bg-success"></div>
+                        <div class="timeline-content">
+                            <h6><span data-translate="transfer_completed">Transfer Completed</span></h6>
+                            <p class="mb-1">Inventory updated and transfer executed</p>
+                            <small class="text-muted">{{ workflow.completed_at|date:"M d, Y H:i" }}</small>
+                        </div>
+                    </div>
+                    {% elif workflow.status == 'rejected' %}
+                    <!-- Rejected -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker bg-danger"></div>
+                        <div class="timeline-content">
+                            <h6><span data-translate="transfer_rejected">Transfer Rejected</span></h6>
+                            {% if workflow.rejection_reason %}
+                            <p class="mb-1"><strong><span data-translate="reason">Reason:</span></strong> {{ workflow.rejection_reason }}</p>
+                            {% endif %}
+                            <small class="text-muted">Rejected</small>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Notifications -->
+{% if notifications %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-bell"></i> 
+                    <span data-translate="notifications">Notifications</span>
+                    <span class="badge bg-secondary ms-2">{{ notifications|length }}</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                {% for notification in notifications %}
+                <div class="alert alert-{% if notification.is_urgent %}warning{% else %}info{% endif %}">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <strong>{{ notification.title }}</strong><br>
+                            <small>{{ notification.message }}</small><br>
+                            <small class="text-muted">
+                                <span data-translate="to">To:</span> {{ notification.recipient.username }} - 
+                                {{ notification.created_at|date:"M d, Y H:i" }}
+                                {% if notification.is_read %}
+                                    <span class="badge bg-success ms-2">Read</span>
+                                {% else %}
+                                    <span class="badge bg-warning ms-2">Unread</span>
+                                {% endif %}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.timeline {
+    position: relative;
+    padding-left: 2rem;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 1rem;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #dee2e6;
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 2rem;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -1.5rem;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 3px #dee2e6;
+}
+
+.timeline-content {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 0.375rem;
+    border-left: 3px solid #dee2e6;
+}
+
+.timeline-content h6 {
+    margin-bottom: 0.5rem;
+    color: #495057;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function confirmTransfer() {
+    if (!confirm('Confirm the changes made to this transfer? This will approve the edited transfer.')) return;
+    
+    fetch('{% url "frontend:transfer_workflow_confirm" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({
+            workflow_id: {{ workflow.id }},
+            action: 'confirm'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Transfer confirmed successfully! ' + data.message);
+            window.location.href = '{% url "frontend:transfer_workflow_dashboard" %}';
+        } else {
+            alert('Error confirming transfer: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error confirming transfer:', error);
+        alert('Error confirming transfer');
+    });
+}
+</script>
+{% endblock %}

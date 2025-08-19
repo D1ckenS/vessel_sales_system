@@ -1,0 +1,399 @@
+{% extends 'frontend/base.html' %}
+{% load static %}
+
+{% block title %}Transfer Notifications - Vessel Sales System{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>
+                    <i class="bi bi-bell text-primary"></i> 
+                    <span data-translate="transfer_notifications">Transfer Notifications</span>
+                </h2>
+                <p class="text-muted mb-0">
+                    <span data-translate="notification_center">Manage your transfer workflow notifications</span>
+                </p>
+            </div>
+            <div class="d-flex gap-2">
+                {% if unread_count > 0 %}
+                <button type="button" class="btn btn-outline-success" onclick="markAllAsRead()">
+                    <i class="bi bi-check-all"></i> <span data-translate="mark_all_read">Mark All as Read</span>
+                </button>
+                {% endif %}
+                <a href="{% url 'frontend:transfer_workflow_dashboard' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> <span data-translate="back_to_dashboard">Back to Dashboard</span>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Notification Stats -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h4 class="card-title mb-0">{{ unread_count }}</h4>
+                        <p class="card-text"><span data-translate="unread_notifications">Unread Notifications</span></p>
+                    </div>
+                    <i class="bi bi-bell" style="font-size: 2rem;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h4 class="card-title mb-0">{{ notifications.paginator.count }}</h4>
+                        <p class="card-text"><span data-translate="total_notifications">Total Notifications</span></p>
+                    </div>
+                    <i class="bi bi-list" style="font-size: 2rem;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h4 class="card-title mb-0">{{ read_count }}</h4>
+                        <p class="card-text"><span data-translate="read_notifications">Read Notifications</span></p>
+                    </div>
+                    <i class="bi bi-check-circle" style="font-size: 2rem;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filter Options -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label for="statusFilter" class="form-label">
+                            <span data-translate="filter_by_status">Filter by Status</span>
+                        </label>
+                        <select class="form-select" id="statusFilter" onchange="filterNotifications()">
+                            <option value="all"><span data-translate="all_notifications">All Notifications</span></option>
+                            <option value="unread"><span data-translate="unread_only">Unread Only</span></option>
+                            <option value="read"><span data-translate="read_only">Read Only</span></option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="typeFilter" class="form-label">
+                            <span data-translate="filter_by_type">Filter by Type</span>
+                        </label>
+                        <select class="form-select" id="typeFilter" onchange="filterNotifications()">
+                            <option value="all"><span data-translate="all_types">All Types</span></option>
+                            <option value="transfer_submitted"><span data-translate="transfer_submitted">Transfer Submitted</span></option>
+                            <option value="review_started"><span data-translate="review_started">Review Started</span></option>
+                            <option value="edits_made"><span data-translate="edits_made">Edits Made</span></option>
+                            <option value="transfer_confirmed"><span data-translate="transfer_confirmed">Transfer Confirmed</span></option>
+                            <option value="transfer_rejected"><span data-translate="transfer_rejected">Transfer Rejected</span></option>
+                            <option value="transfer_completed"><span data-translate="transfer_completed">Transfer Completed</span></option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="urgentFilter" class="form-label">
+                            <span data-translate="filter_by_urgency">Filter by Urgency</span>
+                        </label>
+                        <select class="form-select" id="urgentFilter" onchange="filterNotifications()">
+                            <option value="all"><span data-translate="all_urgency">All Urgency Levels</span></option>
+                            <option value="urgent"><span data-translate="urgent_only">Urgent Only</span></option>
+                            <option value="normal"><span data-translate="normal_only">Normal Only</span></option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Notifications List -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-list-ul"></i> 
+                    <span data-translate="all_notifications">All Notifications</span>
+                </h5>
+                <div>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="selectAll()">
+                        <i class="bi bi-check-square"></i> <span data-translate="select_all">Select All</span>
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="clearSelection()">
+                        <i class="bi bi-square"></i> <span data-translate="clear_selection">Clear Selection</span>
+                    </button>
+                    <button type="button" class="btn btn-success btn-sm" onclick="markSelectedAsRead()" id="markSelectedBtn" disabled>
+                        <i class="bi bi-check"></i> <span data-translate="mark_selected_read">Mark Selected as Read</span>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if notifications %}
+                <div id="notificationsList">
+                    {% for notification in notifications %}
+                    <div class="notification-item border-bottom py-3 
+                                {% if not notification.is_read %}bg-light{% endif %}
+                                {% if notification.is_urgent %}border-warning{% endif %}"
+                         data-notification-id="{{ notification.id }}"
+                         data-is-read="{{ notification.is_read|yesno:'true,false' }}"
+                         data-type="{{ notification.notification_type }}"
+                         data-is-urgent="{{ notification.is_urgent|yesno:'true,false' }}">
+                        
+                        <div class="row align-items-center">
+                            <div class="col-auto">
+                                <input type="checkbox" class="form-check-input notification-checkbox" 
+                                       value="{{ notification.id }}" onchange="updateMarkSelectedButton()">
+                            </div>
+                            <div class="col-auto">
+                                <!-- Notification Icon -->
+                                {% if notification.notification_type == 'transfer_submitted' %}
+                                    <i class="bi bi-send text-warning fs-4"></i>
+                                {% elif notification.notification_type == 'review_started' %}
+                                    <i class="bi bi-eye text-info fs-4"></i>
+                                {% elif notification.notification_type == 'edits_made' %}
+                                    <i class="bi bi-pencil text-warning fs-4"></i>
+                                {% elif notification.notification_type == 'transfer_confirmed' %}
+                                    <i class="bi bi-check-circle text-success fs-4"></i>
+                                {% elif notification.notification_type == 'transfer_rejected' %}
+                                    <i class="bi bi-x-circle text-danger fs-4"></i>
+                                {% elif notification.notification_type == 'transfer_completed' %}
+                                    <i class="bi bi-check-all text-success fs-4"></i>
+                                {% else %}
+                                    <i class="bi bi-bell text-secondary fs-4"></i>
+                                {% endif %}
+                            </div>
+                            <div class="col">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div class="flex-grow-1">
+                                        <h6 class="mb-1 {% if not notification.is_read %}fw-bold{% endif %}">
+                                            {{ notification.title }}
+                                            {% if notification.is_urgent %}
+                                                <span class="badge bg-warning ms-2">
+                                                    <i class="bi bi-exclamation-triangle"></i> <span data-translate="urgent_badge">Urgent</span>
+                                                </span>
+                                            {% endif %}
+                                            {% if not notification.is_read %}
+                                                <span class="badge bg-primary ms-2"><span data-translate="new_badge">New</span></span>
+                                            {% endif %}
+                                        </h6>
+                                        <p class="mb-1 text-muted">{{ notification.message }}</p>
+                                        <small class="text-muted">
+                                            <i class="bi bi-clock"></i> {{ notification.created_at|timesince }} ago
+                                            {% if notification.workflow %}
+                                                - <span data-translate="workflow">Workflow</span> #{{ notification.workflow.id }}
+                                                ({{ notification.workflow.base_transfer.from_vessel.name }} → 
+                                                {{ notification.workflow.base_transfer.to_vessel.name }})
+                                            {% endif %}
+                                            {% if notification.is_read %}
+                                                <br><i class="bi bi-check-circle text-success"></i> 
+                                                <span data-translate="read_on">Read on</span> {{ notification.read_at|date:"M d, Y H:i" }}
+                                            {% endif %}
+                                        </small>
+                                    </div>
+                                    <div class="d-flex gap-2">
+                                        {% if notification.workflow %}
+                                        <a href="{% url 'frontend:transfer_workflow_history' notification.workflow.id %}" 
+                                           class="btn btn-outline-primary btn-sm">
+                                            <i class="bi bi-eye"></i> <span data-translate="view">View</span>
+                                        </a>
+                                        {% endif %}
+                                        {% if not notification.is_read %}
+                                        <button type="button" class="btn btn-outline-success btn-sm"
+                                                onclick="markAsRead({{ notification.id }})">
+                                            <i class="bi bi-check"></i> <span data-translate="mark_read">Mark Read</span>
+                                        </button>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Pagination -->
+                {% if notifications.has_other_pages %}
+                <nav aria-label="Notifications pagination" class="mt-4">
+                    <ul class="pagination justify-content-center">
+                        {% if notifications.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ notifications.previous_page_number }}">
+                                    <i class="bi bi-chevron-left"></i> <span data-translate="previous">Previous</span>
+                                </a>
+                            </li>
+                        {% endif %}
+                        
+                        {% for num in notifications.paginator.page_range %}
+                            {% if num == notifications.number %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ num }}</span>
+                                </li>
+                            {% elif num > notifications.number|add:'-3' and num < notifications.number|add:'3' %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if notifications.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ notifications.next_page_number }}">
+                                    <span data-translate="next">Next</span> <i class="bi bi-chevron-right"></i>
+                                </a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-bell-slash text-muted" style="font-size: 4rem;"></i>
+                    <h4 class="text-muted mt-3"><span data-translate="no_notifications">No Notifications</span></h4>
+                    <p class="text-muted">
+                        <span data-translate="no_notifications_desc">You don't have any transfer notifications yet</span>
+                    </p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function filterNotifications() {
+    const statusFilter = document.getElementById('statusFilter').value;
+    const typeFilter = document.getElementById('typeFilter').value;
+    const urgentFilter = document.getElementById('urgentFilter').value;
+    
+    const notifications = document.querySelectorAll('.notification-item');
+    
+    notifications.forEach(notification => {
+        let show = true;
+        
+        // Status filter
+        if (statusFilter !== 'all') {
+            const isRead = notification.getAttribute('data-is-read') === 'true';
+            if (statusFilter === 'read' && !isRead) show = false;
+            if (statusFilter === 'unread' && isRead) show = false;
+        }
+        
+        // Type filter
+        if (typeFilter !== 'all') {
+            const type = notification.getAttribute('data-type');
+            if (type !== typeFilter) show = false;
+        }
+        
+        // Urgency filter
+        if (urgentFilter !== 'all') {
+            const isUrgent = notification.getAttribute('data-is-urgent') === 'true';
+            if (urgentFilter === 'urgent' && !isUrgent) show = false;
+            if (urgentFilter === 'normal' && isUrgent) show = false;
+        }
+        
+        notification.style.display = show ? 'block' : 'none';
+    });
+}
+
+function selectAll() {
+    const checkboxes = document.querySelectorAll('.notification-checkbox');
+    const visibleCheckboxes = Array.from(checkboxes).filter(cb => 
+        cb.closest('.notification-item').style.display !== 'none'
+    );
+    
+    visibleCheckboxes.forEach(checkbox => {
+        checkbox.checked = true;
+    });
+    
+    updateMarkSelectedButton();
+}
+
+function clearSelection() {
+    const checkboxes = document.querySelectorAll('.notification-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    
+    updateMarkSelectedButton();
+}
+
+function updateMarkSelectedButton() {
+    const checkedBoxes = document.querySelectorAll('.notification-checkbox:checked');
+    const markSelectedBtn = document.getElementById('markSelectedBtn');
+    
+    markSelectedBtn.disabled = checkedBoxes.length === 0;
+    markSelectedBtn.innerHTML = `<i class="bi bi-check"></i> <span data-translate="mark_selected_as_read_count">Mark Selected as Read</span> (${checkedBoxes.length})`;
+}
+
+function markSelectedAsRead() {
+    const checkedBoxes = document.querySelectorAll('.notification-checkbox:checked');
+    const notificationIds = Array.from(checkedBoxes).map(cb => cb.value);
+    
+    if (notificationIds.length === 0) return;
+    
+    markNotificationsAsRead(notificationIds);
+}
+
+function markAllAsRead() {
+    if (!confirm('Mark all notifications as read?')) return;
+    
+    const allNotificationIds = Array.from(document.querySelectorAll('.notification-checkbox'))
+        .map(cb => cb.value);
+    
+    markNotificationsAsRead(allNotificationIds);
+}
+
+function markAsRead(notificationId) {
+    markNotificationsAsRead([notificationId]);
+}
+
+function markNotificationsAsRead(notificationIds) {
+    fetch('{% url "frontend:transfer_notification_mark_read" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({
+            notification_ids: notificationIds
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Reload page to show updated status
+            location.reload();
+        } else {
+            alert('Error marking notifications as read: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error marking notifications as read:', error);
+        alert('Error updating notification status');
+    });
+}
+
+// Auto-refresh notifications every 60 seconds
+setInterval(function() {
+    if (document.hasFocus()) {
+        location.reload();
+    }
+}, 60000);
+</script>
+{% endblock %}

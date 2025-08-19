@@ -4,6 +4,8 @@ from django.contrib.auth import authenticate, login
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import User, Group
 from django.db import transaction
+from vessel_management.models import UserVesselAssignment
+from vessels.models import Vessel
 
 logger = logging.getLogger('frontend')
 from frontend.utils.validation_helpers import ValidationHelper
@@ -38,7 +40,8 @@ def create_user(request):
                 'password_confirm': request.POST.get('password_confirm'),
                 'is_active': request.POST.get('is_active') == 'on',
                 'is_staff': request.POST.get('is_staff') == 'on',
-                'group_ids': request.POST.getlist('groups')
+                'group_ids': request.POST.getlist('groups'),
+                'vessel_ids': request.POST.getlist('vessels')
             }
             
             valid, error = ValidationHelper.validate_required_fields(
@@ -89,14 +92,50 @@ def create_user(request):
                 if data['group_ids']:
                     groups = Group.objects.filter(id__in=data['group_ids'])
                     user.groups.set(groups)
+                
+                # Handle vessel assignments
+                if data['vessel_ids']:
+                    vessels = Vessel.objects.filter(id__in=data['vessel_ids'], active=True)
+                    for vessel in vessels:
+                        UserVesselAssignment.objects.create(
+                            user=user,
+                            vessel=vessel,
+                            assigned_by=request.user,
+                            is_active=True,
+                            can_make_sales=True,
+                            can_receive_inventory=True,
+                            can_initiate_transfers=True,
+                            can_approve_transfers=True,
+                            notes=f'Assigned during user creation by {request.user.username}'
+                        )
+                elif not user.is_superuser:
+                    # Assign to first active vessel by default for non-superusers
+                    first_vessel = Vessel.objects.filter(active=True).first()
+                    if first_vessel:
+                        UserVesselAssignment.objects.create(
+                            user=user,
+                            vessel=first_vessel,
+                            assigned_by=request.user,
+                            is_active=True,
+                            can_make_sales=True,
+                            can_receive_inventory=True,
+                            can_initiate_transfers=True,
+                            can_approve_transfers=True,
+                            notes=f'Default assignment to {first_vessel.name} during user creation'
+                        )
             
             group_names = list(user.groups.values_list('name', flat=True))
             group_info = f" and assigned to groups: {', '.join(group_names)}" if group_names else ""
             
+            # Get vessel assignments
+            vessel_assignments = UserVesselAssignment.objects.filter(user=user, is_active=True)
+            vessel_names = [assignment.vessel.name for assignment in vessel_assignments]
+            vessel_info = f" and assigned to vessels: {', '.join(vessel_names)}" if vessel_names else ""
+            
             return FormResponseHelper.success_redirect(
                 request, 'frontend:user_management',
-                'User "{username}" created successfully{group_info}',
-                username=data['username'], group_info=group_info
+                'User "{username}" created successfully{group_info}{vessel_info}',
+                username=data['username'], group_info=group_info, vessel_info=vessel_info
             )
             
         except Exception as e:
@@ -272,6 +311,70 @@ def change_password(request):
 
 @login_required
 @user_passes_test(is_admin_or_manager)
+@require_http_methods(["POST"])
+def manage_user_vessels(request, user_id):
+    """Manage vessel assignments for a user"""
+    user, error = CRUDHelper.safe_get_object(User, user_id, 'User')
+    if error:
+        return FormResponseHelper.error_redirect(
+            request, 'frontend:user_management', 'User not found'
+        )
+    
+    if user.is_superuser:
+        return FormResponseHelper.error_redirect(
+            request, 'frontend:user_management', 'Cannot modify SuperUser vessel assignments'
+        )
+    
+    try:
+        vessel_ids = request.POST.getlist('vessels')
+        
+        with transaction.atomic():
+            # Remove all current active assignments
+            UserVesselAssignment.objects.filter(user=user).update(is_active=False)
+            
+            # Create new assignments
+            if vessel_ids:
+                vessels = Vessel.objects.filter(id__in=vessel_ids, active=True)
+                for vessel in vessels:
+                    UserVesselAssignment.objects.update_or_create(
+                        user=user,
+                        vessel=vessel,
+                        defaults={
+                            'is_active': True,
+                            'can_make_sales': True,
+                            'can_receive_inventory': True,
+                            'can_initiate_transfers': True,
+                            'can_approve_transfers': True,
+                            'assigned_by': request.user,
+                            'notes': f'Vessel assignment updated by {request.user.username}'
+                        }
+                    )
+            
+            # Clear cache
+            try:
+                UserManagementCacheHelper.clear_user_management_cache()
+            except Exception as e:
+                logger.warning(f"⚠️ Cache clear error: {e}")
+        
+        # Get updated vessel assignments for response
+        vessel_assignments = UserVesselAssignment.objects.filter(user=user, is_active=True)
+        vessel_names = [assignment.vessel.name for assignment in vessel_assignments]
+        vessel_info = f" to vessels: {', '.join(vessel_names)}" if vessel_names else " (no vessels assigned)"
+        
+        return FormResponseHelper.success_redirect(
+            request, 'frontend:user_management',
+            'User "{username}" vessel assignments updated successfully{vessel_info}',
+            username=user.username, vessel_info=vessel_info
+        )
+        
+    except Exception as e:
+        return FormResponseHelper.error_redirect(
+            request, 'frontend:user_management',
+            'Error updating vessel assignments: {error}', error=str(e)
+        )
+
+@login_required
+@user_passes_test(is_admin_or_manager)
 def user_management(request):
     """🚀 Optimized: Minimal queries with caching, no template-based N+1"""
 
@@ -292,6 +395,10 @@ def user_management(request):
     # Annotate group counts
     groups = Group.objects.annotate(user_count=Count('user')).order_by('name')
     groups_list = list(groups)
+    
+    # Get active vessels for vessel assignment
+    vessels = Vessel.objects.filter(active=True).order_by('name')
+    vessels_list = list(vessels)
 
     # 🧮 Build user stats
     total_users = len(users_list)
@@ -306,15 +413,28 @@ def user_management(request):
     total_groups = len(groups_list)
     empty_groups = sum(1 for group in groups_list if group.user_count == 0)
 
-    # 🧠 Precompute group data to avoid repeated .all() calls in template
+    # 🧠 Precompute group data and vessel assignments to avoid repeated .all() calls in template
     for user in users_list:
         user.group_ids = [group.id for group in user.groups.all()]
         user.group_names = [group.name for group in user.groups.all()]
+        
+        # Get vessel assignments for each user
+        if user.is_superuser:
+            user.vessel_display = "All Vessels (SuperUser)"
+            user.vessel_ids = []
+        else:
+            vessel_assignments = UserVesselAssignment.objects.filter(
+                user=user, is_active=True
+            ).select_related('vessel')
+            user.vessel_names = [assignment.vessel.name for assignment in vessel_assignments]
+            user.vessel_ids = [assignment.vessel.id for assignment in vessel_assignments]
+            user.vessel_display = ', '.join(user.vessel_names) if user.vessel_names else "No vessels assigned"
 
     # 📦 Package context
     context = {
         'users': users_list,
         'groups': groups_list,
+        'vessels': vessels_list,
         'stats': {
             'total_users': total_users,
             'active_users': active_users,

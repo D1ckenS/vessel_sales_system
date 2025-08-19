@@ -23,6 +23,7 @@ from .permissions import (
     get_user_role,
     UserRoles
 )
+from vessel_management.utils import VesselAccessHelper, VesselOperationValidator, VesselFormHelper
 
 @operations_access_required
 def sales_entry(request):
@@ -36,7 +37,9 @@ def sales_entry(request):
         logger.debug(f"Referer: {request.META.get('HTTP_REFERER', 'None')}")
         logger.debug(f"Cache-Control: {request.META.get('HTTP_CACHE_CONTROL', 'None')}")
         
-        vessels = VesselCacheHelper.get_active_vessels()
+        # Get vessels user has access to
+        all_vessels_qs = Vessel.objects.filter(active=True)
+        vessels = VesselAccessHelper.filter_vessels_by_user_access(all_vessels_qs, request.user)
                 
         # Get user's role
         user_role = get_user_role(request.user)
@@ -93,7 +96,11 @@ def sales_entry(request):
             'recent_trips': recent_trips,
             'today': date.today(),
             'user_role': user_role,
-        }        
+        }
+        
+        # Add vessel auto-population context
+        context = VesselFormHelper.add_vessel_context_to_view(context, request.user, 'sales')
+        
         return render(request, 'frontend/sales_entry.html', context)
     
     elif request.method == 'POST':
@@ -112,6 +119,12 @@ def sales_entry(request):
             
             # Get vessel
             vessel = Vessel.objects.get(id=vessel_id, active=True)
+            
+            # Validate user has access to this vessel for sales
+            can_access, error_msg = VesselOperationValidator.validate_sales_access(request.user, vessel)
+            if not can_access:
+                BilingualMessages.error(request, 'vessel_access_denied', error=error_msg)
+                return redirect('frontend:sales_entry')
             
             # Validate trip number uniqueness
             if Trip.objects.filter(trip_number=trip_number).exists():
@@ -179,6 +192,12 @@ def trip_sales(request, trip_id):
         
         # 🚀 FORCE: Get all transactions immediately to prevent additional queries
         sales_transactions = list(trip.sales_transactions.all())
+        
+        # Validate user has access to this vessel
+        can_access, error_msg = VesselOperationValidator.validate_sales_access(request.user, trip.vessel)
+        if not can_access:
+            BilingualMessages.error(request, 'vessel_access_denied', error=error_msg)
+            return redirect('frontend:sales_entry')
         
     except Trip.DoesNotExist:
         BilingualMessages.error(request, 'Trip not found.')

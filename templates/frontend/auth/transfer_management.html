@@ -190,16 +190,26 @@
                                         <small class="text-muted"><span data-translate="items">items</span></small>
                                     </td>
                                     <td>
-                                        {% if transfer.is_completed %}
+                                        {% if transfer.is_actually_completed %}
                                             <span class="badge transfer-status-completed">
                                                 <i class="bi bi-check-circle me-1"></i>
                                                 <span data-translate="completed">Completed</span>
                                             </span>
+                                            {% if transfer.workflow %}
+                                                <small class="d-block text-muted mt-1">
+                                                    <i class="bi bi-diagram-3"></i> <span data-translate="workflow">Workflow</span>
+                                                </small>
+                                            {% endif %}
                                         {% else %}
                                             <span class="badge transfer-status-in-progress">
                                                 <i class="bi bi-clock me-1"></i>
                                                 <span data-translate="in_progress">In Progress</span>
                                             </span>
+                                            {% if transfer.workflow %}
+                                                <small class="d-block text-muted mt-1">
+                                                    <i class="bi bi-diagram-3"></i> {{ transfer.workflow.get_status_display }}
+                                                </small>
+                                            {% endif %}
                                         {% endif %}
                                     </td>
                                     <td class="created-by-column">

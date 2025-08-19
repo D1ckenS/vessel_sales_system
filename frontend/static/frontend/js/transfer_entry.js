@@ -82,13 +82,26 @@ function selectFromVessel(vesselId, element, vesselNameEn, vesselNameAr, hasDuty
     
     // Update button text
     const buttonText = document.getElementById('selectedFromVesselText');
-    buttonText.innerHTML = element.innerHTML;
+    if (buttonText) {
+        if (element && element.innerHTML) {
+            buttonText.innerHTML = element.innerHTML;
+        } else {
+            // Fallback for auto-population (when element is null)
+            const vesselIcon = '<i class="bi bi-ship me-2 text-danger"></i>';
+            const vesselBadge = hasDutyFree ? '<span class="badge bg-success ms-2"><span data-translate="duty_free">Duty-Free</span></span>' : '';
+            buttonText.innerHTML = `${vesselIcon}<span class="vessel-name" data-en="${vesselNameEn}" data-ar="${vesselNameAr}">${vesselNameEn}</span>${vesselBadge}`;
+        }
+    }
     
     // Update active state
     document.querySelectorAll('#fromVesselDropdown + .dropdown-menu .dropdown-item').forEach(item => {
         item.classList.remove('active');
     });
-    element.classList.add('active');
+    
+    // Only update active state if element exists (manual selection)
+    if (element && element.classList) {
+        element.classList.add('active');
+    }
     
     // Close dropdown
     const dropdown = bootstrap.Dropdown.getInstance(document.getElementById('fromVesselDropdown'));
@@ -114,13 +127,26 @@ function selectToVessel(vesselId, element, vesselNameEn, vesselNameAr, hasDutyFr
     
     // Update button text
     const buttonText = document.getElementById('selectedToVesselText');
-    buttonText.innerHTML = element.innerHTML;
+    if (buttonText) {
+        if (element && element.innerHTML) {
+            buttonText.innerHTML = element.innerHTML;
+        } else {
+            // Fallback for auto-population (when element is null)
+            const vesselIcon = '<i class="bi bi-ship me-2 text-success"></i>';
+            const vesselBadge = hasDutyFree ? '<span class="badge bg-success ms-2"><span data-translate="duty_free">Duty-Free</span></span>' : '';
+            buttonText.innerHTML = `${vesselIcon}<span class="vessel-name" data-en="${vesselNameEn}" data-ar="${vesselNameAr}">${vesselNameEn}</span>${vesselBadge}`;
+        }
+    }
     
     // Update active state
     document.querySelectorAll('#toVesselDropdown + .dropdown-menu .dropdown-item').forEach(item => {
         item.classList.remove('active');
     });
-    element.classList.add('active');
+    
+    // Only update active state if element exists (manual selection)
+    if (element && element.classList) {
+        element.classList.add('active');
+    }
     
     // Close dropdown
     const dropdown = bootstrap.Dropdown.getInstance(document.getElementById('toVesselDropdown'));
@@ -139,37 +165,63 @@ function populateToVesselDropdown(excludeVesselId) {
     // Clear existing options
     toVesselMenu.innerHTML = '';
     
-    // Get all vessels from the from vessel dropdown
-    const fromVesselItems = document.querySelectorAll('#fromVesselDropdown + .dropdown-menu .dropdown-item');
+    // Get vessel data from backend (more reliable than reading from DOM)
+    let vesselData = [];
     
-    fromVesselItems.forEach(item => {
-        const vesselId = item.getAttribute('data-value');
-        const vesselName = item.getAttribute('data-name');
-        const vesselNameAr = item.getAttribute('data-name-ar');
-        const hasDutyFree = item.getAttribute('data-duty-free') === 'True';
-        
-        // Exclude the selected source vessel
-        if (vesselId !== excludeVesselId) {
+    // Try to get data from vesselAutoPopulateData first
+    if (window.vesselAutoPopulateData && window.vesselAutoPopulateData.transferToVessels) {
+        vesselData = window.vesselAutoPopulateData.transferToVessels;
+    } else {
+        // Fallback: Get all vessels from the from vessel dropdown
+        const fromVesselItems = document.querySelectorAll('#fromVesselDropdown + .dropdown-menu .dropdown-item');
+        vesselData = Array.from(fromVesselItems).map(item => ({
+            id: item.getAttribute('data-value'),
+            name: item.getAttribute('data-name'),
+            nameAr: item.getAttribute('data-name-ar'),
+            hasDutyFree: item.getAttribute('data-duty-free') === 'True'
+        }));
+        console.log('🚢 Using fallback DOM vessel data:', vesselData);
+    }
+    
+    // Populate dropdown with available vessels (excluding the selected source vessel)
+    let addedVessels = 0;
+    vesselData.forEach(vessel => {
+        // Exclude the selected source vessel (ensure string comparison)
+        if (String(vessel.id) !== String(excludeVesselId)) {
             const li = document.createElement('li');
             const a = document.createElement('a');
             a.className = 'dropdown-item';
             a.href = '#';
-            a.setAttribute('data-value', vesselId);
-            a.setAttribute('data-name', vesselName);
-            a.setAttribute('data-name-ar', vesselNameAr);
-            a.setAttribute('data-duty-free', hasDutyFree);
-            a.setAttribute('onclick', `selectToVessel('${vesselId}', this, '${vesselName}', '${vesselNameAr}', ${hasDutyFree})`);
+            a.setAttribute('data-value', vessel.id);
+            a.setAttribute('data-name', vessel.name);
+            a.setAttribute('data-name-ar', vessel.nameAr || vessel.name);
+            a.setAttribute('data-duty-free', vessel.hasDutyFree);
+            a.setAttribute('onclick', `selectToVessel('${vessel.id}', this, '${vessel.name}', '${vessel.nameAr || vessel.name}', ${vessel.hasDutyFree})`);
             
             a.innerHTML = `
                 <i class="bi bi-ship me-2 text-success"></i>
-                <span class="vessel-name" data-en="${vesselName}" data-ar="${vesselNameAr}">${vesselName}</span>
-                ${hasDutyFree ? '<span class="badge bg-success ms-2"><span data-translate="duty_free">Duty-Free</span></span>' : ''}
+                <span class="vessel-name" data-en="${vessel.name}" data-ar="${vessel.nameAr || vessel.name}">${vessel.name}</span>
+                ${vessel.hasDutyFree ? '<span class="badge bg-success ms-2"><span data-translate="duty_free">Duty-Free</span></span>' : ''}
             `;
             
             li.appendChild(a);
             toVesselMenu.appendChild(li);
+            addedVessels++;
+        } else {
+            console.log('🚢 Excluding vessel:', vessel.name, '(ID:', vessel.id + ') - matches FROM vessel');
         }
     });
+        
+    // If no vessels were added, show a message
+    if (addedVessels === 0) {
+        const li = document.createElement('li');
+        const span = document.createElement('span');
+        span.className = 'dropdown-item-text text-muted';
+        span.innerHTML = '<i class="bi bi-exclamation-triangle me-2"></i>No destination vessels available';
+        li.appendChild(span);
+        toVesselMenu.appendChild(li);
+        console.log('⚠️ No vessels available for TO dropdown');
+    }
     
     // Enable the destination dropdown
     toVesselButton.disabled = false;

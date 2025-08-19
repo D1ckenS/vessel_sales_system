@@ -231,7 +231,6 @@ class SecurityHeadersMiddleware(MiddlewareMixin):
             if csp_parts:
                 # Override any existing CSP header
                 response['Content-Security-Policy'] = '; '.join(csp_parts)
-                print("Injected CSP:", response.get('Content-Security-Policy'))
         
         # Additional security headers
         response['Permissions-Policy'] = (

@@ -2229,6 +2229,356 @@ class FilterManager {
     }
 }
 
+/* =============================================================================
+   Vessel Auto-Population System
+   ============================================================================= */
+
+class VesselAutoPopulator {
+    constructor(data) {
+        this.data = data || {};
+        this.defaultVesselId = data?.defaultVesselId;
+        this.defaultVesselName = data?.defaultVesselName;
+        this.defaultVesselNameAr = data?.defaultVesselNameAr;
+        this.defaultVesselHasDutyFree = data?.defaultVesselHasDutyFree;
+        this.vesselChoices = data?.vesselChoices || [];
+        this.transferFromVessels = data?.transferFromVessels || [];
+        this.transferToVessels = data?.transferToVessels || [];
+        this.enabled = data?.enabled || false;
+        this.initialized = false;
+    }
+
+    // Initialize vessel auto-population on page load
+    init() {
+        if (this.initialized) return;
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            this.setupVesselAutoPopulation();
+            this.setupSmartVesselDefaults();
+        });
+        
+        this.initialized = true;
+    }
+
+    // Setup vessel auto-population for forms
+    setupVesselAutoPopulation() {
+        // Look for vessel dropdowns and auto-populate them
+        const vesselSelects = document.querySelectorAll('select[name="vessel"], select[name="from_vessel"], select[name="to_vessel"]');
+        
+        vesselSelects.forEach(select => {
+            this.autoPopulateVesselSelect(select);
+        });
+    }
+
+    // Auto-populate a specific vessel select element
+    autoPopulateVesselSelect(selectElement) {
+        // Check if we have default vessel data from the backend
+        const defaultVesselId = this.getDefaultVesselId();
+        const userVesselChoices = this.getUserVesselChoices();
+        
+        if (defaultVesselId && selectElement.querySelector(`option[value="${defaultVesselId}"]`)) {
+            selectElement.value = defaultVesselId;
+            
+            // Trigger change event for any dependent functionality
+            selectElement.dispatchEvent(new Event('change', { bubbles: true }));
+            
+            // Add visual indicator for auto-populated field
+            this.addAutoPopulatedIndicator(selectElement);
+        }
+        
+        // For transfer forms, handle smart defaults
+        if (selectElement.name === 'from_vessel' || selectElement.name === 'to_vessel') {
+            this.setupTransferVesselLogic(selectElement);
+        }
+    }
+
+    // Get default vessel ID from backend context
+    getDefaultVesselId() {
+        // Use data passed to constructor first
+        if (this.defaultVesselId) {
+            return this.defaultVesselId;
+        }
+        
+        // Try to get from global context set by backend
+        if (window.vesselContext && window.vesselContext.userDefaultVessel) {
+            return window.vesselContext.userDefaultVessel.id;
+        }
+        
+        // Fallback: Try to get from data attributes or localStorage
+        const savedVesselId = localStorage.getItem('user_default_vessel_id');
+        return savedVesselId;
+    }
+
+    // Get user vessel choices from backend context
+    getUserVesselChoices() {
+        return this.vesselChoices || window.vesselContext?.userVesselChoices || [];
+    }
+
+    // Add visual indicator for auto-populated fields
+    addAutoPopulatedIndicator(element) {
+        // Add a subtle visual indicator
+        element.style.borderLeft = '3px solid #28a745';
+        
+        // Add tooltip or badge
+        const indicator = document.createElement('small');
+        indicator.className = 'text-success ms-1';
+        indicator.innerHTML = '<i class="bi bi-check-circle"></i> Auto-selected';
+        indicator.style.fontSize = '0.75rem';
+        
+        // Insert after the select element
+        if (element.parentNode) {
+            element.parentNode.insertBefore(indicator, element.nextSibling);
+        }
+        
+        // Remove indicator after user interaction
+        element.addEventListener('change', () => {
+            element.style.borderLeft = '';
+            if (indicator.parentNode) {
+                indicator.remove();
+            }
+        }, { once: true });
+    }
+
+    // Setup smart vessel defaults based on context
+    setupSmartVesselDefaults() {
+        // Smart defaults for specific forms
+        this.setupSalesFormDefaults();
+        this.setupSupplyFormDefaults();
+        this.setupTransferFormDefaults();
+    }
+
+    // Setup sales form smart defaults
+    setupSalesFormDefaults() {
+        const salesForm = document.querySelector('form[action*="sales"]');
+        if (!salesForm) return;
+        
+        // Auto-populate trip date to today if empty
+        const tripDateInput = salesForm.querySelector('input[name="trip_date"]');
+        if (tripDateInput && !tripDateInput.value) {
+            const today = new Date().toISOString().split('T')[0];
+            tripDateInput.value = today;
+        }
+    }
+
+    // Setup supply form smart defaults
+    setupSupplyFormDefaults() {
+        const supplyForm = document.querySelector('form[action*="supply"]');
+        if (!supplyForm) return;
+        
+        // Auto-populate PO date to today if empty
+        const poDateInput = supplyForm.querySelector('input[name="po_date"]');
+        if (poDateInput && !poDateInput.value) {
+            const today = new Date().toISOString().split('T')[0];
+            poDateInput.value = today;
+        }
+    }
+
+    // Setup transfer form smart defaults and logic
+    setupTransferFormDefaults() {
+        const transferForm = document.querySelector('form[action*="transfer"]');
+        if (!transferForm) return;
+        
+        // Auto-populate transfer date to today if empty
+        const transferDateInput = transferForm.querySelector('input[name="transfer_date"]');
+        if (transferDateInput && !transferDateInput.value) {
+            const today = new Date().toISOString().split('T')[0];
+            transferDateInput.value = today;
+        }
+    }
+
+    // Setup transfer vessel logic (prevent same vessel selection)
+    setupTransferVesselLogic(selectElement) {
+        const form = selectElement.closest('form');
+        if (!form) return;
+        
+        const fromVesselSelect = form.querySelector('select[name="from_vessel"]');
+        const toVesselSelect = form.querySelector('select[name="to_vessel"]');
+        
+        if (!fromVesselSelect || !toVesselSelect) return;
+        
+        // Add change listeners to prevent same vessel selection
+        [fromVesselSelect, toVesselSelect].forEach(select => {
+            select.addEventListener('change', () => {
+                this.updateTransferVesselOptions(fromVesselSelect, toVesselSelect);
+            });
+        });
+    }
+
+    // Update transfer vessel options to prevent same vessel selection
+    updateTransferVesselOptions(fromSelect, toSelect) {
+        const fromValue = fromSelect.value;
+        const toValue = toSelect.value;
+        
+        // If same vessel is selected, show warning and suggest alternative
+        if (fromValue && toValue && fromValue === toValue) {
+            // Show warning message
+            this.showSameVesselWarning(toSelect);
+            
+            // Auto-select alternative vessel if available
+            const alternativeOption = Array.from(toSelect.options).find(
+                option => option.value !== fromValue && option.value !== ''
+            );
+            
+            if (alternativeOption) {
+                toSelect.value = alternativeOption.value;
+                this.addAutoPopulatedIndicator(toSelect);
+            }
+        }
+    }
+
+    // Show warning for same vessel selection
+    showSameVesselWarning(element) {
+        // Remove existing warnings
+        const existingWarning = element.parentNode?.querySelector('.same-vessel-warning');
+        if (existingWarning) {
+            existingWarning.remove();
+        }
+        
+        // Create warning message
+        const warning = document.createElement('div');
+        warning.className = 'same-vessel-warning text-warning mt-1';
+        warning.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Cannot transfer to the same vessel';
+        warning.style.fontSize = '0.875rem';
+        
+        // Insert warning
+        if (element.parentNode) {
+            element.parentNode.appendChild(warning);
+        }
+        
+        // Remove warning after 3 seconds
+        setTimeout(() => {
+            if (warning.parentNode) {
+                warning.remove();
+            }
+        }, 3000);
+    }
+
+    // Context-aware vessel filtering
+    filterVesselsByContext(selectElement, context) {
+        // This could be used for advanced filtering based on user permissions
+        // For now, this is handled by the backend via VesselFormHelper
+        
+        // Future enhancement: Client-side filtering based on operation type
+        // e.g., show only vessels where user can make sales for sales forms
+    }
+
+    // Save user's vessel preference
+    saveVesselPreference(vesselId, context = 'general') {
+        const key = `user_preferred_vessel_${context}`;
+        localStorage.setItem(key, vesselId);
+    }
+
+    // Get user's vessel preference
+    getVesselPreference(context = 'general') {
+        const key = `user_preferred_vessel_${context}`;
+        return localStorage.getItem(key);
+    }
+
+    /**
+     * Initialize vessel auto-population for supply forms
+     */
+    initializeSupplyForm() {
+        if (!this.enabled) return;
+        
+        const vesselInput = document.getElementById('vesselInput');
+        if (vesselInput && this.defaultVesselId) {
+            // Auto-populate hidden input
+            vesselInput.value = this.defaultVesselId;
+            
+            // Auto-populate dropdown display
+            const vesselDropdown = document.getElementById('vesselDropdown');
+            const selectedVesselText = document.getElementById('selectedVesselText');
+            
+            if (vesselDropdown && selectedVesselText) {
+                selectedVesselText.innerHTML = `<i class="bi bi-ship me-2"></i>${this.defaultVesselName}`;
+                this.addAutoPopulatedIndicator(vesselDropdown);
+            }
+        }
+    }
+
+    /**
+     * Initialize vessel auto-population for sales forms
+     */
+    initializeSalesForm() {
+        if (!this.enabled) return;
+        
+        const vesselInput = document.getElementById('vesselInput');
+        if (vesselInput && this.defaultVesselId) {
+            // Auto-populate hidden input
+            vesselInput.value = this.defaultVesselId;
+            
+            // Auto-populate dropdown display
+            const vesselDropdown = document.getElementById('vesselDropdown');
+            const selectedVesselText = document.getElementById('selectedVesselText');
+            
+            if (vesselDropdown && selectedVesselText) {
+                selectedVesselText.innerHTML = `<i class="bi bi-ship me-2"></i>${this.defaultVesselName}`;
+                this.addAutoPopulatedIndicator(vesselDropdown);
+            }
+        }
+    }
+
+    /**
+     * Initialize vessel auto-population for transfer forms
+     */
+    initializeTransferForm() {
+        if (!this.enabled) return;
+        
+        // Auto-populate FROM vessel with user's default vessel
+        const fromVesselInput = document.getElementById('fromVesselInput');
+        if (fromVesselInput && this.defaultVesselId) {
+            // Check if user has transfer_from permission for this vessel
+            const canTransferFrom = this.transferFromVessels.find(v => v.id === this.defaultVesselId);
+            
+            if (canTransferFrom) {
+                fromVesselInput.value = this.defaultVesselId;
+                
+                const fromVesselDropdown = document.getElementById('fromVesselDropdown');
+                const selectedFromVesselText = document.getElementById('selectedFromVesselText');
+                
+                if (fromVesselDropdown && selectedFromVesselText) {
+                    selectedFromVesselText.innerHTML = `<i class="bi bi-ship me-2 text-danger"></i>${this.defaultVesselName}`;
+                    this.addAutoPopulatedIndicator(fromVesselDropdown);
+                    
+                    // Trigger the vessel selection to enable TO dropdown
+                    if (window.selectFromVessel) {
+                        window.selectFromVessel(this.defaultVesselId, null, this.defaultVesselName, this.defaultVesselNameAr, this.defaultVesselHasDutyFree);
+                    }
+                }
+            }
+        }
+        
+        // Note: TO vessel auto-suggestion disabled for transfers
+        // Users should manually select destination vessel after choosing source
+    }
+
+    /**
+     * Suggest TO vessel for transfers (different from FROM vessel)
+     */
+    suggestToVessel() {
+        const fromVesselId = document.getElementById('fromVesselInput')?.value;
+        if (!fromVesselId) return;
+        
+        // Find a different vessel from the transfer_to vessels list
+        const suggestedVessel = this.transferToVessels.find(v => v.id !== fromVesselId);
+        
+        if (suggestedVessel) {
+            const toVesselInput = document.getElementById('toVesselInput');
+            const toVesselDropdown = document.getElementById('toVesselDropdown');
+            const selectedToVesselText = document.getElementById('selectedToVesselText');
+            
+            if (toVesselInput && toVesselDropdown && selectedToVesselText && !toVesselDropdown.disabled) {
+                // Auto-select the suggested vessel
+                toVesselInput.value = suggestedVessel.id;
+                selectedToVesselText.innerHTML = `<i class="bi bi-ship me-2 text-success"></i>${suggestedVessel.name} <small class="text-muted">(auto-selected)</small>`;
+                
+                // Add auto-populated indicator
+                toVesselDropdown.style.borderLeft = '3px solid #17a2b8';
+                toVesselDropdown.title = 'Auto-selected based on your permissions';
+            }
+        }
+    }
+}
+
 // Export classes to global scope
 window.DropdownManager = DropdownManager;
 window.FormHandler = FormHandler;
@@ -2237,3 +2587,8 @@ window.DataTableManager = DataTableManager;
 window.SpecializedTranslator = SpecializedTranslator;
 window.PageManager = PageManager;
 window.FilterManager = FilterManager;
+window.VesselAutoPopulator = VesselAutoPopulator;
+
+// Initialize vessel auto-population
+window.vesselAutoPopulator = new VesselAutoPopulator();
+window.vesselAutoPopulator.init();

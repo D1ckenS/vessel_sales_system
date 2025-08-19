@@ -43,7 +43,8 @@
                             </label>
                             <div class="dropdown w-100">
                                 <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start btn-lg" type="button" 
-                                        id="vesselDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                        id="vesselDropdown" data-bs-toggle="dropdown" aria-expanded="false"
+                                        {% if vessel_dropdown_readonly %}disabled{% endif %}>
                                     <span id="selectedVesselText">
                                         <span data-translate="choose_vessel">Choose vessel...</span>
                                     </span>
@@ -195,4 +196,31 @@
 
 {% block extra_js %}
 <script src="{% static 'frontend/js/supply_entry.js' %}"></script>
+<script>
+// Vessel auto-population data from backend
+window.vesselAutoPopulateData = {
+    defaultVesselId: {% if user_default_vessel %}'{{ user_default_vessel.id }}'{% else %}null{% endif %},
+    defaultVesselName: {% if user_default_vessel %}'{{ user_default_vessel.name|escapejs }}'{% else %}null{% endif %},
+    defaultVesselNameAr: {% if user_default_vessel %}'{{ user_default_vessel.name_ar|escapejs }}'{% else %}null{% endif %},
+    defaultVesselHasDutyFree: {% if user_default_vessel %}{{ user_default_vessel.has_duty_free|yesno:'true,false' }}{% else %}null{% endif %},
+    vesselChoices: [
+        {% for vessel_id, vessel_name, is_default in user_vessel_choices %}
+        {
+            id: '{{ vessel_id }}',
+            name: '{{ vessel_name|escapejs }}',
+            isDefault: {{ is_default|yesno:'true,false' }}
+        }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ],
+    enabled: {{ vessel_auto_populate_enabled|yesno:'true,false' }}
+};
+
+// Initialize vessel auto-population
+document.addEventListener('DOMContentLoaded', function() {
+    if (window.VesselAutoPopulator && window.vesselAutoPopulateData.enabled) {
+        const autoPopulator = new VesselAutoPopulator(window.vesselAutoPopulateData);
+        autoPopulator.initializeSupplyForm();
+    }
+});
+</script>
 {% endblock %}

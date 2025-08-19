@@ -838,9 +838,13 @@ class Transaction(models.Model):
         
         # Auto-populate vessel fields for transfers
         if self.transaction_type == 'TRANSFER_OUT':
-            self.transfer_from_vessel = self.vessel
+            # For TRANSFER_OUT: vessel = from_vessel, transfer_to_vessel = destination
+            # Do NOT set transfer_from_vessel (it's only for TRANSFER_IN)
+            pass  # transfer_to_vessel should be set explicitly in the creation
         elif self.transaction_type == 'TRANSFER_IN':
-            self.transfer_to_vessel = self.vessel
+            # For TRANSFER_IN: vessel = to_vessel, transfer_from_vessel = source
+            # Do NOT set transfer_to_vessel (it should remain NULL for TRANSFER_IN)
+            pass  # transfer_from_vessel should be set explicitly in the creation
         
         # Set default unit price from product if not specified (for non-transfers only)
         if self.transaction_type not in ['TRANSFER_OUT', 'TRANSFER_IN'] and not self.unit_price and self.product:
@@ -854,7 +858,12 @@ class Transaction(models.Model):
             if self.transaction_type == 'SALE':
                 self._validate_and_consume_inventory()
             elif self.transaction_type == 'TRANSFER_OUT':
-                self._validate_and_consume_for_transfer()
+                # Check if this is a workflow transfer that's still pending approval
+                if self._is_workflow_transfer_pending():
+                    logger.info(f"Skipping FIFO consumption for pending workflow transfer: {self.transfer.id}")
+                    # Don't consume inventory yet - wait for workflow approval
+                else:
+                    self._validate_and_consume_for_transfer()
             elif self.transaction_type == 'WASTE':
                 self._validate_and_consume_for_waste()
             
@@ -876,7 +885,11 @@ class Transaction(models.Model):
             if self.transaction_type == 'SUPPLY':
                 self._handle_supply()
             elif self.transaction_type == 'TRANSFER_OUT' and not self.related_transfer:
-                self._complete_transfer_idempotent()
+                # Only auto-complete transfer if it's not part of a pending workflow
+                if not self._is_workflow_transfer_pending():
+                    self._complete_transfer_idempotent()
+                else:
+                    logger.info(f"Skipping auto-complete for pending workflow transfer: {self.transfer.id}")
     
     def _validate_and_consume_inventory(self):
         """
@@ -905,7 +918,7 @@ class Transaction(models.Model):
         lot_updates = []
         fifo_records = []
         inventory_events = []
-        sequence = 0
+        sequence = 1
         
         logger.info(f"Starting FIFO consumption: {self.product.name} on {self.vessel.name}, Qty: {self.quantity}")
         
@@ -991,9 +1004,12 @@ class Transaction(models.Model):
                 f"Available: {total_available}, Requested: {self.quantity}"
             )
         
-        # ✅ IMPROVED: Consume inventory using FIFO within the lock with better logging
-        remaining_to_consume = int(self.quantity)
-        consumption_details = []
+        # ✅ IMPROVED: Consume inventory using FIFO within the lock (same as sales)
+        remaining_to_consume = self.quantity  # Keep as Decimal
+        lot_updates = []
+        fifo_records = []
+        inventory_events = []
+        sequence = 1
         
         logger.info(f"Starting transfer consumption: {self.product.name} from {self.vessel.name}, Qty: {self.quantity}")
         
@@ -1002,46 +1018,74 @@ class Transaction(models.Model):
                 break
                 
             # How much can we consume from this lot?
-            consumed_from_lot = min(lot.remaining_quantity, remaining_to_consume)
+            consume_from_lot = min(remaining_to_consume, Decimal(str(lot.remaining_quantity)))
+            new_remaining = lot.remaining_quantity - int(consume_from_lot)
             
-            # Track consumption details for exact cost preservation
-            consumption_details.append({
-                'consumed_quantity': consumed_from_lot,
-                'unit_cost': lot.purchase_price,  # Preserve exact original cost
-                'purchase_date': lot.purchase_date,  # Preserve original purchase date
+            # Collect updates for atomic application
+            lot_updates.append({
+                'lot': lot,
+                'new_remaining': new_remaining,
+                'consumed': consume_from_lot
             })
             
-            logger.debug(f"Consuming {consumed_from_lot} units @ {lot.purchase_price} from lot {lot.id}")
+            # Prepare FIFO consumption record
+            fifo_records.append(FIFOConsumption(
+                transaction=self,
+                inventory_lot=lot,
+                consumed_quantity=consume_from_lot,
+                unit_cost=lot.purchase_price,
+                sequence=sequence
+            ))
             
-            # Reduce the lot's remaining quantity
-            lot.remaining_quantity -= consumed_from_lot
-            lot.save(update_fields=['remaining_quantity'])
+            # Prepare inventory event
+            inventory_events.append(InventoryEvent(
+                event_type='TRANSFER_SENT',
+                vessel=self.vessel,
+                product=self.product,
+                inventory_lot=lot,
+                transaction=self,
+                quantity_change=-consume_from_lot,
+                unit_cost=lot.purchase_price,
+                lot_remaining_after=new_remaining,
+                created_by=self.created_by,
+                notes=f"Transfer out: {consume_from_lot} units from lot {lot.id}"
+            ))
             
-            # Track how much more we need to consume
-            remaining_to_consume -= consumed_from_lot
+            remaining_to_consume -= consume_from_lot
+            sequence += 1
         
-        # ✅ CRITICAL: Store consumption details for use in _complete_transfer()
-        self._transfer_consumption_details = consumption_details
+        # Apply all updates atomically
+        lots_to_update = []
+        for update in lot_updates:
+            update['lot'].remaining_quantity = update['new_remaining']
+            lots_to_update.append(update['lot'])
+        
+        # Bulk update all inventory lots
+        InventoryLot.objects.bulk_update(lots_to_update, ['remaining_quantity'])
+        
+        # Store the records for post-save creation (transaction needs to be saved first)
+        self._fifo_records_to_create = fifo_records
+        self._inventory_events_to_create = inventory_events
         
         # ✅ CALCULATE: Set preliminary unit_price based on FIFO consumption
-        if consumption_details:
+        if fifo_records:
             try:
-                total_fifo_cost = sum(Decimal(str(detail['consumed_quantity'])) * Decimal(str(detail['unit_cost'])) for detail in consumption_details)
-                self.unit_price = total_fifo_cost / Decimal(str(self.quantity)) if self.quantity > 0 else Decimal('0.001')
+                total_fifo_cost = sum(record.consumed_quantity * record.unit_cost for record in fifo_records)
+                self.unit_price = total_fifo_cost / self.quantity if self.quantity > 0 else Decimal('0.001')
                 avg_cost_per_unit = float(self.unit_price)
                 logger.info(f"Transfer consumption complete - Total FIFO cost: {total_fifo_cost}, Avg per unit: {avg_cost_per_unit}")
             except Exception as e:
                 logger.error(f"Error calculating FIFO cost: {e}")
                 self.unit_price = Decimal('0.001')
         else:
-            logger.warning(f"No consumption details generated for transfer {self.id}")
+            logger.warning(f"No FIFO records generated for transfer {self.id}")
             self.unit_price = Decimal('0.001')
         
         # Build FIFO breakdown for notes (same format as sales)
         cost_breakdown = []
-        for detail in consumption_details:
+        for record in fifo_records:
             cost_breakdown.append(
-                f"{detail['consumed_quantity']} units @ {detail['unit_cost']} JOD/unit"
+                f"{record.consumed_quantity} units @ {record.unit_cost} JOD/unit"
             )
         
         # Set initial notes - will be updated in _complete_transfer()
@@ -1049,6 +1093,8 @@ class Transaction(models.Model):
             self.notes = f"Transfer preparation. FIFO consumption: {'; '.join(cost_breakdown)}"
         else:
             self.notes = f"Transfer preparation. Using fallback cost: {self.unit_price} JOD/unit"
+        
+        logger.info(f"FIFO consumption prepared: {len(fifo_records)} lots to process, total: {self.quantity}")
 
     def _validate_and_consume_for_waste(self):
         """
@@ -1116,6 +1162,26 @@ class Transaction(models.Model):
             created_by=self.created_by
         )
     
+    def _is_workflow_transfer_pending(self):
+        """Check if this is a workflow transfer that's still pending approval"""
+        if not self.transfer:
+            return False
+            
+        try:
+            # Import here to avoid circular import
+            from vessel_management.models import TransferWorkflow
+            
+            # Check if this transfer has a workflow and if it's still pending
+            workflow = TransferWorkflow.objects.filter(base_transfer=self.transfer).first()
+            if workflow:
+                # Transfer is pending if workflow exists and is not yet confirmed/completed
+                return workflow.status not in ['confirmed', 'completed']
+            
+            return False
+        except Exception:
+            # If there's any error checking workflow status, assume not pending
+            return False
+    
     def _complete_transfer_idempotent(self):
         """
         NEW: Idempotent transfer completion using TransferOperation tracking
@@ -1125,15 +1191,17 @@ class Transaction(models.Model):
             logger.error(f"Transfer operation requires a Transfer group object")
             return
         
-        # Create or get transfer operation record
+        # Create or get transfer operation record - Use unique key per TRANSFER_OUT transaction
+        # This allows multiple TRANSFER_OUT transactions per transfer to each complete independently
         transfer_operation, created = TransferOperation.objects.get_or_create(
             transfer_group=self.transfer,
+            transfer_out_transaction=self,
             defaults={'status': 'PENDING'}
         )
         
-        # If operation is already completed, skip
+        # If this specific operation is already completed, skip
         if transfer_operation.status == 'COMPLETED':
-            logger.info(f"Transfer operation already completed: {transfer_operation.id}")
+            logger.info(f"Transfer operation already completed for transaction {self.id}: {transfer_operation.id}")
             return
         
         # If operation failed before, reset it
@@ -1144,9 +1212,7 @@ class Transaction(models.Model):
         
         try:
             with transaction.atomic():
-                # Update operation record with TRANSFER_OUT reference
-                transfer_operation.transfer_out_transaction = self
-                transfer_operation.save()
+                # Note: transfer_out_transaction is already set in get_or_create above
                 
                 # Get FIFO consumption details from FIFOConsumption table
                 fifo_consumptions = self.fifo_consumptions.select_related('inventory_lot').order_by('sequence')
@@ -1201,7 +1267,8 @@ class Transaction(models.Model):
                 self.related_transfer = transfer_in
                 transfer_in.related_transfer = self
                 transfer_in.save()
-                self.save()
+                # Use update_fields to avoid triggering full save logic again
+                super().save(update_fields=['related_transfer'])
                 
                 # Update operation record
                 transfer_operation.transfer_in_transaction = transfer_in
@@ -1601,6 +1668,8 @@ class Transaction(models.Model):
                     if operation.transfer_in_transaction:
                         logger.debug(f"Deleting related TRANSFER_IN transaction: {operation.transfer_in_transaction.id}")
                         operation.transfer_in_transaction.delete()
+                        # Clear the reference to avoid "unsaved related object" error
+                        operation.transfer_in_transaction = None
                     
                     # Mark operation as rolled back
                     operation.status = 'ROLLED_BACK'
@@ -1616,7 +1685,17 @@ class Transaction(models.Model):
         if self.related_transfer:
             logger.debug(f"Fallback: Found related transfer in transaction {self.related_transfer.id}")
             try:
-                self.related_transfer.delete()
+                # Store reference and clear both directions to prevent recursion
+                related_in = self.related_transfer
+                self.related_transfer = None
+                related_in.related_transfer = None
+                
+                # Save both to prevent recursion during delete
+                self.save(update_fields=['related_transfer'])
+                related_in.save(update_fields=['related_transfer'])
+                
+                # Now delete the TRANSFER_IN safely (no more links)
+                related_in.delete()
                 logger.info("Deleted related transfer in transaction (fallback)")
             except Exception as e:
                 logger.warning(f"Could not delete related transfer: {e}")
@@ -1644,6 +1723,9 @@ class Transaction(models.Model):
     def _remove_transferred_inventory(self):
         """🗑️ REMOVE INVENTORY: Handle TRANSFER_IN deletion"""
         logger.info(f"Removing transfer in inventory for {self.product.name}")
+        
+        # Simple approach: Just remove the inventory, don't try to delete related TRANSFER_OUT
+        # The view layer in transaction_views.py handles the related transaction deletion
         
         # Find and remove the inventory lots created by this transfer
         lots_to_remove = InventoryLot.objects.filter(

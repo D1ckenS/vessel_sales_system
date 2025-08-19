@@ -1,7 +1,7 @@
 {% extends 'frontend/base.html' %}
 {% load static %}
 
-{% block title %}Transfer Entry - Vessel Sales System{% endblock %}
+{% block title %}Collaborative Transfers - Vessel Sales System{% endblock %}
 
 {% block content %}
 <!-- Page Header -->
@@ -10,14 +10,82 @@
         <div class="d-flex justify-content-between align-items-center">
             <div>
                 <h2>
-                    <i class="bi bi-arrow-left-right text-warning"></i> 
-                    <span data-translate="transfer_entry">Transfer Entry</span>
+                    <i class="bi bi-arrow-left-right text-primary"></i> 
+                    <span data-translate="collaborative_transfers">Collaborative Transfers</span>
                 </h2>
-                <p class="text-muted mb-0"><span data-translate="transfer_entry_desc">Create new transfer and move inventory between vessels</span></p>
+                <p class="text-muted mb-0">
+                    <span data-translate="collaborative_transfer_system">Collaborative transfer approval system</span>
+                </p>
             </div>
-            <a href="{% url 'frontend:dashboard' %}" class="btn btn-outline-secondary">
-                <i class="bi bi-arrow-left"></i> <span data-translate="back_to_dashboard">Back to Dashboard</span>
-            </a>
+            <div class="d-flex gap-2">
+                <a href="{% url 'frontend:transfer_notifications_list' %}" class="btn btn-outline-secondary position-relative">
+                    <i class="bi bi-bell"></i> <span data-translate="notifications">Notifications</span>
+                    {% if notification_count > 0 %}
+                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                        {{ notification_count }}
+                    </span>
+                    {% endif %}
+                </a>
+                <a href="{% url 'frontend:dashboard' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> <span data-translate="back_to_dashboard">Back to Dashboard</span>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Stats -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h4 class="card-title mb-0">{{ pending_count }}</h4>
+                        <p class="card-text"><span data-translate="pending_transfers">Pending Transfers</span></p>
+                    </div>
+                    <i class="bi bi-clock-history" style="font-size: 2rem;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h4 class="card-title mb-0">{{ notification_count }}</h4>
+                        <p class="card-text"><span data-translate="unread_notifications">Unread Notifications</span></p>
+                    </div>
+                    <i class="bi bi-bell" style="font-size: 2rem;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h4 class="card-title mb-0">{{ completed_transfers|length }}</h4>
+                        <p class="card-text"><span data-translate="recent_completed">Recent Completed</span></p>
+                    </div>
+                    <i class="bi bi-check-circle" style="font-size: 2rem;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h4 class="card-title mb-0">{{ user_vessels|length }}</h4>
+                        <p class="card-text"><span data-translate="your_vessels">Your Vessels</span></p>
+                    </div>
+                    <i class="bi bi-ship" style="font-size: 2rem;"></i>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -43,7 +111,8 @@
                             </label>
                             <div class="dropdown w-100">
                                 <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start btn-lg" type="button" 
-                                        id="fromVesselDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                        id="fromVesselDropdown" data-bs-toggle="dropdown" aria-expanded="false"
+                                        {% if vessel_dropdown_readonly %}disabled{% endif %}>
                                     <span id="selectedFromVesselText">
                                         <span data-translate="choose_source_vessel">Choose source vessel...</span>
                                     </span>
@@ -118,6 +187,92 @@
     </div>
 </div>
 
+<!-- Pending Transfers - Need Action -->
+{% if pending_transfers %}
+<div class="row mt-5 mb-4">
+    <div class="col-12">
+        <div class="card border-warning">
+            <div class="card-header bg-warning text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-exclamation-triangle"></i> 
+                    <span data-translate="transfers_need_action">Transfers Requiring Your Action</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th><span data-translate="transfer_id">ID</span></th>
+                                <th><span data-translate="route">Route</span></th>
+                                <th><span data-translate="status">Status</span></th>
+                                <th><span data-translate="your_role">Your Role</span></th>
+                                <th><span data-translate="created_date">Created</span></th>
+                                <th><span data-translate="actions">Actions</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for transfer in pending_transfers %}
+                            <tr class="{% if transfer.current_pending_user == user %}table-warning{% endif %}">
+                                <td>
+                                    <strong>#{{ transfer.base_transfer.id }}</strong>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <span class="badge bg-danger me-2">{{ transfer.base_transfer.from_vessel.name }}</span>
+                                        <i class="bi bi-arrow-right"></i>
+                                        <span class="badge bg-success ms-2">{{ transfer.base_transfer.to_vessel.name }}</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if transfer.status == 'pending_review' %}
+                                        <span class="badge bg-warning"><span data-translate="pending_review">Pending Review</span></span>
+                                    {% elif transfer.status == 'pending_confirmation' %}
+                                        <span class="badge bg-info"><span data-translate="pending_confirmation">Pending Confirmation</span></span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if transfer.from_user == user %}
+                                        <span class="badge bg-danger"><span data-translate="from_user_role">FROM User</span></span>
+                                    {% else %}
+                                        <span class="badge bg-success"><span data-translate="to_user_role">TO User</span></span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small>{{ transfer.created_at|date:"M d, Y H:i" }}</small>
+                                </td>
+                                <td>
+                                    {% if transfer.current_pending_user == user %}
+                                        {% if transfer.status == 'pending_review' %}
+                                            <a href="{% url 'frontend:transfer_workflow_review' transfer.id %}" 
+                                               class="btn btn-warning btn-sm">
+                                                <i class="bi bi-eye"></i> <span data-translate="review">Review</span>
+                                            </a>
+                                        {% elif transfer.status == 'pending_confirmation' %}
+                                            <a href="{% url 'frontend:transfer_workflow_history' transfer.id %}" 
+                                               class="btn btn-info btn-sm">
+                                                <i class="bi bi-check-circle"></i> <span data-translate="confirm_changes">Confirm Changes</span>
+                                            </a>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="text-muted"><span data-translate="waiting_for_other_party">Waiting for other party</span></span>
+                                    {% endif %}
+                                    <a href="{% url 'frontend:transfer_workflow_history' transfer.id %}" 
+                                       class="btn btn-outline-secondary btn-sm">
+                                        <i class="bi bi-clock-history"></i> <span data-translate="history">History</span>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Recent Transfers -->
 <div class="row mt-5">
     <div class="col-12">
@@ -142,7 +297,15 @@
                         </thead>
                         <tbody>
                             {% for transfer in recent_transfers %}
-                            <tr {% if not transfer.is_completed %}class="table-warning cursor-pointer" onclick="resumeTransfer({{ transfer.id }})" title="Click to resume this transfer"{% endif %} data-transfer-id="{{ transfer.id }}" data-completed="{{ transfer.is_completed }}">
+                            <tr 
+                                {% if transfer.workflow %}
+                                    {% if transfer.workflow.status != 'completed' %}class="table-warning cursor-pointer" onclick="resumeTransfer({{ transfer.workflow.id }})" title="Click to resume this transfer workflow"{% endif %}
+                                {% elif not transfer.is_completed %}
+                                    class="table-warning cursor-pointer" onclick="resumeTransfer({{ transfer.id }})" title="Click to resume this transfer"
+                                {% endif %} 
+                                data-transfer-id="{{ transfer.id }}" 
+                                data-workflow-id="{% if transfer.workflow %}{{ transfer.workflow.id }}{% endif %}" 
+                                data-completed="{% if transfer.workflow %}{{ transfer.workflow.status|yesno:'completed,completed,false' }}{% else %}{{ transfer.is_completed }}{% endif %}">
                                 <td>
                                     <span data-transfer-date data-original="{{ transfer.transfer_date|date:'d-m-Y' }}">{{ transfer.transfer_date|date:"d-m-Y" }}</span>
                                 </td>
@@ -167,25 +330,87 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    {% if transfer.is_completed %}
-                                        <span class="badge bg-success"><span data-translate="completed">Completed</span></span>
+                                    {% if transfer.workflow %}
+                                        {% if transfer.workflow.status == 'completed' %}
+                                            <span class="badge bg-success"><span data-translate="completed">Completed</span></span>
+                                        {% elif transfer.workflow.status == 'pending_review' %}
+                                            <span class="badge bg-info text-white"><span data-translate="pending_review">Pending Review</span></span>
+                                        {% elif transfer.workflow.status == 'under_review' %}
+                                            <span class="badge bg-warning text-dark"><span data-translate="under_review">Under Review</span></span>
+                                        {% elif transfer.workflow.status == 'pending_confirmation' %}
+                                            <span class="badge bg-warning text-dark"><span data-translate="pending_confirmation">Pending Confirmation</span></span>
+                                        {% elif transfer.workflow.status == 'confirmed' %}
+                                            <span class="badge bg-primary text-white"><span data-translate="confirmed">Confirmed</span></span>
+                                        {% else %}
+                                            <span class="badge bg-secondary text-white">{{ transfer.workflow.get_status_display }}</span>
+                                        {% endif %}
                                     {% else %}
-                                        <span class="badge bg-warning text-dark"><span data-translate="in_progress">In Progress</span></span>
+                                        {% if transfer.is_completed %}
+                                            <span class="badge bg-success"><span data-translate="completed">Completed</span></span>
+                                        {% else %}
+                                            <span class="badge bg-warning text-dark"><span data-translate="in_progress">In Progress</span></span>
+                                        {% endif %}
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <small>{{ transfer.created_by.username|default:"System" }}</small>
+                                    {% if transfer.workflow %}
+                                        <!-- Collaborative transfer: show vessel-based workflow -->
+                                        <small class="text-muted">
+                                            {% if transfer.workflow.from_user %}
+                                                <span class="fw-bold">{{ transfer.workflow.from_user.username }}</span>
+                                            {% else %}
+                                                <span class="text-warning"><span data-translate="pending">FROM: Pending</span></span>
+                                            {% endif %}
+                                            <span class="text-muted"> → </span>
+                                            {% if transfer.workflow.to_user %}
+                                                <span class="fw-bold">{{ transfer.workflow.to_user.username }}</span>
+                                            {% else %}
+                                                <span class="text-warning"><span data-translate="pending">TO: Pending</span></span>
+                                            {% endif %}
+                                        </small>
+                                        <small class="text-muted d-block">
+                                            <span data-translate="created_by">Created by</span>: {{ transfer.created_by.username|default:"System" }}
+                                        </small>
+                                        <small class="text-muted d-block"><span data-translate="collaborative_transfer">Collaborative</span></small>
+                                    {% else %}
+                                        <!-- Regular transfer: show creator -->
+                                        <small>{{ transfer.created_by.username|default:"System" }}</small>
+                                    {% endif %}
                                     <small class="text-muted d-block transaction-time" data-time="{{ transfer.created_at|timesince }}">{{ transfer.created_at|timesince }} <span data-translate="ago">ago</span></small>
                                 </td>
                                 <td>
-                                    {% if not transfer.is_completed %}
-                                        <a href="{% url 'frontend:transfer_items' transfer.id %}" class="btn btn-warning btn-sm">
-                                            <i class="bi bi-plus"></i> <span data-translate="add_items">Add Items</span>
-                                        </a>
+                                    {% if transfer.workflow %}
+                                        {% if transfer.workflow.status == 'created' %}
+                                            <a href="{% url 'frontend:transfer_items' transfer.workflow.id %}" class="btn btn-warning btn-sm">
+                                                <i class="bi bi-plus"></i> <span data-translate="add_items">Add Items</span>
+                                            </a>
+                                        {% elif transfer.workflow.status == 'pending_review' or transfer.workflow.status == 'under_review' %}
+                                            <a href="{% url 'frontend:transfer_workflow_review' transfer.workflow.id %}" class="btn btn-info btn-sm text-white">
+                                                <i class="bi bi-eye-fill"></i> <span data-translate="review">Review</span>
+                                            </a>
+                                        {% elif transfer.workflow.status == 'pending_confirmation' %}
+                                            <a href="{% url 'frontend:transfer_workflow_review' transfer.workflow.id %}" class="btn btn-warning btn-sm">
+                                                <i class="bi bi-check-square"></i> <span data-translate="confirm">Confirm</span>
+                                            </a>
+                                        {% elif transfer.workflow.status == 'completed' %}
+                                            <a href="{% url 'frontend:transfer_workflow_history' transfer.workflow.id %}" class="btn btn-outline-secondary btn-sm" title="View Transfer History">
+                                                <i class="bi bi-clock-history"></i> <span data-translate="history">History</span>
+                                            </a>
+                                        {% else %}
+                                            <button class="btn btn-outline-secondary btn-sm" onclick="viewTransferDetails('{{ transfer.id }}')" title="View Details">
+                                                <i class="bi bi-eye"></i> <span data-translate="view">View</span>
+                                            </button>
+                                        {% endif %}
                                     {% else %}
-                                        <button class="btn btn-outline-secondary btn-sm" onclick="viewTransferDetails('{{ transfer.id }}')" title="View Details">
-                                            <i class="bi bi-eye"></i> <span data-translate="view">View</span>
-                                        </button>
+                                        {% if not transfer.is_completed %}
+                                            <a href="{% url 'frontend:transfer_items' transfer.id %}" class="btn btn-warning btn-sm">
+                                                <i class="bi bi-plus"></i> <span data-translate="add_items">Add Items</span>
+                                            </a>
+                                        {% else %}
+                                            <button class="btn btn-outline-secondary btn-sm" onclick="viewTransferDetails('{{ transfer.id }}')" title="View Details">
+                                                <i class="bi bi-eye"></i> <span data-translate="view">View</span>
+                                            </button>
+                                        {% endif %}
                                     {% endif %}
                                 </td>
                             </tr>
@@ -210,4 +435,72 @@
 
 {% block extra_js %}
 <script src="{% static 'frontend/js/transfer_entry.js' %}"></script>
+<script>
+// Vessel auto-population data from backend
+window.vesselAutoPopulateData = {
+    defaultVesselId: {% if user_default_vessel %}'{{ user_default_vessel.id }}'{% else %}null{% endif %},
+    defaultVesselName: {% if user_default_vessel %}'{{ user_default_vessel.name|escapejs }}'{% else %}null{% endif %},
+    defaultVesselNameAr: {% if user_default_vessel %}'{{ user_default_vessel.name_ar|escapejs }}'{% else %}null{% endif %},
+    defaultVesselHasDutyFree: {% if user_default_vessel %}{{ user_default_vessel.has_duty_free|yesno:'true,false' }}{% else %}null{% endif %},
+    vesselChoices: [
+        {% for vessel_id, vessel_name, is_default in user_vessel_choices %}
+        {
+            id: '{{ vessel_id }}',
+            name: '{{ vessel_name|escapejs }}',
+            isDefault: {{ is_default|yesno:'true,false' }}
+        }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ],
+    transferFromVessels: [
+        {% for vessel in transfer_from_vessels %}
+        {
+            id: '{{ vessel.id }}',
+            name: '{{ vessel.name|escapejs }}',
+            nameAr: '{{ vessel.name_ar|escapejs }}',
+            hasDutyFree: {{ vessel.has_duty_free|yesno:'true,false' }}
+        }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ],
+    transferToVessels: [
+        {% for vessel in transfer_to_vessels %}
+        {
+            id: '{{ vessel.id }}',
+            name: '{{ vessel.name|escapejs }}',
+            nameAr: '{{ vessel.name_ar|escapejs }}',
+            hasDutyFree: {{ vessel.has_duty_free|yesno:'true,false' }}
+        }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ],
+    enabled: {{ vessel_auto_populate_enabled|yesno:'true,false' }}
+};
+
+// Initialize vessel auto-population
+document.addEventListener('DOMContentLoaded', function() {
+    if (window.VesselAutoPopulator && window.vesselAutoPopulateData.enabled) {
+        const autoPopulator = new VesselAutoPopulator(window.vesselAutoPopulateData);
+        autoPopulator.initializeTransferForm();
+    }
+});
+
+// Resume transfer function - handles both workflow and regular transfers
+function resumeTransfer(id) {
+    const row = event.currentTarget;
+    const transferId = row.dataset.transferId;
+    const workflowId = row.dataset.workflowId;
+    
+    if (workflowId) {
+        // This is a workflow transfer - redirect to workflow items page
+        window.location.href = `/transfer/${workflowId}/`;
+    } else {
+        // This is a regular transfer - redirect to regular items page  
+        window.location.href = `/transfer/${transferId}/`;
+    }
+}
+
+// View transfer details function
+function viewTransferDetails(transferId) {
+    // For now, just show an alert - this could be enhanced to show a modal
+    window.showAlert('Transfer details view - Feature coming soon!', 'info');
+}
+</script>
 {% endblock %}

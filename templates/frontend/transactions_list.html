@@ -228,11 +228,11 @@
                                     <small class="text-muted d-block transaction-time-ago" data-time="{{ transaction.created_at|timesince }}">{{ transaction.created_at|timesince }} ago</small>
                                 </td>
                                 <td class="text-center">
-                                    {% if user.is_superuser or user.groups.all.0.name == 'Administrators' or user.groups.all.0.name == 'Managers' %}
+                                    {% if user_permissions.is_admin_or_manager %}
                                     <button 
                                         class="btn btn-outline-danger btn-sm" 
-                                        onclick="this.blur(); deleteTransaction({{ transaction.id }}, '{{ transaction.transaction_type }}', '{{ transaction.product.name }}', '{{ transaction.vessel.name }}')"
-                                        title="Delete Transaction">
+                                        onclick="this.blur(); deleteTransaction({% if transaction.transaction_type == 'TRANSFER_IN' and transaction.related_transfer %}{{ transaction.related_transfer.id }}{% else %}{{ transaction.id }}{% endif %}, {% if transaction.transaction_type == 'TRANSFER_IN' %}'TRANSFER_OUT'{% else %}'{{ transaction.transaction_type }}'{% endif %}, '{{ transaction.product.name }}', '{{ transaction.vessel.name }}')"
+                                        title="Delete Transaction{% if transaction.transaction_type == 'TRANSFER_IN' %} (deletes both transfer transactions){% endif %}">
                                         <i class="bi bi-trash"></i>
                                     </button>
                                     {% else %}

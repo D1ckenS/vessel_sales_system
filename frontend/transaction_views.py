@@ -123,15 +123,18 @@ def delete_transaction(request, transaction_id):
                 logger.info(f"🔗 TRANSFER_OUT deletion will auto-delete linked TRANSFER_IN: {linked_transfer_in.id}")
                 
         elif transaction_type == 'TRANSFER_IN':
-            # Find the TRANSFER_OUT that points to this TRANSFER_IN
-            linked_transfer_out = Transaction.objects.filter(
-                related_transfer=transaction_obj,
-                transaction_type='TRANSFER_OUT'
-            ).first()
+            # Find the linked TRANSFER_OUT (the one this TRANSFER_IN points to)
+            linked_transfer_out = transaction_obj.related_transfer
             
-            if linked_transfer_out:
+            if linked_transfer_out and linked_transfer_out.transaction_type == 'TRANSFER_OUT':
                 logger.info(f"🔗 TRANSFER_IN deletion will auto-delete linked TRANSFER_OUT: {linked_transfer_out.id}")
-                # Delete the TRANSFER_OUT, which will cascade delete this TRANSFER_IN
+                # Clear the relationship to prevent recursion, then delete TRANSFER_OUT
+                transaction_obj.related_transfer = None
+                linked_transfer_out.related_transfer = None
+                transaction_obj.save(update_fields=['related_transfer'])
+                linked_transfer_out.save(update_fields=['related_transfer'])
+                
+                # Delete the TRANSFER_OUT, which will restore inventory to source vessel
                 linked_transfer_out.delete()
                 return JsonResponseHelper.success(
                     message=f'Transfer In transaction for {product_name} deleted successfully. Linked Transfer Out also deleted and inventory restored.'

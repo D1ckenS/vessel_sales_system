@@ -1,0 +1,522 @@
+{% extends 'frontend/base.html' %}
+{% load static %}
+
+{% block title %}Review Transfer - Workflow #{{ workflow.id }} - Vessel Sales System{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>
+                    <i class="bi bi-eye text-primary"></i> 
+                    <span data-translate="review_transfer">Review Transfer</span>
+                </h2>
+                <p class="text-muted mb-0">
+                    <span data-translate="workflow_id">Workflow ID:</span> #{{ workflow.id }} - 
+                    <span class="badge bg-danger">{{ workflow.base_transfer.from_vessel.name }}</span>
+                    <i class="bi bi-arrow-right mx-1"></i>
+                    <span class="badge bg-success">{{ workflow.base_transfer.to_vessel.name }}</span>
+                </p>
+            </div>
+            <div class="d-flex gap-2">
+                {% if is_to_user_phase and can_edit %}
+                <!-- TO User: Can review and edit -->
+                <button type="button" class="btn btn-warning" id="editQuantitiesBtn" onclick="toggleEditMode()">
+                    <i class="bi bi-pencil"></i> <span data-translate="edit_quantities">Edit Quantities</span>
+                </button>
+                <button type="button" class="btn btn-success" onclick="confirmTransfer()">
+                    <i class="bi bi-check-circle"></i> <span data-translate="approve_transfer">Approve Transfer</span>
+                </button>
+                <button type="button" class="btn btn-danger" onclick="rejectTransfer()">
+                    <i class="bi bi-x-circle"></i> <span data-translate="reject_transfer">Reject Transfer</span>
+                </button>
+                {% elif is_from_user_phase and can_confirm %}
+                <!-- FROM User: Can only confirm or reject edits made by TO user -->
+                <button type="button" class="btn btn-success" onclick="confirmTransfer()">
+                    <i class="bi bi-check-circle"></i> <span data-translate="confirm_edits">Confirm Edits</span>
+                </button>
+                <button type="button" class="btn btn-danger" onclick="rejectTransfer()">
+                    <i class="bi bi-x-circle"></i> <span data-translate="reject_edits">Reject Edits</span>
+                </button>
+                {% endif %}
+                <a href="{% url 'frontend:transfer_workflow_dashboard' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> <span data-translate="back_to_dashboard">Back to Dashboard</span>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirmation Alert for FROM Users -->
+{% if is_from_user_phase and can_confirm %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="alert alert-warning">
+            <h6><i class="bi bi-exclamation-triangle"></i> <span data-translate="confirmation_required">Confirmation Required</span></h6>
+            <p class="mb-0"><span data-translate="to_user_made_edits">The destination vessel user has made edits to this transfer. Please review the changes below and confirm or reject the modifications.</span></p>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Transfer Information -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-info-circle"></i> 
+                    <span data-translate="transfer_information">Transfer Information</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-2">
+                        <strong><span data-translate="from_user">From User:</span></strong><br>
+                        <span class="badge bg-danger fs-6">{{ workflow.from_user.username }}</span>
+                    </div>
+                    <div class="col-md-2">
+                        <strong><span data-translate="to_user">To User:</span></strong><br>
+                        {% if workflow.to_user %}
+                            <span class="badge bg-success fs-6">{{ workflow.to_user.username }}</span>
+                        {% else %}
+                            <span class="badge bg-warning fs-6"><span data-translate="pending">Pending</span></span>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-2">
+                        <strong><span data-translate="transfer_date">Transfer Date:</span></strong><br>
+                        {{ transfer.transfer_date|date:"M d, Y" }}
+                    </div>
+                    <div class="col-md-2">
+                        <strong><span data-translate="status">Status:</span></strong><br>
+                        <span class="badge bg-info">{{ workflow.get_status_display }}</span>
+                    </div>
+                    <div class="col-md-2">
+                        <strong><span data-translate="created">Created:</span></strong><br>
+                        {{ workflow.created_at|date:"M d, H:i" }}
+                    </div>
+                    <div class="col-md-2">
+                        <strong><span data-translate="submitted">Submitted:</span></strong><br>
+                        {{ workflow.submitted_at|date:"M d, H:i" }}
+                    </div>
+                </div>
+                {% if transfer.notes %}
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <strong><span data-translate="notes">Notes:</span></strong><br>
+                        <div class="alert alert-light">{{ transfer.notes }}</div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit History -->
+{% if edit_history %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-warning">
+            <div class="card-header bg-warning text-white">
+                <h6 class="mb-0">
+                    <i class="bi bi-clock-history"></i> 
+                    <span data-translate="edit_history">Edit History</span>
+                </h6>
+            </div>
+            <div class="card-body">
+                {% for edit in edit_history %}
+                <div class="alert alert-warning">
+                    <strong>{{ edit.product.name }}</strong> - 
+                    <span data-translate="quantity_changed">Quantity changed:</span>
+                    <span class="badge bg-secondary">{{ edit.original_quantity }}</span>
+                    <i class="bi bi-arrow-right"></i>
+                    <span class="badge bg-warning">{{ edit.edited_quantity }}</span>
+                    <br>
+                    <small class="text-muted">
+                        <span data-translate="edited_by">Edited by:</span> {{ edit.edited_by.username }} 
+                        <span data-translate="on">on</span> {{ edit.edited_at|date:"M d, Y H:i" }}
+                    </small>
+                    {% if edit.edit_reason %}
+                    <br><small><strong><span data-translate="reason">Reason:</span></strong> {{ edit.edit_reason }}</small>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Transfer Items -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-list-check"></i> 
+                    <span data-translate="transfer_items">Transfer Items</span>
+                    <span class="badge bg-secondary ms-2">{{ transfer_items|length }}</span>
+                </h5>
+                <div id="editModeIndicator" class="d-none">
+                    <span class="badge bg-warning">
+                        <i class="bi bi-pencil"></i> <span data-translate="edit_mode">Edit Mode</span>
+                    </span>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if transfer_items %}
+                <div class="table-responsive">
+                    <table class="table table-hover" id="transferItemsTable">
+                        <thead>
+                            <tr>
+                                <th><span data-translate="product">Product</span></th>
+                                <th><span data-translate="original_quantity">Original Quantity</span></th>
+                                <th class="edit-mode-column d-none"><span data-translate="new_quantity">New Quantity</span></th>
+                                <th><span data-translate="unit_price">Unit Price</span></th>
+                                <th><span data-translate="total_amount">Total Amount</span></th>
+                                <th><span data-translate="notes">Notes</span></th>
+                                <th class="edit-mode-column d-none"><span data-translate="edit_reason">Edit Reason</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in transfer_items %}
+                            <tr data-product-id="{{ item.product.id }}">
+                                <td>
+                                    <strong>{{ item.product.name }}</strong><br>
+                                    <small class="text-muted">{{ item.product.name_ar }}</small>
+                                </td>
+                                <td>
+                                    <span class="badge bg-primary original-quantity">{{ item.quantity }} {{ item.product.unit }}</span>
+                                </td>
+                                <td class="edit-mode-column d-none">
+                                    <input type="number" class="form-control form-control-sm new-quantity" 
+                                           value="{{ item.quantity|floatformat:0 }}" min="1" step="1" 
+                                           data-original="{{ item.quantity|floatformat:0 }}">
+                                </td>
+                                <td>
+                                    ${{ item.unit_price|floatformat:2 }}
+                                </td>
+                                <td class="total-amount">
+                                    <strong>${{ item.total_amount|floatformat:2 }}</strong>
+                                </td>
+                                <td>
+                                    {% if item.notes %}
+                                        <small>{{ item.notes }}</small>
+                                    {% else %}
+                                        <em class="text-muted">-</em>
+                                    {% endif %}
+                                </td>
+                                <td class="edit-mode-column d-none">
+                                    <input type="text" class="form-control form-control-sm edit-reason" 
+                                           placeholder="Reason for change...">
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot>
+                            <tr class="table-secondary">
+                                <th colspan="{% if can_edit %}3{% else %}3{% endif %}"><span data-translate="total">Total</span></th>
+                                <th></th>
+                                <th id="grandTotal">
+                                    <strong>${{ total_amount|floatformat:2 }}</strong>
+                                </th>
+                                <th colspan="{% if can_edit %}2{% else %}1{% endif %}"></th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <!-- Edit Mode Controls -->
+                <div id="editModeControls" class="d-none mt-3">
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-success" onclick="saveQuantityEdits()">
+                            <i class="bi bi-check-circle"></i> <span data-translate="save_changes">Save Changes</span>
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="cancelEditMode()">
+                            <i class="bi bi-x-circle"></i> <span data-translate="cancel_changes">Cancel Changes</span>
+                        </button>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-box text-muted" style="font-size: 3rem;"></i>
+                    <h5 class="text-muted mt-3">
+                        <span data-translate="no_items_in_transfer">No Items in Transfer</span>
+                    </h5>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Rejection Modal -->
+<div class="modal fade" id="rejectModal" tabindex="-1" aria-labelledby="rejectModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="rejectModalLabel">
+                    <i class="bi bi-x-circle text-danger"></i> 
+                    <span data-translate="reject_transfer">Reject Transfer</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="rejectionReason" class="form-label">
+                        <span data-translate="rejection_reason">Reason for Rejection</span>
+                        <span class="text-danger">*</span>
+                    </label>
+                    <textarea class="form-control" id="rejectionReason" rows="3" 
+                              placeholder="Please explain why you are rejecting this transfer..." required></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <span data-translate="cancel">Cancel</span>
+                </button>
+                <button type="button" class="btn btn-danger" onclick="submitRejection()">
+                    <i class="bi bi-x-circle"></i> <span data-translate="reject_transfer">Reject Transfer</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let editMode = false;
+
+function toggleEditMode() {
+    editMode = !editMode;
+    
+    const editColumns = document.querySelectorAll('.edit-mode-column');
+    const editIndicator = document.getElementById('editModeIndicator');
+    const editControls = document.getElementById('editModeControls');
+    const editBtn = document.getElementById('editQuantitiesBtn');
+    
+    if (editMode) {
+        editColumns.forEach(col => col.classList.remove('d-none'));
+        editIndicator.classList.remove('d-none');
+        editControls.classList.remove('d-none');
+        editBtn.innerHTML = '<i class="bi bi-x-circle"></i> Cancel Edit';
+        editBtn.classList.remove('btn-warning');
+        editBtn.classList.add('btn-secondary');
+        
+        // Add event listeners to quantity inputs for real-time total updates
+        const quantityInputs = document.querySelectorAll('.new-quantity');
+        quantityInputs.forEach(input => {
+            input.addEventListener('input', updateGrandTotal);
+        });
+    } else {
+        editColumns.forEach(col => col.classList.add('d-none'));
+        editIndicator.classList.add('d-none');
+        editControls.classList.add('d-none');
+        editBtn.innerHTML = '<i class="bi bi-pencil"></i> Edit Quantities';
+        editBtn.classList.remove('btn-secondary');
+        editBtn.classList.add('btn-warning');
+        
+        // Remove event listeners and reset total to original
+        const quantityInputs = document.querySelectorAll('.new-quantity');
+        quantityInputs.forEach(input => {
+            input.removeEventListener('input', updateGrandTotal);
+        });
+        updateGrandTotal(); // Reset to original values
+    }
+}
+
+function cancelEditMode() {
+    // Reset all quantity inputs to original values
+    const quantityInputs = document.querySelectorAll('.new-quantity');
+    quantityInputs.forEach(input => {
+        input.value = input.getAttribute('data-original');
+    });
+    
+    // Clear all edit reasons
+    const reasonInputs = document.querySelectorAll('.edit-reason');
+    reasonInputs.forEach(input => {
+        input.value = '';
+    });
+    
+    // Reset totals to original values
+    updateGrandTotal();
+    
+    toggleEditMode();
+}
+
+function updateGrandTotal() {
+    let total = 0;
+    const rows = document.querySelectorAll('#transferItemsTable tbody tr');
+    
+    rows.forEach(row => {
+        const quantityInput = row.querySelector('.new-quantity');
+        const totalAmountCell = row.querySelector('.total-amount');
+        
+        if (quantityInput && totalAmountCell) {
+            // Get the current quantity (either from input in edit mode or original value)
+            let currentQuantity;
+            if (editMode) {
+                currentQuantity = parseInt(quantityInput.value) || 0;
+            } else {
+                currentQuantity = parseInt(quantityInput.getAttribute('data-original')) || 0;
+            }
+            
+            // Get the unit price from the row
+            const unitPriceText = row.cells[3].textContent.replace('$', '').trim();
+            const unitPrice = parseFloat(unitPriceText) || 0;
+            
+            // Calculate line total
+            const lineTotal = currentQuantity * unitPrice;
+            
+            // Update the row's total amount display if in edit mode
+            if (editMode) {
+                totalAmountCell.innerHTML = `<strong>$${lineTotal.toFixed(2)}</strong>`;
+            } else {
+                // Reset to original total amount when not in edit mode
+                const originalText = totalAmountCell.getAttribute('data-original-total');
+                if (originalText) {
+                    totalAmountCell.innerHTML = originalText;
+                } else {
+                    // Store original for future resets
+                    totalAmountCell.setAttribute('data-original-total', totalAmountCell.innerHTML);
+                }
+            }
+            
+            total += lineTotal;
+        }
+    });
+    
+    // Update the grand total
+    const grandTotalElement = document.getElementById('grandTotal');
+    if (grandTotalElement) {
+        grandTotalElement.innerHTML = `<strong>$${total.toFixed(2)}</strong>`;
+    }
+}
+
+function saveQuantityEdits() {
+    const edits = [];
+    const rows = document.querySelectorAll('#transferItemsTable tbody tr');
+    
+    rows.forEach(row => {
+        const productId = row.getAttribute('data-product-id');
+        const newQuantityInput = row.querySelector('.new-quantity');
+        const editReasonInput = row.querySelector('.edit-reason');
+        const originalQuantity = parseInt(newQuantityInput.getAttribute('data-original'));
+        const newQuantity = parseInt(newQuantityInput.value);
+        
+        if (newQuantity !== originalQuantity) {
+            edits.push({
+                product_id: productId,
+                new_quantity: newQuantity,
+                reason: editReasonInput.value || 'Quantity adjustment'
+            });
+        }
+    });
+    
+    if (edits.length === 0) {
+        alert('No changes to save');
+        return;
+    }
+    
+    // Save the edits
+    fetch('{% url "frontend:transfer_workflow_edit_quantities" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({
+            workflow_id: {{ workflow.id }},
+            edits: edits
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Changes saved successfully!');
+            location.reload(); // Reload to show updated items
+        } else {
+            alert('Error saving changes: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error saving edits:', error);
+        alert('Error saving quantity changes');
+    });
+}
+
+function confirmTransfer() {
+    if (!confirm('Approve this transfer? This will confirm your acceptance of the transfer.')) return;
+    
+    fetch('{% url "frontend:transfer_workflow_confirm" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({
+            workflow_id: {{ workflow.id }},
+            action: 'confirm'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Transfer confirmed successfully! ' + data.message);
+            window.location.href = '{% url "frontend:transfer_workflow_dashboard" %}';
+        } else {
+            alert('Error confirming transfer: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error confirming transfer:', error);
+        alert('Error confirming transfer');
+    });
+}
+
+function rejectTransfer() {
+    const modal = new bootstrap.Modal(document.getElementById('rejectModal'));
+    modal.show();
+}
+
+function submitRejection() {
+    const reason = document.getElementById('rejectionReason').value.trim();
+    
+    if (!reason) {
+        alert('Please provide a reason for rejection');
+        return;
+    }
+    
+    fetch('{% url "frontend:transfer_workflow_confirm" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({
+            workflow_id: {{ workflow.id }},
+            action: 'reject',
+            reason: reason
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Transfer rejected successfully!');
+            window.location.href = '{% url "frontend:transfer_workflow_dashboard" %}';
+        } else {
+            alert('Error rejecting transfer: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error rejecting transfer:', error);
+        alert('Error rejecting transfer');
+    });
+}
+</script>
+{% endblock %}

@@ -9,7 +9,7 @@ from django.http import JsonResponse
 from django.db import transaction
 from frontend.utils.cache_helpers import TransferCacheHelper, VesselCacheHelper, get_optimized_pagination
 from .utils.query_helpers import TransactionQueryHelper
-from transactions.models import Transfer
+from transactions.models import Transfer, Transaction
 from django.views.decorators.http import require_http_methods
 from django.core.exceptions import ValidationError
 from datetime import datetime
@@ -41,9 +41,9 @@ def transfer_management(request):
     date_to = request.GET.get('date_to')
     search_filter = request.GET.get('search', '').strip()
     
-    # Base queryset with prefetched transactions
+    # Base queryset with prefetched transactions and workflow
     transfers = Transfer.objects.select_related(
-        'from_vessel', 'to_vessel', 'created_by'
+        'from_vessel', 'to_vessel', 'created_by', 'workflow'
     ).prefetch_related(
         'transactions'
     )
@@ -54,9 +54,17 @@ def transfer_management(request):
     if to_vessel_filter:
         transfers = transfers.filter(to_vessel_id=to_vessel_filter)
     if status_filter == 'completed':
-        transfers = transfers.filter(is_completed=True)
+        # Consider both regular transfers and workflow transfers
+        transfers = transfers.filter(
+            Q(is_completed=True) | 
+            Q(workflow__status='completed')
+        )
     elif status_filter == 'in_progress':
-        transfers = transfers.filter(is_completed=False)
+        # Not completed and (no workflow OR workflow not completed)
+        transfers = transfers.filter(
+            Q(is_completed=False) & 
+            (Q(workflow__isnull=True) | ~Q(workflow__status='completed'))
+        )
     if date_from:
         try:
             date_from_parsed = datetime.strptime(date_from, '%Y-%m-%d').date()
@@ -120,8 +128,17 @@ def transfer_management(request):
         else:
             transfer.cost_performance_class = 'low-cost'
         
+        # Determine actual completion status considering workflow
+        is_actually_completed = (
+            transfer.is_completed or 
+            (hasattr(transfer, 'workflow') and transfer.workflow and transfer.workflow.status == 'completed')
+        )
+        
+        # Add completion status to transfer object for template
+        transfer.is_actually_completed = is_actually_completed
+        
         # Count completed transfers
-        if transfer.is_completed:
+        if is_actually_completed:
             completed_count += 1
     
     # Calculate derived stats
@@ -210,17 +227,23 @@ def edit_transfer(request, transfer_id):
         return error
 
     if request.method == 'GET':
+        # Determine actual completion status considering workflow
+        is_actually_completed = (
+            transfer.is_completed or 
+            (hasattr(transfer, 'workflow') and transfer.workflow and transfer.workflow.status == 'completed')
+        )
+        
         transfer_data = {
             'id': transfer.id,
             'transfer_date': transfer.transfer_date.strftime('%Y-%m-%d'),
             'notes': transfer.notes,
-            'is_completed': transfer.is_completed,
+            'is_completed': is_actually_completed,  # Use actual completion status for edit modal
             'from_vessel': transfer.from_vessel.name,
             'to_vessel': transfer.to_vessel.name,
         }
         
         transfer_items = []
-        if transfer.is_completed:
+        if is_actually_completed:
             # Get transfer transactions for completed transfers
             transfer_transactions = transfer.transactions.filter(
                 transaction_type__in=['TRANSFER_OUT', 'TRANSFER_IN']
@@ -385,23 +408,43 @@ def delete_transfer(request, transfer_id):
 
         if actual_transaction_count > 0:
             with transaction.atomic():
-                # 🔧 FIXED: Proper deletion order and linking
+                # 🔧 ENHANCED: Handle TransferWorkflow deletion first
                 
-                # Step 1: Delete TRANSFER_OUT transactions (they auto-delete linked TRANSFER_IN via related_transfer)
-                transfer_out_txns = transfer.transactions.filter(transaction_type='TRANSFER_OUT')
+                # Step 0: Handle TransferWorkflow if it exists
+                if hasattr(transfer, 'workflow') and transfer.workflow:
+                    logger.info(f"🗑️ DELETING TransferWorkflow: ID {transfer.workflow.id}")
+                    # Delete workflow - this will cascade delete notifications, edits, etc.
+                    transfer.workflow.delete()
+                
+                # Step 1: Get all transactions before deletion
+                transfer_out_txns = list(transfer.transactions.filter(transaction_type='TRANSFER_OUT'))
+                transfer_in_txns = list(transfer.transactions.filter(transaction_type='TRANSFER_IN'))
+                
+                # Step 2: Delete TRANSFER_OUT transactions (they auto-delete linked TRANSFER_IN via related_transfer)
+                deleted_transfer_in_ids = set()
                 for txn in transfer_out_txns:
                     logger.info(f"🗑️ DELETING TRANSFER_OUT: {txn.product.name} x{txn.quantity} (ID: {txn.id})")
+                    # Track which TRANSFER_IN will be auto-deleted
+                    if txn.related_transfer:
+                        deleted_transfer_in_ids.add(txn.related_transfer.id)
                     # This will automatically delete the linked TRANSFER_IN via Transaction.delete()
                     txn.delete()
                 
-                # Step 2: Delete any remaining TRANSFER_IN transactions (orphaned ones)
-                remaining_transfer_in = transfer.transactions.filter(transaction_type='TRANSFER_IN')
-                for txn in remaining_transfer_in:
-                    logger.info(f"🗑️ DELETING REMAINING TRANSFER_IN: {txn.product.name} x{txn.quantity} (ID: {txn.id})")
-                    # This will validate consumption and raise ValidationError if consumed
-                    txn.delete()
+                # Step 3: Delete any remaining TRANSFER_IN transactions (orphaned ones only)
+                for txn in transfer_in_txns:
+                    if txn.id not in deleted_transfer_in_ids:
+                        try:
+                            # Check if transaction still exists (might have been cascade deleted)
+                            if Transaction.objects.filter(id=txn.id).exists():
+                                logger.info(f"🗑️ DELETING REMAINING TRANSFER_IN: {txn.product.name} x{txn.quantity} (ID: {txn.id})")
+                                txn.delete()
+                            else:
+                                logger.info(f"🔍 TRANSFER_IN already deleted: ID {txn.id}")
+                        except Transaction.DoesNotExist:
+                            logger.info(f"🔍 TRANSFER_IN not found (already deleted): ID {txn.id}")
+                            continue
                 
-                # Step 3: Delete the transfer group
+                # Step 4: Delete the transfer group
                 transfer.delete()
             
             # Clear cache
@@ -416,8 +459,16 @@ def delete_transfer(request, transfer_id):
                 message=f'{transfer_number} and all {actual_transaction_count} linked transactions deleted successfully. Inventory updated.'
             )
         else:
-            # No transactions, safe to delete
-            transfer.delete()
+            # No transactions, but check for workflow
+            with transaction.atomic():
+                # Handle TransferWorkflow if it exists
+                if hasattr(transfer, 'workflow') and transfer.workflow:
+                    logger.info(f"🗑️ DELETING TransferWorkflow: ID {transfer.workflow.id}")
+                    transfer.workflow.delete()
+                    
+                # Delete the transfer
+                transfer.delete()
+                
             TransferCacheHelper.clear_cache_after_transfer_delete(transfer_id)
             return JsonResponseHelper.success(
                 message=f'{transfer_number} deleted successfully'
@@ -477,16 +528,21 @@ def delete_transfer(request, transfer_id):
 @login_required
 @user_passes_test(is_admin_or_manager)
 def toggle_transfer_status(request, transfer_id):
-    """Toggle transfer completion status with proper transaction deletion"""
+    """Toggle transfer completion status with proper transaction deletion and workflow support"""
     # Get transfer safely
     transfer, error = CRUDHelper.safe_get_object(Transfer, transfer_id, 'Transfer')
     if error:
         return error
     
     try:
-        # Determine the action based on current status
-        if transfer.is_completed:
-            # RESTART WORKFLOW: completed → incomplete
+        # Determine actual completion status (considering both regular and workflow completion)
+        is_actually_completed = (
+            transfer.is_completed or 
+            (hasattr(transfer, 'workflow') and transfer.workflow and transfer.workflow.status == 'completed')
+        )
+        
+        if is_actually_completed:
+            # RESTART WORKFLOW: completed → incomplete (restore to editable state)
             with transaction.atomic():
                 # Delete all TRANSFER_IN transactions to remove inventory from destination vessel
                 transfer_in_transactions = transfer.transactions.filter(transaction_type='TRANSFER_IN')
@@ -502,8 +558,21 @@ def toggle_transfer_status(request, transfer_id):
                     
                     logger.info(f"✅ TRANSFER RESTART: All TRANSFER_IN inventory removed from {transfer.to_vessel.name}")
                 
-                # Mark as incomplete
+                # Reset both regular and workflow completion status
                 transfer.is_completed = False
+                
+                # Reset workflow status if it exists
+                if hasattr(transfer, 'workflow') and transfer.workflow:
+                    # Reset workflow to 'created' status to allow editing
+                    transfer.workflow.status = 'created'
+                    transfer.workflow.completed_at = None
+                    transfer.workflow.completed_by = None
+                    transfer.workflow.from_user_confirmed = False
+                    transfer.workflow.to_user_confirmed = False
+                    transfer.workflow.mutual_agreement = False
+                    transfer.workflow.save()
+                    logger.info(f"🔄 WORKFLOW RESET: Transfer workflow {transfer.workflow.id} reset to 'created' status")
+                
                 transfer.save()
                 
                 # Clear transfer cache
@@ -511,17 +580,21 @@ def toggle_transfer_status(request, transfer_id):
                 
                 logger.info(f"🔄 TRANSFER RESTART: Transfer {transfer.id} reopened for editing")
             
+            # All transfers use workflows - use workflow ID for transfer_items
+            redirect_url = reverse('frontend:transfer_items', kwargs={'workflow_id': transfer.workflow.id})
+            
             # Return redirect response to restart workflow at transfer_items
             return JsonResponse({
                 'success': True,
                 'action': 'restart_workflow',
-                'message': f'Transfer reopened successfully. Inventory restored for {transaction_count} items.',
-                'redirect_url': reverse('frontend:transfer_items', kwargs={'transfer_id': transfer_id}),
+                'message': f'Transfer reopened successfully. You can now edit items. Inventory restored for {transaction_count} items.',
+                'redirect_url': redirect_url,
                 'transaction_count': transaction_count,
                 'transfer_data': {
                     'from_vessel': transfer.from_vessel.name,
                     'to_vessel': transfer.to_vessel.name,
-                    'is_completed': False
+                    'is_completed': False,
+                    'has_workflow': hasattr(transfer, 'workflow') and transfer.workflow is not None
                 }
             })
             
