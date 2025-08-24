@@ -40,6 +40,37 @@ class VesselAccessHelper:
         return Vessel.objects.filter(id__in=vessel_ids, active=True)
     
     @staticmethod
+    def get_user_vessel_ids(user):
+        """
+        Get vessel IDs that user has access to (optimized version with caching).
+        
+        Args:
+            user: User instance
+            
+        Returns:
+            List of vessel IDs the user can access
+        """
+        from frontend.utils.cache_helpers import VesselCacheHelper
+        
+        # Try to get from cache first
+        cached_vessel_ids = VesselCacheHelper.get_cached_user_vessel_ids(user.id)
+        if cached_vessel_ids is not None:
+            return cached_vessel_ids
+        
+        # Not in cache, fetch from database
+        if user.is_superuser:
+            vessel_ids = list(Vessel.objects.filter(active=True).values_list('id', flat=True))
+        else:
+            vessel_ids = list(UserVesselAssignment.objects.filter(
+                user=user, is_active=True
+            ).values_list('vessel_id', flat=True))
+        
+        # Cache the result for 1 hour
+        VesselCacheHelper.cache_user_vessel_ids(user.id, vessel_ids, timeout=3600)
+        
+        return vessel_ids
+    
+    @staticmethod
     def can_user_access_vessel(user, vessel):
         """
         Check if a user can access a specific vessel.

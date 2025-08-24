@@ -4,8 +4,54 @@ import hashlib
 from vessels.models import Vessel
 from django.db.models import F
 import logging
+import time
+from django.conf import settings
 
 logger = logging.getLogger('frontend')
+
+# Cache Performance Tracking
+class CachePerformanceTracker:
+    """Track cache performance metrics for analytics and optimization"""
+    
+    @classmethod
+    def track_operation(cls, operation_type, cache_key, hit=None, duration_ms=None):
+        """Track cache operation for performance analytics"""
+        try:
+            # Only track in debug mode or if specifically enabled
+            if not getattr(settings, 'CACHE_PERFORMANCE_TRACKING', settings.DEBUG):
+                return
+            
+            # Store metrics in cache with short TTL for monitoring
+            metrics_key = f"cache_metrics_{operation_type}_{cache_key[:20]}"
+            current_metrics = cache.get(metrics_key, {'count': 0, 'hit_count': 0, 'total_duration': 0})
+            
+            current_metrics['count'] += 1
+            if hit is not None and hit:
+                current_metrics['hit_count'] += 1
+            if duration_ms is not None:
+                current_metrics['total_duration'] += duration_ms
+            current_metrics['last_accessed'] = time.time()
+            
+            # Store for 1 hour
+            cache.set(metrics_key, current_metrics, 3600)
+            
+        except Exception as e:
+            logger.debug(f"Cache performance tracking error: {e}")
+    
+    @classmethod
+    def get_performance_stats(cls, operation_type=None):
+        """Get performance statistics for cache operations"""
+        try:
+            # This would need a more sophisticated implementation in production
+            # For now, return basic stats structure
+            return {
+                'total_operations': 0,
+                'hit_rate': 0.0,
+                'avg_duration_ms': 0.0
+            }
+        except Exception as e:
+            logger.debug(f"Cache stats retrieval error: {e}")
+            return {}
 
 
 class VersionedCache:
@@ -68,6 +114,28 @@ class ProductCacheHelper:
     PRODUCT_PRICING_CACHE_TIMEOUT = 21600     # 6 hours
     
     CACHE_KEY_PREFIX = 'product_mgmt'
+    
+    @classmethod
+    def get_all_products_catalog(cls):
+        """Get all active products from cache (warmed by cache warming system)"""
+        cache_key = 'all_products_catalog'
+        
+        # Try to get from cache first
+        cached_products = cache.get(cache_key)
+        if cached_products:
+            CachePerformanceTracker.track_operation('product_catalog', cache_key, hit=True)
+            return cached_products
+        
+        # Cache miss - load from database and cache
+        from products.models import Product
+        products = list(Product.objects.filter(
+            active=True
+        ).select_related('category').order_by('name'))
+        
+        cache.set(cache_key, products, 14400)  # 4 hours
+        CachePerformanceTracker.track_operation('product_catalog', cache_key, hit=False)
+        
+        return products
     
     # 🆕 COMPREHENSIVE: All cache keys used in the system
     STATIC_CACHE_KEYS = [
@@ -204,11 +272,22 @@ class ProductCacheHelper:
     
     @classmethod
     def debug_cache_status(cls):
-        """🔍 DEBUG: Check cache status"""
+        """🔍 DEBUG: Check cache status - Updated for Real Cache Usage"""
         cache_status = {}
         
+        # Check both static keys AND actual warmed cache keys
+        all_cache_keys = cls.STATIC_CACHE_KEYS + [
+            'active_vessels_warm',
+            'popular_products_warm', 
+            'recent_transactions_warm',
+            'active_categories_warm',
+            'active_vessels_dropdown',
+            'business_hours_popular_products',
+            'business_hours_active_vessels'
+        ]
+        
         # Check static keys
-        for key in cls.STATIC_CACHE_KEYS:
+        for key in all_cache_keys:
             cache_status[key] = cache.get(key) is not None
         
         # Add version info
@@ -216,8 +295,9 @@ class ProductCacheHelper:
         
         # Count active cache entries
         active_count = sum(1 for exists in cache_status.values() if isinstance(exists, bool) and exists)
+        total_keys = len(all_cache_keys)
         
-        logger.debug(f"Cache status: {active_count}/{len(cls.STATIC_CACHE_KEYS)} static keys active")
+        logger.debug(f"Cache status: {active_count}/{total_keys} cache keys active")
         logger.debug(f"Cache Version: {cache_status['cache_version']}")
         logger.debug(f"Active keys: {[k for k, v in cache_status.items() if isinstance(v, bool) and v]}")
         
@@ -226,15 +306,34 @@ class ProductCacheHelper:
     # 🆕 CONVENIENCE METHODS
     @classmethod
     def get_cached_data(cls, cache_key):
-        """Get cached data with version validation"""
-        return cache.get(cache_key)
+        """Get cached data with version validation and performance tracking"""
+        start_time = time.time()
+        data = cache.get(cache_key)
+        duration_ms = (time.time() - start_time) * 1000
+        
+        # Track performance
+        CachePerformanceTracker.track_operation(
+            'get', cache_key, hit=(data is not None), duration_ms=duration_ms
+        )
+        
+        return data
     
     @classmethod
     def set_cached_data(cls, cache_key, data, timeout=None):
-        """Set cached data with proper timeout"""
+        """Set cached data with proper timeout and performance tracking"""
         if timeout is None:
             timeout = cls.PRODUCT_MANAGEMENT_CACHE_TIMEOUT
-        return cache.set(cache_key, data, timeout)
+        
+        start_time = time.time()
+        result = cache.set(cache_key, data, timeout)
+        duration_ms = (time.time() - start_time) * 1000
+        
+        # Track performance
+        CachePerformanceTracker.track_operation(
+            'set', cache_key, hit=None, duration_ms=duration_ms
+        )
+        
+        return result
 
 # 🚀 TRIP CACHE HELPER - Following ProductCacheHelper patterns
 class TripCacheHelper:
@@ -316,6 +415,27 @@ class TripCacheHelper:
         cache_key = cls.get_recent_trips_cache_key(user_role, date_filter)
         cache.set(cache_key, trips_data, cls.RECENT_TRIPS_CACHE_TIMEOUT)
         logger.debug(f"Cached recent trips: {user_role}, {len(trips_data)} trips")
+        return True
+    
+    # 🚀 TRIP MANAGEMENT LIST CACHING (for trip_management page)
+    @classmethod
+    def get_trip_mgmt_list_cache_key(cls):
+        """Generate cache key for trip management list"""
+        cache_version = cls._get_cache_version()
+        return f"trip_mgmt_list_v{cache_version}_all"
+    
+    @classmethod
+    def get_trip_mgmt_list(cls):
+        """Get cached trip management list"""
+        cache_key = cls.get_trip_mgmt_list_cache_key()
+        return cache.get(cache_key)
+    
+    @classmethod
+    def cache_trip_mgmt_list(cls, trip_list_data):
+        """Cache trip management list (30 minute timeout)"""
+        cache_key = cls.get_trip_mgmt_list_cache_key()
+        cache.set(cache_key, trip_list_data, cls.RECENT_TRIPS_CACHE_TIMEOUT)
+        logger.debug(f"CACHED TRIP MGMT LIST: {len(trip_list_data)} trips")
         return True
     
     # 🚀 FINANCIAL CALCULATIONS CACHING
@@ -529,6 +649,27 @@ class POCacheHelper:
         logger.info(f"🚀 CACHED RECENT POS: {len(pos_data)} POs")
         return True
     
+    # 🚀 PO MANAGEMENT LIST CACHING (for po_management page)
+    @classmethod
+    def get_po_mgmt_list_cache_key(cls):
+        """Generate cache key for PO management list"""
+        cache_version = cls._get_cache_version()
+        return f"po_mgmt_list_v{cache_version}_all"
+    
+    @classmethod
+    def get_po_mgmt_list(cls):
+        """Get cached PO management list"""
+        cache_key = cls.get_po_mgmt_list_cache_key()
+        return cache.get(cache_key)
+    
+    @classmethod
+    def cache_po_mgmt_list(cls, po_list_data):
+        """Cache PO management list (1 hour timeout)"""
+        cache_key = cls.get_po_mgmt_list_cache_key()
+        cache.set(cache_key, po_list_data, cls.RECENT_POS_CACHE_TIMEOUT)
+        logger.info(f"🚀 CACHED PO MGMT LIST: {len(po_list_data)} POs")
+        return True
+    
     # 🚀 FINANCIAL CALCULATIONS CACHING
     @classmethod
     def get_po_financial_data(cls, po_id):
@@ -647,7 +788,7 @@ class TransferCacheHelper:
         current_version = cls._get_cache_version()
         new_version = current_version + 1
         cache.set('transfer_cache_version', new_version, None)  # Never expires
-        logger.info(f"🔥 TRANSFER CACHE VERSION BUMPED: {current_version} → {new_version}")
+        logger.info(f"TRANSFER CACHE VERSION BUMPED: {current_version} -> {new_version}")
         return new_version
     
     @classmethod
@@ -658,8 +799,11 @@ class TransferCacheHelper:
     @classmethod
     def get_recent_transfers_cache_key(cls):
         """Generate cache key for recent transfers with cost data"""
-        cache_version = cls._get_cache_version()
-        return f"recent_transfers_v{cache_version}_all"
+        # Use dedicated recent transfers version (like sales does)
+        recent_transfers_version = cache.get('recent_transfers_version', 1)
+        cache_key = f"recent_transfers_v{recent_transfers_version}_all"
+        print(f"DEBUG: Generated cache key: {cache_key}")  # Debug cache key generation
+        return cache_key
     
     # 🚀 COMPLETED TRANSFER CACHING (like trips/POs - keep this)
     @classmethod
@@ -691,10 +835,10 @@ class TransferCacheHelper:
         cached_transfers = cache.get(cache_key)
         
         if cached_transfers:
-            logger.debug(f"🚀 CACHE HIT: Recent transfers")
+            logger.debug(f"CACHE HIT: Recent transfers")
             return cached_transfers
             
-        logger.debug(f"🔍 CACHE MISS: Recent transfers")
+        logger.debug(f"CACHE MISS: Recent transfers")
         return None
     
     @classmethod
@@ -702,7 +846,28 @@ class TransferCacheHelper:
         """Cache recent transfers with cost data (1 hour timeout)"""
         cache_key = cls.get_recent_transfers_cache_key()
         cache.set(cache_key, transfers_data, cls.RECENT_TRANSFERS_CACHE_TIMEOUT)
-        logger.info(f"🚀 CACHED RECENT TRANSFERS: {len(transfers_data)} transfers")
+        logger.info(f"CACHED RECENT TRANSFERS: {len(transfers_data)} transfers")
+        return True
+    
+    # 🚀 TRANSFER MANAGEMENT LIST CACHING (for transfer_management page)
+    @classmethod
+    def get_transfer_mgmt_list_cache_key(cls):
+        """Generate cache key for transfer management list"""
+        cache_version = cls._get_cache_version()
+        return f"transfer_mgmt_list_v{cache_version}_all"
+    
+    @classmethod
+    def get_transfer_mgmt_list(cls):
+        """Get cached transfer management list"""
+        cache_key = cls.get_transfer_mgmt_list_cache_key()
+        return cache.get(cache_key)
+    
+    @classmethod
+    def cache_transfer_mgmt_list(cls, transfer_list_data):
+        """Cache transfer management list (1 hour timeout)"""
+        cache_key = cls.get_transfer_mgmt_list_cache_key()
+        cache.set(cache_key, transfer_list_data, cls.RECENT_TRANSFERS_CACHE_TIMEOUT)
+        logger.debug(f"CACHED TRANSFER MGMT LIST: {len(transfer_list_data)} transfers")
         return True
     
     # 🚀 CACHE MANAGEMENT (simple pattern like POCacheHelper)
@@ -721,11 +886,11 @@ class TransferCacheHelper:
                 if cache.delete(cache_key):
                     cleared_keys.append(cache_key)
             
-            logger.info(f"🚀 TRANSFER CACHE CLEARED: {len(cleared_keys)} operations")
+            logger.info(f"TRANSFER CACHE CLEARED: {len(cleared_keys)} operations")
             return True, len(cleared_keys)
             
         except Exception as e:
-            logger.error(f"❌ TRANSFER CACHE CLEAR FAILED: {e}")
+            logger.error(f"TRANSFER CACHE CLEAR FAILED: {e}")
             return False, 0
     
     @classmethod
@@ -743,7 +908,7 @@ class TransferCacheHelper:
             if cache.delete(completed_cache_key):
                 cleared_keys.append(f'completed_transfer_{transfer_id}')
         
-        logger.info(f"🚀 TRANSFER CACHE UPDATED: {len(cleared_keys)} operations")
+        logger.info(f"TRANSFER CACHE UPDATED: {len(cleared_keys)} operations")
         return True, len(cleared_keys)
     
     @classmethod
@@ -754,12 +919,26 @@ class TransferCacheHelper:
     @classmethod
     def clear_cache_after_transfer_delete(cls, transfer_id):
         """Clear cache after transfer deletion"""
+        # Clear both main cache and recent transfers cache  
+        cls.clear_recent_transfers_cache_only_when_needed()
         return cls.clear_cache_after_transfer_update(transfer_id)
     
     @classmethod
     def clear_cache_after_transfer_complete(cls, transfer_id):
         """Clear cache after transfer completion (important for recent transfers)"""
+        logger.info(f"DEBUG: clear_cache_after_transfer_complete called for transfer {transfer_id}")
+        # Clear both main cache and recent transfers cache
+        cls.clear_recent_transfers_cache_only_when_needed()
         return cls.clear_cache_after_transfer_update(transfer_id)
+    
+    @classmethod  
+    def clear_recent_transfers_cache_only_when_needed(cls):
+        """Clear recent transfers cache specifically (like sales does)"""
+        print(f"DEBUG: clear_recent_transfers_cache_only_when_needed called")  # Use print instead of logger
+        recent_transfers_version = cache.get('recent_transfers_version', 1)
+        cache.set('recent_transfers_version', recent_transfers_version + 1, None)
+        logger.info(f"RECENT TRANSFERS VERSION BUMP: {recent_transfers_version} -> {recent_transfers_version + 1}")
+        return True
 
 class WasteCacheHelper:
     """Cache management for Waste Report operations with version control"""
@@ -853,6 +1032,27 @@ class WasteCacheHelper:
         cache_key = cls.get_recent_wastes_cache_key()
         cache.set(cache_key, wastes_data, cls.RECENT_WASTES_CACHE_TIMEOUT)
         logger.info(f"🚀 CACHED RECENT WASTES: {len(wastes_data)} waste reports")
+        return True
+    
+    # 🚀 WASTE MANAGEMENT LIST CACHING (for waste_management page)
+    @classmethod
+    def get_waste_mgmt_list_cache_key(cls):
+        """Generate cache key for waste management list"""
+        cache_version = cls._get_cache_version()
+        return f"waste_mgmt_list_v{cache_version}_all"
+    
+    @classmethod
+    def get_waste_mgmt_list(cls):
+        """Get cached waste management list"""
+        cache_key = cls.get_waste_mgmt_list_cache_key()
+        return cache.get(cache_key)
+    
+    @classmethod
+    def cache_waste_mgmt_list(cls, waste_list_data):
+        """Cache waste management list (1 hour timeout)"""
+        cache_key = cls.get_waste_mgmt_list_cache_key()
+        cache.set(cache_key, waste_list_data, cls.RECENT_WASTES_CACHE_TIMEOUT)
+        logger.debug(f"CACHED WASTE MGMT LIST: {len(waste_list_data)} waste reports")
         return True
     
     # 🚀 FINANCIAL CALCULATIONS CACHING
@@ -1067,12 +1267,37 @@ class PerfectPagination(EnhancedPerfectPagination):
         super().__init__(products, page_num, page_size, total_count=total_count)
 
 
-# 🚀 VESSEL CACHE HELPER - Unchanged
+# 🚀 VESSEL CACHE HELPER - Enhanced for Cross-Page Caching
 class VesselCacheHelper:
-    """Utility class for caching vessel dropdown data across views"""
+    """Utility class for caching vessel data across all pages for maximum efficiency"""
     
-    CACHE_KEY = 'active_vessels_dropdown'
-    CACHE_TIMEOUT = 31536000  # 1 year
+    # Cache keys for different vessel data types
+    ACTIVE_VESSELS_KEY = 'active_vessels_dropdown'
+    ALL_VESSELS_BASIC_KEY = 'all_vessels_basic_data'  # NEW: For cross-page caching
+    
+    CACHE_TIMEOUT = 86400  # 24 hours (vessels rarely change)
+    
+    @classmethod 
+    def get_all_vessels_basic_data(cls):
+        """
+        🚀 NEW: Get all vessels with basic data for cross-page caching.
+        Used by dashboard, sales, transfers, etc. - saves 1 query per page!
+        
+        Returns:
+            list: All vessels with basic fields (id, name, name_ar, active, has_duty_free)
+        """
+        vessels = cache.get(cls.ALL_VESSELS_BASIC_KEY)
+        
+        if vessels is None:
+            # Load minimal vessel data for maximum efficiency
+            vessels = list(Vessel.objects.only(
+                'id', 'name', 'name_ar', 'active', 'has_duty_free'
+            ).order_by('-active', 'name'))
+            
+            cache.set(cls.ALL_VESSELS_BASIC_KEY, vessels, cls.CACHE_TIMEOUT)
+            logger.info(f"CACHED ALL VESSELS: {len(vessels)} vessels for cross-page use")
+        
+        return vessels
     
     @classmethod
     def get_active_vessels(cls):
@@ -1080,58 +1305,97 @@ class VesselCacheHelper:
         Get cached active vessels for dropdown lists.
         
         Returns:
-            QuerySet: List of active vessels ordered by name
+            list: List of active vessels ordered by name
         """
-        vessels = cache.get(cls.CACHE_KEY)
+        vessels = cache.get(cls.ACTIVE_VESSELS_KEY)
         
         if vessels is None:
-            
             vessels = list(Vessel.objects.filter(active=True).order_by('name'))
-            cache.set(cls.CACHE_KEY, vessels, timeout=cls.CACHE_TIMEOUT)
+            cache.set(cls.ACTIVE_VESSELS_KEY, vessels, timeout=cls.CACHE_TIMEOUT)
         
         return vessels
     
     @classmethod
     def clear_cache(cls):
         """
-        Manually clear vessel cache.
+        Manually clear ALL vessel caches (both active and all vessels).
         
         Returns:
-            bool: True if cache was cleared successfully
+            bool: True if all caches were cleared successfully
         """
         try:
-            cache.delete(cls.CACHE_KEY)
+            deleted_count = 0
+            if cache.delete(cls.ACTIVE_VESSELS_KEY):
+                deleted_count += 1
+            if cache.delete(cls.ALL_VESSELS_BASIC_KEY):
+                deleted_count += 1
+            
+            logger.info(f"🚀 VESSEL CACHE CLEARED: {deleted_count} cache keys deleted")
             return True
-        except Exception:
+        except Exception as e:
+            logger.error(f"Vessel cache clear failed: {e}")
             return False
     
     @classmethod
     def refresh_cache(cls):
         """
-        Force refresh vessel cache with fresh data.
+        Force refresh ALL vessel caches with fresh data.
         
         Returns:
-            QuerySet: Fresh list of active vessels
+            tuple: (active_vessels, all_vessels) with fresh data
         """
         cls.clear_cache()
-        return cls.get_active_vessels()
+        active_vessels = cls.get_active_vessels()
+        all_vessels = cls.get_all_vessels_basic_data()
+        return active_vessels, all_vessels
     
     @classmethod
     def get_cache_status(cls):
         """
-        Check if vessel cache exists and get basic info.
+        Check vessel cache status for both active and all vessels.
         
         Returns:
-            dict: Cache status information
+            dict: Comprehensive cache status information
         """
-        vessels = cache.get(cls.CACHE_KEY)
+        active_vessels = cache.get(cls.ACTIVE_VESSELS_KEY)
+        all_vessels = cache.get(cls.ALL_VESSELS_BASIC_KEY)
         
         return {
-            'cached': vessels is not None,
-            'count': len(vessels) if vessels else 0,
-            'cache_key': cls.CACHE_KEY,
-            'timeout': cls.CACHE_TIMEOUT
+            'active_vessels_cached': active_vessels is not None,
+            'active_vessels_count': len(active_vessels) if active_vessels else 0,
+            'all_vessels_cached': all_vessels is not None,
+            'all_vessels_count': len(all_vessels) if all_vessels else 0,
+            'cache_timeout': cls.CACHE_TIMEOUT,
+            'cache_keys': {
+                'active': cls.ACTIVE_VESSELS_KEY,
+                'all': cls.ALL_VESSELS_BASIC_KEY
+            }
         }
+    
+    @classmethod
+    def get_user_vessel_assignments_cache_key(cls, user_id):
+        """Generate cache key for user vessel assignments"""
+        return f"user_vessel_assignments_{user_id}"
+    
+    @classmethod
+    def get_cached_user_vessel_ids(cls, user_id):
+        """Get cached vessel IDs for a user"""
+        cache_key = cls.get_user_vessel_assignments_cache_key(user_id)
+        return cache.get(cache_key)
+    
+    @classmethod
+    def cache_user_vessel_ids(cls, user_id, vessel_ids, timeout=3600):
+        """Cache user vessel assignments for 1 hour"""
+        cache_key = cls.get_user_vessel_assignments_cache_key(user_id)
+        cache.set(cache_key, vessel_ids, timeout)
+        return True
+    
+    @classmethod
+    def clear_user_vessel_cache(cls, user_id):
+        """Clear cached vessel assignments for a specific user"""
+        cache_key = cls.get_user_vessel_assignments_cache_key(user_id)
+        cache.delete(cache_key)
+        return True
 
 class VesselManagementCacheHelper:
     """Cache helper for vessel management page"""

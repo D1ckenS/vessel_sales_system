@@ -24,6 +24,7 @@ from .permissions import (
     UserRoles
 )
 from vessel_management.utils import VesselAccessHelper, VesselOperationValidator, VesselFormHelper
+from vessel_management.models import UserVesselAssignment
 
 @operations_access_required
 def sales_entry(request):
@@ -37,18 +38,32 @@ def sales_entry(request):
         logger.debug(f"Referer: {request.META.get('HTTP_REFERER', 'None')}")
         logger.debug(f"Cache-Control: {request.META.get('HTTP_CACHE_CONTROL', 'None')}")
         
-        # Get vessels user has access to
-        all_vessels_qs = Vessel.objects.filter(active=True)
-        vessels = VesselAccessHelper.filter_vessels_by_user_access(all_vessels_qs, request.user)
+        # 🚀 SINGLE VESSEL CACHE CALL: Call once to eliminate duplicate cache operations
+        all_vessels_cached = VesselCacheHelper.get_all_vessels_basic_data()
+        
+        if request.user.is_superuser:
+            # SuperUser gets all active vessels from cache
+            vessels = [v for v in all_vessels_cached if v.active]
+        else:
+            # 🚀 OPTIMIZED: Get user assignments + filter cached vessels  
+            user_vessel_ids = set(UserVesselAssignment.objects.filter(
+                user=request.user, is_active=True
+            ).values_list('vessel_id', flat=True))
+            
+            if user_vessel_ids:
+                # Filter cached vessels - no additional cache calls
+                vessels = [v for v in all_vessels_cached if v.active and v.id in user_vessel_ids]
+                # Sort by name for consistency
+                vessels.sort(key=lambda x: x.name)
+            else:
+                vessels = []
                 
-        # Get user's role
+        # Get user's role (no additional queries)
         user_role = get_user_role(request.user)
         
         # 🚀 OPTIMIZED: Check cache for recent trips with revenue data
         today = date.today() if user_role == UserRoles.VESSEL_OPERATORS else None
-        
-        # Try robust cache first (survives browser navigation better)
-        cached_trips = TripCacheHelper.get_recent_trips_with_revenue_robust(str(user_role), today)
+        cached_trips = TripCacheHelper.get_recent_trips_with_revenue_robust(user_role, today)
         
         if cached_trips:
             logger.debug(f"Cache hit: Recent trips for {user_role} ({len(cached_trips)} trips)")
@@ -56,50 +71,43 @@ def sales_entry(request):
         else:
             logger.debug(f"Cache miss: Building recent trips for {user_role}")
             
-            # 🚀 OPTIMIZED: Single query with proper prefetching
+            # 🚀 SIMPLIFIED: Just get basic trip data with pre-calculated summary fields
             base_query = Trip.objects.select_related(
                 'vessel', 'created_by'
-            ).prefetch_related(
-                Prefetch(
-                    'sales_transactions',
-                    queryset=Transaction.objects.select_related('product')
-                )
-            )
+            ).only(
+                'id', 'trip_number', 'trip_date', 'passenger_count', 'is_completed', 'created_at',
+                'total_revenue', 'item_count',  # Pre-calculated summary fields
+                'vessel__id', 'vessel__name', 'vessel__name_ar',
+                'created_by__username'
+            ).order_by('-created_at')
             
             # Filter recent trips based on user role
             if user_role == UserRoles.VESSEL_OPERATORS:
-                recent_trips_query = base_query.filter(
-                    trip_date=today
-                ).order_by('-created_at')[:10]
+                recent_trips = list(base_query.filter(trip_date=today)[:10])
             else:
-                recent_trips_query = base_query.order_by('-created_at')[:10]
+                recent_trips = list(base_query[:10])
             
-            # 🚀 OPTIMIZED: Process trips with prefetched data (no additional queries)
-            recent_trips = []
-            for trip in recent_trips_query:
-                sales_transactions = trip.sales_transactions.all()
-                total_revenue = sum(
-                    float(txn.quantity) * float(txn.unit_price) 
-                    for txn in sales_transactions
-                )
-                transaction_count = len(sales_transactions)
-                
-                trip.calculated_total_revenue = total_revenue
-                trip.calculated_transaction_count = transaction_count
-                recent_trips.append(trip)
+            # Trips now have pre-calculated total_revenue and item_count fields from database
+            # No additional processing needed - use directly from database fields
             
-            # 🚀 ROBUST CACHE: Store with longer timeout for browser navigation
+            # 🚀 CACHE: Store processed trips for future requests
             TripCacheHelper.cache_recent_trips_with_revenue_robust(str(user_role), recent_trips, today)
+            logger.debug(f"Cached: Recent trips ({len(recent_trips)} trips) - 2 hour timeout")
+        
+        # 🚀 Manual vessel context - format for template expectations
+        vessel_choices = [(v.id, v.name, i == 0) for i, v in enumerate(vessels)]
         
         context = {
             'vessels': vessels,
             'recent_trips': recent_trips,
             'today': date.today(),
             'user_role': user_role,
+            # Template expects specific format
+            'user_default_vessel': vessels[0] if vessels else None,
+            'user_vessel_choices': vessel_choices,  # (id, name, is_default) tuples
+            'context_aware_vessels': vessels,
+            'vessel_auto_populate_enabled': True,
         }
-        
-        # Add vessel auto-population context
-        context = VesselFormHelper.add_vessel_context_to_view(context, request.user, 'sales')
         
         return render(request, 'frontend/sales_entry.html', context)
     

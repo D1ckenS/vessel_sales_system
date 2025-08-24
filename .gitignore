@@ -315,6 +315,7 @@ test_*.sqlite3
 # Claude AI assistant files
 .claude/
 .windsurfrules
+2025-08-20-this-session-is-being-continued-from-a-previous-conversation.txt
 
 # Project documentation and guides
 CLAUDE.md

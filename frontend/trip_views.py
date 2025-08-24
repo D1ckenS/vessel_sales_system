@@ -37,44 +37,87 @@ def trip_management(request):
     date_to = request.GET.get('date_to')
     min_revenue = request.GET.get('min_revenue')
     
-    # Use EXACT working pattern from trip_reports
-    trips_query = Trip.objects.select_related(
-        'vessel', 'created_by'
-    ).prefetch_related(
-        Prefetch(
-            'sales_transactions',
-            queryset=Transaction.objects.select_related('product', 'product__category')
-        )
-    ).annotate(
-        # Add the WORKING annotation for revenue calculation
-        annotated_revenue=Sum(F('sales_transactions__unit_price') * F('sales_transactions__quantity')),
-        annotated_transaction_count=Count('sales_transactions')
-    ).order_by('-trip_date', '-created_at')
+    # 🚀 CACHE: Check for cached trip list (only when no filters applied)
+    has_filters = any([
+        vessel_filter,
+        status_filter,
+        date_from,
+        date_to,
+        min_revenue
+    ])
     
-    # Apply filters
-    if vessel_filter:
-        trips_query = trips_query.filter(vessel_id=vessel_filter)
-    if status_filter == 'completed':
-        trips_query = trips_query.filter(is_completed=True)
-    elif status_filter == 'in_progress':
-        trips_query = trips_query.filter(is_completed=False)
-    if date_from:
-        try:
-            date_from_parsed = datetime.strptime(date_from, '%Y-%m-%d').date()
-            trips_query = trips_query.filter(trip_date__gte=date_from_parsed)
-        except ValueError:
-            pass
-    if date_to:
-        try:
-            date_to_parsed = datetime.strptime(date_to, '%Y-%m-%d').date()
-            trips_query = trips_query.filter(trip_date__lte=date_to_parsed)
-        except ValueError:
-            pass
+    using_cached_data = False
     
-    # ✅ REPLACE Django Paginator with optimized pagination
-    # Use accurate counts for management pages since accurate pagination is important
+    if not has_filters:
+        cached_trip_list = TripCacheHelper.get_trip_mgmt_list()
+        
+        if cached_trip_list:
+            logger.debug(f"Cache hit: Trip Management List ({len(cached_trip_list)} trips)")
+            trips_query = cached_trip_list
+            using_cached_data = True
+        else:
+            logger.debug("Cache miss: Building trip management list")
+            
+            # 🚀 OPTIMIZED: Build and cache evaluated list of trip objects
+            trips_query = list(Trip.objects.select_related(
+                'vessel', 'created_by'
+            ).only(
+                # Trip fields
+                'id', 'trip_number', 'trip_date', 'passenger_count', 'is_completed', 'created_at', 'notes',
+                'total_revenue', 'item_count', 'vessel_id', 'created_by_id',  # Pre-calculated summary fields
+                # Vessel fields (to prevent N+1 queries)
+                'vessel__id', 'vessel__name', 'vessel__name_ar', 'vessel__has_duty_free', 'vessel__active',
+                # User fields
+                'created_by__id', 'created_by__username'
+            ).order_by('-trip_date', '-created_at'))
+            
+            # 🚀 CACHE: Store evaluated trip list for future requests
+            TripCacheHelper.cache_trip_mgmt_list(trips_query)
+            logger.debug(f"Cached: Trip Management List ({len(trips_query)} trips) - 30 min timeout")
+            using_cached_data = True
+    else:
+        # Filters applied - always do fresh query (can't use cache)
+        trips_query = Trip.objects.select_related(
+            'vessel', 'created_by'
+        ).only(
+            # Trip fields
+            'id', 'trip_number', 'trip_date', 'passenger_count', 'is_completed', 'created_at', 'notes',
+            'total_revenue', 'item_count', 'vessel_id', 'created_by_id',  # Pre-calculated summary fields
+            # Vessel fields (to prevent N+1 queries)
+            'vessel__id', 'vessel__name', 'vessel__name_ar', 'vessel__has_duty_free', 'vessel__active',
+            # User fields
+            'created_by__id', 'created_by__username'
+        ).order_by('-trip_date', '-created_at')
+    
+    # Apply filters only if we're not using cached list data
+    if not using_cached_data:
+        # Apply filters
+        if vessel_filter:
+            trips_query = trips_query.filter(vessel_id=vessel_filter)
+        if status_filter == 'completed':
+            trips_query = trips_query.filter(is_completed=True)
+        elif status_filter == 'in_progress':
+            trips_query = trips_query.filter(is_completed=False)
+        if date_from:
+            try:
+                date_from_parsed = datetime.strptime(date_from, '%Y-%m-%d').date()
+                trips_query = trips_query.filter(trip_date__gte=date_from_parsed)
+            except ValueError:
+                pass
+        if date_to:
+            try:
+                date_to_parsed = datetime.strptime(date_to, '%Y-%m-%d').date()
+                trips_query = trips_query.filter(trip_date__lte=date_to_parsed)
+            except ValueError:
+                pass
+        
+        # Order for consistent results (only if not already a list)
+        if not isinstance(trips_query, list):
+            trips_query = trips_query.order_by('-trip_date', '-created_at')
+    
+    # 🚀 OPTIMIZED: Use COUNT-free pagination for better performance
     page_number = request.GET.get('page', 1)
-    page_obj = get_optimized_pagination(trips_query, page_number, page_size=25, use_count=True)
+    page_obj = get_optimized_pagination(trips_query, page_number, page_size=25, use_count=False)
     
     # Process trips list
     trips_list = page_obj.object_list
@@ -84,13 +127,14 @@ def trip_management(request):
     completed_count = 0
     total_passengers = 0
     
-    # Process each trip
+    # 🚀 OPTIMIZED: Process each trip using pre-calculated database fields
     for trip in trips_list:
-        # Set values for template (CORRECT FIELD NAMES)
-        trip_revenue = trip.annotated_revenue or 0
-        trip_transaction_count = trip.annotated_transaction_count or 0
+        # Use pre-calculated fields directly from database (no additional queries)
+        trip_revenue = float(trip.total_revenue)
+        trip_transaction_count = trip.item_count
         
-        trip.annotated_total_revenue = trip_revenue    # ✅ Template expects this field name
+        # Add calculated fields for template compatibility (using database fields)
+        trip.annotated_total_revenue = trip_revenue
         trip.annotated_transaction_count = trip_transaction_count
         
         # Accumulate stats
@@ -131,6 +175,8 @@ def trip_management(request):
         if vessel_name not in vessel_stats:
             vessel_stats[vessel_name] = {
                 'vessel': trip.vessel,
+                'vessel__name': trip.vessel.name,  # Template compatibility  
+                'vessel__name_ar': trip.vessel.name_ar,  # Template compatibility
                 'trip_count': 0,
                 'total_revenue': 0,
                 'total_passengers': 0
@@ -139,6 +185,25 @@ def trip_management(request):
         vessel_stats[vessel_name]['total_revenue'] += trip.annotated_total_revenue
         vessel_stats[vessel_name]['total_passengers'] += trip.passenger_count or 0
     
+    # Process vessel performance data with template-required fields
+    for vessel_name, stats in vessel_stats.items():
+        # Calculate avg monthly trips (assume current page shows 1 month of data)
+        stats['avg_monthly'] = round(stats['trip_count'], 1)
+        
+        # Set performance class and icon based on trip count
+        if stats['trip_count'] >= 10:
+            stats['performance_class'] = 'high-performance'
+            stats['performance_icon'] = 'rocket'
+            stats['badge_class'] = 'bg-success'
+        elif stats['trip_count'] >= 5:
+            stats['performance_class'] = 'medium-performance' 
+            stats['performance_icon'] = 'ship'
+            stats['badge_class'] = 'bg-primary'
+        else:
+            stats['performance_class'] = 'low-performance'
+            stats['performance_icon'] = 'anchor'
+            stats['badge_class'] = 'bg-secondary'
+    
     # Top performing vessels
     top_vessels = sorted(
         vessel_stats.values(), 
@@ -146,11 +211,15 @@ def trip_management(request):
         reverse=True
     )[:5]
     
+    all_vessels = VesselCacheHelper.get_all_vessels_basic_data()
+    vessels = [v for v in all_vessels if v.active]
+    
     context = {
         'trips': trips_list,
         'page_obj': page_obj,
-        'active_vessels': VesselCacheHelper.get_active_vessels(),
+        'active_vessels': vessels,
         'top_vessels': top_vessels,
+        'vessel_performance': top_vessels,  # Template expects 'vessel_performance'
         'stats': {
             'total_trips': total_trips,
             'completed_trips': completed_count,
@@ -211,7 +280,7 @@ def edit_trip(request, trip_id):
             'vessel_name': trip.vessel.name,
             'is_completed': trip.is_completed,
             'total_revenue': float(trip.total_revenue),
-            'transaction_count': trip.transaction_count,
+            'transaction_count': trip.item_count,
         }
         
         return JsonResponse({

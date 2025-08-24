@@ -50,6 +50,7 @@ from .permissions import (
     admin_or_manager_required
 )
 from vessel_management.utils import VesselAccessHelper, VesselOperationValidator, VesselFormHelper
+from vessel_management.models import UserVesselAssignment
 
 logger = logging.getLogger(__name__)
 
@@ -58,9 +59,20 @@ def supply_entry(request):
     """Step 1: Create new purchase order for supply transactions - OPTIMIZED"""
     
     if request.method == 'GET':
-        # Get vessels user has access to
-        all_vessels_qs = Vessel.objects.filter(active=True)
-        vessels = VesselAccessHelper.filter_vessels_by_user_access(all_vessels_qs, request.user)
+        # 🚀 SINGLE VESSEL CACHE CALL: Call once to eliminate duplicate cache operations
+        all_vessels_cached = VesselCacheHelper.get_all_vessels_basic_data()
+        
+        if request.user.is_superuser:
+            # SuperUser gets all active vessels from cache
+            vessels = [v for v in all_vessels_cached if v.active]
+        else:
+            # Get user vessel assignments (single query)
+            user_vessel_ids = list(UserVesselAssignment.objects.filter(
+                user=request.user, is_active=True
+            ).values_list('vessel_id', flat=True))
+            
+            # Filter cached vessels by user assignments
+            vessels = [v for v in all_vessels_cached if v.active and v.id in user_vessel_ids] if user_vessel_ids else []
         
         # 🚀 OPTIMIZED: Check cache for recent POs with cost data
         cached_pos = POCacheHelper.get_recent_pos_with_cost()
@@ -71,45 +83,36 @@ def supply_entry(request):
         else:
             logger.debug("Cache miss: Building recent POs")
             
-            # 🚀 OPTIMIZED: Single query with proper prefetching
-            recent_pos_query = PurchaseOrder.objects.select_related(
+            # 🚀 SIMPLIFIED: Just get basic PO data with pre-calculated summary fields
+            recent_pos = list(PurchaseOrder.objects.select_related(
                 'vessel', 'created_by'
-            ).prefetch_related(
-                Prefetch(
-                    'supply_transactions',
-                    queryset=Transaction.objects.select_related('product')
-                )
-            ).order_by('-created_at')[:10]
+            ).only(
+                'id', 'po_number', 'po_date', 'is_completed', 'created_at',
+                'total_cost', 'item_count',  # Pre-calculated summary fields
+                'vessel__id', 'vessel__name', 'vessel__name_ar',
+                'created_by__username'
+            ).order_by('-created_at')[:10])
             
-            # 🚀 OPTIMIZED: Process POs with prefetched data (no additional queries)
-            recent_pos = []
-            for po in recent_pos_query:
-                # Calculate cost using prefetched supply_transactions
-                supply_transactions = po.supply_transactions.all()  # Uses prefetched data
-                total_cost = sum(
-                    float(txn.quantity) * float(txn.unit_price) 
-                    for txn in supply_transactions
-                )
-                transaction_count = len(supply_transactions)
-                
-                # Add calculated fields to PO object for template
-                po.calculated_total_cost = total_cost
-                po.calculated_transaction_count = transaction_count
-                
-                recent_pos.append(po)
+            # POs now have pre-calculated total_cost and item_count fields from database
+            # No additional processing needed - use directly from database fields
             
             # 🚀 CACHE: Store processed POs for future requests
             POCacheHelper.cache_recent_pos_with_cost(recent_pos)
             logger.debug(f"Cached: Recent POs ({len(recent_pos)} POs) - 1 hour timeout")
         
+        # 🚀 Manual vessel context - format for template expectations
+        vessel_choices = [(v.id, v.name, i == 0) for i, v in enumerate(vessels)]
+        
         context = {
             'vessels': vessels,
             'recent_pos': recent_pos,
             'today': date.today(),
+            # Template expects specific format - no additional queries
+            'user_default_vessel': vessels[0] if vessels else None,
+            'user_vessel_choices': vessel_choices,  # (id, name, is_default) tuples
+            'context_aware_vessels': vessels,
+            'vessel_auto_populate_enabled': True,
         }
-        
-        # Add vessel auto-population context
-        context = VesselFormHelper.add_vessel_context_to_view(context, request.user, 'supply')
         
         return render(request, 'frontend/supply_entry.html', context)
     
@@ -268,7 +271,7 @@ def po_complete(request, po_id):
             po.save()
             
             total_cost = po.total_cost
-            transaction_count = po.transaction_count
+            transaction_count = po.item_count
             
             BilingualMessages.success(request, 
                 f'Purchase Order {po.po_number} completed! '

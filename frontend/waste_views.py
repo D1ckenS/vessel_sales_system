@@ -19,24 +19,42 @@ from django.db import transaction
 logger = logging.getLogger('frontend')
 
 
-@login_required
+@operations_access_required
 def waste_entry(request):
-    '''Step 1: Create new waste report for damaged/expired items'''
+    '''Step 1: Create new waste report for damaged/expired items - OPTIMIZED'''
     
-    # Check permissions (Inventory Staff, Managers, Administrators - NOT Vessel Operators)
-    if not (request.user.groups.filter(name__in=['Inventory Staff', 'Managers', 'Administrators']).exists() or request.user.is_superuser):
-        BilingualMessages.error(request, 'Access denied. Insufficient permissions.')
-        return redirect('frontend:dashboard')
+    # 📦 ELIMINATED: Group permission check - handled by @operations_access_required decorator
     
     if request.method == 'GET':
-        vessels = VesselCacheHelper.get_active_vessels()
+        # 🚀 VESSEL CACHE: Use cached vessels for cross-page efficiency
+        all_vessels_cached = VesselCacheHelper.get_all_vessels_basic_data()
+        vessels = [v for v in all_vessels_cached if v.active]
         
-        # Get recent waste reports
-        recent_reports = WasteReport.objects.select_related(
-            'vessel', 'created_by'
-        ).prefetch_related(
-            'waste_transactions'
-        ).order_by('-created_at')[:10]
+        # 🚀 OPTIMIZED: Check cache for recent waste reports with cost data
+        cached_reports = WasteCacheHelper.get_recent_wastes_with_cost()
+        
+        if cached_reports:
+            logger.debug(f"Cache hit: Recent waste reports ({len(cached_reports)} reports)")
+            recent_reports = cached_reports
+        else:
+            logger.debug("Cache miss: Building recent waste reports")
+            
+            # 🚀 SIMPLIFIED: Just get basic waste report data with pre-calculated summary fields
+            recent_reports = list(WasteReport.objects.select_related(
+                'vessel', 'created_by'
+            ).only(
+                'id', 'report_number', 'report_date', 'is_completed', 'created_at',
+                'total_cost', 'item_count',  # Pre-calculated summary fields
+                'vessel__id', 'vessel__name', 'vessel__name_ar',
+                'created_by__username'
+            ).order_by('-created_at')[:10])
+            
+            # Reports now have pre-calculated total_cost and item_count fields from database
+            # No additional processing needed - use directly from database fields
+            
+            # 🚀 CACHE: Store processed reports for future requests
+            WasteCacheHelper.cache_recent_wastes_with_cost(recent_reports)
+            logger.debug(f"Cached: Recent waste reports ({len(recent_reports)} reports) - 1 hour timeout")
         
         context = {
             'vessels': vessels,
@@ -435,9 +453,13 @@ def waste_bulk_complete(request):
                 except Product.DoesNotExist:
                     continue  # Skip invalid products
             
-            # Mark waste report as completed
+            # Mark waste report as completed and update summary fields
             waste_report.is_completed = True
             waste_report.save()
+            
+            # Update pre-calculated summary fields (total_cost and item_count)
+            waste_report.update_summary_fields()
+            
             WasteCacheHelper.clear_cache_after_waste_complete(waste_report.id)
         
         return JsonResponse({

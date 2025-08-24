@@ -30,44 +30,88 @@ logger = logging.getLogger('frontend')
 def po_management(request):
     """OPTIMIZED: PO management with COUNT-free pagination"""
     
-    # Base queryset with template-required annotations
-    purchase_orders = PurchaseOrder.objects.select_related(
-        'vessel', 'created_by'
-    ).prefetch_related(
-        'supply_transactions'
-    ).order_by('-po_date', '-created_at')
+    # 🚀 CACHE: Check for cached PO list (only when no filters applied)
+    has_filters = any([
+        request.GET.get('vessel'),
+        request.GET.get('date_from'),
+        request.GET.get('date_to'),
+        request.GET.get('status')
+    ])
     
-    # Apply all filters using helper with custom field mappings
-    purchase_orders = TransactionQueryHelper.apply_common_filters(
-        purchase_orders, request,
-        date_field='po_date',             # POs use po_date not transaction_date
-        status_field='is_completed'       # Enable status filtering for POs
-    )
+    cached_po_list = None  # Track whether we used cache
     
-    # Order for consistent results
-    purchase_orders = purchase_orders.order_by('-po_date', '-created_at')
+    if not has_filters:
+        cached_po_list = POCacheHelper.get_po_mgmt_list()
+        
+        if cached_po_list:
+            logger.debug(f"🚀 Cache hit: PO Management List ({len(cached_po_list)} POs)")
+            purchase_orders = cached_po_list
+            using_cached_data = True
+        else:
+            logger.debug("Cache miss: Building PO management list")
+            
+            # 🚀 OPTIMIZED: Build and cache evaluated list of PO objects
+            purchase_orders = list(PurchaseOrder.objects.select_related(
+                'vessel', 'created_by'
+            ).only(
+                # PurchaseOrder fields
+                'id', 'po_number', 'po_date', 'is_completed', 'created_at', 'notes',
+                'total_cost', 'item_count', 'vessel_id', 'created_by_id',  # Pre-calculated summary fields
+                # Vessel fields (to prevent N+1 queries)
+                'vessel__id', 'vessel__name', 'vessel__name_ar', 'vessel__has_duty_free', 'vessel__active',
+                # User fields
+                'created_by__id', 'created_by__username'
+            ).order_by('-po_date', '-created_at'))
+            
+            # 🚀 CACHE: Store evaluated PO list for future requests
+            POCacheHelper.cache_po_mgmt_list(purchase_orders)
+            logger.debug(f"🚀 Cached: PO Management List ({len(purchase_orders)} POs) - 1 hour timeout")
+            using_cached_data = True
+    else:
+        # Filters applied - always do fresh query (can't use cache)
+        purchase_orders = PurchaseOrder.objects.select_related(
+            'vessel', 'created_by'
+        ).only(
+            # PurchaseOrder fields
+            'id', 'po_number', 'po_date', 'is_completed', 'created_at', 'notes',
+            'total_cost', 'item_count', 'vessel_id', 'created_by_id',  # Pre-calculated summary fields
+            # Vessel fields (to prevent N+1 queries)
+            'vessel__id', 'vessel__name', 'vessel__name_ar', 'vessel__has_duty_free', 'vessel__active',
+            # User fields
+            'created_by__id', 'created_by__username'
+        ).order_by('-po_date', '-created_at')
+        using_cached_data = False
     
-    # ✅ REPLACE Django Paginator with optimized pagination
-    # Use accurate counts for management pages since accurate pagination is important
+    # Apply filters only if we're not using cached list data
+    if not using_cached_data:
+        # Apply all filters using helper with custom field mappings
+        purchase_orders = TransactionQueryHelper.apply_common_filters(
+            purchase_orders, request,
+            date_field='po_date',             # POs use po_date not transaction_date
+            status_field='is_completed'       # Enable status filtering for POs
+        )
+    
+    # Order for consistent results (only if not already a list)
+    if not isinstance(purchase_orders, list):
+        purchase_orders = purchase_orders.order_by('-po_date', '-created_at')
+    
+    # 🚀 OPTIMIZED: Use COUNT-free pagination for better performance
     page_number = request.GET.get('page', 1)
-    page_obj = get_optimized_pagination(purchase_orders, page_number, page_size=25, use_count=True)
+    page_obj = get_optimized_pagination(purchase_orders, page_number, page_size=25, use_count=False)
     
     # WORKING: Add cost performance class to each PO (for template)
     po_list = page_obj.object_list  # Use optimized pagination object list
     
-    # OPTIMIZED: Calculate stats in Python using prefetched data
+    # 🚀 OPTIMIZED: Use pre-calculated database fields (no additional queries)
     total_cost = 0
     completed_count = 0
 
     for po in po_list:
-        # Calculate cost using prefetched supply_transactions (no additional queries)
-        po_cost = sum(
-            float(txn.quantity) * float(txn.unit_price) 
-            for txn in po.supply_transactions.all()
-        )
-        po_transaction_count = len(po.supply_transactions.all())
+        # Use pre-calculated fields directly from database
+        po_cost = float(po.total_cost)
+        po_transaction_count = po.item_count
         
-        # Add calculated fields to PO object for template
+        # Add calculated fields for template compatibility (using database fields)
         po.annotated_total_cost = po_cost
         po.annotated_transaction_count = po_transaction_count
         
@@ -107,6 +151,8 @@ def po_management(request):
         if vessel_name not in vessel_stats:
             vessel_stats[vessel_name] = {
                 'vessel': po.vessel,
+                'vessel__name': po.vessel.name,  # Template compatibility
+                'vessel__name_ar': po.vessel.name_ar,  # Template compatibility
                 'po_count': 0,
                 'total_value': 0
             }
@@ -117,7 +163,8 @@ def po_management(request):
     top_vessels = sorted(vessel_stats.values(), key=lambda x: x['po_count'], reverse=True)[:5]
 
     # Get vessels for filter using helper
-    vessels = VesselCacheHelper.get_active_vessels()
+    all_vessels = VesselCacheHelper.get_all_vessels_basic_data()
+    vessels = [v for v in all_vessels if v.active]
 
     context = {
         'purchase_orders': po_list,
@@ -141,8 +188,16 @@ def po_management(request):
         'top_suppliers': top_vessels,
     }
     
-    # Add filter context using helper
-    context.update(TransactionQueryHelper.get_filter_context(request))
+    # 🚀 OPTIMIZED: Add filter context directly (avoid expensive vessel annotation query)
+    context.update({
+        'filters': {
+            'vessel': request.GET.get('vessel'),
+            'date_from': request.GET.get('date_from'),
+            'date_to': request.GET.get('date_to'),
+            'status': request.GET.get('status'),
+            'transaction_type': request.GET.get('transaction_type'),
+        }
+    })
     
     return render(request, 'frontend/auth/po_management.html', context)
 

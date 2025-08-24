@@ -438,6 +438,7 @@
 - [ ] **Cache performance monitoring** - Analyze cache hit rates and optimization
 
 ### Medium Priority - Feature Enhancement
+- [ ] **Staff Access Clarification** - Currently `is_staff` has no functional difference from regular users in the vessel sales system (only affects Django admin access and UI badges). Consider either removing for simplicity or adding meaningful staff-specific features
 - [ ] **Dropdown keyboard navigation** - Arrow keys, Enter, Escape support
 - [ ] **Advanced filtering** in vessel/status dropdowns with search capability  
 - [ ] **Loading states** for dropdowns with dynamic content

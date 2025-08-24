@@ -75,7 +75,7 @@
                         <h6 class="mb-1 opacity-75"><span data-translate="total_cost">Total Cost</span></h6>
                         <h3 class="mb-0" id="transferTotalCost">
                             {% if not can_edit %}
-                                <span data-number data-original="{{ transfer.calculated_total_cost|floatformat:3 }}">{{ transfer.calculated_total_cost|floatformat:3 }}</span> <span data-currency-symbol>JOD</span>
+                                <span data-number data-original="{{ transfer.display_total_cost|floatformat:3 }}">{{ transfer.display_total_cost|floatformat:3 }}</span> <span data-currency-symbol>JOD</span>
                             {% else %}
                                 <span data-number data-original="0.000">0.000</span> <span data-currency-symbol>JOD</span>
                             {% endif %}

@@ -26,7 +26,7 @@ from vessel_management.models import (
     UserVesselAssignment
 )
 from vessel_management.utils import VesselAccessHelper, VesselOperationValidator
-from frontend.utils.cache_helpers import VesselCacheHelper
+from frontend.utils.cache_helpers import VesselCacheHelper, TransferCacheHelper
 from .utils import BilingualMessages
 from .permissions import operations_access_required
 
@@ -219,6 +219,9 @@ def transfer_workflow_add_item(request):
                     notes=notes,
                     created_by=request.user
                 )
+                
+                # 🚀 UPDATE SUMMARY FIELDS: Update transfer summary after adding transaction
+                workflow.base_transfer.update_summary_fields()
             
             return JsonResponse({
                 'success': True,
@@ -321,30 +324,50 @@ def transfer_workflow_submit(request):
                     transaction_type__in=['TRANSFER_OUT', 'TRANSFER_IN']
                 ).delete()
                 
-                # Add transfer items - Create transactions without consuming inventory yet
-                # These will be "placeholder" transactions that don't execute FIFO until approved
+                # Add transfer items - Create transactions with correct FIFO pricing
+                # Import FIFO helper
+                from frontend.utils.helpers import get_fifo_cost_for_transfer
+                from decimal import Decimal
+                
                 for item in items:
                     product = get_object_or_404(Product, id=item['product_id'])
                     quantity = item['quantity']
                     notes = item.get('notes', '')
                     
-                    # Create TRANSFER_OUT transaction with pending flag
-                    # Note: We'll override the save method behavior for workflow transfers
+                    # Calculate proper FIFO cost (like transfer_bulk_complete does)
+                    try:
+                        fifo_cost_per_unit = get_fifo_cost_for_transfer(
+                            workflow.base_transfer.from_vessel, product, quantity
+                        )
+                        unit_price = Decimal(str(fifo_cost_per_unit)) if fifo_cost_per_unit else Decimal('0.001')
+                    except Exception as e:
+                        logger.warning(f"FIFO calculation failed for {product.name}: {e}")
+                        # Use fallback cost (same as transfer_bulk_complete)
+                        unit_price = product.purchase_price or Decimal('0.001')
+                    
+                    # Create TRANSFER_OUT transaction with correct FIFO pricing
                     Transaction.objects.create(
                         vessel=workflow.base_transfer.from_vessel,
                         product=product,
                         transaction_type='TRANSFER_OUT',
                         quantity=quantity,
-                        unit_price=product.purchase_price,  # Use current purchase price
+                        unit_price=unit_price,  # Use FIFO cost
                         transaction_date=workflow.base_transfer.transfer_date,
                         transfer=workflow.base_transfer,
-                        transfer_to_vessel=workflow.base_transfer.to_vessel,  # Required for TRANSFER_OUT validation
+                        transfer_to_vessel=workflow.base_transfer.to_vessel,
                         notes=f"PENDING_APPROVAL: {notes}",  # Mark as pending approval
                         created_by=request.user
                     )
                 
+                # 🚀 UPDATE SUMMARY FIELDS: Update transfer summary after adding all transactions
+                workflow.base_transfer.update_summary_fields()
+                
                 # Submit workflow for review
                 workflow.submit_for_review()
+                
+                # 🚀 CACHE: Clear transfer cache after workflow submission
+                print(f"DEBUG: transfer_workflow_submit - clearing cache after submission for transfer {workflow.base_transfer.id}")
+                TransferCacheHelper.clear_cache_after_transfer_complete(workflow.base_transfer.id)
                 
                 return JsonResponse({
                     'success': True,
@@ -631,6 +654,9 @@ def transfer_workflow_confirm(request):
                             # Mark workflow as completed
                             workflow.complete_transfer(completed_by_user=request.user)
                             message += '. Transfer executed and inventories updated.'
+                            
+                            # 🚀 CACHE: Clear transfer cache after completion
+                            TransferCacheHelper.clear_cache_after_transfer_complete(workflow.base_transfer.id)
                             
                         else:
                             return JsonResponse({'success': False, 'error': 'No items found for transfer execution'})

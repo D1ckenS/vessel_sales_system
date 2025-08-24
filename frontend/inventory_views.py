@@ -16,8 +16,15 @@ def inventory_check(request):
     """OPTIMIZED: Inventory check with FIFO cost calculation"""
     
     # Get vessels user has access to
-    all_vessels_qs = Vessel.objects.filter(active=True)
-    vessels = VesselAccessHelper.filter_vessels_by_user_access(all_vessels_qs, request.user)
+    # 🚀 VESSEL CACHE: Use cached vessels for access filtering optimization
+    if request.user.is_superuser:
+        # SuperUser gets all vessels from cache
+        all_vessels_cached = VesselCacheHelper.get_all_vessels_basic_data()
+        vessels = [v for v in all_vessels_cached if v.active]
+    else:
+        # For regular users, still need database query for access control
+        all_vessels_qs = Vessel.objects.filter(active=True)
+        vessels = VesselAccessHelper.filter_vessels_by_user_access(all_vessels_qs, request.user)
     selected_vessel_id = request.GET.get('vessel')
     
     if not selected_vessel_id:

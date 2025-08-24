@@ -336,10 +336,11 @@ python manage.py monitor_cache
 *Last Updated: August 19, 2025*  
 *Latest Major Features: ✅ Transfer Workflow System + User-Vessel Access Control + Critical Bug Fixes*
 
-- Always keep CLAUDE.md file under 40,000 characters
+- CRITICAL: Always keep CLAUDE.md and todos.md file under 40,000 characters
 - Always update todos.md with the plans and then always update it with the in-progress and then always update it with completed plans/phases/points
-- Never use import inside functions or classes, always use them at the top of the file unless it might cause a circular reference.
-- Never use EMOJIS in commands in api\management.
+- CRITICAL: Never use import inside functions or classes, always use them at the top of the file unless it might cause a circular reference.
+- CRITICAL: Never use EMOJIS in ANY management commands (api\management, frontend\management\commands, or any Django management commands) as they cause UnicodeEncodeError on Windows systems. Always use plain text alternatives.
+- CRITICAL: Replace emojis with plain text in all log messages.
 - Before running "python manage.py runserver", always make sure that all instances of runserver are killed.
-- Always update @todos.md after finishing any point or phase
+- Always update @todos.md after finishing any point or phase.
 - After implementing any phase or anything, always run a test.

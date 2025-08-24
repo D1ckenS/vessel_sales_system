@@ -46,7 +46,6 @@
     border: none;
     border-radius: 10px;
     transition: all 0.3s ease;
-    padding-right: 0;
 }
 
 .btn-warning {
@@ -54,7 +53,6 @@
     border: none;
     border-radius: 10px;
     transition: all 0.3s ease;
-    padding-right: 0;
 }
 
 .btn-danger {
@@ -62,7 +60,6 @@
     border: none;
     border-radius: 10px;
     transition: all 0.3s ease;
-    padding-right: 0;
 }
 
 /* =============================================================================

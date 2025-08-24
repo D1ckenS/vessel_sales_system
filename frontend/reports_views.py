@@ -151,8 +151,17 @@ def po_reports(request):
         }
     }
     
-    # Add filter context and vessels using helper
-    context.update(TransactionQueryHelper.get_filter_context(request))
+    # 🚀 OPTIMIZED: Add filter context directly (avoid expensive vessel annotation query)  
+    context.update({
+        'filters': {
+            'vessel': request.GET.get('vessel'),
+            'date_from': request.GET.get('date_from'), 
+            'date_to': request.GET.get('date_to'),
+            'status': request.GET.get('status'),
+            'transaction_type': request.GET.get('transaction_type'),
+        },
+        'vessels': VesselCacheHelper.get_active_vessels()  # Use cached vessels instead
+    })
     
     return render(request, 'frontend/po_reports.html', context)
 

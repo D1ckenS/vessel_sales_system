@@ -6,9 +6,9 @@ from django.contrib.auth.models import User, Group
 from django.db import transaction
 from vessel_management.models import UserVesselAssignment
 from vessels.models import Vessel
-
 logger = logging.getLogger('frontend')
 from frontend.utils.validation_helpers import ValidationHelper
+from frontend.utils.cache_helpers import VesselCacheHelper
 from .utils import BilingualMessages
 from django.views.decorators.http import require_http_methods
 import secrets
@@ -24,7 +24,7 @@ from .permissions import (
     admin_or_manager_required,
     is_admin_or_manager
 )
-
+    
 @login_required
 @user_passes_test(is_admin_or_manager)
 def create_user(request):
@@ -130,7 +130,18 @@ def create_user(request):
             # Get vessel assignments
             vessel_assignments = UserVesselAssignment.objects.filter(user=user, is_active=True)
             vessel_names = [assignment.vessel.name for assignment in vessel_assignments]
-            vessel_info = f" and assigned to vessels: {', '.join(vessel_names)}" if vessel_names else ""
+            
+            # Check if user has all active vessels assigned
+            all_vessels_cached = VesselCacheHelper.get_all_vessels_basic_data()
+            active_vessels = [v for v in all_vessels_cached if v.active]
+            has_all_vessels = len(vessel_assignments) == len(active_vessels) and len(active_vessels) > 0
+            
+            if has_all_vessels:
+                vessel_info = " and assigned to all vessels"
+            elif vessel_names:
+                vessel_info = f" and assigned to vessels: {', '.join(vessel_names)}"
+            else:
+                vessel_info = ""
             
             return FormResponseHelper.success_redirect(
                 request, 'frontend:user_management',
@@ -359,7 +370,18 @@ def manage_user_vessels(request, user_id):
         # Get updated vessel assignments for response
         vessel_assignments = UserVesselAssignment.objects.filter(user=user, is_active=True)
         vessel_names = [assignment.vessel.name for assignment in vessel_assignments]
-        vessel_info = f" to vessels: {', '.join(vessel_names)}" if vessel_names else " (no vessels assigned)"
+        
+        # Check if user has all active vessels assigned
+        all_vessels_cached = VesselCacheHelper.get_all_vessels_basic_data()
+        active_vessels = [v for v in all_vessels_cached if v.active]
+        has_all_vessels = len(vessel_assignments) == len(active_vessels) and len(active_vessels) > 0
+        
+        if has_all_vessels:
+            vessel_info = " to all vessels"
+        elif vessel_names:
+            vessel_info = f" to vessels: {', '.join(vessel_names)}"
+        else:
+            vessel_info = " (no vessels assigned)"
         
         return FormResponseHelper.success_redirect(
             request, 'frontend:user_management',
@@ -376,7 +398,7 @@ def manage_user_vessels(request, user_id):
 @login_required
 @user_passes_test(is_admin_or_manager)
 def user_management(request):
-    """🚀 Optimized: Minimal queries with caching, no template-based N+1"""
+    """🚀 FULLY Optimized: Zero N+1 queries with bulk prefetching"""
 
     # 🔒 Cache check
     cache_key = "user_management_data"
@@ -388,17 +410,31 @@ def user_management(request):
 
     logger.info("🚀 USER MANAGEMENT CACHE MISS - Building fresh data")
 
-    # 📦 Fetch users and prefetch groups
+    # 📦 Back to working 7-query version - stable optimization
     users = User.objects.prefetch_related('groups').order_by('username')
-    users_list = list(users)  # Force evaluation
-
-    # Annotate group counts
-    groups = Group.objects.annotate(user_count=Count('user')).order_by('name')
-    groups_list = list(groups)
+    groups = Group.objects.annotate(user_count=Count('user')).order_by('name') 
+    # 🚀 VESSEL CACHE: Use cached vessels for cross-page efficiency
+    all_vessels_cached = VesselCacheHelper.get_all_vessels_basic_data()
+    vessels = [v for v in all_vessels_cached if v.active]
     
-    # Get active vessels for vessel assignment
-    vessels = Vessel.objects.filter(active=True).order_by('name')
+    # Single bulk query for all vessel assignments
+    vessel_assignments = UserVesselAssignment.objects.filter(
+        is_active=True
+    ).select_related('vessel', 'user')
+    
+    # Force evaluation and convert to lists
+    users_list = list(users)
+    groups_list = list(groups)
     vessels_list = list(vessels)
+    assignments_list = list(vessel_assignments)
+    
+    # Build user -> assignments mapping in memory
+    user_vessel_map = {}
+    for assignment in assignments_list:
+        user_id = assignment.user.id
+        if user_id not in user_vessel_map:
+            user_vessel_map[user_id] = []
+        user_vessel_map[user_id].append(assignment)
 
     # 🧮 Build user stats
     total_users = len(users_list)
@@ -413,22 +449,26 @@ def user_management(request):
     total_groups = len(groups_list)
     empty_groups = sum(1 for group in groups_list if group.user_count == 0)
 
-    # 🧠 Precompute group data and vessel assignments to avoid repeated .all() calls in template
+    # 🧠 Precompute ALL data to eliminate template N+1 queries
     for user in users_list:
-        user.group_ids = [group.id for group in user.groups.all()]
-        user.group_names = [group.name for group in user.groups.all()]
+        # Groups already prefetched, just extract data
+        user_groups = list(user.groups.all())
+        user.group_ids = [group.id for group in user_groups]
+        user.group_names = [group.name for group in user_groups]
         
-        # Get vessel assignments for each user
+        # Vessel assignments from mapping
         if user.is_superuser:
             user.vessel_display = "All Vessels (SuperUser)"
             user.vessel_ids = []
+            user.vessel_names = []
         else:
-            vessel_assignments = UserVesselAssignment.objects.filter(
-                user=user, is_active=True
-            ).select_related('vessel')
-            user.vessel_names = [assignment.vessel.name for assignment in vessel_assignments]
-            user.vessel_ids = [assignment.vessel.id for assignment in vessel_assignments]
+            user_assignments = user_vessel_map.get(user.id, [])
+            user.vessel_names = [assignment.vessel.name for assignment in user_assignments]
+            user.vessel_ids = [assignment.vessel.id for assignment in user_assignments]
             user.vessel_display = ', '.join(user.vessel_names) if user.vessel_names else "No vessels assigned"
+            
+            # Check if user has all active vessels assigned
+            user.has_all_vessels = len(user.vessel_ids) == len(vessels) and len(vessels) > 0
 
     # 📦 Package context
     context = {

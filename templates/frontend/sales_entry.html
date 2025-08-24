@@ -177,7 +177,7 @@
                                 <td>
                                     <span class="fw-bold">{{ trip.total_revenue|floatformat:3 }}</span>
                                     <small class="text-muted"><span data-currency-symbol>JOD</span></small>
-                                    <small class="text-muted d-block">({{ trip.transaction_count }} <span data-translate="items">items</span>)</small>
+                                    <small class="text-muted d-block">({{ trip.item_count }} <span data-translate="items">items</span>)</small>
                                 </td>
                                 <td>
                                     {% if trip.is_completed %}

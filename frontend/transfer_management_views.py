@@ -33,6 +33,9 @@ logger = logging.getLogger('frontend')
 def transfer_management(request):
     """OPTIMIZED: Transfer management with COUNT-free pagination"""
     
+    # Cache debugging (can be removed after verification)
+    logger.debug(f"TRANSFER MGMT FUNCTION CALLED - GET PARAMS: {dict(request.GET)}")
+    
     # Get filter parameters
     from_vessel_filter = request.GET.get('from_vessel')
     to_vessel_filter = request.GET.get('to_vessel')
@@ -41,51 +44,86 @@ def transfer_management(request):
     date_to = request.GET.get('date_to')
     search_filter = request.GET.get('search', '').strip()
     
-    # Base queryset with prefetched transactions and workflow
-    transfers = Transfer.objects.select_related(
-        'from_vessel', 'to_vessel', 'created_by', 'workflow'
-    ).prefetch_related(
-        'transactions'
-    )
+    # 🚀 CACHE: Check for cached transfer list (only when no filters applied)
+    has_filters = any([
+        from_vessel_filter,
+        to_vessel_filter,
+        status_filter,
+        date_from,
+        date_to,
+        search_filter
+    ])
     
-    # Apply filters
-    if from_vessel_filter:
-        transfers = transfers.filter(from_vessel_id=from_vessel_filter)
-    if to_vessel_filter:
-        transfers = transfers.filter(to_vessel_id=to_vessel_filter)
-    if status_filter == 'completed':
-        # Consider both regular transfers and workflow transfers
-        transfers = transfers.filter(
-            Q(is_completed=True) | 
-            Q(workflow__status='completed')
-        )
-    elif status_filter == 'in_progress':
-        # Not completed and (no workflow OR workflow not completed)
-        transfers = transfers.filter(
-            Q(is_completed=False) & 
-            (Q(workflow__isnull=True) | ~Q(workflow__status='completed'))
-        )
-    if date_from:
-        try:
-            date_from_parsed = datetime.strptime(date_from, '%Y-%m-%d').date()
-            transfers = transfers.filter(transfer_date__gte=date_from_parsed)
-        except ValueError:
-            pass
-    if date_to:
-        try:
-            date_to_parsed = datetime.strptime(date_to, '%Y-%m-%d').date()
-            transfers = transfers.filter(transfer_date__lte=date_to_parsed)
-        except ValueError:
-            pass
-    if search_filter:
-        transfers = transfers.filter(
-            Q(from_vessel__name__icontains=search_filter) |
-            Q(to_vessel__name__icontains=search_filter) |
-            Q(notes__icontains=search_filter)
-        )
+    logger.debug(f"TRANSFER MGMT DEBUG - Filters detected: has_filters={has_filters}")
     
-    # Order for consistent results
-    transfers = transfers.order_by('-transfer_date', '-created_at')
+    using_cached_data = False
+    
+    if not has_filters:
+        cached_transfer_list = TransferCacheHelper.get_transfer_mgmt_list()
+        
+        if cached_transfer_list:
+            logger.debug(f"CACHE HIT: Transfer Management List ({len(cached_transfer_list)} transfers) - NO QUERY NEEDED")
+            transfers = cached_transfer_list
+            using_cached_data = True
+        else:
+            logger.debug("CACHE MISS: Building and caching transfer list")
+            
+            # OPTIMIZED: Build and cache transfer objects using pre-calculated fields
+            transfers = list(Transfer.objects.select_related(
+                'from_vessel', 'to_vessel', 'created_by', 'workflow'
+            ).order_by('-transfer_date', '-created_at'))
+            
+            # CACHE: Store evaluated transfer list for future requests
+            TransferCacheHelper.cache_transfer_mgmt_list(transfers)
+            logger.debug(f"CACHED: Transfer Management List ({len(transfers)} transfers)")
+            # using_cached_data stays False for cache miss case
+    
+    # Handle filtering when needed
+    if has_filters:
+        logger.debug("FILTERS DETECTED: Creating fresh QuerySet")
+        # Filters applied - always do fresh query (can't use cache)  
+        transfers = Transfer.objects.select_related(
+            'from_vessel', 'to_vessel', 'created_by', 'workflow'
+        )
+        
+        # Apply filters
+        if from_vessel_filter:
+            transfers = transfers.filter(from_vessel_id=from_vessel_filter)
+        if to_vessel_filter:
+            transfers = transfers.filter(to_vessel_id=to_vessel_filter)
+        if status_filter == 'completed':
+            # Consider both regular transfers and workflow transfers
+            transfers = transfers.filter(
+                Q(is_completed=True) | 
+                Q(workflow__status='completed')
+            )
+        elif status_filter == 'in_progress':
+            # Not completed and (no workflow OR workflow not completed)
+            transfers = transfers.filter(
+                Q(is_completed=False) & 
+                (Q(workflow__isnull=True) | ~Q(workflow__status='completed'))
+            )
+        if date_from:
+            try:
+                date_from_parsed = datetime.strptime(date_from, '%Y-%m-%d').date()
+                transfers = transfers.filter(transfer_date__gte=date_from_parsed)
+            except ValueError:
+                pass
+        if date_to:
+            try:
+                date_to_parsed = datetime.strptime(date_to, '%Y-%m-%d').date()
+                transfers = transfers.filter(transfer_date__lte=date_to_parsed)
+            except ValueError:
+                pass
+        if search_filter:
+            transfers = transfers.filter(
+                Q(from_vessel__name__icontains=search_filter) |
+                Q(to_vessel__name__icontains=search_filter) |
+                Q(notes__icontains=search_filter)
+            )
+        
+        # Order for consistent results 
+        transfers = transfers.order_by('-transfer_date', '-created_at')
     
     # ✅ REPLACE Django Paginator with optimized pagination
     page_number = request.GET.get('page', 1)
@@ -101,16 +139,9 @@ def transfer_management(request):
     
     # Add template-required annotations for each transfer
     for transfer in transfer_list:
-        # Calculate cost using prefetched transactions (no additional queries)
-        transfer_cost = sum(
-            float(txn.quantity or 0) * float(txn.unit_price or 0)  # ✅ Add float() and handle None
-            for txn in transfer.transactions.all()
-            if txn.transaction_type == 'TRANSFER_OUT'  # Only count TRANSFER_OUT to avoid double counting
-        )
-        transfer_transaction_count = len([
-            txn for txn in transfer.transactions.all()
-            if txn.transaction_type == 'TRANSFER_OUT'
-        ])
+        # OPTIMIZED: Use pre-calculated database fields (no queries needed)
+        transfer_cost = float(transfer.total_cost or 0)
+        transfer_transaction_count = transfer.item_count or 0
         
         # Add calculated fields to transfer object for template
         transfer.annotated_total_cost = transfer_cost
@@ -129,6 +160,7 @@ def transfer_management(request):
             transfer.cost_performance_class = 'low-cost'
         
         # Determine actual completion status considering workflow
+        # Use consistent logic for both cached and fresh data
         is_actually_completed = (
             transfer.is_completed or 
             (hasattr(transfer, 'workflow') and transfer.workflow and transfer.workflow.status == 'completed')
@@ -186,10 +218,13 @@ def transfer_management(request):
         reverse=True
     )[:5]
     
+    all_vessels = VesselCacheHelper.get_all_vessels_basic_data()
+    vessels = [v for v in all_vessels if v.active]
+    
     context = {
         'transfers': transfer_list,
         'page_obj': page_obj,  # Optimized pagination object
-        'active_vessels': VesselCacheHelper.get_active_vessels(),
+        'active_vessels': vessels,
         'page_title': 'Transfer Management',
         'stats': {
             'total_transfers': total_transfers,
@@ -222,6 +257,7 @@ def transfer_management(request):
 @user_passes_test(is_admin_or_manager)
 def edit_transfer(request, transfer_id):
     """Edit transfer details following PO edit pattern"""
+    logger.debug(f"EDIT_TRANSFER CALLED: transfer_id={transfer_id}, method={request.method}")
     transfer, error = CRUDHelper.safe_get_object(Transfer, transfer_id, 'Transfer')
     if error:
         return error
@@ -412,7 +448,7 @@ def delete_transfer(request, transfer_id):
                 
                 # Step 0: Handle TransferWorkflow if it exists
                 if hasattr(transfer, 'workflow') and transfer.workflow:
-                    logger.info(f"🗑️ DELETING TransferWorkflow: ID {transfer.workflow.id}")
+                    logger.info(f"DELETING TransferWorkflow: ID {transfer.workflow.id}")
                     # Delete workflow - this will cascade delete notifications, edits, etc.
                     transfer.workflow.delete()
                 
@@ -423,7 +459,7 @@ def delete_transfer(request, transfer_id):
                 # Step 2: Delete TRANSFER_OUT transactions (they auto-delete linked TRANSFER_IN via related_transfer)
                 deleted_transfer_in_ids = set()
                 for txn in transfer_out_txns:
-                    logger.info(f"🗑️ DELETING TRANSFER_OUT: {txn.product.name} x{txn.quantity} (ID: {txn.id})")
+                    logger.info(f"DELETING TRANSFER_OUT: {txn.product.name} x{txn.quantity} (ID: {txn.id})")
                     # Track which TRANSFER_IN will be auto-deleted
                     if txn.related_transfer:
                         deleted_transfer_in_ids.add(txn.related_transfer.id)
@@ -436,7 +472,7 @@ def delete_transfer(request, transfer_id):
                         try:
                             # Check if transaction still exists (might have been cascade deleted)
                             if Transaction.objects.filter(id=txn.id).exists():
-                                logger.info(f"🗑️ DELETING REMAINING TRANSFER_IN: {txn.product.name} x{txn.quantity} (ID: {txn.id})")
+                                logger.info(f"DELETING REMAINING TRANSFER_IN: {txn.product.name} x{txn.quantity} (ID: {txn.id})")
                                 txn.delete()
                             else:
                                 logger.info(f"🔍 TRANSFER_IN already deleted: ID {txn.id}")
@@ -463,7 +499,7 @@ def delete_transfer(request, transfer_id):
             with transaction.atomic():
                 # Handle TransferWorkflow if it exists
                 if hasattr(transfer, 'workflow') and transfer.workflow:
-                    logger.info(f"🗑️ DELETING TransferWorkflow: ID {transfer.workflow.id}")
+                    logger.info(f"DELETING TransferWorkflow: ID {transfer.workflow.id}")
                     transfer.workflow.delete()
                     
                 # Delete the transfer

@@ -190,10 +190,10 @@ SILENCED_SYSTEM_CHECKS = ['models.E034']
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'unique-snowflake',
-        'TIMEOUT': 300,  # 5 minutes default timeout
+        'LOCATION': 'vessel_sales_cache',
+        'TIMEOUT': 3600,  # 1 hour default timeout
         'OPTIONS': {
-            'MAX_ENTRIES': 1000,
+            'MAX_ENTRIES': 10000,  # Sufficient for 200 products + vessels + trips
         }
     }
 }

@@ -150,7 +150,7 @@
                                 <td>
                                     <span class="fw-bold po-cost" data-number data-original="{{ po.total_cost|floatformat:3 }}">{{ po.total_cost|floatformat:3 }}</span>
                                     <small class="text-muted"><span data-currency-symbol>JOD</span></small>
-                                    <small class="text-muted d-block">(<span dir="ltr" class="po-items" data-number data-original="{{ po.transaction_count }}">{{ po.transaction_count }}</span> <span data-translate="items">items</span>)</small>
+                                    <small class="text-muted d-block">(<span dir="ltr" class="po-items" data-number data-original="{{ po.item_count }}">{{ po.item_count }}</span> <span data-translate="items">items</span>)</small>
                                 </td>
                                 <td>
                                     {% if po.is_completed %}

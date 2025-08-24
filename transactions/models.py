@@ -294,6 +294,16 @@ class Trip(models.Model):
     is_completed = models.BooleanField(default=False)
     notes = models.TextField(blank=True)
     
+    # Pre-calculated summary fields (for performance)
+    total_revenue = models.DecimalField(
+        max_digits=12, decimal_places=3, default=0,
+        help_text="Pre-calculated total revenue from all sales transactions in this trip"
+    )
+    item_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Pre-calculated count of sales transactions in this trip"
+    )
+    
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -330,26 +340,8 @@ class Trip(models.Model):
     def __str__(self):
         return f"{self.trip_number} - {self.vessel.name} ({self.trip_date})"
     
-    @property
-    def total_revenue(self):
-        """Calculate total revenue from sales transactions"""
-        if hasattr(self, '_prefetched_objects_cache') and 'sales_transactions' in self._prefetched_objects_cache:
-            return sum(
-                tx.unit_price * tx.quantity 
-                for tx in self._prefetched_objects_cache['sales_transactions']
-            )
-        else:
-            return self.sales_transactions.aggregate(
-                total=Sum(F('unit_price') * F('quantity'))
-            )['total'] or 0
-    
-    @property
-    def transaction_count(self):
-        """Count of sales transactions on this trip"""
-        if hasattr(self, '_prefetched_objects_cache') and 'sales_transactions' in self._prefetched_objects_cache:
-            return len(self._prefetched_objects_cache['sales_transactions'])
-        else:
-            return self.sales_transactions.count()
+    # Note: total_revenue and item_count are now database fields for performance
+    # The old @property methods have been replaced with pre-calculated fields
     
     @property
     def unique_products_count(self):
@@ -374,6 +366,16 @@ class PurchaseOrder(models.Model):
     is_completed = models.BooleanField(default=False)
     notes = models.TextField(blank=True)
     
+    # Pre-calculated summary fields (for performance)
+    total_cost = models.DecimalField(
+        max_digits=12, decimal_places=3, default=0,
+        help_text="Pre-calculated total cost of all items in this PO"
+    )
+    item_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Pre-calculated count of items in this PO"
+    )
+    
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -393,26 +395,23 @@ class PurchaseOrder(models.Model):
     def __str__(self):
         return f"{self.po_number} - {self.vessel.name} ({self.po_date})"
     
-    @property
-    def total_cost(self):
-        """Calculate total cost from supply transactions"""
-        if hasattr(self, '_prefetched_objects_cache') and 'supply_transactions' in self._prefetched_objects_cache:
-            return sum(
-                tx.unit_price * tx.quantity 
-                for tx in self._prefetched_objects_cache['supply_transactions']
-            )
-        else:
-            return self.supply_transactions.aggregate(
-                total=Sum(F('unit_price') * F('quantity'))
-            )['total'] or 0
+    @property  
+    def calculated_total_cost(self):
+        """Dynamic calculation of total cost (use for validation/updates)"""
+        return self.supply_transactions.aggregate(
+            total=Sum(F('unit_price') * F('quantity'))
+        )['total'] or 0
     
     @property
-    def transaction_count(self):
-        """Count of supply transactions on this PO"""
-        if hasattr(self, '_prefetched_objects_cache') and 'supply_transactions' in self._prefetched_objects_cache:
-            return len(self._prefetched_objects_cache['supply_transactions'])
-        else:
-            return self.supply_transactions.count()
+    def calculated_item_count(self):
+        """Dynamic calculation of item count (use for validation/updates)"""
+        return self.supply_transactions.count()
+    
+    def update_summary_fields(self):
+        """Update the pre-calculated summary fields"""
+        self.total_cost = self.calculated_total_cost
+        self.item_count = self.calculated_item_count
+        self.save(update_fields=['total_cost', 'item_count'])
     
     @property
     def unique_products_count(self):
@@ -465,6 +464,16 @@ class Transfer(models.Model):
     is_completed = models.BooleanField(default=False)
     notes = models.TextField(blank=True)
     
+    # Pre-calculated summary fields (updated when transfer is completed/modified)
+    total_cost = models.DecimalField(
+        max_digits=10, decimal_places=3, default=0,
+        help_text="Total cost of all transfer items"
+    )
+    item_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of transfer items (TRANSFER_OUT transactions)"
+    )
+    
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -497,33 +506,25 @@ class Transfer(models.Model):
             transaction_type__in=['TRANSFER_OUT', 'TRANSFER_IN']
         )
     
-    @property
-    def total_cost(self):
-        """Calculate total cost from transfer transactions using actual FIFO costs"""
-        if hasattr(self, '_prefetched_objects_cache') and 'transactions' in self._prefetched_objects_cache:
-            # Use TRANSFER_OUT transactions (they have the real costs)
-            return sum(
-                tx.unit_price * tx.quantity 
-                for tx in self._prefetched_objects_cache['transactions']
-                if tx.transaction_type == 'TRANSFER_OUT'
-            )
-        else:
-            return self.transfer_transactions.filter(
-                transaction_type='TRANSFER_OUT'
-            ).aggregate(
-                total=Sum(F('unit_price') * F('quantity'))
-            )['total'] or 0
+    @property  
+    def calculated_total_cost(self):
+        """Dynamic calculation of total cost (use for validation/updates)"""
+        return self.transfer_transactions.filter(
+            transaction_type='TRANSFER_OUT'
+        ).aggregate(
+            total=Sum(F('unit_price') * F('quantity'))
+        )['total'] or 0
     
     @property
-    def transaction_count(self):
-        """Count of items transferred (count TRANSFER_OUT only to avoid double counting)"""
-        if hasattr(self, '_prefetched_objects_cache') and 'transactions' in self._prefetched_objects_cache:
-            return len([
-                tx for tx in self._prefetched_objects_cache['transactions']
-                if tx.transaction_type == 'TRANSFER_OUT'
-            ])
-        else:
-            return self.transfer_transactions.filter(transaction_type='TRANSFER_OUT').count()
+    def calculated_item_count(self):
+        """Dynamic calculation of item count (use for validation/updates)"""
+        return self.transfer_transactions.filter(transaction_type='TRANSFER_OUT').count()
+    
+    def update_summary_fields(self):
+        """Update the pre-calculated summary fields"""
+        self.total_cost = self.calculated_total_cost
+        self.item_count = self.calculated_item_count
+        self.save(update_fields=['total_cost', 'item_count'])
 
     @property
     def unique_products_count(self):
@@ -551,6 +552,16 @@ class WasteReport(models.Model):
     is_completed = models.BooleanField(default=False)
     notes = models.TextField(blank=True)
     
+    # Pre-calculated summary fields (for performance)
+    total_cost = models.DecimalField(
+        max_digits=12, decimal_places=3, default=0,
+        help_text="Pre-calculated total cost of all waste transactions in this report"
+    )
+    item_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Pre-calculated count of waste transactions in this report"
+    )
+    
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -571,25 +582,22 @@ class WasteReport(models.Model):
         return f"{self.report_number} - {self.vessel.name} ({self.report_date})"
     
     @property
-    def total_cost(self):
-        """Calculate total cost from waste transactions using FIFO"""
-        if hasattr(self, '_prefetched_objects_cache') and 'waste_transactions' in self._prefetched_objects_cache:
-            return sum(
-                tx.unit_price * tx.quantity 
-                for tx in self._prefetched_objects_cache['waste_transactions']
-            )
-        else:
-            return self.waste_transactions.aggregate(
-                total=Sum(F('unit_price') * F('quantity'))
-            )['total'] or 0
+    def calculated_total_cost(self):
+        """Dynamic calculation of total cost (use for validation/updates)"""
+        return self.waste_transactions.aggregate(
+            total=Sum(F('unit_price') * F('quantity'))
+        )['total'] or 0
     
     @property
-    def transaction_count(self):
-        """Count of waste transactions in this report"""
-        if hasattr(self, '_prefetched_objects_cache') and 'waste_transactions' in self._prefetched_objects_cache:
-            return len(self._prefetched_objects_cache['waste_transactions'])
-        else:
-            return self.waste_transactions.count()
+    def calculated_item_count(self):
+        """Dynamic calculation of item count (use for validation/updates)"""
+        return self.waste_transactions.count()
+    
+    def update_summary_fields(self):
+        """Update the pre-calculated summary fields"""
+        self.total_cost = self.calculated_total_cost
+        self.item_count = self.calculated_item_count
+        self.save(update_fields=['total_cost', 'item_count'])
     
     @property
     def unique_products_count(self):
@@ -1650,10 +1658,10 @@ class Transaction(models.Model):
 
     def _restore_inventory_for_transfer_out(self):
         """
-        🔄 RESTORE INVENTORY: Handle TRANSFER_OUT deletion with TransferOperation tracking
-        NEW: Uses TransferOperation table for proper cleanup
+        🔄 RESTORE INVENTORY: Handle TRANSFER_OUT deletion with workflow awareness
+        IMPORTANT: Only restore inventory if the transfer was actually confirmed/completed
         """
-        logger.info(f"Restoring inventory for transfer out deletion: {self.product.name}")
+        logger.info(f"Processing TRANSFER_OUT deletion: {self.product.name}")
         
         # Find and update TransferOperation record
         if hasattr(self, 'transfer') and self.transfer:
@@ -1700,7 +1708,21 @@ class Transaction(models.Model):
             except Exception as e:
                 logger.warning(f"Could not delete related transfer: {e}")
         
-        # Restore inventory using the same logic as sales
+        # 🚀 FIX DUPLICATION BUG: Only restore inventory if transfer was confirmed
+        # For pending workflow transfers, inventory was never consumed, so don't restore
+        
+        # Method 1: Check if workflow still exists and is pending
+        if self._is_workflow_transfer_pending():
+            logger.info(f"SKIP RESTORE: Transfer {self.transfer.id} was pending approval - inventory was never consumed")
+            return
+        
+        # Method 2: Check if this was a workflow transfer by notes (workflow might be deleted already)
+        if self.notes and "PENDING_APPROVAL:" in str(self.notes):
+            logger.info(f"SKIP RESTORE: Transaction {self.id} was pending workflow transfer - inventory was never consumed")
+            return
+            
+        # Only restore inventory for confirmed/completed transfers that actually consumed inventory
+        logger.info(f"RESTORE INVENTORY: Transfer {self.transfer.id} was confirmed - restoring consumed inventory")
         self._restore_inventory_for_sale()
 
     def _restore_inventory_for_waste(self):

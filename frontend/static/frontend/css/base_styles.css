@@ -15,8 +15,6 @@
     border: 1px solid rgba(0, 0, 0, 0.08) !important;
 }
 
-
-
 .navbar .dropdown-menu {
     z-index: 1070 !important;
 }
@@ -29,7 +27,6 @@
 .table-responsive {
     z-index: 1010;
 }
-
 
 /* =============================================================================
    🔧 DASHBOARD SPECIFIC STYLES (moved from dashboard.html)

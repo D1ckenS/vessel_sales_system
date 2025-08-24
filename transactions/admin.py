@@ -8,10 +8,10 @@ from .models import InventoryLot, Transaction, Trip, PurchaseOrder, WasteReport,
 
 @admin.register(Trip)
 class TripAdmin(admin.ModelAdmin):
-    list_display = ('trip_number', 'vessel', 'passenger_count', 'trip_date', 'is_completed', 'total_revenue', 'transaction_count', 'created_by', 'created_at')
+    list_display = ('trip_number', 'vessel', 'passenger_count', 'trip_date', 'is_completed', 'total_revenue', 'item_count', 'created_by', 'created_at')
     list_filter = ('vessel', 'trip_date', 'is_completed', 'created_at')
     search_fields = ('trip_number', 'vessel__name', 'notes')
-    readonly_fields = ('created_at', 'updated_at', 'total_revenue', 'transaction_count')
+    readonly_fields = ('created_at', 'updated_at', 'total_revenue', 'item_count')
     
     fieldsets = (
         ('Trip Information', {
@@ -24,7 +24,7 @@ class TripAdmin(admin.ModelAdmin):
             'fields': ('notes',)
         }),
         ('Statistics', {
-            'fields': ('total_revenue', 'transaction_count'),
+            'fields': ('total_revenue', 'item_count'),
             'classes': ('collapse',)
         }),
         ('Metadata', {
@@ -40,15 +40,11 @@ class TripAdmin(admin.ModelAdmin):
 
 @admin.register(WasteReport)
 class WasteReportAdmin(admin.ModelAdmin):
-    list_display = ['report_number', 'vessel', 'report_date', 'is_completed', 'transaction_count', 'total_cost']
+    list_display = ['report_number', 'vessel', 'report_date', 'is_completed', 'item_count', 'total_cost']
     list_filter = ['vessel', 'report_date', 'is_completed']
     search_fields = ['report_number', 'vessel__name']
     ordering = ['-report_date', '-created_at']
-    readonly_fields = ['created_at', 'updated_at', 'transaction_count', 'total_cost']
-    
-    def transaction_count(self, obj):
-        return obj.transaction_count
-    transaction_count.short_description = 'Items'
+    readonly_fields = ['created_at', 'updated_at', 'item_count', 'total_cost']
     
     def total_cost(self, obj):
         return f"{obj.total_cost:.3f} JOD"
@@ -56,10 +52,10 @@ class WasteReportAdmin(admin.ModelAdmin):
     
 @admin.register(PurchaseOrder)
 class PurchaseOrderAdmin(admin.ModelAdmin):
-    list_display = ('po_number', 'vessel', 'po_date', 'is_completed', 'total_cost', 'transaction_count', 'created_by', 'created_at')
+    list_display = ('po_number', 'vessel', 'po_date', 'is_completed', 'total_cost', 'item_count', 'created_by', 'created_at')
     list_filter = ('vessel', 'po_date', 'is_completed', 'created_at')
     search_fields = ('po_number', 'vessel__name', 'notes')
-    readonly_fields = ('created_at', 'updated_at', 'total_cost', 'transaction_count')
+    readonly_fields = ('created_at', 'updated_at', 'total_cost', 'item_count')
     
     fieldsets = (
         ('Purchase Order Information', {
@@ -72,7 +68,7 @@ class PurchaseOrderAdmin(admin.ModelAdmin):
             'fields': ('notes',)
         }),
         ('Statistics', {
-            'fields': ('total_cost', 'transaction_count'),
+            'fields': ('total_cost', 'item_count'),
             'classes': ('collapse',)
         }),
         ('Metadata', {

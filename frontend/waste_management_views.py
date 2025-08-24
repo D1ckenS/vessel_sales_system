@@ -26,22 +26,51 @@ logger = logging.getLogger('frontend')
 def waste_management(request):
     """OPTIMIZED: Waste report management with COUNT-free pagination"""
     
-    # Base queryset with template-required annotations
-    waste_reports = WasteReport.objects.select_related(
-        'vessel', 'created_by'
-    ).prefetch_related(
-        'waste_transactions'
-    ).order_by('-report_date', '-created_at')
+    # 🚀 CACHE: Check for cached waste report list (only when no filters applied)
+    has_filters = any([
+        request.GET.get('search', ''),
+        request.GET.get('vessel', ''),
+        request.GET.get('status', ''),
+        request.GET.get('date_from', ''),
+        request.GET.get('date_to', '')
+    ])
     
-    # Apply all filters using helper with custom field mappings
-    waste_reports = TransactionQueryHelper.apply_common_filters(
-        waste_reports, request,
-        date_field='report_date',        # Waste reports use report_date
-        status_field='is_completed'      # Enable status filtering for waste reports
-    )
+    using_cached_data = False
     
-    # Order for consistent results
-    waste_reports = waste_reports.order_by('-report_date', '-created_at')
+    if not has_filters:
+        cached_waste_list = WasteCacheHelper.get_waste_mgmt_list()
+        
+        if cached_waste_list:
+            logger.debug(f"Cache hit: Waste Management List ({len(cached_waste_list)} waste reports)")
+            waste_reports = cached_waste_list
+            using_cached_data = True
+        else:
+            logger.debug("Cache miss: Building waste management list")
+            
+            # 🚀 OPTIMIZED: Build and cache evaluated list of waste report objects
+            waste_reports = list(WasteReport.objects.select_related(
+                'vessel', 'created_by'
+            ).order_by('-report_date', '-created_at'))
+            
+            # 🚀 CACHE: Store evaluated waste report list for future requests
+            WasteCacheHelper.cache_waste_mgmt_list(waste_reports)
+            logger.debug(f"Cached: Waste Management List ({len(waste_reports)} waste reports) - 1 hour timeout")
+            using_cached_data = True
+    else:
+        # Filters applied - always do fresh query (can't use cache)
+        waste_reports = WasteReport.objects.select_related(
+            'vessel', 'created_by'
+        )
+        
+        # Apply all filters using helper with custom field mappings
+        waste_reports = TransactionQueryHelper.apply_common_filters(
+            waste_reports, request,
+            date_field='report_date',        # Waste reports use report_date
+            status_field='is_completed'      # Enable status filtering for waste reports
+        )
+        
+        # Order for consistent results
+        waste_reports = waste_reports.order_by('-report_date', '-created_at')
     
     # ✅ REPLACE Django Paginator with optimized pagination
     page_number = request.GET.get('page', 1)
@@ -50,20 +79,17 @@ def waste_management(request):
     # Add cost performance class to each waste report (for template)
     waste_reports_list = page_obj.object_list  # Use optimized pagination object list
     
-    # OPTIMIZED: Calculate stats in Python using prefetched data
+    # OPTIMIZED: Calculate stats using pre-calculated fields (NO additional queries)
     total_cost = 0
     completed_count = 0
     total_waste_items = 0
     total_transactions = 0
     
     for waste_report in waste_reports_list:
-        # Calculate cost using prefetched waste_transactions (no additional queries)
-        waste_cost = sum(
-            float(txn.quantity or 0) * float(txn.unit_price or 0)  # ✅ Add float() and handle None
-            for txn in waste_report.waste_transactions.all()
-        )
-        waste_transaction_count = len(waste_report.waste_transactions.all())
-        waste_item_count = sum(float(txn.quantity or 0) for txn in waste_report.waste_transactions.all())  # ✅ Add float()
+        # Use pre-calculated fields instead of manual calculation
+        waste_cost = float(waste_report.total_cost)
+        waste_transaction_count = waste_report.item_count  # Pre-calculated transaction count
+        waste_item_count = waste_report.item_count  # Same as transaction count for waste reports
         
         # Add calculated fields to waste report object for template
         waste_report.annotated_total_cost = waste_cost
@@ -129,10 +155,13 @@ def waste_management(request):
         'waste_reduction_target': max(0, total_waste_items - (total_waste_items * 0.1)),  # 10% reduction target
     }
     
+    all_vessels = VesselCacheHelper.get_all_vessels_basic_data()
+    vessels = [v for v in all_vessels if v.active]
+    
     context = {
         'waste_reports': waste_reports_list,
         'page_obj': page_obj,  # Optimized pagination object
-        'active_vessels': VesselCacheHelper.get_active_vessels(),
+        'active_vessels': vessels,
         'page_title': 'Waste Management',
         'stats': {
             'total_reports': total_reports,
@@ -180,7 +209,7 @@ def edit_waste_report(request, waste_id):
             'is_completed': waste_report.is_completed,
             'vessel_name': waste_report.vessel.name,
             'total_cost': float(waste_report.total_cost),
-            'transaction_count': waste_report.transaction_count,
+            'transaction_count': waste_report.item_count,
         }
         
         waste_items = []

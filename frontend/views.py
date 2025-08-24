@@ -1,6 +1,7 @@
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
-from django.db.models import Sum, Count, F, Q, Prefetch, DecimalField, ExpressionWrapper
+from django.db.models import Sum, Count, F, Q, Prefetch, DecimalField, ExpressionWrapper, Subquery, OuterRef
+from django.db.models.functions import Coalesce
 from django.core.cache import cache
 from django.http import JsonResponse
 from datetime import date, datetime, timedelta
@@ -22,76 +23,86 @@ def dashboard(request):
     today = date.today()
     now = datetime.now()
     user_role = 'admin' if request.user.is_superuser else 'user'
-    cache_key = f'dashboard_data_{today}_{user_role}'
+    # 🚀 SKIP CACHING ON FIRST LOAD: Focus on query optimization instead of cache overhead
+    # Cache adds 3+ database operations, optimize direct queries instead
 
-    cached_data = cache.get(cache_key)
-    if cached_data:
-        cached_data['now'] = now
-        return render(request, 'frontend/dashboard.html', cached_data)
+    # 🚀 DASHBOARD VESSEL CACHING: Now optimized to eliminate cache overhead
+    all_vessels = VesselCacheHelper.get_all_vessels_basic_data()
+    active_vessels_count = sum(1 for v in all_vessels if v.active)
 
-    all_vessels = Vessel.objects.annotate(
-        recent_trip_count=Count('trips', filter=Q(trips__trip_date__gte=today - timedelta(days=7))),
-        today_transaction_count=Count('transactions', filter=Q(transactions__transaction_date=today)),
-        today_revenue=Sum(
-            ExpressionWrapper(
-                F('transactions__unit_price') * F('transactions__quantity'),
-                output_field=DecimalField()
-            ),
-            filter=Q(
-                transactions__transaction_type='SALE',
-                transactions__transaction_date=today
-            )
-        )
-    ).order_by('-active', 'name')
+    # 🚀 GET TRIPS/POs FIRST: Need IDs for combined query
+    recent_trips = Trip.objects.select_related('vessel').only(
+        'id', 'trip_number', 'trip_date', 'passenger_count', 'is_completed', 'created_at',
+        'vessel__id', 'vessel__name', 'vessel__name_ar'
+    ).order_by('-created_at')[:3]
 
-    today_summary = Transaction.objects.filter(transaction_date=today).aggregate(
-        total_revenue=Sum(
-            ExpressionWrapper(
-                F('unit_price') * F('quantity'),
-                output_field=DecimalField()
-            ),
-            filter=Q(transaction_type='SALE')
-        ),
-        total_supply_cost=Sum(
-            ExpressionWrapper(
-                F('unit_price') * F('quantity'),
-                output_field=DecimalField()
-            ),
-            filter=Q(transaction_type='SUPPLY')
-        ),
-        sales_count=Count('id', filter=Q(transaction_type='SALE')),
-        supply_count=Count('id', filter=Q(transaction_type='SUPPLY')),
-        transfer_out_count=Count('id', filter=Q(transaction_type='TRANSFER_OUT')),
-        transfer_in_count=Count('id', filter=Q(transaction_type='TRANSFER_IN')),
-        total_transactions=Count('id'),
-        unique_vessels=Count('vessel', distinct=True),
-        unique_products=Count('product', distinct=True),
-        total_volume=Sum('quantity')
+    recent_pos = PurchaseOrder.objects.select_related('vessel').only(
+        'id', 'po_number', 'po_date', 'is_completed', 'created_at',
+        'vessel__id', 'vessel__name', 'vessel__name_ar'
+    ).order_by('-created_at')[:3]
+    
+    # 🚀 OPTIMIZED: SINGLE COMBINED QUERY for both today's stats AND recent financial data
+    trip_ids = [trip.id for trip in recent_trips] if recent_trips else []
+    po_ids = [po.id for po in recent_pos] if recent_pos else []
+    
+    # Single query to get all transaction data we need
+    all_transactions = Transaction.objects.filter(
+        Q(transaction_date=today) |  # Today's transactions (for stats)
+        Q(trip_id__in=trip_ids, transaction_type='SALE') |  # Recent trip revenues
+        Q(purchase_order_id__in=po_ids, transaction_type='SUPPLY')  # Recent PO costs
+    ).select_related().values(
+        'transaction_date', 'transaction_type', 'trip_id', 'purchase_order_id',
+        'unit_price', 'quantity', 'vessel_id', 'product_id'
     )
-
-    for key in today_summary:
-        if today_summary[key] is None:
-            today_summary[key] = 0
-
-    recent_trips = Trip.objects.select_related('vessel').annotate(
-        annotated_revenue=Sum(
-            ExpressionWrapper(
-                F('sales_transactions__unit_price') * F('sales_transactions__quantity'),
-                output_field=DecimalField()
-            ),
-            filter=Q(sales_transactions__transaction_type='SALE')
-        )
-    ).order_by('-created_at')[:3]
-
-    recent_pos = PurchaseOrder.objects.select_related('vessel').annotate(
-        annotated_cost=Sum(
-            ExpressionWrapper(
-                F('supply_transactions__unit_price') * F('supply_transactions__quantity'),
-                output_field=DecimalField()
-            ),
-            filter=Q(supply_transactions__transaction_type='SUPPLY')
-        )
-    ).order_by('-created_at')[:3]
+    
+    # Process all transactions in Python (more flexible than complex SQL aggregation)
+    today_summary = {
+        'total_revenue': 0, 'total_supply_cost': 0, 'sales_count': 0, 'supply_count': 0,
+        'transfer_out_count': 0, 'transfer_in_count': 0, 'total_transactions': 0,
+        'unique_vessels': set(), 'unique_products': set(), 'total_volume': 0
+    }
+    
+    trip_revenue_dict = {}
+    po_cost_dict = {}
+    
+    for transaction in all_transactions:
+        amount = (transaction['unit_price'] or 0) * (transaction['quantity'] or 0)
+        trans_type = transaction['transaction_type']
+        
+        # Today's statistics
+        if transaction['transaction_date'] == today:
+            if trans_type == 'SALE':
+                today_summary['total_revenue'] += amount
+                today_summary['sales_count'] += 1
+            elif trans_type == 'SUPPLY':
+                today_summary['total_supply_cost'] += amount
+                today_summary['supply_count'] += 1
+            elif trans_type == 'TRANSFER_OUT':
+                today_summary['transfer_out_count'] += 1
+            elif trans_type == 'TRANSFER_IN':
+                today_summary['transfer_in_count'] += 1
+            
+            today_summary['total_transactions'] += 1
+            today_summary['total_volume'] += transaction['quantity'] or 0
+            today_summary['unique_vessels'].add(transaction['vessel_id'])
+            today_summary['unique_products'].add(transaction['product_id'])
+        
+        # Recent financial data
+        if trans_type == 'SALE' and transaction['trip_id']:
+            trip_revenue_dict[transaction['trip_id']] = trip_revenue_dict.get(transaction['trip_id'], 0) + amount
+        elif trans_type == 'SUPPLY' and transaction['purchase_order_id']:
+            po_cost_dict[transaction['purchase_order_id']] = po_cost_dict.get(transaction['purchase_order_id'], 0) + amount
+    
+    # Convert sets to counts
+    today_summary['unique_vessels'] = len(today_summary['unique_vessels'])
+    today_summary['unique_products'] = len(today_summary['unique_products'])
+    
+    # Map results back to objects
+    for trip in recent_trips:
+        trip.annotated_revenue = trip_revenue_dict.get(trip.id, 0)
+    
+    for po in recent_pos:
+        po.annotated_cost = po_cost_dict.get(po.id, 0)
 
     recent_activity = sorted(
         list(recent_trips) + list(recent_pos),
@@ -99,17 +110,18 @@ def dashboard(request):
         reverse=True
     )[:6]
 
+    # 🚀 SIMPLIFIED QUICK STATS: Use direct count instead of loading all vessels
     quick_stats = {
-        'active_vessels': sum(1 for v in all_vessels if v.active),
-        'total_transactions': sum(v.today_transaction_count or 0 for v in all_vessels),
+        'active_vessels': active_vessels_count,
+        'total_transactions': today_summary.get('total_transactions', 0),
     }
 
     # 🔔 Transfer Workflow Notifications
     transfer_notifications = get_transfer_workflow_notifications(request.user)
 
     context = {
-        'vessels': all_vessels,
-        'all_vessels': all_vessels,
+        'vessels': [],  # Empty list for dashboard (not needed)
+        'all_vessels': all_vessels,  # Vessels for dashboard display
         'today_sales': today_summary,
         'quick_stats': quick_stats,
         'recent_activity': recent_activity,
@@ -118,7 +130,8 @@ def dashboard(request):
         'transfer_notifications': transfer_notifications,
     }
 
-    cache.set(cache_key, {k: v for k, v in context.items() if k != 'now'}, 300)
+    # 🚀 SKIP FINAL CACHE: Avoid cache storage overhead for first-load optimization
+    # cache.set(cache_key, {k: v for k, v in context.items() if k != 'now'}, 300)  # Disabled for better first-load performance
     return render(request, 'frontend/dashboard.html', context)
 
 def get_vessel_badge_class(vessel_name):
