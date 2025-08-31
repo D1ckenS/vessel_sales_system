@@ -266,7 +266,7 @@
                             </div>
                         </div>
                         {% for vessel in touristic_vessels %}
-                        {% with key=vessel.id|add:"_"|add:product.id %}
+                        {% with key=vessel.id|make_key:product.id %}
                         <div class="pricing-cell {% if existing_prices|get_item:key %}has-custom-price{% else %}has-default-price{% endif %}" 
                              id="cell_{{ vessel.id }}_{{ product.id }}">
                             <input type="number" 
@@ -275,17 +275,18 @@
                                    data-vessel-id="{{ vessel.id }}"
                                    data-product-id="{{ product.id }}"
                                    data-default-price="{{ product.selling_price }}"
-                                   value="{% if existing_prices|get_item:key %}{{ existing_prices|get_item:key.price|floatformat:3 }}{% else %}{{ product.selling_price|floatformat:3 }}{% endif %}"
+                                   value="{% if existing_prices|get_price:key %}{{ existing_prices|get_price:key|floatformat:3 }}{% else %}{{ product.selling_price|floatformat:3 }}{% endif %}"
                                    step="0.001"
                                    min="0.001"
-                                   onchange="updatePrice(this)"
                                    placeholder="{{ product.selling_price|floatformat:3 }}">
-                            {% if existing_prices|get_item:key %}
-                            <span class="price-difference diff-{% if existing_prices|get_item:key.price > product.selling_price %}positive{% else %}negative{% endif %}"
+                            {% with custom_price=existing_prices|get_price:key %}
+                            {% if custom_price %}
+                            <span class="price-difference diff-{% if custom_price > product.selling_price %}positive{% else %}negative{% endif %}"
                                   id="diff_{{ vessel.id }}_{{ product.id }}">
-                                {% widthratio existing_prices|get_item:key.price product.selling_price 100|floatformat:0|add:"-100" %}%
+                                {% widthratio custom_price product.selling_price 100|floatformat:0|add:"-100" %}%
                             </span>
                             {% endif %}
+                            {% endwith %}
                         </div>
                         {% endwith %}
                         {% endfor %}

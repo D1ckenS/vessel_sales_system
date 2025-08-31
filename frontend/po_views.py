@@ -38,15 +38,12 @@ def po_management(request):
         request.GET.get('status')
     ])
     
-    cached_po_list = None  # Track whether we used cache
-    
     if not has_filters:
         cached_po_list = POCacheHelper.get_po_mgmt_list()
         
         if cached_po_list:
             logger.debug(f"🚀 Cache hit: PO Management List ({len(cached_po_list)} POs)")
             purchase_orders = cached_po_list
-            using_cached_data = True
         else:
             logger.debug("Cache miss: Building PO management list")
             
@@ -66,7 +63,6 @@ def po_management(request):
             # 🚀 CACHE: Store evaluated PO list for future requests
             POCacheHelper.cache_po_mgmt_list(purchase_orders)
             logger.debug(f"🚀 Cached: PO Management List ({len(purchase_orders)} POs) - 1 hour timeout")
-            using_cached_data = True
     else:
         # Filters applied - always do fresh query (can't use cache)
         purchase_orders = PurchaseOrder.objects.select_related(
@@ -79,20 +75,16 @@ def po_management(request):
             'vessel__id', 'vessel__name', 'vessel__name_ar', 'vessel__has_duty_free', 'vessel__active',
             # User fields
             'created_by__id', 'created_by__username'
-        ).order_by('-po_date', '-created_at')
-        using_cached_data = False
-    
-    # Apply filters only if we're not using cached list data
-    if not using_cached_data:
+        )
+        
         # Apply all filters using helper with custom field mappings
         purchase_orders = TransactionQueryHelper.apply_common_filters(
             purchase_orders, request,
             date_field='po_date',             # POs use po_date not transaction_date
             status_field='is_completed'       # Enable status filtering for POs
         )
-    
-    # Order for consistent results (only if not already a list)
-    if not isinstance(purchase_orders, list):
+        
+        # Order for consistent results
         purchase_orders = purchase_orders.order_by('-po_date', '-created_at')
     
     # 🚀 OPTIMIZED: Use COUNT-free pagination for better performance

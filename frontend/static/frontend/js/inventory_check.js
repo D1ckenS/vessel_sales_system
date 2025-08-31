@@ -1,10 +1,13 @@
-( function () {
-    window.getCsrfToken();
-// Global state
-let currentVessel = null;
-let currentInventoryData = [];
-let filteredData = [];
-let searchTimeout = null;
+(function () {
+    'use strict';
+    
+    // REFACTORED: Centralized state management
+    const state = {
+        currentVessel: null,
+        currentInventoryData: [],
+        filteredData: [],
+        searchTimeout: null
+    };
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
@@ -29,7 +32,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Update on language change with inventory-specific handling
     window.addEventListener('languageChanged', function() {
-        console.log('📢 Inventory: Received languageChanged event');
         updateInventorySpecificTranslations();
     });
 
@@ -98,7 +100,7 @@ function switchVessel(vesselId, vesselNameEn, vesselNameAr, hasDutyFree) {
     clearFilters();
     
     // Update vessel info with current language
-    currentVessel = {
+    state.currentVessel = {
         id: vesselId,
         name: vesselNameEn,
         name_ar: vesselNameAr || vesselNameEn,
@@ -168,7 +170,7 @@ function updateVesselNameDisplay(elementId, enName, arName) {
 }
 
 function loadInventoryData() {
-    if (!currentVessel) {
+    if (!state.currentVessel) {
         alertTranslated('please_select_vessel');
         return;
     }
@@ -195,24 +197,20 @@ function loadInventoryData() {
             'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || window.getCsrfToken(),
         },
         body: JSON.stringify({
-            vessel_id: currentVessel.id,
+            vessel_id: state.currentVessel.id,
             search: searchTerm,
             stock_filter: stockFilter
         })
     })
     .then(response => {
-        console.log('Response status:', response.status);
-        console.log('Response headers:', response.headers);
         return response.text(); // Get as text first to see raw response
     })
     .then(responseText => {
-        console.log('Raw response:', responseText);
         try {
             const data = JSON.parse(responseText);
-            console.log('Parsed data:', data);
             if (data.success) {
-                currentInventoryData = data.inventory_data;
-                filteredData = [...currentInventoryData];
+                state.currentInventoryData = data.inventory_data;
+                state.filteredData = [...state.currentInventoryData];
                 updateInventoryDisplay(data);
             } else {
                 console.error('Server returned error:', data.error);
@@ -256,7 +254,7 @@ function updateInventoryTable() {
     const tbody = document.getElementById('inventoryTableBody');
     const tableStats = document.getElementById('tableStats');
     
-    if (filteredData.length === 0) {
+    if (state.filteredData.length === 0) {
         tbody.innerHTML = `
             <tr>
                 <td colspan="6" class="text-center text-muted py-4">
@@ -271,7 +269,7 @@ function updateInventoryTable() {
         return;
     }
     
-    tbody.innerHTML = filteredData.map(item => `
+    tbody.innerHTML = state.filteredData.map(item => `
         <tr ${item.stock_status === 'low' ? 'class="table-warning"' : item.stock_status === 'out' ? 'class="table-danger"' : ''}>
             <td>
                 <div>
@@ -312,14 +310,6 @@ function updateInventoryTable() {
                     <button class="btn btn-outline-info" onclick="viewDetails('${item.product_id}', '${item.vessel_id}')" data-translate="view_details" title="View Details">
                         <i class="bi bi-eye"></i>
                     </button>
-                    ${item.stock_status !== 'out' ? 
-                        `<button class="btn btn-outline-warning" onclick="quickTransfer('${item.product_id}', '${item.vessel_name.toLowerCase()}')" data-translate="quick_transfer" title="Quick Transfer">
-                            <i class="bi bi-arrow-right"></i>
-                         </button>` :
-                        `<button class="btn btn-danger" onclick="urgentRestock('${item.product_id}', '${item.vessel_name.toLowerCase()}')" data-translate="urgent_restock" title="Urgent Restock">
-                            <i class="bi bi-exclamation-triangle"></i>
-                         </button>`
-                    }
                 </div>
             </td>
         </tr>
@@ -331,9 +321,9 @@ function updateInventoryTable() {
     const hasFilters = searchTerm || stockFilter;
     
     tableStats.innerHTML = `
-        <span data-translate="showing">Showing</span> <span data-number data-original="${filteredData.length}">${filteredData.length}</span> <span data-translate="of">of</span> <span data-number data-original="${currentInventoryData.length}">${currentInventoryData.length}</span> <span data-translate="products">products</span>
+        <span data-translate="showing">Showing</span> <span data-number data-original="${state.filteredData.length}">${state.filteredData.length}</span> <span data-translate="of">of</span> <span data-number data-original="${state.currentInventoryData.length}">${state.currentInventoryData.length}</span> <span data-translate="products">products</span>
         ${hasFilters ? '(<span dir="ltr" data-translate="filtered">filtered</span>)' : ''}
-        <span data-translate="on">on</span> ${getVesselName(currentVessel)}
+        <span data-translate="on">on</span> ${getVesselName(state.currentVessel)}
         ${hasFilters ? `<button class="btn btn-outline-secondary btn-sm ms-2" onclick="clearFilters()">
             <i class="bi bi-x-circle"></i> <span data-translate="clear_filters">Clear Filters</span>
         </button>` : ''}
@@ -355,8 +345,8 @@ function updateInventoryTable() {
 
 function handleSearchInput() {
     // Debounce search input
-    clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(() => {
+    clearTimeout(state.searchTimeout);
+    state.searchTimeout = setTimeout(() => {
         applyFilters();
     }, 300);
 }
@@ -386,7 +376,7 @@ function applyFilters() {
     const searchTerm = document.getElementById('productSearch').value.trim().toLowerCase();
     const stockFilter = document.getElementById('stockFilterInput').value;
     
-    filteredData = currentInventoryData.filter(item => {
+    state.filteredData = state.currentInventoryData.filter(item => {
         // Apply search filter
         let matchesSearch = true;
         if (searchTerm) {
@@ -423,8 +413,8 @@ function clearFilters() {
         defaultText: '<span data-translate="all_stock_levels">All Stock Levels</span>'
     });
     
-    if (currentInventoryData.length > 0) {
-        filteredData = [...currentInventoryData];
+    if (state.currentInventoryData.length > 0) {
+        state.filteredData = [...state.currentInventoryData];
         updateInventoryTable();
     }
 }
@@ -556,23 +546,6 @@ function viewDetails(productId, vesselId) {
         });
 }
 
-function quickTransfer(productId, fromVessel) {
-  const transferUrl = window.URLS.transferEntry;
-  window.location.href = `${transferUrl}?product=${productId}&from=${fromVessel}`;
-}
-
-function urgentRestock(productId, vessel) {
-  if (
-    confirmTranslated('urgent_restock_needed', {
-      productId,
-      vessel,
-      message: 'redirect_supply_entry'
-    })
-  ) {
-    window.location.href = window.URLS.supplyEntry;
-  }
-}
-
 function exportInventoryData() {
     // Get current filters
     const stockFilter = document.getElementById('stockFilterInput')?.value || '';
@@ -584,13 +557,13 @@ function exportInventoryData() {
     
     // Extract vessel ID properly
     let vesselId;
-    if (currentVessel) {
-        if (typeof currentVessel === 'object' && currentVessel.id) {
-            vesselId = currentVessel.id;
-        } else if (typeof currentVessel === 'string' || typeof currentVessel === 'number') {
-            vesselId = currentVessel;
+    if (state.currentVessel) {
+        if (typeof state.currentVessel === 'object' && state.currentVessel.id) {
+            vesselId = state.currentVessel.id;
+        } else if (typeof state.currentVessel === 'string' || typeof state.currentVessel === 'number') {
+            vesselId = state.currentVessel;
         } else {
-            console.error('Invalid currentVessel format:', currentVessel);
+            console.error('Invalid currentVessel format:', state.currentVessel);
             alertTranslated('please_select_vessel');
             return;
         }
@@ -622,8 +595,6 @@ window.selectStockFilter = selectStockFilter;
 window.loadInventoryData = loadInventoryData;
 window.handleSearchInput = handleSearchInput;
 window.viewDetails = viewDetails;
-window.quickTransfer = quickTransfer;
-window.urgentRestock = urgentRestock;
 window.exportInventoryData = exportInventoryData;
 window.showComingSoon = showComingSoon;
 window.printInventory = printInventory;

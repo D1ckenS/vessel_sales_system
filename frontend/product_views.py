@@ -174,8 +174,23 @@ def product_list_view(request):
             inventory_status, inventory_class = 'low', 'danger'
         else:
             inventory_status, inventory_class = 'out', 'secondary'
-        pricing_completion = 100.0 if product.is_duty_free else 0.0
-        needs_pricing = not product.is_duty_free
+        # Calculate vessel pricing info for general products
+        if product.is_duty_free:
+            pricing_completion = 100.0
+            needs_pricing = False
+            vessel_prices_count = 0
+            has_vessel_pricing = False
+        else:
+            # Get vessel pricing count for this product
+            vessel_prices_count = VesselProductPrice.objects.filter(
+                product=product,
+                vessel__active=True,
+                vessel__has_duty_free=False
+            ).count()
+            
+            pricing_completion = (vessel_prices_count / max(touristic_vessels_count, 1)) * 100
+            needs_pricing = vessel_prices_count < touristic_vessels_count
+            has_vessel_pricing = vessel_prices_count > 0
         
         products_with_info.append({
             'id': product.id,
@@ -195,11 +210,11 @@ def product_list_view(request):
             'pricing_completion': pricing_completion,
             'needs_pricing': needs_pricing,
             'inventory_value': 0.0,  # Skip calculation
-            'vessel_pricing_count': 0,  # Skip calculation
+            'vessel_pricing_count': vessel_prices_count,  # FIXED: Calculate actual count
             'vessel_pricing_info': {
-                'has_vessel_pricing': False,
-                'vessel_prices_count': 0,
-                'missing_prices_count': touristic_vessels_count,
+                'has_vessel_pricing': has_vessel_pricing,
+                'vessel_prices_count': vessel_prices_count,
+                'missing_prices_count': touristic_vessels_count - vessel_prices_count,
                 'pricing_completion': pricing_completion,
                 'total_touristic_vessels': touristic_vessels_count,
             }

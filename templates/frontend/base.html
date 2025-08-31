@@ -35,7 +35,7 @@
     <nav class="navbar navbar-expand-lg">
         <div class="container">
             <a class="navbar-brand" href="{% url 'frontend:dashboard' %}">
-                <i class="bi bi-gear-wide-connected"></i> Vessel Sales System
+                <i class="bi bi-gear-wide-connected"></i><span data-translate="vessel_sales_system"> Vessel Sales System</span>
             </a>
             
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -242,6 +242,10 @@
 
     <!-- Custom Scripts -->
     <script src="{% static 'frontend/js/translations.js' %}"></script>
+    <!-- Utility Classes (load before base_scripts.js) -->
+    <script src="{% static 'frontend/js/utils/PageManager.js' %}"></script>
+    <script src="{% static 'frontend/js/utils/DropdownManager.js' %}"></script>
+    <script src="{% static 'frontend/js/utils/DataTableManager.js' %}"></script>
     <script src="{% static 'frontend/js/base_scripts.js' %}"></script>
     
     {% block extra_js %}{% endblock %}

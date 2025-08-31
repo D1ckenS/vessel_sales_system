@@ -35,15 +35,12 @@ def waste_management(request):
         request.GET.get('date_to', '')
     ])
     
-    using_cached_data = False
-    
     if not has_filters:
         cached_waste_list = WasteCacheHelper.get_waste_mgmt_list()
         
         if cached_waste_list:
             logger.debug(f"Cache hit: Waste Management List ({len(cached_waste_list)} waste reports)")
             waste_reports = cached_waste_list
-            using_cached_data = True
         else:
             logger.debug("Cache miss: Building waste management list")
             
@@ -55,7 +52,6 @@ def waste_management(request):
             # 🚀 CACHE: Store evaluated waste report list for future requests
             WasteCacheHelper.cache_waste_mgmt_list(waste_reports)
             logger.debug(f"Cached: Waste Management List ({len(waste_reports)} waste reports) - 1 hour timeout")
-            using_cached_data = True
     else:
         # Filters applied - always do fresh query (can't use cache)
         waste_reports = WasteReport.objects.select_related(

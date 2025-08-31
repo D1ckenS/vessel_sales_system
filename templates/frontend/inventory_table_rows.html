@@ -39,15 +39,6 @@
             <button class="btn btn-outline-info" onclick="viewDetails('{{ item.product_id }}', '{{ item.vessel_id }}')" title="{% trans 'View Details' %}">
                 <i class="bi bi-eye"></i>
             </button>
-            {% if item.stock_status != 'out' %}
-            <button class="btn btn-outline-warning" onclick="quickTransfer('{{ item.product_id }}', '{{ item.vessel_name|lower }}')" title="{% trans 'Quick Transfer' %}">
-                <i class="bi bi-arrow-right"></i>
-            </button>
-            {% else %}
-            <button class="btn btn-danger" onclick="urgentRestock('{{ item.product_id }}', '{{ item.vessel_name|lower }}')" title="{% trans 'Urgent Restock' %}">
-                <i class="bi bi-exclamation-triangle"></i>
-            </button>
-            {% endif %}
         </div>
     </td>
 </tr>

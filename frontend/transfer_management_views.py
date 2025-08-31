@@ -56,15 +56,12 @@ def transfer_management(request):
     
     logger.debug(f"TRANSFER MGMT DEBUG - Filters detected: has_filters={has_filters}")
     
-    using_cached_data = False
-    
     if not has_filters:
         cached_transfer_list = TransferCacheHelper.get_transfer_mgmt_list()
         
         if cached_transfer_list:
             logger.debug(f"CACHE HIT: Transfer Management List ({len(cached_transfer_list)} transfers) - NO QUERY NEEDED")
             transfers = cached_transfer_list
-            using_cached_data = True
         else:
             logger.debug("CACHE MISS: Building and caching transfer list")
             
@@ -76,7 +73,6 @@ def transfer_management(request):
             # CACHE: Store evaluated transfer list for future requests
             TransferCacheHelper.cache_transfer_mgmt_list(transfers)
             logger.debug(f"CACHED: Transfer Management List ({len(transfers)} transfers)")
-            # using_cached_data stays False for cache miss case
     
     # Handle filtering when needed
     if has_filters:

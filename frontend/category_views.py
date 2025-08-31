@@ -12,8 +12,8 @@ def category_management(request):
     """Category management interface"""
     
     categories = Category.objects.annotate(
-        product_count=Count('product'),
-        active_product_count=Count('product', filter=Q(product__active=True))
+        product_count=Count('products'),
+        active_product_count=Count('products', filter=Q(products__active=True))
     ).order_by('name')
     
     context = {
@@ -105,7 +105,7 @@ def delete_category(request, category_id):
             category = get_object_or_404(Category, id=category_id)
             
             # Check if category has products
-            if category.product_set.exists():
+            if category.products.exists():
                 BilingualMessages.error(request, 'category_has_products', name=category.name)
             else:
                 category_name = category.name

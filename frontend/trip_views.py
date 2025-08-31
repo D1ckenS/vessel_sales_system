@@ -46,15 +46,12 @@ def trip_management(request):
         min_revenue
     ])
     
-    using_cached_data = False
-    
     if not has_filters:
         cached_trip_list = TripCacheHelper.get_trip_mgmt_list()
         
         if cached_trip_list:
             logger.debug(f"Cache hit: Trip Management List ({len(cached_trip_list)} trips)")
             trips_query = cached_trip_list
-            using_cached_data = True
         else:
             logger.debug("Cache miss: Building trip management list")
             
@@ -74,7 +71,6 @@ def trip_management(request):
             # 🚀 CACHE: Store evaluated trip list for future requests
             TripCacheHelper.cache_trip_mgmt_list(trips_query)
             logger.debug(f"Cached: Trip Management List ({len(trips_query)} trips) - 30 min timeout")
-            using_cached_data = True
     else:
         # Filters applied - always do fresh query (can't use cache)
         trips_query = Trip.objects.select_related(
@@ -87,10 +83,8 @@ def trip_management(request):
             'vessel__id', 'vessel__name', 'vessel__name_ar', 'vessel__has_duty_free', 'vessel__active',
             # User fields
             'created_by__id', 'created_by__username'
-        ).order_by('-trip_date', '-created_at')
-    
-    # Apply filters only if we're not using cached list data
-    if not using_cached_data:
+        )
+        
         # Apply filters
         if vessel_filter:
             trips_query = trips_query.filter(vessel_id=vessel_filter)
@@ -111,9 +105,8 @@ def trip_management(request):
             except ValueError:
                 pass
         
-        # Order for consistent results (only if not already a list)
-        if not isinstance(trips_query, list):
-            trips_query = trips_query.order_by('-trip_date', '-created_at')
+        # Order for consistent results
+        trips_query = trips_query.order_by('-trip_date', '-created_at')
     
     # 🚀 OPTIMIZED: Use COUNT-free pagination for better performance
     page_number = request.GET.get('page', 1)
